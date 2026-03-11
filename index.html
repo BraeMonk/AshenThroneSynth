@@ -490,50 +490,48 @@ canvas {
   <div class="panel">
     <div class="panel-title">Floor Depth</div>
 
-```
-<div class="floor-section">
-  <div class="floor-label">
-    <div>
-      <div class="name">Void Floor</div>
-      <div class="value" id="floorNum">1</div>
+    <div class="floor-section">
+      <div class="floor-label">
+        <div>
+          <div class="name">Void Floor</div>
+          <div class="value" id="floorNum">1</div>
+        </div>
+        <div class="zone-name" id="zoneName">Ashen Fields</div>
+      </div>
+      <input type="range" id="floorSlider" min="1" max="99" value="1"/>
+      <div class="zone-bar" id="zoneBar"></div>
     </div>
-    <div class="zone-name" id="zoneName">Ashen Fields</div>
-  </div>
-  <input type="range" id="floorSlider" min="1" max="99" value="1"/>
-  <div class="zone-bar" id="zoneBar"></div>
-</div>
 
-<div class="panel-title">Composition Layers</div>
+    <div class="panel-title">Composition Layers</div>
 
-<div class="layers" id="layerPills">
-  <div class="layer-pill drone" id="pill-drone">Drone</div>
-  <div class="layer-pill perc" id="pill-perc">Percussion</div>
-  <div class="layer-pill bass" id="pill-bass">Bass</div>
-  <div class="layer-pill melody" id="pill-melody">Melody</div>
-  <div class="layer-pill choir" id="pill-choir">Choir</div>
-  <div class="layer-pill chaos" id="pill-chaos">Chaos</div>
-</div>
+    <div class="layers" id="layerPills">
+      <div class="layer-pill drone" id="pill-drone">Drone</div>
+      <div class="layer-pill perc" id="pill-perc">Percussion</div>
+      <div class="layer-pill bass" id="pill-bass">Bass</div>
+      <div class="layer-pill melody" id="pill-melody">Melody</div>
+      <div class="layer-pill choir" id="pill-choir">Choir</div>
+      <div class="layer-pill chaos" id="pill-chaos">Chaos</div>
+    </div>
 
-<div class="toggles">
-  <button class="toggle-btn active" id="btn-drone" onclick="toggleLayer('drone')">⬛ Drone</button>
-  <button class="toggle-btn" id="btn-perc" onclick="toggleLayer('perc')">🥁 Percussion</button>
-  <button class="toggle-btn" id="btn-bass" onclick="toggleLayer('bass')">〰 Bass</button>
-  <button class="toggle-btn" id="btn-melody" onclick="toggleLayer('melody')">♪ Melody</button>
-  <button class="toggle-btn" id="btn-choir" onclick="toggleLayer('choir')">🎼 Choir</button>
-  <button class="toggle-btn boss-btn" id="btn-boss" onclick="toggleBoss()">⚡ Boss Mode</button>
-</div>
+    <div class="toggles">
+      <button class="toggle-btn active" id="btn-drone" onclick="toggleLayer('drone')">⬛ Drone</button>
+      <button class="toggle-btn" id="btn-perc" onclick="toggleLayer('perc')">🥁 Percussion</button>
+      <button class="toggle-btn" id="btn-bass" onclick="toggleLayer('bass')">〰 Bass</button>
+      <button class="toggle-btn" id="btn-melody" onclick="toggleLayer('melody')">♪ Melody</button>
+      <button class="toggle-btn" id="btn-choir" onclick="toggleLayer('choir')">🎼 Choir</button>
+      <button class="toggle-btn boss-btn" id="btn-boss" onclick="toggleBoss()">⚡ Boss Mode</button>
+    </div>
 
-<button class="play-btn" id="playBtn" onclick="togglePlay()">
-  ▶ &nbsp; Invoke the Void
-</button>
+    <button class="play-btn" id="playBtn" onclick="togglePlay()">
+      ▶ &nbsp; Invoke the Void
+    </button>
 
-<div class="visualizer-wrap">
-  <canvas id="viz" height="80"></canvas>
-</div>
+    <div class="visualizer-wrap">
+      <canvas id="viz" height="80"></canvas>
+    </div>
 
-<div class="status" id="status">Awaiting invocation...</div>
-```
-
+    <div class="status" id="status">Awaiting invocation...</div>
+  
   </div>
 
   <!-- Record panel -->
