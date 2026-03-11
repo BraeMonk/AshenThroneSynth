@@ -540,8 +540,9 @@
 
 <script>
 // ============================================================
-// ASHEN THRONE ADAPTIVE MUSIC SYNTHESIZER
-// Web Audio API procedural gothic dungeon music
+// ASHEN THRONE ADAPTIVE MUSIC SYNTHESIZER v2
+// Per-zone presets: unique timbre, scale mode, percussion pattern,
+// filter character, LFO speeds per zone
 // ============================================================
 
 let ctx = null;
@@ -553,23 +554,174 @@ let isRecording = false;
 let mediaRecorder = null;
 let recordedChunks = [];
 
-// Layer state
 const layers = { drone: true, perc: false, bass: false, melody: false, choir: false };
-
-// Scheduled node refs for cleanup
 let activeNodes = [];
 let scheduledTimers = [];
 
-// Floor → zone mapping
+// ============================================================
+// ZONE PRESETS — full sonic identity per zone
+// ============================================================
 const ZONES = [
-  { name: "Ashen Fields",    range: [1,5],   color: "#8b3a3a", bpm: 60  },
-  { name: "Rotwood Forest",  range: [6,10],  color: "#5a4a2a", bpm: 68  },
-  { name: "Catacombs Deep",  range: [11,18], color: "#3a3a5a", bpm: 76  },
-  { name: "Shadowmere",      range: [19,26], color: "#4a2a6a", bpm: 84  },
-  { name: "Sorcerer's Veil", range: [27,34], color: "#2a4a6a", bpm: 92  },
-  { name: "Obsidian Keep",   range: [35,42], color: "#6a2a4a", bpm: 100 },
-  { name: "Void Spire",      range: [43,50], color: "#5a2a8a", bpm: 108 },
-  { name: "Infernal Core",   range: [51,99], color: "#8a1a1a", bpm: 116 },
+  {
+    name: "Ashen Fields", range: [1,5], color: "#8b3a3a", bpm: 58,
+    root: 41.2,  // E1 — open, hollow
+    scale: [1, 1.0595, 1.1892, 1.3348, 1.4983, 1.5874, 1.7818], // Aeolian (natural minor)
+    droneWave: 'sine',
+    droneFilterFreq: 220, droneFilterQ: 1.2,
+    droneLfoRate: 0.04, droneLfoDepth: 80,
+    droneAmpLfo: 0.06,
+    kickFreq: 52, kickDecay: 0.55,   // deep war drum
+    snareDecay: 0.18, snareFilterFreq: 900,
+    kickPattern:  [1,0,0,0,0,0,1,0],  // sparse, doom-like
+    snarePattern: [0,0,0,0,1,0,0,0],
+    hihatPattern: [0,0,0,0,0,0,0,0],  // no hihat
+    bassWave: 'sine', bassFilterFreq: 180, bassPattern: [0,0,0,4,0,0,2,0],
+    melodyWave: 'triangle', melodyOctave: 1, melodySkip: 0.35,
+    melodyPatterns: [[0,2,0,3,2,0,4,2],[0,4,3,2,0,2,3,4]],
+    choirFormants: [700, 1100, 2200], choirVibRate: 3.5, choirVibDepth: 2,
+    vizR: 139, vizG: 58, vizB: 58,
+    desc: "Sparse. Foreboding. Distant war drums echo across ash."
+  },
+  {
+    name: "Rotwood Forest", range: [6,10], color: "#5a4a2a", bpm: 66,
+    root: 46.2,  // Bb1 — murky
+    scale: [1, 1.0595, 1.1225, 1.3348, 1.4983, 1.5874, 1.6818], // Locrian-ish
+    droneWave: 'sawtooth',
+    droneFilterFreq: 280, droneFilterQ: 3,
+    droneLfoRate: 0.09, droneLfoDepth: 160,
+    droneAmpLfo: 0.09,
+    kickFreq: 58, kickDecay: 0.3,
+    snareDecay: 0.12, snareFilterFreq: 1400,
+    kickPattern:  [1,0,0,1,0,0,1,0],  // triplet feel, stumbling
+    snarePattern: [0,0,1,0,0,1,0,0],
+    hihatPattern: [1,0,1,0,1,0,1,0],  // sparse hihat
+    bassWave: 'sawtooth', bassFilterFreq: 220, bassPattern: [0,2,0,0,3,0,2,0],
+    melodyWave: 'triangle', melodyOctave: 1, melodySkip: 0.25,
+    melodyPatterns: [[0,1,3,1,5,3,1,0],[3,5,3,1,0,1,3,5]],
+    choirFormants: [600, 950, 1800], choirVibRate: 4, choirVibDepth: 2.5,
+    vizR: 110, vizG: 88, vizB: 40,
+    desc: "Creaking wood. Dripping. Something follows in the dark."
+  },
+  {
+    name: "Catacombs Deep", range: [11,18], color: "#3a3a5a", bpm: 74,
+    root: 36.7,  // Db1 — very low, bone-hollow
+    scale: [1, 1.0595, 1.2599, 1.3348, 1.4142, 1.5874, 1.7818], // Phrygian
+    droneWave: 'sawtooth',
+    droneFilterFreq: 160, droneFilterQ: 4,
+    droneLfoRate: 0.06, droneLfoDepth: 300,
+    droneAmpLfo: 0.12,
+    kickFreq: 44, kickDecay: 0.7,    // massive boom, long decay
+    snareDecay: 0.22, snareFilterFreq: 600,
+    kickPattern:  [1,0,0,0,1,0,0,1],
+    snarePattern: [0,0,1,0,0,0,1,0],
+    hihatPattern: [0,1,0,1,0,1,0,1],
+    bassWave: 'sawtooth', bassFilterFreq: 160, bassPattern: [0,0,5,0,0,4,0,2],
+    melodyWave: 'square', melodyOctave: 1, melodySkip: 0.2,
+    melodyPatterns: [[0,2,4,2,5,4,2,0],[5,4,2,0,4,5,6,4]],
+    choirFormants: [500, 800, 1600], choirVibRate: 3, choirVibDepth: 1.5,
+    vizR: 80, vizG: 80, vizB: 160,
+    desc: "Bone-hollow reverb. The dead breathe here."
+  },
+  {
+    name: "Shadowmere", range: [19,26], color: "#4a2a6a", bpm: 82,
+    root: 55,   // A1 — phrygian dominant
+    scale: [1, 1.0595, 1.2599, 1.3348, 1.4983, 1.5874, 1.7818], // Phrygian dominant
+    droneWave: 'sawtooth',
+    droneFilterFreq: 340, droneFilterQ: 5,
+    droneLfoRate: 0.12, droneLfoDepth: 450,
+    droneAmpLfo: 0.14,
+    kickFreq: 55, kickDecay: 0.35,
+    snareDecay: 0.14, snareFilterFreq: 1800,
+    kickPattern:  [1,0,0,0,1,0,1,0],
+    snarePattern: [0,0,1,0,0,0,1,1],
+    hihatPattern: [1,1,0,1,1,1,0,1],
+    bassWave: 'sawtooth', bassFilterFreq: 260, bassPattern: [0,0,4,2,0,5,3,0],
+    melodyWave: 'triangle', melodyOctave: 2, melodySkip: 0.15,
+    melodyPatterns: [[0,1,4,2,5,4,1,0],[4,5,4,2,1,2,4,5],[0,4,6,4,5,4,2,0]],
+    choirFormants: [750, 1150, 2400], choirVibRate: 5, choirVibDepth: 3.5,
+    vizR: 120, vizG: 40, vizB: 180,
+    desc: "Wraith-song. Dense choir. Minor 2nd dissonance cuts through fog."
+  },
+  {
+    name: "Sorcerer's Veil", range: [27,34], color: "#2a4a6a", bpm: 90,
+    root: 61.7,  // B1 — arcane, unstable
+    scale: [1, 1.0595, 1.1892, 1.2599, 1.4983, 1.6818, 1.7818], // Lydian dominant (magic feel)
+    droneWave: 'triangle',
+    droneFilterFreq: 500, droneFilterQ: 6,
+    droneLfoRate: 0.18, droneLfoDepth: 600,
+    droneAmpLfo: 0.18,
+    kickFreq: 60, kickDecay: 0.28,
+    snareDecay: 0.1, snareFilterFreq: 2200,
+    kickPattern:  [1,0,1,0,0,1,0,0],  // syncopated, unstable
+    snarePattern: [0,1,0,0,1,0,0,1],
+    hihatPattern: [1,1,1,0,1,1,0,1],
+    bassWave: 'triangle', bassFilterFreq: 380, bassPattern: [0,3,0,5,2,0,4,6],
+    melodyWave: 'sine', melodyOctave: 2, melodySkip: 0.1,
+    melodyPatterns: [[0,2,4,6,4,2,5,3],[6,5,4,2,0,2,4,5],[0,4,2,6,5,3,2,4]],
+    choirFormants: [900, 1400, 2800], choirVibRate: 6, choirVibDepth: 4,
+    vizR: 60, vizG: 120, vizB: 200,
+    desc: "Arcane shimmer. Fast arpeggios. Reality unravels at the edges."
+  },
+  {
+    name: "Obsidian Keep", range: [35,42], color: "#6a2a4a", bpm: 100,
+    root: 49,   // G1 — heavy, dark
+    scale: [1, 1.0595, 1.2599, 1.3348, 1.4983, 1.5874, 1.7818], // Phrygian
+    droneWave: 'sawtooth',
+    droneFilterFreq: 420, droneFilterQ: 3.5,
+    droneLfoRate: 0.22, droneLfoDepth: 700,
+    droneAmpLfo: 0.2,
+    kickFreq: 50, kickDecay: 0.4,
+    snareDecay: 0.16, snareFilterFreq: 1600,
+    kickPattern:  [1,0,0,1,0,1,0,0],
+    snarePattern: [0,0,1,0,1,0,0,1],
+    hihatPattern: [1,0,1,1,0,1,1,0],
+    bassWave: 'sawtooth', bassFilterFreq: 300, bassPattern: [0,0,4,0,2,5,0,3],
+    melodyWave: 'square', melodyOctave: 2, melodySkip: 0.1,
+    melodyPatterns: [[0,2,4,5,4,2,5,6],[5,4,2,0,2,4,5,4],[0,5,4,2,6,5,3,0]],
+    choirFormants: [650, 1050, 2100], choirVibRate: 5.5, choirVibDepth: 3,
+    vizR: 180, vizG: 40, vizB: 100,
+    desc: "Iron and blood. Full orchestral dread. War drums cascade."
+  },
+  {
+    name: "Void Spire", range: [43,50], color: "#5a2a8a", bpm: 110,
+    root: 51.9,  // Ab1
+    scale: [1, 1.0595, 1.1225, 1.3348, 1.4142, 1.5874, 1.6818], // Double harmonic
+    droneWave: 'sawtooth',
+    droneFilterFreq: 550, droneFilterQ: 5,
+    droneLfoRate: 0.28, droneLfoDepth: 900,
+    droneAmpLfo: 0.22,
+    kickFreq: 48, kickDecay: 0.45,
+    snareDecay: 0.18, snareFilterFreq: 2000,
+    kickPattern:  [1,0,1,0,1,0,0,1],
+    snarePattern: [0,1,0,1,0,0,1,0],
+    hihatPattern: [1,1,0,1,0,1,1,0],
+    bassWave: 'sawtooth', bassFilterFreq: 350, bassPattern: [0,4,2,5,0,3,6,2],
+    melodyWave: 'sawtooth', melodyOctave: 2, melodySkip: 0.05,
+    melodyPatterns: [[0,1,4,2,6,5,2,4],[4,5,6,4,2,1,2,4],[0,6,5,4,2,4,5,6]],
+    choirFormants: [800, 1300, 2600], choirVibRate: 7, choirVibDepth: 5,
+    vizR: 140, vizG: 40, vizB: 220,
+    desc: "The spire tears through reality. Dissonant. Relentless."
+  },
+  {
+    name: "Infernal Core", range: [51,99], color: "#8a1a1a", bpm: 120,
+    root: 43.65, // F1 — maximum dread
+    scale: [1, 1.0595, 1.1225, 1.2599, 1.4142, 1.4983, 1.7818], // Diminished
+    droneWave: 'sawtooth',
+    droneFilterFreq: 800, droneFilterQ: 7,
+    droneLfoRate: 0.4, droneLfoDepth: 1200,
+    droneAmpLfo: 0.3,
+    kickFreq: 45, kickDecay: 0.5,
+    snareDecay: 0.2, snareFilterFreq: 2500,
+    kickPattern:  [1,1,0,1,1,0,1,0],  // frantic
+    snarePattern: [0,1,1,0,0,1,0,1],
+    hihatPattern: [1,1,1,1,0,1,1,1],
+    bassWave: 'sawtooth', bassFilterFreq: 500, bassPattern: [0,2,4,6,4,2,6,0],
+    melodyWave: 'sawtooth', melodyOctave: 2, melodySkip: 0.0,
+    melodyPatterns: [[0,2,4,6,4,6,4,2],[6,4,2,0,2,4,6,4],[0,6,4,2,6,4,2,0]],
+    choirFormants: [1000, 1600, 3200], choirVibRate: 9, choirVibDepth: 7,
+    vizR: 220, vizG: 20, vizB: 20,
+    desc: "The core. Everything burns. Barely musical. Pure dread."
+  },
 ];
 
 function getZone(floor) {
@@ -577,129 +729,103 @@ function getZone(floor) {
 }
 
 function getIntensity(floor) {
-  return Math.min(1, (floor - 1) / 50); // 0 at floor 1, 1 at floor 50+
+  return Math.min(1, (floor - 1) / 50);
 }
 
 // ============================================================
-// AUDIO CONTEXT INIT
+// AUDIO INIT
 // ============================================================
 function initAudio() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
   masterGain = ctx.createGain();
-  masterGain.gain.value = 0.7;
-
+  masterGain.gain.value = 0.65;
   analyser = ctx.createAnalyser();
   analyser.fftSize = 256;
-
   masterGain.connect(analyser);
   analyser.connect(ctx.destination);
 }
 
-// ============================================================
-// NODE HELPERS
-// ============================================================
 function makeOsc(freq, type = 'sine', detune = 0) {
   const o = ctx.createOscillator();
-  o.type = type;
-  o.frequency.value = freq;
-  o.detune.value = detune;
+  o.type = type; o.frequency.value = freq; o.detune.value = detune;
   return o;
 }
-
-function makeGain(val) {
-  const g = ctx.createGain();
-  g.gain.value = val;
-  return g;
-}
-
+function makeGain(val) { const g = ctx.createGain(); g.gain.value = val; return g; }
 function makeFilter(freq, type = 'lowpass', Q = 1) {
   const f = ctx.createBiquadFilter();
-  f.type = type;
-  f.frequency.value = freq;
-  f.Q.value = Q;
+  f.type = type; f.frequency.value = freq; f.Q.value = Q;
   return f;
 }
+function connect(...nodes) { for (let i = 0; i < nodes.length-1; i++) nodes[i].connect(nodes[i+1]); }
+function track(...nodes) { nodes.forEach(n => activeNodes.push(n)); }
 
-function connect(...nodes) {
-  for (let i = 0; i < nodes.length - 1; i++) {
-    nodes[i].connect(nodes[i+1]);
-  }
-}
-
-function track(...nodes) {
-  nodes.forEach(n => activeNodes.push(n));
-}
-
-// ============================================================
-// GOTHIC SCALE — Phrygian dominant (1, b2, 3, 4, 5, b6, b7)
-// Root: A2 = 110 Hz
-// ============================================================
-const ROOT = 55; // A1
-const SCALE_RATIOS = [1, 1.0595, 1.2599, 1.3348, 1.4983, 1.5874, 1.7818];
-const SCALE_FREQS = SCALE_RATIOS.map(r => ROOT * r);
-
-function scaleNote(octave, degree) {
-  return SCALE_FREQS[degree % SCALE_FREQS.length] * Math.pow(2, octave + Math.floor(degree / SCALE_FREQS.length));
+function scaleNote(preset, octave, degree) {
+  const ratios = preset.scale;
+  const base = preset.root;
+  const ratio = ratios[degree % ratios.length];
+  return base * ratio * Math.pow(2, octave + Math.floor(degree / ratios.length));
 }
 
 // ============================================================
-// LAYER: DRONE
-// Evolving dark pad with slow LFO modulation
+// DRONE — per-zone timbre
 // ============================================================
-function startDrone(intensity) {
+function startDrone(preset, intensity) {
   const g = makeGain(0);
-  const filter = makeFilter(300 + intensity * 800, 'lowpass', 2);
+  const filter = makeFilter(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
   connect(filter, g, masterGain);
 
-  const baseFreqs = [ROOT, ROOT * 1.5, ROOT * 2];
-  const oscs = baseFreqs.map((f, i) => {
-    const o = makeOsc(f, i === 0 ? 'sawtooth' : 'sine', (i - 1) * 8);
-    const og = makeGain(i === 0 ? 0.3 : 0.15);
+  // Primary oscillator stack
+  const freqs = [preset.root, preset.root * 1.5, preset.root * 2, preset.root * 3];
+  const vols  = [0.35, 0.2, 0.12, 0.06];
+  freqs.forEach((f, i) => {
+    const o = makeOsc(f, i === 0 ? preset.droneWave : 'sine', (i-1) * 9);
+    const og = makeGain(vols[i]);
     connect(o, og, filter);
-    o.start();
-    track(o, og);
-    return o;
+    o.start(); track(o, og);
   });
 
-  // LFO for filter sweep
-  const lfo = makeOsc(0.08 + intensity * 0.15, 'sine');
-  const lfoGain = makeGain(200 + intensity * 600);
-  connect(lfo, lfoGain);
-  lfoGain.connect(filter.frequency);
-  lfo.start();
-  track(lfo, lfoGain);
+  // Second detuned layer for width
+  const o2 = makeOsc(preset.root * 2, preset.droneWave, 14);
+  const o2g = makeGain(0.08);
+  connect(o2, o2g, filter);
+  o2.start(); track(o2, o2g);
 
-  // Amplitude LFO (breath)
-  const ampLfo = makeOsc(0.05, 'sine');
-  const ampLfoGain = makeGain(0.1);
-  connect(ampLfo, ampLfoGain);
-  ampLfoGain.connect(g.gain);
-  ampLfo.start();
-  track(ampLfo, ampLfoGain);
+  // Filter LFO — zone-specific rate and depth
+  const lfo = makeOsc(preset.droneLfoRate + intensity * 0.1, 'sine');
+  const lfoG = makeGain(preset.droneLfoDepth + intensity * 400);
+  connect(lfo, lfoG); lfoG.connect(filter.frequency);
+  lfo.start(); track(lfo, lfoG);
 
-  g.gain.linearRampToValueAtTime(0.4 + intensity * 0.2, ctx.currentTime + 3);
+  // Amp breath LFO
+  const ampLfo = makeOsc(preset.droneAmpLfo, 'sine');
+  const ampLfoG = makeGain(0.08 + intensity * 0.06);
+  connect(ampLfo, ampLfoG); ampLfoG.connect(g.gain);
+  ampLfo.start(); track(ampLfo, ampLfoG);
+
+  g.gain.linearRampToValueAtTime(0.35 + intensity * 0.25, ctx.currentTime + 3.5);
   track(g, filter);
 }
 
 // ============================================================
-// LAYER: PERCUSSION
-// Kick + snare + hi-hat pattern via scheduled buffers
+// PERCUSSION — per-zone patterns and tuning
 // ============================================================
-function makeBoomBuffer(dur = 0.4, freq = 60, decay = 0.3) {
+function makeBoomBuffer(freq, decay) {
+  const dur = decay * 4;
   const len = Math.floor(ctx.sampleRate * dur);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < len; i++) {
     const t = i / ctx.sampleRate;
     const env = Math.exp(-t / decay);
-    const f = freq * Math.exp(-t * 15);
-    data[i] = Math.sin(2 * Math.PI * f * t) * env * 0.8;
+    const f = freq * Math.exp(-t * 18);
+    data[i] = Math.sin(2 * Math.PI * f * t) * env * 0.85;
   }
   return buf;
 }
 
-function makeNoiseBuffer(dur = 0.15, decay = 0.08) {
+function makeNoiseBuffer(decay, filterFreq) {
+  const dur = decay * 6;
   const len = Math.floor(ctx.sampleRate * dur);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -710,130 +836,98 @@ function makeNoiseBuffer(dur = 0.15, decay = 0.08) {
   return buf;
 }
 
-let kickBuf, snareBuf, hihatBuf;
-function initPercBuffers() {
-  kickBuf  = makeBoomBuffer(0.5, 55, 0.25);
-  snareBuf = makeNoiseBuffer(0.2, 0.09);
-  hihatBuf = makeNoiseBuffer(0.08, 0.03);
+let percBuffers = null;
+function initPercBuffers(preset) {
+  percBuffers = {
+    kick:  makeBoomBuffer(preset.kickFreq, preset.kickDecay),
+    snare: makeNoiseBuffer(preset.snareDecay, preset.snareFilterFreq),
+    hihat: makeNoiseBuffer(0.025, 8000),
+  };
 }
 
-function schedulePerc(startTime, bpm, intensity, duration) {
+function schedulePerc(preset, startTime, bpm, intensity, duration) {
   const beat = 60 / bpm;
-  const hihatG = makeGain(0);
-  const hihatFilter = makeFilter(8000, 'highpass', 1);
+  const hihatFilter = makeFilter(preset.snareFilterFreq * 4, 'highpass', 1);
+  const hihatG = makeGain(0.12 + intensity * 0.15);
   connect(hihatFilter, hihatG, masterGain);
-  track(hihatG, hihatFilter);
+  track(hihatFilter, hihatG);
 
   let t = startTime;
   const end = startTime + duration;
 
   function schedBeat() {
     if (t > end + beat * 4) return;
-
-    // Kick: beat 1, 3
-    const kickPat = [1, 0, 0, 0, 1, 0, 0, 0];
-    // Snare: beat 2, 4
-    const snarePat = [0, 0, 1, 0, 0, 0, 1, 0];
-    // Hihat: every 8th
-    const hihatPat = [1, 1, 1, 1, 1, 1, 1, 1];
-
     for (let i = 0; i < 8; i++) {
       const bt = t + i * beat * 0.5;
       if (bt > end) break;
 
-      if (kickPat[i]) {
+      if (preset.kickPattern[i]) {
         const src = ctx.createBufferSource();
-        src.buffer = kickBuf;
-        const g = makeGain(0.7 + intensity * 0.3);
+        src.buffer = percBuffers.kick;
+        const g = makeGain(0.65 + intensity * 0.35);
         connect(src, g, masterGain);
-        src.start(bt);
-        track(src, g);
+        src.start(bt); track(src, g);
       }
-
-      if (snarePat[i] && intensity > 0.2) {
+      if (preset.snarePattern[i] && intensity > 0.1) {
         const src = ctx.createBufferSource();
-        src.buffer = snareBuf;
-        const g = makeGain(0.4 + intensity * 0.4);
-        const f = makeFilter(2000, 'bandpass', 2);
+        src.buffer = percBuffers.snare;
+        const g = makeGain(0.35 + intensity * 0.45);
+        const f = makeFilter(preset.snareFilterFreq, 'bandpass', 2.5);
         connect(src, f, g, masterGain);
-        src.start(bt);
-        track(src, f, g);
+        src.start(bt); track(src, f, g);
       }
-
-      if (hihatPat[i] && intensity > 0.4) {
+      if (preset.hihatPattern[i] && intensity > 0.3) {
         const src = ctx.createBufferSource();
-        src.buffer = hihatBuf;
-        const g = makeGain(0.15 + intensity * 0.2);
+        src.buffer = percBuffers.hihat;
+        const g = makeGain(0.1 + intensity * 0.15);
         connect(src, hihatFilter);
-        src.start(bt);
-        track(src, g);
+        src.start(bt); track(src, g);
       }
     }
-
     t += beat * 4;
     const tid = setTimeout(schedBeat, (beat * 3.5) * 1000);
     scheduledTimers.push(tid);
   }
-
   schedBeat();
 }
 
 // ============================================================
-// LAYER: BASS
-// Plucked sub-bass following gothic scale
+// BASS — per-zone wave and pattern
 // ============================================================
-function scheduleBass(startTime, bpm, intensity, duration) {
+function scheduleBass(preset, startTime, bpm, intensity, duration) {
   const beat = 60 / bpm;
-  const bassPattern = [0, 0, 4, 0, 2, 0, 5, 3]; // scale degrees
-
   let t = startTime;
   const end = startTime + duration;
 
   function schedBar() {
     if (t > end + beat * 4) return;
-
     for (let i = 0; i < 8; i++) {
       const bt = t + i * beat * 0.5;
       if (bt > end) break;
-
-      const deg = bassPattern[i];
-      const freq = scaleNote(0, deg);
-
-      const osc = makeOsc(freq, 'sawtooth');
+      const deg = preset.bassPattern[i];
+      const freq = scaleNote(preset, 0, deg);
+      const osc = makeOsc(freq, preset.bassWave);
       const env = makeGain(0);
-      const filter = makeFilter(300 + intensity * 500, 'lowpass', 3);
+      const filter = makeFilter(preset.bassFilterFreq + intensity * 300, 'lowpass', 3);
       connect(osc, filter, env, masterGain);
-
-      const vol = 0.25 + intensity * 0.2;
+      const vol = 0.22 + intensity * 0.18;
       env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol, bt + 0.01);
-      env.gain.exponentialRampToValueAtTime(0.001, bt + beat * 0.4);
-
-      osc.start(bt);
-      osc.stop(bt + beat * 0.5);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.015);
+      env.gain.exponentialRampToValueAtTime(0.001, bt + beat * 0.45);
+      osc.start(bt); osc.stop(bt + beat * 0.5);
       track(osc, env, filter);
     }
-
     t += beat * 4;
     const tid = setTimeout(schedBar, (beat * 3.6) * 1000);
     scheduledTimers.push(tid);
   }
-
   schedBar();
 }
 
 // ============================================================
-// LAYER: MELODY
-// Eerie pentatonic minor melody line
+// MELODY — per-zone patterns, waveform, octave
 // ============================================================
-const MELODY_PATTERNS = [
-  [0, 2, 4, 2, 5, 4, 2, 0],
-  [4, 5, 4, 2, 0, 2, 4, 5],
-  [0, 4, 2, 5, 3, 2, 4, 0],
-  [5, 4, 2, 0, 2, 4, 5, 6],
-];
-
-function scheduleMelody(startTime, bpm, intensity, duration) {
+function scheduleMelody(preset, startTime, bpm, intensity, duration) {
   const beat = 60 / bpm;
   let patIdx = 0;
   let t = startTime;
@@ -841,182 +935,142 @@ function scheduleMelody(startTime, bpm, intensity, duration) {
 
   function schedBar() {
     if (t > end + beat * 4) return;
-
-    const pat = MELODY_PATTERNS[patIdx % MELODY_PATTERNS.length];
+    const pat = preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
     patIdx++;
-
     for (let i = 0; i < pat.length; i++) {
       const bt = t + i * beat * 0.5;
       if (bt > end) break;
-
-      // Skip some notes for rhythmic interest
-      if (Math.random() < 0.15) continue;
-
-      const octave = intensity > 0.6 ? 2 : 1;
-      const freq = scaleNote(octave, pat[i]);
-
-      const osc = makeOsc(freq, 'triangle');
-      const osc2 = makeOsc(freq * 1.005, 'sine'); // slight detune
-      const env = makeGain(0);
-      const filter = makeFilter(1500 + intensity * 1000, 'lowpass', 2);
-      const g1 = makeGain(0.5);
-      const g2 = makeGain(0.3);
+      if (Math.random() < preset.melodySkip) continue;
+      const freq = scaleNote(preset, preset.melodyOctave, pat[i]);
+      const osc  = makeOsc(freq, preset.melodyWave);
+      const osc2 = makeOsc(freq * 1.004, 'sine');
+      const env  = makeGain(0);
+      const filter = makeFilter(1200 + intensity * 1400, 'lowpass', 2);
+      const g1 = makeGain(0.55); const g2 = makeGain(0.28);
       connect(osc, g1, filter);
       connect(osc2, g2, filter);
       connect(filter, env, masterGain);
-
-      const vol = 0.08 + intensity * 0.12;
-      const noteDur = beat * (0.3 + Math.random() * 0.3);
+      const vol = 0.07 + intensity * 0.13;
+      const noteDur = beat * (0.28 + Math.random() * 0.35);
       env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol, bt + 0.05);
-      env.gain.setValueAtTime(vol * 0.7, bt + noteDur * 0.7);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.04);
+      env.gain.setValueAtTime(vol * 0.65, bt + noteDur * 0.65);
       env.gain.linearRampToValueAtTime(0.001, bt + noteDur);
-
       osc.start(bt); osc.stop(bt + noteDur + 0.1);
       osc2.start(bt); osc2.stop(bt + noteDur + 0.1);
       track(osc, osc2, env, filter, g1, g2);
     }
-
     t += beat * 4;
     const tid = setTimeout(schedBar, (beat * 3.6) * 1000);
     scheduledTimers.push(tid);
   }
-
   schedBar();
 }
 
 // ============================================================
-// LAYER: CHOIR
-// Pad-like vowel formant simulation
+// CHOIR — per-zone formants and vibrato
 // ============================================================
-function startChoir(intensity) {
-  const voiceFreqs = [ROOT * 2, ROOT * 2 * SCALE_RATIOS[2], ROOT * 2 * SCALE_RATIOS[4]];
-
-  voiceFreqs.forEach((freq, vi) => {
-    const osc = makeOsc(freq, 'sawtooth', vi * 5);
-    const formant1 = makeFilter(800, 'bandpass', 8);
-    const formant2 = makeFilter(1200, 'bandpass', 6);
-    const formant3 = makeFilter(2500, 'bandpass', 4);
-
-    const m = makeGain(0.4);
-    connect(osc, formant1, m);
-    connect(osc, formant2, m);
-    connect(osc, formant3, m);
-
+function startChoir(preset, intensity) {
+  const noteDegs = [0, 2, 4];
+  noteDegs.forEach((deg, vi) => {
+    const freq = scaleNote(preset, 2, deg);
+    const osc = makeOsc(freq, 'sawtooth', vi * 4);
+    const f1 = makeFilter(preset.choirFormants[0], 'bandpass', 9);
+    const f2 = makeFilter(preset.choirFormants[1], 'bandpass', 7);
+    const f3 = makeFilter(preset.choirFormants[2], 'bandpass', 5);
+    const m = makeGain(0.38);
+    connect(osc, f1, m); connect(osc, f2, m); connect(osc, f3, m);
     const env = makeGain(0);
     connect(m, env, masterGain);
-    env.gain.linearRampToValueAtTime((0.04 + intensity * 0.05) / voiceFreqs.length, ctx.currentTime + 4);
-
-    // Vibrato
-    const vib = makeOsc(4.5 + vi * 0.3, 'sine');
-    const vibG = makeGain(3);
-    connect(vib, vibG);
-    vibG.connect(osc.frequency);
+    env.gain.linearRampToValueAtTime((0.038 + intensity * 0.055) / 3, ctx.currentTime + 4.5);
+    const vib = makeOsc(preset.choirVibRate + vi * 0.4, 'sine');
+    const vibG = makeGain(preset.choirVibDepth);
+    connect(vib, vibG); vibG.connect(osc.frequency);
     vib.start(); osc.start();
-    track(osc, formant1, formant2, formant3, m, env, vib, vibG);
+    track(osc, f1, f2, f3, m, env, vib, vibG);
   });
 }
 
 // ============================================================
-// LAYER: CHAOS (high floor only)
-// Dissonant clusters, random hits, stingers
+// CHAOS — high floor dissonance layer
 // ============================================================
-function startChaos(intensity) {
-  const chaosFreqs = [ROOT * 3 * 1.05, ROOT * 3 * 1.125, ROOT * 4 * 0.98];
-
-  chaosFreqs.forEach((freq, i) => {
-    const osc = makeOsc(freq, 'square', i * 15 - 7);
-    const filter = makeFilter(600 + Math.random() * 400, 'bandpass', 5);
+function startChaos(preset, intensity) {
+  // Dissonant cluster using non-scale intervals
+  const chaosOffsets = [1.05, 1.13, 0.97, 1.21];
+  chaosOffsets.forEach((mult, i) => {
+    const freq = preset.root * 4 * mult;
+    const osc = makeOsc(freq, i % 2 === 0 ? 'square' : 'sawtooth', i * 18 - 9);
+    const filter = makeFilter(500 + Math.random() * 600, 'bandpass', 6);
     const env = makeGain(0);
-
-    // Tremolo
-    const trem = makeOsc(8 + i * 2, 'sine');
-    const tremG = makeGain(0.3);
-    connect(trem, tremG);
-    tremG.connect(env.gain);
-
+    const trem = makeOsc(6 + i * 3, 'sine');
+    const tremG = makeGain(0.25);
+    connect(trem, tremG); tremG.connect(env.gain);
     connect(osc, filter, env, masterGain);
     env.gain.setValueAtTime(0, ctx.currentTime);
-    env.gain.linearRampToValueAtTime(0.04 * intensity, ctx.currentTime + 2);
-
+    env.gain.linearRampToValueAtTime(0.03 * intensity, ctx.currentTime + 1.5);
     trem.start(); osc.start();
     track(osc, filter, env, trem, tremG);
   });
 }
 
 // ============================================================
-// BOSS MODE — adds aggressive cluster
+// BOSS MODE — aggressive sub + shriek layer
 // ============================================================
-function startBossLayer(intensity) {
-  // Low boom pulse
-  const boomFreqs = [ROOT * 0.5, ROOT * 0.75];
-  boomFreqs.forEach((freq, i) => {
-    const osc = makeOsc(freq, 'sawtooth', i * 20);
-    const filter = makeFilter(150, 'lowpass', 4);
+function startBossLayer(preset, intensity) {
+  // Sub pulse at root/2
+  [preset.root * 0.5, preset.root * 0.75].forEach((freq, i) => {
+    const osc = makeOsc(freq, 'sawtooth', i * 22);
+    const filter = makeFilter(120, 'lowpass', 5);
     const env = makeGain(0);
-
-    const lfo = makeOsc(2 + i * 0.5, 'square');
-    const lfoG = makeGain(0.25);
-    connect(lfo, lfoG);
-    lfoG.connect(env.gain);
-
+    const lfo = makeOsc(1.8 + i * 0.6, 'square');
+    const lfoG = makeGain(0.28);
+    connect(lfo, lfoG); lfoG.connect(env.gain);
     connect(osc, filter, env, masterGain);
-    env.gain.setValueAtTime(0.15, ctx.currentTime);
-    env.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 1);
-
+    env.gain.setValueAtTime(0.12, ctx.currentTime);
+    env.gain.linearRampToValueAtTime(0.28, ctx.currentTime + 1.2);
     lfo.start(); osc.start();
     track(osc, filter, env, lfo, lfoG);
   });
-
-  // Shrieking high freq
-  const shriek = makeOsc(ROOT * 16 * SCALE_RATIOS[1], 'sawtooth');
-  const shriekFilter = makeFilter(3000, 'highpass', 3);
+  // High shriek using scale's b2
+  const shriekFreq = preset.root * 8 * preset.scale[1];
+  const shriek = makeOsc(shriekFreq, 'sawtooth');
+  const shriekF = makeFilter(2800, 'highpass', 4);
   const shriekEnv = makeGain(0);
-  connect(shriek, shriekFilter, shriekEnv, masterGain);
-  shriekEnv.gain.linearRampToValueAtTime(0.04, ctx.currentTime + 2);
-  shriek.start();
-  track(shriek, shriekFilter, shriekEnv);
+  connect(shriek, shriekF, shriekEnv, masterGain);
+  shriekEnv.gain.linearRampToValueAtTime(0.035, ctx.currentTime + 2.5);
+  shriek.start(); track(shriek, shriekF, shriekEnv);
 }
 
 // ============================================================
-// MAIN: START / STOP
+// MAIN START / STOP
 // ============================================================
 function startSynth() {
   initAudio();
-  if (!kickBuf) initPercBuffers();
-
   const floor = parseInt(document.getElementById('floorSlider').value);
+  const preset = getZone(floor);
   const intensity = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
-  const zone = getZone(floor);
-  const bpm = isBoss ? zone.bpm + 20 : zone.bpm;
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
 
-  setStatus(`Summoning — Floor ${floor} · ${zone.name} · ${bpm} BPM`);
+  initPercBuffers(preset); // rebuild per-zone tuned perc buffers
 
-  // Start continuous layers
-  if (layers.drone)   startDrone(intensity);
-  if (layers.choir)   startChoir(intensity);
-  if (layers.chaos && intensity > 0.5) startChaos(intensity);
-  if (isBoss)         startBossLayer(intensity);
+  setStatus(`${preset.desc}`);
 
-  // Start scheduled layers
-  const dur = 99999; // run indefinitely
-  if (layers.perc)    schedulePerc(ctx.currentTime + 0.1, bpm, intensity, dur);
-  if (layers.bass)    scheduleBass(ctx.currentTime + 0.1, bpm, intensity, dur);
-  if (layers.melody)  scheduleMelody(ctx.currentTime + 0.5, bpm, intensity, dur);
+  if (layers.drone)  startDrone(preset, intensity);
+  if (layers.choir)  startChoir(preset, intensity);
+  if (intensity > 0.45 && layers.chaos) startChaos(preset, intensity);
+  if (isBoss)        startBossLayer(preset, intensity);
+
+  const dur = 99999;
+  if (layers.perc)   schedulePerc(preset, ctx.currentTime + 0.1, bpm, intensity, dur);
+  if (layers.bass)   scheduleBass(preset, ctx.currentTime + 0.1, bpm, intensity, dur);
+  if (layers.melody) scheduleMelody(preset, ctx.currentTime + 0.5, bpm, intensity, dur);
 }
 
 function stopSynth() {
   scheduledTimers.forEach(clearTimeout);
   scheduledTimers.length = 0;
-
-  activeNodes.forEach(n => {
-    try {
-      if (n.stop) n.stop(ctx.currentTime + 0.05);
-      n.disconnect();
-    } catch(e) {}
-  });
+  activeNodes.forEach(n => { try { if (n.stop) n.stop(ctx.currentTime + 0.05); n.disconnect(); } catch(e){} });
   activeNodes.length = 0;
-  setStatus('Silence reclaims the void...');
 }
 
 function togglePlay() {
@@ -1031,27 +1085,22 @@ function togglePlay() {
     document.getElementById('playBtn').textContent = '▶  Invoke the Void';
     document.getElementById('playBtn').classList.remove('playing');
     stopSynth();
+    setStatus('Silence reclaims the void...');
   }
 }
 
 function toggleBoss() {
   isBoss = !isBoss;
   document.getElementById('btn-boss').classList.toggle('active', isBoss);
-  if (isPlaying) {
-    stopSynth();
-    setTimeout(startSynth, 200);
-    setStatus(isBoss ? '⚡ BOSS MODE — The void trembles...' : 'Boss slain. The fog returns.');
-  }
+  if (isPlaying) { stopSynth(); setTimeout(startSynth, 180); }
+  setStatus(isBoss ? '⚡ BOSS MODE — The void trembles...' : 'Boss slain. The silence returns.');
 }
 
 function toggleLayer(name) {
   layers[name] = !layers[name];
   document.getElementById('btn-' + name).classList.toggle('active', layers[name]);
   document.getElementById('pill-' + name).classList.toggle('on', layers[name]);
-  if (isPlaying) {
-    stopSynth();
-    setTimeout(startSynth, 100);
-  }
+  if (isPlaying) { stopSynth(); setTimeout(startSynth, 100); }
 }
 
 // ============================================================
@@ -1067,11 +1116,9 @@ function updateFloorUI() {
   document.getElementById('floorNum').textContent = floor;
   document.getElementById('zoneName').textContent = zone.name;
 
-  // Update slider gradient
   const pct = ((floor - 1) / 98 * 100).toFixed(1);
   slider.style.setProperty('--pct', pct + '%');
 
-  // Update zone bar
   const bar = document.getElementById('zoneBar');
   const segs = bar.querySelectorAll('.zone-seg');
   const zoneIdx = ZONES.indexOf(zone);
@@ -1080,36 +1127,28 @@ function updateFloorUI() {
     seg.style.setProperty('--zone-color', zone.color);
   });
 
-  // Color floor number by intensity
   const fnum = document.getElementById('floorNum');
-  const r = Math.floor(200 + intensity * 55);
-  const g = Math.floor(146 - intensity * 100);
-  const b = Math.floor(42 - intensity * 30);
+  const r = zone.vizR; const g = zone.vizG; const b = zone.vizB;
   fnum.style.color = `rgb(${r},${g},${b})`;
-  fnum.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${r},${g},${b},0.5)`;
+  fnum.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${r},${g},${b},0.6)`;
 
-  if (isPlaying) {
-    stopSynth();
-    setTimeout(startSynth, 150);
-    setStatus(`Floor ${floor} · ${zone.name} · ${Math.round(isBoss ? zone.bpm + 20 : zone.bpm)} BPM`);
+  if (!isPlaying) {
+    setStatus(zone.desc);
   }
+
+  if (isPlaying) { stopSynth(); setTimeout(startSynth, 150); }
 }
 
-// Build zone bar segments
 (function() {
   const bar = document.getElementById('zoneBar');
-  ZONES.forEach(() => {
-    const seg = document.createElement('div');
-    seg.className = 'zone-seg';
-    bar.appendChild(seg);
-  });
+  ZONES.forEach(() => { const s = document.createElement('div'); s.className = 'zone-seg'; bar.appendChild(s); });
   updateFloorUI();
 })();
 
 slider.addEventListener('input', updateFloorUI);
 
 // ============================================================
-// VISUALIZER
+// VISUALIZER — zone-colored
 // ============================================================
 function drawViz() {
   if (!isPlaying) return;
@@ -1120,35 +1159,29 @@ function drawViz() {
   const data = new Uint8Array(analyser ? analyser.frequencyBinCount : 128);
   if (analyser) analyser.getByteFrequencyData(data);
 
-  c.clearRect(0, 0, W, H);
   c.fillStyle = '#05050a';
   c.fillRect(0, 0, W, H);
 
-  const floor = parseInt(slider.value);
-  const intensity = getIntensity(floor);
-  const r = Math.floor(139 + intensity * 100);
-  const g = Math.floor(26 - intensity * 20);
-  const b = Math.floor(26 - intensity * 10);
+  const zone = getZone(parseInt(slider.value));
+  const r = zone.vizR, g = zone.vizG, b = zone.vizB;
 
   const barW = W / data.length * 2.5;
   for (let i = 0; i < data.length; i++) {
-    const barH = (data[i] / 255) * H * 0.9;
-    const alpha = 0.4 + (data[i] / 255) * 0.6;
+    const barH = (data[i] / 255) * H * 0.88;
+    const alpha = 0.35 + (data[i] / 255) * 0.65;
     c.fillStyle = `rgba(${r},${g},${b},${alpha})`;
     c.fillRect(i * barW, H - barH, barW - 1, barH);
   }
 
-  // Glow line
-  c.strokeStyle = `rgba(${r},${g},${b},0.3)`;
-  c.lineWidth = 1;
+  c.strokeStyle = `rgba(${r},${g},${b},0.25)`;
+  c.lineWidth = 1.5;
   c.beginPath();
   for (let i = 0; i < data.length; i++) {
     const x = i * barW + barW / 2;
-    const y = H - (data[i] / 255) * H * 0.9;
+    const y = H - (data[i] / 255) * H * 0.88;
     i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
   }
   c.stroke();
-
   requestAnimationFrame(drawViz);
 }
 
@@ -1156,11 +1189,7 @@ function drawViz() {
 // RECORDING
 // ============================================================
 function toggleRecord() {
-  if (!isPlaying) {
-    setStatus('Start playing first, then record.');
-    return;
-  }
-
+  if (!isPlaying) { setStatus('Start playing first, then record.'); return; }
   if (!isRecording) {
     recordedChunks = [];
     const dest = ctx.createMediaStreamDestination();
@@ -1184,23 +1213,19 @@ function toggleRecord() {
 
 function downloadRecording() {
   if (!recordedChunks.length) return;
+  const zone = getZone(parseInt(slider.value));
   const blob = new Blob(recordedChunks, { type: 'audio/webm' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'ashen_throne_floor' + document.getElementById('floorSlider').value + '.webm';
+  a.download = 'ashen_throne_' + zone.name.replace(/[^a-z0-9]/gi,'_').toLowerCase() + '_floor' + slider.value + '.webm';
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function setStatus(msg) {
-  document.getElementById('status').textContent = msg;
-}
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
-// Init layer pill states
-Object.keys(layers).forEach(k => {
-  if (layers[k]) document.getElementById('pill-' + k).classList.add('on');
-});
+Object.keys(layers).forEach(k => { if (layers[k]) document.getElementById('pill-' + k).classList.add('on'); });
 </script>
 </body>
 </html>
