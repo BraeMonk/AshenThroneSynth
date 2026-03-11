@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -22,452 +23,453 @@
     --rune: #4a6fa5;
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+- { margin: 0; padding: 0; box-sizing: border-box; }
 
-  body {
-    background: var(--void);
-    color: var(--text);
-    font-family: 'Crimson Text', serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-    position: relative;
-  }
+body {
+background: var(–void);
+color: var(–text);
+font-family: ‘Crimson Text’, serif;
+min-height: 100vh;
+overflow-x: hidden;
+position: relative;
+}
 
-  /* Atmospheric background */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background:
-      radial-gradient(ellipse 60% 40% at 50% 0%, #1a0a0022 0%, transparent 70%),
-      radial-gradient(ellipse 40% 60% at 80% 80%, #0d0a1a44 0%, transparent 60%),
-      radial-gradient(ellipse 30% 50% at 10% 60%, #1a080022 0%, transparent 60%);
-    pointer-events: none;
-    z-index: 0;
-  }
+/* Atmospheric background */
+body::before {
+content: ‘’;
+position: fixed;
+inset: 0;
+background:
+radial-gradient(ellipse 60% 40% at 50% 0%, #1a0a0022 0%, transparent 70%),
+radial-gradient(ellipse 40% 60% at 80% 80%, #0d0a1a44 0%, transparent 60%),
+radial-gradient(ellipse 30% 50% at 10% 60%, #1a080022 0%, transparent 60%);
+pointer-events: none;
+z-index: 0;
+}
 
-  /* Noise grain overlay */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    opacity: 0.035;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 1;
-  }
+/* Noise grain overlay */
+body::after {
+content: ‘’;
+position: fixed;
+inset: 0;
+opacity: 0.035;
+background-image: url(“data:image/svg+xml,%3Csvg viewBox=‘0 0 256 256’ xmlns=‘http://www.w3.org/2000/svg’%3E%3Cfilter id=‘noise’%3E%3CfeTurbulence type=‘fractalNoise’ baseFrequency=‘0.9’ numOctaves=‘4’ stitchTiles=‘stitch’/%3E%3C/filter%3E%3Crect width=‘100%25’ height=‘100%25’ filter=‘url(%23noise)’/%3E%3C/svg%3E”);
+pointer-events: none;
+z-index: 1;
+}
 
-  .container {
-    position: relative;
-    z-index: 2;
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 40px 24px 80px;
-  }
+.container {
+position: relative;
+z-index: 2;
+max-width: 900px;
+margin: 0 auto;
+padding: 40px 24px 80px;
+}
 
-  /* Header */
-  .header {
-    text-align: center;
-    margin-bottom: 48px;
-  }
+/* Header */
+.header {
+text-align: center;
+margin-bottom: 48px;
+}
 
-  .crown {
-    font-size: 11px;
-    letter-spacing: 0.35em;
-    text-transform: uppercase;
-    color: var(--gold-dim);
-    font-family: 'Cinzel', serif;
-    margin-bottom: 12px;
-  }
+.crown {
+font-size: 11px;
+letter-spacing: 0.35em;
+text-transform: uppercase;
+color: var(–gold-dim);
+font-family: ‘Cinzel’, serif;
+margin-bottom: 12px;
+}
 
-  h1 {
-    font-family: 'Cinzel', serif;
-    font-size: clamp(28px, 5vw, 52px);
-    font-weight: 900;
-    color: var(--gold);
-    text-shadow: 0 0 40px #c8922a44, 0 0 80px #c8922a22;
-    line-height: 1.1;
-    letter-spacing: 0.04em;
-  }
+h1 {
+font-family: ‘Cinzel’, serif;
+font-size: clamp(28px, 5vw, 52px);
+font-weight: 900;
+color: var(–gold);
+text-shadow: 0 0 40px #c8922a44, 0 0 80px #c8922a22;
+line-height: 1.1;
+letter-spacing: 0.04em;
+}
 
-  h1 span {
-    color: var(--text-dim);
-    font-weight: 400;
-    font-size: 0.55em;
-    display: block;
-    letter-spacing: 0.2em;
-    margin-top: 6px;
-  }
+h1 span {
+color: var(–text-dim);
+font-weight: 400;
+font-size: 0.55em;
+display: block;
+letter-spacing: 0.2em;
+margin-top: 6px;
+}
 
-  .divider {
-    width: 200px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
-    margin: 20px auto;
-    position: relative;
-  }
-  .divider::before {
-    content: '✦';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    color: var(--gold-dim);
-    font-size: 10px;
-    background: var(--void);
-    padding: 0 6px;
-  }
+.divider {
+width: 200px;
+height: 1px;
+background: linear-gradient(90deg, transparent, var(–gold-dim), transparent);
+margin: 20px auto;
+position: relative;
+}
+.divider::before {
+content: ‘✦’;
+position: absolute;
+left: 50%;
+top: 50%;
+transform: translate(-50%, -50%);
+color: var(–gold-dim);
+font-size: 10px;
+background: var(–void);
+padding: 0 6px;
+}
 
-  /* Main panel */
-  .panel {
-    background: linear-gradient(160deg, #0d0d1a, #080810);
-    border: 1px solid #1e1e30;
-    border-radius: 2px;
-    padding: 32px;
-    margin-bottom: 20px;
-    position: relative;
-  }
+/* Main panel */
+.panel {
+background: linear-gradient(160deg, #0d0d1a, #080810);
+border: 1px solid #1e1e30;
+border-radius: 2px;
+padding: 32px;
+margin-bottom: 20px;
+position: relative;
+}
 
-  .panel::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 2px;
-    background: linear-gradient(135deg, #c8922a08 0%, transparent 50%);
-    pointer-events: none;
-  }
+.panel::before {
+content: ‘’;
+position: absolute;
+inset: 0;
+border-radius: 2px;
+background: linear-gradient(135deg, #c8922a08 0%, transparent 50%);
+pointer-events: none;
+}
 
-  .panel-title {
-    font-family: 'Cinzel', serif;
-    font-size: 11px;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: var(--gold-dim);
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+.panel-title {
+font-family: ‘Cinzel’, serif;
+font-size: 11px;
+letter-spacing: 0.3em;
+text-transform: uppercase;
+color: var(–gold-dim);
+margin-bottom: 24px;
+display: flex;
+align-items: center;
+gap: 12px;
+}
 
-  .panel-title::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, var(--gold-dim), transparent);
-    opacity: 0.4;
-  }
+.panel-title::after {
+content: ‘’;
+flex: 1;
+height: 1px;
+background: linear-gradient(90deg, var(–gold-dim), transparent);
+opacity: 0.4;
+}
 
-  /* Floor slider */
-  .floor-section {
-    margin-bottom: 32px;
-  }
+/* Floor slider */
+.floor-section {
+margin-bottom: 32px;
+}
 
-  .floor-label {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 16px;
-  }
+.floor-label {
+display: flex;
+justify-content: space-between;
+align-items: baseline;
+margin-bottom: 16px;
+}
 
-  .floor-label .name {
-    font-family: 'Cinzel', serif;
-    font-size: 14px;
-    color: var(--text);
-    letter-spacing: 0.1em;
-  }
+.floor-label .name {
+font-family: ‘Cinzel’, serif;
+font-size: 14px;
+color: var(–text);
+letter-spacing: 0.1em;
+}
 
-  .floor-label .value {
-    font-family: 'Cinzel', serif;
-    font-size: 28px;
-    color: var(--gold);
-    font-weight: 700;
-    text-shadow: 0 0 20px #c8922a66;
-    transition: color 0.3s;
-  }
+.floor-label .value {
+font-family: ‘Cinzel’, serif;
+font-size: 28px;
+color: var(–gold);
+font-weight: 700;
+text-shadow: 0 0 20px #c8922a66;
+transition: color 0.3s;
+}
 
-  .floor-label .zone-name {
-    font-size: 13px;
-    color: var(--text-dim);
-    font-style: italic;
-    text-align: right;
-  }
+.floor-label .zone-name {
+font-size: 13px;
+color: var(–text-dim);
+font-style: italic;
+text-align: right;
+}
 
-  input[type=range] {
-    -webkit-appearance: none;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, var(--blood) var(--pct, 0%), #1e1e30 var(--pct, 0%));
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-    transition: background 0.1s;
-  }
+input[type=range] {
+-webkit-appearance: none;
+width: 100%;
+height: 4px;
+background: linear-gradient(90deg, var(–blood) var(–pct, 0%), #1e1e30 var(–pct, 0%));
+border-radius: 2px;
+outline: none;
+cursor: pointer;
+transition: background 0.1s;
+}
 
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--gold);
-    box-shadow: 0 0 12px #c8922a88;
-    cursor: pointer;
-    transition: box-shadow 0.2s;
-  }
+input[type=range]::-webkit-slider-thumb {
+-webkit-appearance: none;
+width: 18px;
+height: 18px;
+border-radius: 50%;
+background: var(–gold);
+box-shadow: 0 0 12px #c8922a88;
+cursor: pointer;
+transition: box-shadow 0.2s;
+}
 
-  input[type=range]::-webkit-slider-thumb:hover {
-    box-shadow: 0 0 20px #c8922acc;
-  }
+input[type=range]::-webkit-slider-thumb:hover {
+box-shadow: 0 0 20px #c8922acc;
+}
 
-  /* Zone indicator */
-  .zone-bar {
-    display: flex;
-    gap: 4px;
-    margin-top: 16px;
-  }
+/* Zone indicator */
+.zone-bar {
+display: flex;
+gap: 4px;
+margin-top: 16px;
+}
 
-  .zone-seg {
-    flex: 1;
-    height: 3px;
-    border-radius: 1px;
-    background: #1e1e30;
-    transition: background 0.4s, box-shadow 0.4s;
-  }
+.zone-seg {
+flex: 1;
+height: 3px;
+border-radius: 1px;
+background: #1e1e30;
+transition: background 0.4s, box-shadow 0.4s;
+}
 
-  .zone-seg.active {
-    background: var(--zone-color, var(--blood));
-    box-shadow: 0 0 8px var(--zone-color, var(--blood));
-  }
+.zone-seg.active {
+background: var(–zone-color, var(–blood));
+box-shadow: 0 0 8px var(–zone-color, var(–blood));
+}
 
-  /* Controls grid */
-  .controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 24px;
-  }
+/* Controls grid */
+.controls {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 16px;
+margin-bottom: 24px;
+}
 
-  .control-item {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+.control-item {
+display: flex;
+flex-direction: column;
+gap: 8px;
+}
 
-  .control-label {
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    font-family: 'Cinzel', serif;
-  }
+.control-label {
+font-size: 11px;
+letter-spacing: 0.2em;
+text-transform: uppercase;
+color: var(–text-dim);
+font-family: ‘Cinzel’, serif;
+}
 
-  .control-value {
-    font-size: 18px;
-    color: var(--text);
-    font-family: 'Cinzel', serif;
-  }
+.control-value {
+font-size: 18px;
+color: var(–text);
+font-family: ‘Cinzel’, serif;
+}
 
-  /* Toggle buttons */
-  .toggles {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 24px;
-  }
+/* Toggle buttons */
+.toggles {
+display: flex;
+gap: 12px;
+flex-wrap: wrap;
+margin-bottom: 24px;
+}
 
-  .toggle-btn {
-    font-family: 'Cinzel', serif;
-    font-size: 11px;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    padding: 8px 16px;
-    border: 1px solid #2a2a40;
-    background: transparent;
-    color: var(--text-dim);
-    cursor: pointer;
-    transition: all 0.2s;
-    border-radius: 1px;
-  }
+.toggle-btn {
+font-family: ‘Cinzel’, serif;
+font-size: 11px;
+letter-spacing: 0.15em;
+text-transform: uppercase;
+padding: 8px 16px;
+border: 1px solid #2a2a40;
+background: transparent;
+color: var(–text-dim);
+cursor: pointer;
+transition: all 0.2s;
+border-radius: 1px;
+}
 
-  .toggle-btn:hover {
-    border-color: var(--gold-dim);
-    color: var(--text);
-  }
+.toggle-btn:hover {
+border-color: var(–gold-dim);
+color: var(–text);
+}
 
-  .toggle-btn.active {
-    border-color: var(--gold);
-    color: var(--gold);
-    background: #c8922a12;
-    box-shadow: 0 0 12px #c8922a22;
-  }
+.toggle-btn.active {
+border-color: var(–gold);
+color: var(–gold);
+background: #c8922a12;
+box-shadow: 0 0 12px #c8922a22;
+}
 
-  .toggle-btn.boss-btn.active {
-    border-color: var(--blood-bright);
-    color: var(--blood-bright);
-    background: #cc2a2a12;
-    box-shadow: 0 0 12px #cc2a2a44;
-    animation: bossPulse 1.5s ease-in-out infinite;
-  }
+.toggle-btn.boss-btn.active {
+border-color: var(–blood-bright);
+color: var(–blood-bright);
+background: #cc2a2a12;
+box-shadow: 0 0 12px #cc2a2a44;
+animation: bossPulse 1.5s ease-in-out infinite;
+}
 
-  @keyframes bossPulse {
-    0%, 100% { box-shadow: 0 0 12px #cc2a2a44; }
-    50% { box-shadow: 0 0 24px #cc2a2a88; }
-  }
+@keyframes bossPulse {
+0%, 100% { box-shadow: 0 0 12px #cc2a2a44; }
+50% { box-shadow: 0 0 24px #cc2a2a88; }
+}
 
-  /* Main play button */
-  .play-btn {
-    width: 100%;
-    padding: 18px;
-    font-family: 'Cinzel', serif;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    border: 1px solid var(--gold-dim);
-    background: linear-gradient(135deg, #1a0e00, #0d0a00);
-    color: var(--gold);
-    cursor: pointer;
-    transition: all 0.3s;
-    position: relative;
-    overflow: hidden;
-    border-radius: 1px;
-  }
+/* Main play button */
+.play-btn {
+width: 100%;
+padding: 18px;
+font-family: ‘Cinzel’, serif;
+font-size: 14px;
+font-weight: 700;
+letter-spacing: 0.25em;
+text-transform: uppercase;
+border: 1px solid var(–gold-dim);
+background: linear-gradient(135deg, #1a0e00, #0d0a00);
+color: var(–gold);
+cursor: pointer;
+transition: all 0.3s;
+position: relative;
+overflow: hidden;
+border-radius: 1px;
+}
 
-  .play-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, #c8922a22, transparent);
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
+.play-btn::before {
+content: ‘’;
+position: absolute;
+inset: 0;
+background: linear-gradient(135deg, #c8922a22, transparent);
+opacity: 0;
+transition: opacity 0.3s;
+}
 
-  .play-btn:hover::before { opacity: 1; }
-  .play-btn:hover {
-    border-color: var(--gold);
-    box-shadow: 0 0 30px #c8922a33;
-  }
+.play-btn:hover::before { opacity: 1; }
+.play-btn:hover {
+border-color: var(–gold);
+box-shadow: 0 0 30px #c8922a33;
+}
 
-  .play-btn.playing {
-    border-color: var(--blood-bright);
-    color: var(--blood-bright);
-    background: linear-gradient(135deg, #1a0000, #0d0000);
-    animation: playPulse 2s ease-in-out infinite;
-  }
+.play-btn.playing {
+border-color: var(–blood-bright);
+color: var(–blood-bright);
+background: linear-gradient(135deg, #1a0000, #0d0000);
+animation: playPulse 2s ease-in-out infinite;
+}
 
-  @keyframes playPulse {
-    0%, 100% { box-shadow: 0 0 20px #cc2a2a22; }
-    50% { box-shadow: 0 0 40px #cc2a2a55; }
-  }
+@keyframes playPulse {
+0%, 100% { box-shadow: 0 0 20px #cc2a2a22; }
+50% { box-shadow: 0 0 40px #cc2a2a55; }
+}
 
-  /* Visualizer */
-  .visualizer-wrap {
-    margin-top: 20px;
-    position: relative;
-  }
+/* Visualizer */
+.visualizer-wrap {
+margin-top: 20px;
+position: relative;
+}
 
-  canvas {
-    width: 100%;
-    height: 80px;
-    display: block;
-    border: 1px solid #1a1a28;
-    border-radius: 1px;
-    background: #05050a;
-  }
+canvas {
+width: 100%;
+height: 80px;
+display: block;
+border: 1px solid #1a1a28;
+border-radius: 1px;
+background: #05050a;
+}
 
-  /* Layer indicators */
-  .layers {
-    display: flex;
-    gap: 8px;
-    margin-top: 16px;
-    flex-wrap: wrap;
-  }
+/* Layer indicators */
+.layers {
+display: flex;
+gap: 8px;
+margin-top: 16px;
+flex-wrap: wrap;
+}
 
-  .layer-pill {
-    font-size: 10px;
-    letter-spacing: 0.15em;
-    font-family: 'Cinzel', serif;
-    text-transform: uppercase;
-    padding: 4px 10px;
-    border-radius: 1px;
-    border: 1px solid #1e1e30;
-    color: var(--text-dim);
-    transition: all 0.5s;
-    position: relative;
-  }
+.layer-pill {
+font-size: 10px;
+letter-spacing: 0.15em;
+font-family: ‘Cinzel’, serif;
+text-transform: uppercase;
+padding: 4px 10px;
+border-radius: 1px;
+border: 1px solid #1e1e30;
+color: var(–text-dim);
+transition: all 0.5s;
+position: relative;
+}
 
-  .layer-pill.on {
-    border-color: currentColor;
-    text-shadow: 0 0 8px currentColor;
-    box-shadow: 0 0 10px currentColor44;
-  }
+.layer-pill.on {
+border-color: currentColor;
+text-shadow: 0 0 8px currentColor;
+box-shadow: 0 0 10px currentColor44;
+}
 
-  .layer-pill.drone   { color: #2a4a6a; }
-  .layer-pill.perc    { color: #6a2a2a; }
-  .layer-pill.bass    { color: #4a2a6a; }
-  .layer-pill.melody  { color: #2a6a4a; }
-  .layer-pill.choir   { color: #6a5a2a; }
-  .layer-pill.chaos   { color: #6a2a3a; }
+.layer-pill.drone   { color: #2a4a6a; }
+.layer-pill.perc    { color: #6a2a2a; }
+.layer-pill.bass    { color: #4a2a6a; }
+.layer-pill.melody  { color: #2a6a4a; }
+.layer-pill.choir   { color: #6a5a2a; }
+.layer-pill.chaos   { color: #6a2a3a; }
 
-  /* Status bar */
-  .status {
-    text-align: center;
-    font-size: 13px;
-    font-style: italic;
-    color: var(--text-dim);
-    margin-top: 16px;
-    min-height: 20px;
-    transition: color 0.3s;
-  }
+/* Status bar */
+.status {
+text-align: center;
+font-size: 13px;
+font-style: italic;
+color: var(–text-dim);
+margin-top: 16px;
+min-height: 20px;
+transition: color 0.3s;
+}
 
-  /* Record section */
-  .record-section {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
+/* Record section */
+.record-section {
+display: flex;
+gap: 12px;
+align-items: center;
+}
 
-  .record-btn {
-    flex: 1;
-    padding: 12px;
-    font-family: 'Cinzel', serif;
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    border: 1px solid #2a2a40;
-    background: transparent;
-    color: var(--text-dim);
-    cursor: pointer;
-    transition: all 0.2s;
-    border-radius: 1px;
-  }
+.record-btn {
+flex: 1;
+padding: 12px;
+font-family: ‘Cinzel’, serif;
+font-size: 11px;
+letter-spacing: 0.2em;
+text-transform: uppercase;
+border: 1px solid #2a2a40;
+background: transparent;
+color: var(–text-dim);
+cursor: pointer;
+transition: all 0.2s;
+border-radius: 1px;
+}
 
-  .record-btn:hover { border-color: var(--blood-bright); color: var(--blood-bright); }
-  .record-btn.recording {
-    border-color: var(--blood-bright);
-    color: var(--blood-bright);
-    animation: recPulse 1s ease-in-out infinite;
-  }
-  @keyframes recPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
+.record-btn:hover { border-color: var(–blood-bright); color: var(–blood-bright); }
+.record-btn.recording {
+border-color: var(–blood-bright);
+color: var(–blood-bright);
+animation: recPulse 1s ease-in-out infinite;
+}
+@keyframes recPulse {
+0%, 100% { opacity: 1; }
+50% { opacity: 0.5; }
+}
 
-  .rec-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--blood-bright);
-    display: inline-block;
-    margin-right: 6px;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  .recording .rec-dot { opacity: 1; animation: recPulse 1s ease-in-out infinite; }
+.rec-dot {
+width: 8px; height: 8px;
+border-radius: 50%;
+background: var(–blood-bright);
+display: inline-block;
+margin-right: 6px;
+opacity: 0;
+transition: opacity 0.2s;
+}
+.recording .rec-dot { opacity: 1; animation: recPulse 1s ease-in-out infinite; }
 
-  @media (max-width: 600px) {
-    .controls { grid-template-columns: 1fr; }
-    .panel { padding: 20px; }
-  }
+@media (max-width: 600px) {
+.controls { grid-template-columns: 1fr; }
+.panel { padding: 20px; }
+}
 </style>
+
 </head>
 <body>
 <div class="container">
@@ -478,53 +480,58 @@
   </div>
 
   <!-- Main synth panel -->
+
   <div class="panel">
     <div class="panel-title">Floor Depth</div>
 
-    <div class="floor-section">
-      <div class="floor-label">
-        <div>
-          <div class="name">Void Floor</div>
-          <div class="value" id="floorNum">1</div>
-        </div>
-        <div class="zone-name" id="zoneName">Ashen Fields</div>
-      </div>
-      <input type="range" id="floorSlider" min="1" max="99" value="1"/>
-      <div class="zone-bar" id="zoneBar"></div>
+```
+<div class="floor-section">
+  <div class="floor-label">
+    <div>
+      <div class="name">Void Floor</div>
+      <div class="value" id="floorNum">1</div>
     </div>
+    <div class="zone-name" id="zoneName">Ashen Fields</div>
+  </div>
+  <input type="range" id="floorSlider" min="1" max="99" value="1"/>
+  <div class="zone-bar" id="zoneBar"></div>
+</div>
 
-    <div class="panel-title">Composition Layers</div>
+<div class="panel-title">Composition Layers</div>
 
-    <div class="layers" id="layerPills">
-      <div class="layer-pill drone" id="pill-drone">Drone</div>
-      <div class="layer-pill perc" id="pill-perc">Percussion</div>
-      <div class="layer-pill bass" id="pill-bass">Bass</div>
-      <div class="layer-pill melody" id="pill-melody">Melody</div>
-      <div class="layer-pill choir" id="pill-choir">Choir</div>
-      <div class="layer-pill chaos" id="pill-chaos">Chaos</div>
-    </div>
+<div class="layers" id="layerPills">
+  <div class="layer-pill drone" id="pill-drone">Drone</div>
+  <div class="layer-pill perc" id="pill-perc">Percussion</div>
+  <div class="layer-pill bass" id="pill-bass">Bass</div>
+  <div class="layer-pill melody" id="pill-melody">Melody</div>
+  <div class="layer-pill choir" id="pill-choir">Choir</div>
+  <div class="layer-pill chaos" id="pill-chaos">Chaos</div>
+</div>
 
-    <div class="toggles">
-      <button class="toggle-btn active" id="btn-drone" onclick="toggleLayer('drone')">⬛ Drone</button>
-      <button class="toggle-btn" id="btn-perc" onclick="toggleLayer('perc')">🥁 Percussion</button>
-      <button class="toggle-btn" id="btn-bass" onclick="toggleLayer('bass')">〰 Bass</button>
-      <button class="toggle-btn" id="btn-melody" onclick="toggleLayer('melody')">♪ Melody</button>
-      <button class="toggle-btn" id="btn-choir" onclick="toggleLayer('choir')">🎼 Choir</button>
-      <button class="toggle-btn boss-btn" id="btn-boss" onclick="toggleBoss()">⚡ Boss Mode</button>
-    </div>
+<div class="toggles">
+  <button class="toggle-btn active" id="btn-drone" onclick="toggleLayer('drone')">⬛ Drone</button>
+  <button class="toggle-btn" id="btn-perc" onclick="toggleLayer('perc')">🥁 Percussion</button>
+  <button class="toggle-btn" id="btn-bass" onclick="toggleLayer('bass')">〰 Bass</button>
+  <button class="toggle-btn" id="btn-melody" onclick="toggleLayer('melody')">♪ Melody</button>
+  <button class="toggle-btn" id="btn-choir" onclick="toggleLayer('choir')">🎼 Choir</button>
+  <button class="toggle-btn boss-btn" id="btn-boss" onclick="toggleBoss()">⚡ Boss Mode</button>
+</div>
 
-    <button class="play-btn" id="playBtn" onclick="togglePlay()">
-      ▶ &nbsp; Invoke the Void
-    </button>
+<button class="play-btn" id="playBtn" onclick="togglePlay()">
+  ▶ &nbsp; Invoke the Void
+</button>
 
-    <div class="visualizer-wrap">
-      <canvas id="viz" height="80"></canvas>
-    </div>
+<div class="visualizer-wrap">
+  <canvas id="viz" height="80"></canvas>
+</div>
 
-    <div class="status" id="status">Awaiting invocation...</div>
+<div class="status" id="status">Awaiting invocation...</div>
+```
+
   </div>
 
   <!-- Record panel -->
+
   <div class="panel">
     <div class="panel-title">Recording</div>
     <div class="record-section">
@@ -539,540 +546,485 @@
 </div>
 
 <script>
-// ============================================================
-// ASHEN THRONE ADAPTIVE MUSIC SYNTHESIZER v2
-// Per-zone presets: unique timbre, scale mode, percussion pattern,
-// filter character, LFO speeds per zone
-// ============================================================
+// ================================================================
+// ASHEN THRONE — MUSIC FORGE v3
+// Non-destructive layer architecture:
+//   • Each layer owns a permanent bus GainNode wired to master
+//   • Toggling a layer fades its bus and rebuilds only that layer's nodes
+//   • Floor changes crossfade: new nodes fade in while old ones fade out
+//   • Recording destination is created once at audio init, permanently
+//     connected to master — adding/removing layers during recording
+//     never causes a glitch or gap
+// ================================================================
 
-let ctx = null;
-let masterGain = null;
-let analyser = null;
-let isPlaying = false;
-let isBoss = false;
+// ── Global audio graph ───────────────────────────────────────────
+let ctx         = null;
+let masterGain  = null;
+let analyser    = null;
+let recDest     = null;   // created once, lives forever
+
+// ── Per-layer registries ─────────────────────────────────────────
+// bus[name]    → permanent GainNode, always connected to master
+// nodes[name]  → current oscillators/sources for that layer
+// timers[name] → setTimeout IDs for that layer's scheduler
+const LAYER_NAMES = ['drone', 'perc', 'bass', 'melody', 'choir', 'chaos', 'boss'];
+const bus    = {};
+const nodes  = {};
+const timers = {};
+LAYER_NAMES.forEach(n => { nodes[n] = []; timers[n] = []; });
+
+// ── UI state ──────────────────────────────────────────────────────
+let isPlaying   = false;
+let isBoss      = false;
 let isRecording = false;
-let mediaRecorder = null;
-let recordedChunks = [];
+let mediaRecorder   = null;
+let recordedChunks  = [];
+let recTimerID      = null;
+let recSeconds      = 0;
 
-const layers = { drone: true, perc: false, bass: false, melody: false, choir: false };
-let activeNodes = [];
-let scheduledTimers = [];
+const layerOn = { drone: true, perc: false, bass: false, melody: false, choir: false };
 
-// ============================================================
-// ZONE PRESETS — full sonic identity per zone
-// ============================================================
+// Crossfade durations (seconds)
+const FADE_IN  = 1.6;
+const FADE_OUT = 2.0;
+
+// ── Zone presets ──────────────────────────────────────────────────
 const ZONES = [
   {
-    name: "Ashen Fields", range: [1,5], color: "#8b3a3a", bpm: 58,
-    root: 41.2,  // E1 — open, hollow
-    scale: [1, 1.0595, 1.1892, 1.3348, 1.4983, 1.5874, 1.7818], // Aeolian (natural minor)
-    droneWave: 'sine',
-    droneFilterFreq: 220, droneFilterQ: 1.2,
-    droneLfoRate: 0.04, droneLfoDepth: 80,
-    droneAmpLfo: 0.06,
-    kickFreq: 52, kickDecay: 0.55,   // deep war drum
-    snareDecay: 0.18, snareFilterFreq: 900,
-    kickPattern:  [1,0,0,0,0,0,1,0],  // sparse, doom-like
-    snarePattern: [0,0,0,0,1,0,0,0],
-    hihatPattern: [0,0,0,0,0,0,0,0],  // no hihat
-    bassWave: 'sine', bassFilterFreq: 180, bassPattern: [0,0,0,4,0,0,2,0],
-    melodyWave: 'triangle', melodyOctave: 1, melodySkip: 0.35,
-    melodyPatterns: [[0,2,0,3,2,0,4,2],[0,4,3,2,0,2,3,4]],
-    choirFormants: [700, 1100, 2200], choirVibRate: 3.5, choirVibDepth: 2,
-    vizR: 139, vizG: 58, vizB: 58,
-    desc: "Sparse. Foreboding. Distant war drums echo across ash."
+    name:'Ashen Fields', range:[1,5], color:'#8b3a3a', bpm:58,
+    root:41.2, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818],
+    droneWave:'sine', droneFilterFreq:220, droneFilterQ:1.2,
+    droneLfoRate:0.04, droneLfoDepth:80, droneAmpLfo:0.06,
+    kickFreq:52, kickDecay:0.55, snareDecay:0.18, snareFilterFreq:900,
+    kickPattern:[1,0,0,0,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+    bassWave:'sine', bassFilterFreq:180, bassPattern:[0,0,0,4,0,0,2,0],
+    melodyWave:'triangle', melodyOctave:1, melodySkip:0.35,
+    melodyPatterns:[[0,2,0,3,2,0,4,2],[0,4,3,2,0,2,3,4]],
+    choirFormants:[700,1100,2200], choirVibRate:3.5, choirVibDepth:2,
+    vizR:139, vizG:58, vizB:58,
+    desc:'Sparse. Foreboding. Distant war drums echo across ash.'
   },
   {
-    name: "Rotwood Forest", range: [6,10], color: "#5a4a2a", bpm: 66,
-    root: 46.2,  // Bb1 — murky
-    scale: [1, 1.0595, 1.1225, 1.3348, 1.4983, 1.5874, 1.6818], // Locrian-ish
-    droneWave: 'sawtooth',
-    droneFilterFreq: 280, droneFilterQ: 3,
-    droneLfoRate: 0.09, droneLfoDepth: 160,
-    droneAmpLfo: 0.09,
-    kickFreq: 58, kickDecay: 0.3,
-    snareDecay: 0.12, snareFilterFreq: 1400,
-    kickPattern:  [1,0,0,1,0,0,1,0],  // triplet feel, stumbling
-    snarePattern: [0,0,1,0,0,1,0,0],
-    hihatPattern: [1,0,1,0,1,0,1,0],  // sparse hihat
-    bassWave: 'sawtooth', bassFilterFreq: 220, bassPattern: [0,2,0,0,3,0,2,0],
-    melodyWave: 'triangle', melodyOctave: 1, melodySkip: 0.25,
-    melodyPatterns: [[0,1,3,1,5,3,1,0],[3,5,3,1,0,1,3,5]],
-    choirFormants: [600, 950, 1800], choirVibRate: 4, choirVibDepth: 2.5,
-    vizR: 110, vizG: 88, vizB: 40,
-    desc: "Creaking wood. Dripping. Something follows in the dark."
+    name:'Rotwood Forest', range:[6,10], color:'#5a4a2a', bpm:66,
+    root:46.2, scale:[1,1.0595,1.1225,1.3348,1.4983,1.5874,1.6818],
+    droneWave:'sawtooth', droneFilterFreq:280, droneFilterQ:3,
+    droneLfoRate:0.09, droneLfoDepth:160, droneAmpLfo:0.09,
+    kickFreq:58, kickDecay:0.3, snareDecay:0.12, snareFilterFreq:1400,
+    kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,1,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
+    bassWave:'sawtooth', bassFilterFreq:220, bassPattern:[0,2,0,0,3,0,2,0],
+    melodyWave:'triangle', melodyOctave:1, melodySkip:0.25,
+    melodyPatterns:[[0,1,3,1,5,3,1,0],[3,5,3,1,0,1,3,5]],
+    choirFormants:[600,950,1800], choirVibRate:4, choirVibDepth:2.5,
+    vizR:110, vizG:88, vizB:40,
+    desc:'Creaking wood. Dripping. Something follows in the dark.'
   },
   {
-    name: "Catacombs Deep", range: [11,18], color: "#3a3a5a", bpm: 74,
-    root: 36.7,  // Db1 — very low, bone-hollow
-    scale: [1, 1.0595, 1.2599, 1.3348, 1.4142, 1.5874, 1.7818], // Phrygian
-    droneWave: 'sawtooth',
-    droneFilterFreq: 160, droneFilterQ: 4,
-    droneLfoRate: 0.06, droneLfoDepth: 300,
-    droneAmpLfo: 0.12,
-    kickFreq: 44, kickDecay: 0.7,    // massive boom, long decay
-    snareDecay: 0.22, snareFilterFreq: 600,
-    kickPattern:  [1,0,0,0,1,0,0,1],
-    snarePattern: [0,0,1,0,0,0,1,0],
-    hihatPattern: [0,1,0,1,0,1,0,1],
-    bassWave: 'sawtooth', bassFilterFreq: 160, bassPattern: [0,0,5,0,0,4,0,2],
-    melodyWave: 'square', melodyOctave: 1, melodySkip: 0.2,
-    melodyPatterns: [[0,2,4,2,5,4,2,0],[5,4,2,0,4,5,6,4]],
-    choirFormants: [500, 800, 1600], choirVibRate: 3, choirVibDepth: 1.5,
-    vizR: 80, vizG: 80, vizB: 160,
-    desc: "Bone-hollow reverb. The dead breathe here."
+    name:'Catacombs Deep', range:[11,18], color:'#3a3a5a', bpm:74,
+    root:36.7, scale:[1,1.0595,1.2599,1.3348,1.4142,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:160, droneFilterQ:4,
+    droneLfoRate:0.06, droneLfoDepth:300, droneAmpLfo:0.12,
+    kickFreq:44, kickDecay:0.7, snareDecay:0.22, snareFilterFreq:600,
+    kickPattern:[1,0,0,0,1,0,0,1], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[0,1,0,1,0,1,0,1],
+    bassWave:'sawtooth', bassFilterFreq:160, bassPattern:[0,0,5,0,0,4,0,2],
+    melodyWave:'square', melodyOctave:1, melodySkip:0.2,
+    melodyPatterns:[[0,2,4,2,5,4,2,0],[5,4,2,0,4,5,6,4]],
+    choirFormants:[500,800,1600], choirVibRate:3, choirVibDepth:1.5,
+    vizR:80, vizG:80, vizB:160,
+    desc:'Bone-hollow reverb. The dead breathe here.'
   },
   {
-    name: "Shadowmere", range: [19,26], color: "#4a2a6a", bpm: 82,
-    root: 55,   // A1 — phrygian dominant
-    scale: [1, 1.0595, 1.2599, 1.3348, 1.4983, 1.5874, 1.7818], // Phrygian dominant
-    droneWave: 'sawtooth',
-    droneFilterFreq: 340, droneFilterQ: 5,
-    droneLfoRate: 0.12, droneLfoDepth: 450,
-    droneAmpLfo: 0.14,
-    kickFreq: 55, kickDecay: 0.35,
-    snareDecay: 0.14, snareFilterFreq: 1800,
-    kickPattern:  [1,0,0,0,1,0,1,0],
-    snarePattern: [0,0,1,0,0,0,1,1],
-    hihatPattern: [1,1,0,1,1,1,0,1],
-    bassWave: 'sawtooth', bassFilterFreq: 260, bassPattern: [0,0,4,2,0,5,3,0],
-    melodyWave: 'triangle', melodyOctave: 2, melodySkip: 0.15,
-    melodyPatterns: [[0,1,4,2,5,4,1,0],[4,5,4,2,1,2,4,5],[0,4,6,4,5,4,2,0]],
-    choirFormants: [750, 1150, 2400], choirVibRate: 5, choirVibDepth: 3.5,
-    vizR: 120, vizG: 40, vizB: 180,
-    desc: "Wraith-song. Dense choir. Minor 2nd dissonance cuts through fog."
+    name:'Shadowmere', range:[19,26], color:'#4a2a6a', bpm:82,
+    root:55, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:340, droneFilterQ:5,
+    droneLfoRate:0.12, droneLfoDepth:450, droneAmpLfo:0.14,
+    kickFreq:55, kickDecay:0.35, snareDecay:0.14, snareFilterFreq:1800,
+    kickPattern:[1,0,0,0,1,0,1,0], snarePattern:[0,0,1,0,0,0,1,1], hihatPattern:[1,1,0,1,1,1,0,1],
+    bassWave:'sawtooth', bassFilterFreq:260, bassPattern:[0,0,4,2,0,5,3,0],
+    melodyWave:'triangle', melodyOctave:2, melodySkip:0.15,
+    melodyPatterns:[[0,1,4,2,5,4,1,0],[4,5,4,2,1,2,4,5],[0,4,6,4,5,4,2,0]],
+    choirFormants:[750,1150,2400], choirVibRate:5, choirVibDepth:3.5,
+    vizR:120, vizG:40, vizB:180,
+    desc:'Wraith-song. Dense choir. Minor 2nd dissonance cuts through fog.'
   },
   {
-    name: "Sorcerer's Veil", range: [27,34], color: "#2a4a6a", bpm: 90,
-    root: 61.7,  // B1 — arcane, unstable
-    scale: [1, 1.0595, 1.1892, 1.2599, 1.4983, 1.6818, 1.7818], // Lydian dominant (magic feel)
-    droneWave: 'triangle',
-    droneFilterFreq: 500, droneFilterQ: 6,
-    droneLfoRate: 0.18, droneLfoDepth: 600,
-    droneAmpLfo: 0.18,
-    kickFreq: 60, kickDecay: 0.28,
-    snareDecay: 0.1, snareFilterFreq: 2200,
-    kickPattern:  [1,0,1,0,0,1,0,0],  // syncopated, unstable
-    snarePattern: [0,1,0,0,1,0,0,1],
-    hihatPattern: [1,1,1,0,1,1,0,1],
-    bassWave: 'triangle', bassFilterFreq: 380, bassPattern: [0,3,0,5,2,0,4,6],
-    melodyWave: 'sine', melodyOctave: 2, melodySkip: 0.1,
-    melodyPatterns: [[0,2,4,6,4,2,5,3],[6,5,4,2,0,2,4,5],[0,4,2,6,5,3,2,4]],
-    choirFormants: [900, 1400, 2800], choirVibRate: 6, choirVibDepth: 4,
-    vizR: 60, vizG: 120, vizB: 200,
-    desc: "Arcane shimmer. Fast arpeggios. Reality unravels at the edges."
+    name:"Sorcerer's Veil", range:[27,34], color:'#2a4a6a', bpm:90,
+    root:61.7, scale:[1,1.0595,1.1892,1.2599,1.4983,1.6818,1.7818],
+    droneWave:'triangle', droneFilterFreq:500, droneFilterQ:6,
+    droneLfoRate:0.18, droneLfoDepth:600, droneAmpLfo:0.18,
+    kickFreq:60, kickDecay:0.28, snareDecay:0.1, snareFilterFreq:2200,
+    kickPattern:[1,0,1,0,0,1,0,0], snarePattern:[0,1,0,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
+    bassWave:'triangle', bassFilterFreq:380, bassPattern:[0,3,0,5,2,0,4,6],
+    melodyWave:'sine', melodyOctave:2, melodySkip:0.1,
+    melodyPatterns:[[0,2,4,6,4,2,5,3],[6,5,4,2,0,2,4,5],[0,4,2,6,5,3,2,4]],
+    choirFormants:[900,1400,2800], choirVibRate:6, choirVibDepth:4,
+    vizR:60, vizG:120, vizB:200,
+    desc:'Arcane shimmer. Fast arpeggios. Reality unravels at the edges.'
   },
   {
-    name: "Obsidian Keep", range: [35,42], color: "#6a2a4a", bpm: 100,
-    root: 49,   // G1 — heavy, dark
-    scale: [1, 1.0595, 1.2599, 1.3348, 1.4983, 1.5874, 1.7818], // Phrygian
-    droneWave: 'sawtooth',
-    droneFilterFreq: 420, droneFilterQ: 3.5,
-    droneLfoRate: 0.22, droneLfoDepth: 700,
-    droneAmpLfo: 0.2,
-    kickFreq: 50, kickDecay: 0.4,
-    snareDecay: 0.16, snareFilterFreq: 1600,
-    kickPattern:  [1,0,0,1,0,1,0,0],
-    snarePattern: [0,0,1,0,1,0,0,1],
-    hihatPattern: [1,0,1,1,0,1,1,0],
-    bassWave: 'sawtooth', bassFilterFreq: 300, bassPattern: [0,0,4,0,2,5,0,3],
-    melodyWave: 'square', melodyOctave: 2, melodySkip: 0.1,
-    melodyPatterns: [[0,2,4,5,4,2,5,6],[5,4,2,0,2,4,5,4],[0,5,4,2,6,5,3,0]],
-    choirFormants: [650, 1050, 2100], choirVibRate: 5.5, choirVibDepth: 3,
-    vizR: 180, vizG: 40, vizB: 100,
-    desc: "Iron and blood. Full orchestral dread. War drums cascade."
+    name:'Obsidian Keep', range:[35,42], color:'#6a2a4a', bpm:100,
+    root:49, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:420, droneFilterQ:3.5,
+    droneLfoRate:0.22, droneLfoDepth:700, droneAmpLfo:0.2,
+    kickFreq:50, kickDecay:0.4, snareDecay:0.16, snareFilterFreq:1600,
+    kickPattern:[1,0,0,1,0,1,0,0], snarePattern:[0,0,1,0,1,0,0,1], hihatPattern:[1,0,1,1,0,1,1,0],
+    bassWave:'sawtooth', bassFilterFreq:300, bassPattern:[0,0,4,0,2,5,0,3],
+    melodyWave:'square', melodyOctave:2, melodySkip:0.1,
+    melodyPatterns:[[0,2,4,5,4,2,5,6],[5,4,2,0,2,4,5,4],[0,5,4,2,6,5,3,0]],
+    choirFormants:[650,1050,2100], choirVibRate:5.5, choirVibDepth:3,
+    vizR:180, vizG:40, vizB:100,
+    desc:'Iron and blood. Full orchestral dread. War drums cascade.'
   },
   {
-    name: "Void Spire", range: [43,50], color: "#5a2a8a", bpm: 110,
-    root: 51.9,  // Ab1
-    scale: [1, 1.0595, 1.1225, 1.3348, 1.4142, 1.5874, 1.6818], // Double harmonic
-    droneWave: 'sawtooth',
-    droneFilterFreq: 550, droneFilterQ: 5,
-    droneLfoRate: 0.28, droneLfoDepth: 900,
-    droneAmpLfo: 0.22,
-    kickFreq: 48, kickDecay: 0.45,
-    snareDecay: 0.18, snareFilterFreq: 2000,
-    kickPattern:  [1,0,1,0,1,0,0,1],
-    snarePattern: [0,1,0,1,0,0,1,0],
-    hihatPattern: [1,1,0,1,0,1,1,0],
-    bassWave: 'sawtooth', bassFilterFreq: 350, bassPattern: [0,4,2,5,0,3,6,2],
-    melodyWave: 'sawtooth', melodyOctave: 2, melodySkip: 0.05,
-    melodyPatterns: [[0,1,4,2,6,5,2,4],[4,5,6,4,2,1,2,4],[0,6,5,4,2,4,5,6]],
-    choirFormants: [800, 1300, 2600], choirVibRate: 7, choirVibDepth: 5,
-    vizR: 140, vizG: 40, vizB: 220,
-    desc: "The spire tears through reality. Dissonant. Relentless."
+    name:'Void Spire', range:[43,50], color:'#5a2a8a', bpm:110,
+    root:51.9, scale:[1,1.0595,1.1225,1.3348,1.4142,1.5874,1.6818],
+    droneWave:'sawtooth', droneFilterFreq:550, droneFilterQ:5,
+    droneLfoRate:0.28, droneLfoDepth:900, droneAmpLfo:0.22,
+    kickFreq:48, kickDecay:0.45, snareDecay:0.18, snareFilterFreq:2000,
+    kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,1,0,1,0,0,1,0], hihatPattern:[1,1,0,1,0,1,1,0],
+    bassWave:'sawtooth', bassFilterFreq:350, bassPattern:[0,4,2,5,0,3,6,2],
+    melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.05,
+    melodyPatterns:[[0,1,4,2,6,5,2,4],[4,5,6,4,2,1,2,4],[0,6,5,4,2,4,5,6]],
+    choirFormants:[800,1300,2600], choirVibRate:7, choirVibDepth:5,
+    vizR:140, vizG:40, vizB:220,
+    desc:'The spire tears through reality. Dissonant. Relentless.'
   },
   {
-    name: "Infernal Core", range: [51,99], color: "#8a1a1a", bpm: 120,
-    root: 43.65, // F1 — maximum dread
-    scale: [1, 1.0595, 1.1225, 1.2599, 1.4142, 1.4983, 1.7818], // Diminished
-    droneWave: 'sawtooth',
-    droneFilterFreq: 800, droneFilterQ: 7,
-    droneLfoRate: 0.4, droneLfoDepth: 1200,
-    droneAmpLfo: 0.3,
-    kickFreq: 45, kickDecay: 0.5,
-    snareDecay: 0.2, snareFilterFreq: 2500,
-    kickPattern:  [1,1,0,1,1,0,1,0],  // frantic
-    snarePattern: [0,1,1,0,0,1,0,1],
-    hihatPattern: [1,1,1,1,0,1,1,1],
-    bassWave: 'sawtooth', bassFilterFreq: 500, bassPattern: [0,2,4,6,4,2,6,0],
-    melodyWave: 'sawtooth', melodyOctave: 2, melodySkip: 0.0,
-    melodyPatterns: [[0,2,4,6,4,6,4,2],[6,4,2,0,2,4,6,4],[0,6,4,2,6,4,2,0]],
-    choirFormants: [1000, 1600, 3200], choirVibRate: 9, choirVibDepth: 7,
-    vizR: 220, vizG: 20, vizB: 20,
-    desc: "The core. Everything burns. Barely musical. Pure dread."
+    name:'Infernal Core', range:[51,99], color:'#8a1a1a', bpm:120,
+    root:43.65, scale:[1,1.0595,1.1225,1.2599,1.4142,1.4983,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:800, droneFilterQ:7,
+    droneLfoRate:0.4, droneLfoDepth:1200, droneAmpLfo:0.3,
+    kickFreq:45, kickDecay:0.5, snareDecay:0.2, snareFilterFreq:2500,
+    kickPattern:[1,1,0,1,1,0,1,0], snarePattern:[0,1,1,0,0,1,0,1], hihatPattern:[1,1,1,1,0,1,1,1],
+    bassWave:'sawtooth', bassFilterFreq:500, bassPattern:[0,2,4,6,4,2,6,0],
+    melodyWave:'sawtooth', melodyOctave:2, melodySkip:0,
+    melodyPatterns:[[0,2,4,6,4,6,4,2],[6,4,2,0,2,4,6,4],[0,6,4,2,6,4,2,0]],
+    choirFormants:[1000,1600,3200], choirVibRate:9, choirVibDepth:7,
+    vizR:220, vizG:20, vizB:20,
+    desc:'The core. Everything burns. Barely musical. Pure dread.'
   },
 ];
 
 function getZone(floor) {
-  return ZONES.find(z => floor >= z.range[0] && floor <= z.range[1]) || ZONES[ZONES.length-1];
+  return ZONES.find(z => floor >= z.range[0] && floor <= z.range[1]) || ZONES[ZONES.length - 1];
 }
+function getIntensity(floor) { return Math.min(1, (floor - 1) / 50); }
 
-function getIntensity(floor) {
-  return Math.min(1, (floor - 1) / 50);
-}
-
-// ============================================================
-// AUDIO INIT
-// ============================================================
+// ── Audio graph init ──────────────────────────────────────────────
+// Called once. Creates master chain, permanent layer buses,
+// and the recording destination — all permanently wired together.
 function initAudio() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
+
   masterGain = ctx.createGain();
   masterGain.gain.value = 0.65;
+
   analyser = ctx.createAnalyser();
   analyser.fftSize = 256;
+
   masterGain.connect(analyser);
   analyser.connect(ctx.destination);
+
+  // Recording destination wired once — survives all layer changes
+  recDest = ctx.createMediaStreamDestination();
+  masterGain.connect(recDest);
+
+  // Permanent bus GainNodes — one per layer, always connected to master.
+  // Layer start/stop only moves the bus gain, never reconnects anything.
+  LAYER_NAMES.forEach(name => {
+    const b = ctx.createGain();
+    b.gain.value = 0;
+    b.connect(masterGain);
+    bus[name] = b;
+  });
 }
 
-function makeOsc(freq, type = 'sine', detune = 0) {
+// ── Node/graph helpers ────────────────────────────────────────────
+function mkOsc(freq, type = 'sine', detune = 0) {
   const o = ctx.createOscillator();
   o.type = type; o.frequency.value = freq; o.detune.value = detune;
   return o;
 }
-function makeGain(val) { const g = ctx.createGain(); g.gain.value = val; return g; }
-function makeFilter(freq, type = 'lowpass', Q = 1) {
-  const f = ctx.createBiquadFilter();
-  f.type = type; f.frequency.value = freq; f.Q.value = Q;
-  return f;
-}
-function connect(...nodes) { for (let i = 0; i < nodes.length-1; i++) nodes[i].connect(nodes[i+1]); }
-function track(...nodes) { nodes.forEach(n => activeNodes.push(n)); }
+function mkGain(v)              { const g = ctx.createGain(); g.gain.value = v; return g; }
+function mkFilter(f, type, Q=1) { const n = ctx.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = Q; return n; }
+function chain(...nn)           { for (let i = 0; i < nn.length - 1; i++) nn[i].connect(nn[i+1]); }
 
-function scaleNote(preset, octave, degree) {
-  const ratios = preset.scale;
-  const base = preset.root;
-  const ratio = ratios[degree % ratios.length];
-  return base * ratio * Math.pow(2, octave + Math.floor(degree / ratios.length));
+// Register nodes/timers to a layer for targeted cleanup
+function reg(layerName, ...nn)  { nn.forEach(n => nodes[layerName].push(n)); }
+function regT(layerName, id)    { timers[layerName].push(id); }
+
+function scaleFreq(preset, octave, degree) {
+  const r = preset.scale[degree % preset.scale.length];
+  return preset.root * r * Math.pow(2, octave + Math.floor(degree / preset.scale.length));
 }
 
-// ============================================================
-// DRONE — per-zone timbre
-// ============================================================
-function startDrone(preset, intensity) {
-  const g = makeGain(0);
-  const filter = makeFilter(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
-  connect(filter, g, masterGain);
+// ── Fade helpers ──────────────────────────────────────────────────
+function fadeIn(gainNode, targetVol, dur) {
+  const now = ctx.currentTime;
+  gainNode.gain.cancelScheduledValues(now);
+  gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+  gainNode.gain.linearRampToValueAtTime(targetVol, now + dur);
+}
 
-  // Primary oscillator stack
-  const freqs = [preset.root, preset.root * 1.5, preset.root * 2, preset.root * 3];
-  const vols  = [0.35, 0.2, 0.12, 0.06];
-  freqs.forEach((f, i) => {
-    const o = makeOsc(f, i === 0 ? preset.droneWave : 'sine', (i-1) * 9);
-    const og = makeGain(vols[i]);
-    connect(o, og, filter);
-    o.start(); track(o, og);
+function fadeOut(gainNode, dur, thenKill) {
+  const now = ctx.currentTime;
+  gainNode.gain.cancelScheduledValues(now);
+  gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+  gainNode.gain.linearRampToValueAtTime(0, now + dur);
+  if (thenKill) setTimeout(thenKill, (dur + 0.1) * 1000);
+}
+
+// ── Kill nodes belonging to one layer ────────────────────────────
+function killLayer(name) {
+  timers[name].forEach(clearTimeout);
+  timers[name] = [];
+  nodes[name].forEach(n => {
+    try { if (n.stop) n.stop(ctx.currentTime + 0.04); n.disconnect(); } catch(e) {}
   });
-
-  // Second detuned layer for width
-  const o2 = makeOsc(preset.root * 2, preset.droneWave, 14);
-  const o2g = makeGain(0.08);
-  connect(o2, o2g, filter);
-  o2.start(); track(o2, o2g);
-
-  // Filter LFO — zone-specific rate and depth
-  const lfo = makeOsc(preset.droneLfoRate + intensity * 0.1, 'sine');
-  const lfoG = makeGain(preset.droneLfoDepth + intensity * 400);
-  connect(lfo, lfoG); lfoG.connect(filter.frequency);
-  lfo.start(); track(lfo, lfoG);
-
-  // Amp breath LFO
-  const ampLfo = makeOsc(preset.droneAmpLfo, 'sine');
-  const ampLfoG = makeGain(0.08 + intensity * 0.06);
-  connect(ampLfo, ampLfoG); ampLfoG.connect(g.gain);
-  ampLfo.start(); track(ampLfo, ampLfoG);
-
-  g.gain.linearRampToValueAtTime(0.35 + intensity * 0.25, ctx.currentTime + 3.5);
-  track(g, filter);
+  nodes[name] = [];
 }
 
-// ============================================================
-// PERCUSSION — per-zone patterns and tuning
-// ============================================================
-function makeBoomBuffer(freq, decay) {
-  const dur = decay * 4;
-  const len = Math.floor(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) {
-    const t = i / ctx.sampleRate;
-    const env = Math.exp(-t / decay);
-    const f = freq * Math.exp(-t * 18);
-    data[i] = Math.sin(2 * Math.PI * f * t) * env * 0.85;
+// ── Target bus volumes ────────────────────────────────────────────
+function busTarget(name, intensity) {
+  return { drone:0.5+intensity*0.25, perc:1.0, bass:0.9, melody:0.85,
+           choir:0.55+intensity*0.2, chaos:0.45*intensity, boss:0.75 }[name] ?? 0.5;
+}
+
+// ── Layer builders — all route into bus[name], not masterGain ─────
+
+function buildDrone(preset, intensity, layerName) {
+  const b = bus[layerName];
+  const filt = mkFilter(preset.droneFilterFreq + intensity*600, 'lowpass', preset.droneFilterQ);
+  filt.connect(b);
+  [preset.root, preset.root*1.5, preset.root*2, preset.root*3].forEach((f, i) => {
+    const o = mkOsc(f, i===0 ? preset.droneWave : 'sine', (i-1)*9);
+    const g = mkGain([0.35, 0.2, 0.12, 0.06][i]);
+    chain(o, g, filt); o.start(); reg(layerName, o, g);
+  });
+  const detOsc = mkOsc(preset.root*2, preset.droneWave, 14);
+  const detG   = mkGain(0.08);
+  chain(detOsc, detG, filt); detOsc.start(); reg(layerName, detOsc, detG);
+
+  const lfo  = mkOsc(preset.droneLfoRate + intensity*0.1, 'sine');
+  const lfoG = mkGain(preset.droneLfoDepth + intensity*400);
+  chain(lfo, lfoG); lfoG.connect(filt.frequency); lfo.start(); reg(layerName, lfo, lfoG);
+
+  const aLfo  = mkOsc(preset.droneAmpLfo, 'sine');
+  const aLfoG = mkGain(0.07 + intensity*0.06);
+  chain(aLfo, aLfoG); aLfoG.connect(b.gain); aLfo.start(); reg(layerName, aLfo, aLfoG, filt);
+}
+
+// Build PCM buffers tuned to this preset (cheap, ~3ms)
+function buildPercBufs(preset) {
+  const sr = ctx.sampleRate;
+  const kick = ctx.createBuffer(1, Math.floor(sr*preset.kickDecay*4), sr);
+  const kd   = kick.getChannelData(0);
+  for (let i = 0; i < kd.length; i++) {
+    const t = i/sr;
+    kd[i] = Math.sin(2*Math.PI * preset.kickFreq * Math.exp(-t*18) * t) * Math.exp(-t/preset.kickDecay) * 0.85;
   }
-  return buf;
-}
-
-function makeNoiseBuffer(decay, filterFreq) {
-  const dur = decay * 6;
-  const len = Math.floor(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) {
-    const t = i / ctx.sampleRate;
-    data[i] = (Math.random() * 2 - 1) * Math.exp(-t / decay);
-  }
-  return buf;
-}
-
-let percBuffers = null;
-function initPercBuffers(preset) {
-  percBuffers = {
-    kick:  makeBoomBuffer(preset.kickFreq, preset.kickDecay),
-    snare: makeNoiseBuffer(preset.snareDecay, preset.snareFilterFreq),
-    hihat: makeNoiseBuffer(0.025, 8000),
+  const mkNoise = (decay) => {
+    const buf = ctx.createBuffer(1, Math.floor(sr*decay*6), sr);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.exp(-(i/sr)/decay);
+    return buf;
   };
+  return { kick, snare: mkNoise(preset.snareDecay), hihat: mkNoise(0.022) };
 }
 
-function schedulePerc(preset, startTime, bpm, intensity, duration) {
-  const beat = 60 / bpm;
-  const hihatFilter = makeFilter(preset.snareFilterFreq * 4, 'highpass', 1);
-  const hihatG = makeGain(0.12 + intensity * 0.15);
-  connect(hihatFilter, hihatG, masterGain);
-  track(hihatFilter, hihatG);
+function buildPerc(preset, intensity, layerName, bufs) {
+  const b    = bus[layerName];
+  const bpm  = isBoss ? preset.bpm+22 : preset.bpm;
+  const beat = 60/bpm;
+  const hhF  = mkFilter(preset.snareFilterFreq*4, 'highpass', 1);
+  hhF.connect(b); reg(layerName, hhF);
+  let t = ctx.currentTime + 0.05;
 
-  let t = startTime;
-  const end = startTime + duration;
-
-  function schedBeat() {
-    if (t > end + beat * 4) return;
+  function schedBar() {
     for (let i = 0; i < 8; i++) {
-      const bt = t + i * beat * 0.5;
-      if (bt > end) break;
-
+      const bt = t + i*beat*0.5;
       if (preset.kickPattern[i]) {
-        const src = ctx.createBufferSource();
-        src.buffer = percBuffers.kick;
-        const g = makeGain(0.65 + intensity * 0.35);
-        connect(src, g, masterGain);
-        src.start(bt); track(src, g);
+        const s = ctx.createBufferSource(); s.buffer = bufs.kick;
+        const g = mkGain(0.65+intensity*0.35); chain(s, g, b); s.start(bt); reg(layerName, s, g);
       }
       if (preset.snarePattern[i] && intensity > 0.1) {
-        const src = ctx.createBufferSource();
-        src.buffer = percBuffers.snare;
-        const g = makeGain(0.35 + intensity * 0.45);
-        const f = makeFilter(preset.snareFilterFreq, 'bandpass', 2.5);
-        connect(src, f, g, masterGain);
-        src.start(bt); track(src, f, g);
+        const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+        const g = mkGain(0.35+intensity*0.45);
+        const f = mkFilter(preset.snareFilterFreq, 'bandpass', 2.5);
+        chain(s, f, g, b); s.start(bt); reg(layerName, s, f, g);
       }
       if (preset.hihatPattern[i] && intensity > 0.3) {
-        const src = ctx.createBufferSource();
-        src.buffer = percBuffers.hihat;
-        const g = makeGain(0.1 + intensity * 0.15);
-        connect(src, hihatFilter);
-        src.start(bt); track(src, g);
+        const s = ctx.createBufferSource(); s.buffer = bufs.hihat;
+        const g = mkGain(0.1+intensity*0.15); chain(s, g, hhF); s.start(bt); reg(layerName, s, g);
       }
     }
-    t += beat * 4;
-    const tid = setTimeout(schedBeat, (beat * 3.5) * 1000);
-    scheduledTimers.push(tid);
+    t += beat*4;
+    regT(layerName, setTimeout(schedBar, (beat*3.5)*1000));
   }
-  schedBeat();
+  schedBar();
 }
 
-// ============================================================
-// BASS — per-zone wave and pattern
-// ============================================================
-function scheduleBass(preset, startTime, bpm, intensity, duration) {
-  const beat = 60 / bpm;
-  let t = startTime;
-  const end = startTime + duration;
+function buildBass(preset, intensity, layerName) {
+  const b    = bus[layerName];
+  const bpm  = isBoss ? preset.bpm+22 : preset.bpm;
+  const beat = 60/bpm;
+  let t      = ctx.currentTime + 0.05;
 
   function schedBar() {
-    if (t > end + beat * 4) return;
     for (let i = 0; i < 8; i++) {
-      const bt = t + i * beat * 0.5;
-      if (bt > end) break;
-      const deg = preset.bassPattern[i];
-      const freq = scaleNote(preset, 0, deg);
-      const osc = makeOsc(freq, preset.bassWave);
-      const env = makeGain(0);
-      const filter = makeFilter(preset.bassFilterFreq + intensity * 300, 'lowpass', 3);
-      connect(osc, filter, env, masterGain);
-      const vol = 0.22 + intensity * 0.18;
+      const bt   = t + i*beat*0.5;
+      const freq = scaleFreq(preset, 0, preset.bassPattern[i]);
+      const o    = mkOsc(freq, preset.bassWave);
+      const env  = mkGain(0);
+      const filt = mkFilter(preset.bassFilterFreq + intensity*300, 'lowpass', 3);
+      chain(o, filt, env, b);
+      const vol = 0.22 + intensity*0.18;
       env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol, bt + 0.015);
-      env.gain.exponentialRampToValueAtTime(0.001, bt + beat * 0.45);
-      osc.start(bt); osc.stop(bt + beat * 0.5);
-      track(osc, env, filter);
+      env.gain.linearRampToValueAtTime(vol, bt+0.015);
+      env.gain.exponentialRampToValueAtTime(0.001, bt+beat*0.45);
+      o.start(bt); o.stop(bt+beat*0.5);
+      reg(layerName, o, env, filt);
     }
-    t += beat * 4;
-    const tid = setTimeout(schedBar, (beat * 3.6) * 1000);
-    scheduledTimers.push(tid);
+    t += beat*4;
+    regT(layerName, setTimeout(schedBar, (beat*3.6)*1000));
   }
   schedBar();
 }
 
-// ============================================================
-// MELODY — per-zone patterns, waveform, octave
-// ============================================================
-function scheduleMelody(preset, startTime, bpm, intensity, duration) {
-  const beat = 60 / bpm;
-  let patIdx = 0;
-  let t = startTime;
-  const end = startTime + duration;
+function buildMelody(preset, intensity, layerName) {
+  const b    = bus[layerName];
+  const bpm  = isBoss ? preset.bpm+22 : preset.bpm;
+  const beat = 60/bpm;
+  let patIdx = 0, t = ctx.currentTime + 0.1;
 
   function schedBar() {
-    if (t > end + beat * 4) return;
-    const pat = preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
-    patIdx++;
+    const pat = preset.melodyPatterns[patIdx++ % preset.melodyPatterns.length];
     for (let i = 0; i < pat.length; i++) {
-      const bt = t + i * beat * 0.5;
-      if (bt > end) break;
+      const bt = t + i*beat*0.5;
       if (Math.random() < preset.melodySkip) continue;
-      const freq = scaleNote(preset, preset.melodyOctave, pat[i]);
-      const osc  = makeOsc(freq, preset.melodyWave);
-      const osc2 = makeOsc(freq * 1.004, 'sine');
-      const env  = makeGain(0);
-      const filter = makeFilter(1200 + intensity * 1400, 'lowpass', 2);
-      const g1 = makeGain(0.55); const g2 = makeGain(0.28);
-      connect(osc, g1, filter);
-      connect(osc2, g2, filter);
-      connect(filter, env, masterGain);
-      const vol = 0.07 + intensity * 0.13;
-      const noteDur = beat * (0.28 + Math.random() * 0.35);
+      const freq = scaleFreq(preset, preset.melodyOctave, pat[i]);
+      const o1   = mkOsc(freq, preset.melodyWave);
+      const o2   = mkOsc(freq*1.004, 'sine');
+      const env  = mkGain(0);
+      const filt = mkFilter(1200+intensity*1400, 'lowpass', 2);
+      const g1   = mkGain(0.55), g2 = mkGain(0.28);
+      chain(o1, g1, filt); chain(o2, g2, filt); chain(filt, env, b);
+      const vol = 0.07+intensity*0.13, dur = beat*(0.28+Math.random()*0.35);
       env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol, bt + 0.04);
-      env.gain.setValueAtTime(vol * 0.65, bt + noteDur * 0.65);
-      env.gain.linearRampToValueAtTime(0.001, bt + noteDur);
-      osc.start(bt); osc.stop(bt + noteDur + 0.1);
-      osc2.start(bt); osc2.stop(bt + noteDur + 0.1);
-      track(osc, osc2, env, filter, g1, g2);
+      env.gain.linearRampToValueAtTime(vol, bt+0.04);
+      env.gain.setValueAtTime(vol*0.65, bt+dur*0.65);
+      env.gain.linearRampToValueAtTime(0.001, bt+dur);
+      o1.start(bt); o1.stop(bt+dur+0.1);
+      o2.start(bt); o2.stop(bt+dur+0.1);
+      reg(layerName, o1, o2, env, filt, g1, g2);
     }
-    t += beat * 4;
-    const tid = setTimeout(schedBar, (beat * 3.6) * 1000);
-    scheduledTimers.push(tid);
+    t += beat*4;
+    regT(layerName, setTimeout(schedBar, (beat*3.6)*1000));
   }
   schedBar();
 }
 
-// ============================================================
-// CHOIR — per-zone formants and vibrato
-// ============================================================
-function startChoir(preset, intensity) {
-  const noteDegs = [0, 2, 4];
-  noteDegs.forEach((deg, vi) => {
-    const freq = scaleNote(preset, 2, deg);
-    const osc = makeOsc(freq, 'sawtooth', vi * 4);
-    const f1 = makeFilter(preset.choirFormants[0], 'bandpass', 9);
-    const f2 = makeFilter(preset.choirFormants[1], 'bandpass', 7);
-    const f3 = makeFilter(preset.choirFormants[2], 'bandpass', 5);
-    const m = makeGain(0.38);
-    connect(osc, f1, m); connect(osc, f2, m); connect(osc, f3, m);
-    const env = makeGain(0);
-    connect(m, env, masterGain);
-    env.gain.linearRampToValueAtTime((0.038 + intensity * 0.055) / 3, ctx.currentTime + 4.5);
-    const vib = makeOsc(preset.choirVibRate + vi * 0.4, 'sine');
-    const vibG = makeGain(preset.choirVibDepth);
-    connect(vib, vibG); vibG.connect(osc.frequency);
-    vib.start(); osc.start();
-    track(osc, f1, f2, f3, m, env, vib, vibG);
+function buildChoir(preset, intensity, layerName) {
+  const b = bus[layerName];
+  [0,2,4].forEach((deg, vi) => {
+    const freq = scaleFreq(preset, 2, deg);
+    const o    = mkOsc(freq, 'sawtooth', vi*4);
+    const f1   = mkFilter(preset.choirFormants[0], 'bandpass', 9);
+    const f2   = mkFilter(preset.choirFormants[1], 'bandpass', 7);
+    const f3   = mkFilter(preset.choirFormants[2], 'bandpass', 5);
+    const m    = mkGain(0.38);
+    chain(o, f1, m); chain(o, f2, m); chain(o, f3, m); m.connect(b);
+    const vib  = mkOsc(preset.choirVibRate+vi*0.4, 'sine');
+    const vibG = mkGain(preset.choirVibDepth);
+    chain(vib, vibG); vibG.connect(o.frequency);
+    vib.start(); o.start();
+    reg(layerName, o, f1, f2, f3, m, vib, vibG);
   });
 }
 
-// ============================================================
-// CHAOS — high floor dissonance layer
-// ============================================================
-function startChaos(preset, intensity) {
-  // Dissonant cluster using non-scale intervals
-  const chaosOffsets = [1.05, 1.13, 0.97, 1.21];
-  chaosOffsets.forEach((mult, i) => {
-    const freq = preset.root * 4 * mult;
-    const osc = makeOsc(freq, i % 2 === 0 ? 'square' : 'sawtooth', i * 18 - 9);
-    const filter = makeFilter(500 + Math.random() * 600, 'bandpass', 6);
-    const env = makeGain(0);
-    const trem = makeOsc(6 + i * 3, 'sine');
-    const tremG = makeGain(0.25);
-    connect(trem, tremG); tremG.connect(env.gain);
-    connect(osc, filter, env, masterGain);
-    env.gain.setValueAtTime(0, ctx.currentTime);
-    env.gain.linearRampToValueAtTime(0.03 * intensity, ctx.currentTime + 1.5);
-    trem.start(); osc.start();
-    track(osc, filter, env, trem, tremG);
+function buildChaos(preset, intensity, layerName) {
+  const b = bus[layerName];
+  [1.05,1.13,0.97,1.21].forEach((mult, i) => {
+    const o    = mkOsc(preset.root*4*mult, i%2===0 ? 'square' : 'sawtooth', i*18-9);
+    const filt = mkFilter(500+Math.random()*600, 'bandpass', 6);
+    const env  = mkGain(0);
+    const trem = mkOsc(6+i*3, 'sine');
+    const tG   = mkGain(0.25);
+    chain(trem, tG); tG.connect(env.gain);
+    chain(o, filt, env, b);
+    env.gain.linearRampToValueAtTime(0.03*intensity, ctx.currentTime+1.5);
+    trem.start(); o.start();
+    reg(layerName, o, filt, env, trem, tG);
   });
 }
 
-// ============================================================
-// BOSS MODE — aggressive sub + shriek layer
-// ============================================================
-function startBossLayer(preset, intensity) {
-  // Sub pulse at root/2
-  [preset.root * 0.5, preset.root * 0.75].forEach((freq, i) => {
-    const osc = makeOsc(freq, 'sawtooth', i * 22);
-    const filter = makeFilter(120, 'lowpass', 5);
-    const env = makeGain(0);
-    const lfo = makeOsc(1.8 + i * 0.6, 'square');
-    const lfoG = makeGain(0.28);
-    connect(lfo, lfoG); lfoG.connect(env.gain);
-    connect(osc, filter, env, masterGain);
-    env.gain.setValueAtTime(0.12, ctx.currentTime);
-    env.gain.linearRampToValueAtTime(0.28, ctx.currentTime + 1.2);
-    lfo.start(); osc.start();
-    track(osc, filter, env, lfo, lfoG);
+function buildBoss(preset, intensity, layerName) {
+  const b = bus[layerName];
+  [preset.root*0.5, preset.root*0.75].forEach((freq, i) => {
+    const o    = mkOsc(freq, 'sawtooth', i*22);
+    const filt = mkFilter(120, 'lowpass', 5);
+    const env  = mkGain(0.12);
+    const lfo  = mkOsc(1.8+i*0.6, 'square');
+    const lfoG = mkGain(0.28);
+    chain(lfo, lfoG); lfoG.connect(env.gain);
+    chain(o, filt, env, b);
+    env.gain.linearRampToValueAtTime(0.28, ctx.currentTime+1.2);
+    lfo.start(); o.start(); reg(layerName, o, filt, env, lfo, lfoG);
   });
-  // High shriek using scale's b2
-  const shriekFreq = preset.root * 8 * preset.scale[1];
-  const shriek = makeOsc(shriekFreq, 'sawtooth');
-  const shriekF = makeFilter(2800, 'highpass', 4);
-  const shriekEnv = makeGain(0);
-  connect(shriek, shriekF, shriekEnv, masterGain);
-  shriekEnv.gain.linearRampToValueAtTime(0.035, ctx.currentTime + 2.5);
-  shriek.start(); track(shriek, shriekF, shriekEnv);
+  const sh  = mkOsc(preset.root*8*preset.scale[1], 'sawtooth');
+  const shF = mkFilter(2800, 'highpass', 4);
+  const shE = mkGain(0);
+  chain(sh, shF, shE, b);
+  shE.gain.linearRampToValueAtTime(0.035, ctx.currentTime+2.5);
+  sh.start(); reg(layerName, sh, shF, shE);
 }
 
-// ============================================================
-// MAIN START / STOP
-// ============================================================
+// ── Dispatch builder by name ─────────────────────────────────────
+const BUILDERS = { drone:buildDrone, perc:buildPerc, bass:buildBass,
+                   melody:buildMelody, choir:buildChoir, chaos:buildChaos, boss:buildBoss };
+
+// Start one layer: kill old nodes, build fresh, fade bus in
+function startLayer(name, preset, intensity, percBufs) {
+  killLayer(name);
+  if (name === 'perc') BUILDERS.perc(preset, intensity, name, percBufs);
+  else                 BUILDERS[name](preset, intensity, name);
+  fadeIn(bus[name], busTarget(name, intensity), FADE_IN);
+}
+
+// Stop one layer: fade bus out, then kill nodes
+function stopLayer(name) {
+  fadeOut(bus[name], FADE_OUT, () => killLayer(name));
+}
+
+// ── Full synth start ──────────────────────────────────────────────
 function startSynth() {
   initAudio();
-  const floor = parseInt(document.getElementById('floorSlider').value);
-  const preset = getZone(floor);
-  const intensity = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
-  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const floor     = parseInt(slider.value);
+  const preset    = getZone(floor);
+  const intensity = isBoss ? Math.min(1, getIntensity(floor)+0.4) : getIntensity(floor);
+  const percBufs  = buildPercBufs(preset);
 
-  initPercBuffers(preset); // rebuild per-zone tuned perc buffers
+  if (layerOn.drone)             startLayer('drone',  preset, intensity, null);
+  if (layerOn.perc)              startLayer('perc',   preset, intensity, percBufs);
+  if (layerOn.bass)              startLayer('bass',   preset, intensity, null);
+  if (layerOn.melody)            startLayer('melody', preset, intensity, null);
+  if (layerOn.choir)             startLayer('choir',  preset, intensity, null);
+  if (intensity > 0.45)          startLayer('chaos',  preset, intensity, null);
+  if (isBoss)                    startLayer('boss',   preset, intensity, null);
 
-  setStatus(`${preset.desc}`);
-
-  if (layers.drone)  startDrone(preset, intensity);
-  if (layers.choir)  startChoir(preset, intensity);
-  if (intensity > 0.45 && layers.chaos) startChaos(preset, intensity);
-  if (isBoss)        startBossLayer(preset, intensity);
-
-  const dur = 99999;
-  if (layers.perc)   schedulePerc(preset, ctx.currentTime + 0.1, bpm, intensity, dur);
-  if (layers.bass)   scheduleBass(preset, ctx.currentTime + 0.1, bpm, intensity, dur);
-  if (layers.melody) scheduleMelody(preset, ctx.currentTime + 0.5, bpm, intensity, dur);
+  setStatus(preset.desc);
 }
 
+// ── Full synth stop ───────────────────────────────────────────────
 function stopSynth() {
-  scheduledTimers.forEach(clearTimeout);
-  scheduledTimers.length = 0;
-  activeNodes.forEach(n => { try { if (n.stop) n.stop(ctx.currentTime + 0.05); n.disconnect(); } catch(e){} });
-  activeNodes.length = 0;
+  LAYER_NAMES.forEach(name => {
+    const b = bus[name];
+    if (b) { b.gain.cancelScheduledValues(ctx.currentTime); b.gain.setValueAtTime(0, ctx.currentTime); }
+    killLayer(name);
+  });
 }
 
+// ── Toggle play ───────────────────────────────────────────────────
 function togglePlay() {
   if (!isPlaying) {
     isPlaying = true;
@@ -1089,143 +1041,193 @@ function togglePlay() {
   }
 }
 
+// ── Toggle one layer — no global restart ─────────────────────────
+function toggleLayer(name) {
+  layerOn[name] = !layerOn[name];
+  document.getElementById('btn-'+name).classList.toggle('active', layerOn[name]);
+  document.getElementById('pill-'+name).classList.toggle('on',    layerOn[name]);
+
+  if (!isPlaying) return;
+  initAudio();
+  const floor     = parseInt(slider.value);
+  const preset    = getZone(floor);
+  const intensity = isBoss ? Math.min(1, getIntensity(floor)+0.4) : getIntensity(floor);
+
+  if (layerOn[name]) {
+    const percBufs = (name === 'perc') ? buildPercBufs(preset) : null;
+    startLayer(name, preset, intensity, percBufs);
+    setStatus('+ ' + name);
+  } else {
+    stopLayer(name);
+    setStatus('− ' + name);
+  }
+}
+
+// ── Boss toggle — only touches boss layer ─────────────────────────
 function toggleBoss() {
   isBoss = !isBoss;
   document.getElementById('btn-boss').classList.toggle('active', isBoss);
-  if (isPlaying) { stopSynth(); setTimeout(startSynth, 180); }
-  setStatus(isBoss ? '⚡ BOSS MODE — The void trembles...' : 'Boss slain. The silence returns.');
+  if (!isPlaying) return;
+  initAudio();
+  const floor     = parseInt(slider.value);
+  const preset    = getZone(floor);
+  const intensity = Math.min(1, getIntensity(floor) + (isBoss ? 0.4 : 0));
+  if (isBoss) {
+    startLayer('boss', preset, intensity, null);
+    setStatus('⚡ BOSS MODE — The void trembles...');
+  } else {
+    stopLayer('boss');
+    setStatus('Boss slain. The silence returns.');
+  }
 }
 
-function toggleLayer(name) {
-  layers[name] = !layers[name];
-  document.getElementById('btn-' + name).classList.toggle('active', layers[name]);
-  document.getElementById('pill-' + name).classList.toggle('on', layers[name]);
-  if (isPlaying) { stopSynth(); setTimeout(startSynth, 100); }
-}
-
-// ============================================================
-// FLOOR SLIDER
-// ============================================================
+// ── Floor slider — crossfade on zone change, instant on same zone ─
 const slider = document.getElementById('floorSlider');
+let floorDebounce = null;
+let lastZoneName  = '';
 
 function updateFloorUI() {
-  const floor = parseInt(slider.value);
-  const zone = getZone(floor);
+  const floor     = parseInt(slider.value);
+  const zone      = getZone(floor);
   const intensity = getIntensity(floor);
 
-  document.getElementById('floorNum').textContent = floor;
-  document.getElementById('zoneName').textContent = zone.name;
+  document.getElementById('floorNum').textContent  = floor;
+  document.getElementById('zoneName').textContent  = zone.name;
+  slider.style.setProperty('--pct', ((floor-1)/98*100).toFixed(1)+'%');
 
-  const pct = ((floor - 1) / 98 * 100).toFixed(1);
-  slider.style.setProperty('--pct', pct + '%');
-
-  const bar = document.getElementById('zoneBar');
-  const segs = bar.querySelectorAll('.zone-seg');
-  const zoneIdx = ZONES.indexOf(zone);
-  segs.forEach((seg, i) => {
-    seg.classList.toggle('active', i <= zoneIdx);
-    seg.style.setProperty('--zone-color', zone.color);
+  const segs     = document.getElementById('zoneBar').querySelectorAll('.zone-seg');
+  const zoneIdx  = ZONES.indexOf(zone);
+  segs.forEach((s,i) => {
+    s.classList.toggle('active', i <= zoneIdx);
+    s.style.setProperty('--zone-color', zone.color);
   });
 
-  const fnum = document.getElementById('floorNum');
-  const r = zone.vizR; const g = zone.vizG; const b = zone.vizB;
-  fnum.style.color = `rgb(${r},${g},${b})`;
-  fnum.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${r},${g},${b},0.6)`;
+  const fn = document.getElementById('floorNum');
+  fn.style.color      = `rgb(${zone.vizR},${zone.vizG},${zone.vizB})`;
+  fn.style.textShadow = `0 0 ${20+intensity*30}px rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.6)`;
 
-  if (!isPlaying) {
-    setStatus(zone.desc);
-  }
+  if (!isPlaying) { setStatus(zone.desc); return; }
 
-  if (isPlaying) { stopSynth(); setTimeout(startSynth, 150); }
+  // Debounce — 250ms after slider settles
+  clearTimeout(floorDebounce);
+  floorDebounce = setTimeout(() => {
+    initAudio();
+    const newPreset   = getZone(parseInt(slider.value));
+    const newIntensity = isBoss ? Math.min(1,getIntensity(parseInt(slider.value))+0.4)
+                                : getIntensity(parseInt(slider.value));
+    const percBufs = buildPercBufs(newPreset);
+    const zoneChanged = (newPreset.name !== lastZoneName);
+    lastZoneName = newPreset.name;
+
+    // For each active layer: start new nodes (they fade in),
+    // old nodes are replaced inside startLayer via killLayer
+    if (layerOn.drone)          startLayer('drone',  newPreset, newIntensity, null);
+    if (layerOn.perc)           startLayer('perc',   newPreset, newIntensity, percBufs);
+    if (layerOn.bass)           startLayer('bass',   newPreset, newIntensity, null);
+    if (layerOn.melody)         startLayer('melody', newPreset, newIntensity, null);
+    if (layerOn.choir)          startLayer('choir',  newPreset, newIntensity, null);
+    if (newIntensity > 0.45)    startLayer('chaos',  newPreset, newIntensity, null);
+    else                        stopLayer('chaos');
+    if (isBoss)                 startLayer('boss',   newPreset, newIntensity, null);
+
+    setStatus(zoneChanged ? newPreset.desc : `Floor ${parseInt(slider.value)} · ${newPreset.name}`);
+  }, 250);
 }
 
-(function() {
+(function(){
   const bar = document.getElementById('zoneBar');
-  ZONES.forEach(() => { const s = document.createElement('div'); s.className = 'zone-seg'; bar.appendChild(s); });
+  ZONES.forEach(() => { const s=document.createElement('div'); s.className='zone-seg'; bar.appendChild(s); });
+  lastZoneName = getZone(1).name;
   updateFloorUI();
 })();
-
 slider.addEventListener('input', updateFloorUI);
 
-// ============================================================
-// VISUALIZER — zone-colored
-// ============================================================
+// ── Visualizer ────────────────────────────────────────────────────
 function drawViz() {
   if (!isPlaying) return;
   const canvas = document.getElementById('viz');
-  const W = canvas.width = canvas.offsetWidth * devicePixelRatio;
+  const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
   const c = canvas.getContext('2d');
   const data = new Uint8Array(analyser ? analyser.frequencyBinCount : 128);
   if (analyser) analyser.getByteFrequencyData(data);
-
-  c.fillStyle = '#05050a';
-  c.fillRect(0, 0, W, H);
-
-  const zone = getZone(parseInt(slider.value));
-  const r = zone.vizR, g = zone.vizG, b = zone.vizB;
-
+  c.fillStyle = '#05050a'; c.fillRect(0, 0, W, H);
+  const z = getZone(parseInt(slider.value));
   const barW = W / data.length * 2.5;
   for (let i = 0; i < data.length; i++) {
-    const barH = (data[i] / 255) * H * 0.88;
-    const alpha = 0.35 + (data[i] / 255) * 0.65;
-    c.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-    c.fillRect(i * barW, H - barH, barW - 1, barH);
+    const h = (data[i]/255)*H*0.88;
+    c.fillStyle = `rgba(${z.vizR},${z.vizG},${z.vizB},${0.35+(data[i]/255)*0.65})`;
+    c.fillRect(i*barW, H-h, barW-1, h);
   }
-
-  c.strokeStyle = `rgba(${r},${g},${b},0.25)`;
-  c.lineWidth = 1.5;
-  c.beginPath();
+  c.strokeStyle = `rgba(${z.vizR},${z.vizG},${z.vizB},0.25)`;
+  c.lineWidth = 1.5; c.beginPath();
   for (let i = 0; i < data.length; i++) {
-    const x = i * barW + barW / 2;
-    const y = H - (data[i] / 255) * H * 0.88;
-    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    const x=i*barW+barW/2, y=H-(data[i]/255)*H*0.88;
+    i===0 ? c.moveTo(x,y) : c.lineTo(x,y);
   }
   c.stroke();
   requestAnimationFrame(drawViz);
 }
 
-// ============================================================
-// RECORDING
-// ============================================================
+// ── Recording ─────────────────────────────────────────────────────
+// recDest is permanently wired to masterGain in initAudio().
+// We only create MediaRecorder here — no reconnection needed.
 function toggleRecord() {
   if (!isPlaying) { setStatus('Start playing first, then record.'); return; }
+  initAudio(); // ensure recDest exists
+
   if (!isRecording) {
     recordedChunks = [];
-    const dest = ctx.createMediaStreamDestination();
-    masterGain.connect(dest);
-    mediaRecorder = new MediaRecorder(dest.stream);
-    mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
-    mediaRecorder.start();
+    const mime = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg']
+                   .find(t => MediaRecorder.isTypeSupported(t)) || '';
+    mediaRecorder = new MediaRecorder(recDest.stream, mime ? {mimeType: mime} : {});
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.start(200); // flush every 200ms
     isRecording = true;
+    recSeconds  = 0;
+    recTimerID  = setInterval(() => {
+      recSeconds++;
+      const m = Math.floor(recSeconds/60), s = String(recSeconds%60).padStart(2,'0');
+      document.getElementById('recBtn').innerHTML =
+        `<span class="rec-dot"></span>Stop &nbsp;${m}:${s}`;
+    }, 1000);
     document.getElementById('recBtn').classList.add('recording');
-    document.getElementById('recBtn').innerHTML = '<span class="rec-dot"></span>Stop Recording';
-    setStatus('⏺ Recording...');
+    document.getElementById('recBtn').innerHTML = '<span class="rec-dot"></span>Stop &nbsp;0:00';
+    document.getElementById('dlBtn').style.display = 'none';
+    setStatus('⏺ Recording — add/remove layers freely');
   } else {
     mediaRecorder.stop();
+    clearInterval(recTimerID);
     isRecording = false;
     document.getElementById('recBtn').classList.remove('recording');
     document.getElementById('recBtn').innerHTML = '<span class="rec-dot"></span>Record';
     document.getElementById('dlBtn').style.display = 'block';
-    setStatus('Recording complete. Download when ready.');
+    setStatus(`Recording saved — ${recSeconds}s`);
   }
 }
 
 function downloadRecording() {
   if (!recordedChunks.length) return;
+  const mime = recordedChunks[0]?.type || 'audio/webm';
+  const ext  = mime.includes('ogg') ? 'ogg' : 'webm';
   const zone = getZone(parseInt(slider.value));
-  const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const blob = new Blob(recordedChunks, { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
   a.href = url;
-  a.download = 'ashen_throne_' + zone.name.replace(/[^a-z0-9]/gi,'_').toLowerCase() + '_floor' + slider.value + '.webm';
+  a.download = 'ashen_throne_' + zone.name.replace(/[^a-z0-9]/gi,'_').toLowerCase()
+             + '_floor' + slider.value + '.' + ext;
   a.click();
   URL.revokeObjectURL(url);
 }
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
-Object.keys(layers).forEach(k => { if (layers[k]) document.getElementById('pill-' + k).classList.add('on'); });
+// Init pill display state
+Object.keys(layerOn).forEach(k => {
+  if (layerOn[k]) document.getElementById('pill-'+k).classList.add('on');
+});
 </script>
+
 </body>
 </html>
