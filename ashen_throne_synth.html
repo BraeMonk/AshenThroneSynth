@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ashen Throne — Music Forge</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --void: #050508;
+    --ash: #0d0d14;
+    --ember: #1a0a00;
+    --gold: #c8922a;
+    --gold-dim: #7a5518;
+    --blood: #8b1a1a;
+    --blood-bright: #cc2a2a;
+    --violet: #3d1a5c;
+    --violet-bright: #7a3ab0;
+    --fog: #1c1c28;
+    --text: #c4b89a;
+    --text-dim: #6b6050;
+    --rune: #4a6fa5;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--void);
+    color: var(--text);
+    font-family: 'Crimson Text', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Atmospheric background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 0%, #1a0a0022 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 80% 80%, #0d0a1a44 0%, transparent 60%),
+      radial-gradient(ellipse 30% 50% at 10% 60%, #1a080022 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Noise grain overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .container {
+    position: relative;
+    z-index: 2;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .crown {
+    font-size: 11px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    font-family: 'Cinzel', serif;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 40px #c8922a44, 0 0 80px #c8922a22;
+    line-height: 1.1;
+    letter-spacing: 0.04em;
+  }
+
+  h1 span {
+    color: var(--text-dim);
+    font-weight: 400;
+    font-size: 0.55em;
+    display: block;
+    letter-spacing: 0.2em;
+    margin-top: 6px;
+  }
+
+  .divider {
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    margin: 20px auto;
+    position: relative;
+  }
+  .divider::before {
+    content: '✦';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--gold-dim);
+    font-size: 10px;
+    background: var(--void);
+    padding: 0 6px;
+  }
+
+  /* Main panel */
+  .panel {
+    background: linear-gradient(160deg, #0d0d1a, #080810);
+    border: 1px solid #1e1e30;
+    border-radius: 2px;
+    padding: 32px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    background: linear-gradient(135deg, #c8922a08 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .panel-title {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--gold-dim), transparent);
+    opacity: 0.4;
+  }
+
+  /* Floor slider */
+  .floor-section {
+    margin-bottom: 32px;
+  }
+
+  .floor-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+  }
+
+  .floor-label .name {
+    font-family: 'Cinzel', serif;
+    font-size: 14px;
+    color: var(--text);
+    letter-spacing: 0.1em;
+  }
+
+  .floor-label .value {
+    font-family: 'Cinzel', serif;
+    font-size: 28px;
+    color: var(--gold);
+    font-weight: 700;
+    text-shadow: 0 0 20px #c8922a66;
+    transition: color 0.3s;
+  }
+
+  .floor-label .zone-name {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+    text-align: right;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--blood) var(--pct, 0%), #1e1e30 var(--pct, 0%));
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 12px #c8922a88;
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 20px #c8922acc;
+  }
+
+  /* Zone indicator */
+  .zone-bar {
+    display: flex;
+    gap: 4px;
+    margin-top: 16px;
+  }
+
+  .zone-seg {
+    flex: 1;
+    height: 3px;
+    border-radius: 1px;
+    background: #1e1e30;
+    transition: background 0.4s, box-shadow 0.4s;
+  }
+
+  .zone-seg.active {
+    background: var(--zone-color, var(--blood));
+    box-shadow: 0 0 8px var(--zone-color, var(--blood));
+  }
+
+  /* Controls grid */
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .control-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .control-label {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-family: 'Cinzel', serif;
+  }
+
+  .control-value {
+    font-size: 18px;
+    color: var(--text);
+    font-family: 'Cinzel', serif;
+  }
+
+  /* Toggle buttons */
+  .toggles {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  .toggle-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    border: 1px solid #2a2a40;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 1px;
+  }
+
+  .toggle-btn:hover {
+    border-color: var(--gold-dim);
+    color: var(--text);
+  }
+
+  .toggle-btn.active {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: #c8922a12;
+    box-shadow: 0 0 12px #c8922a22;
+  }
+
+  .toggle-btn.boss-btn.active {
+    border-color: var(--blood-bright);
+    color: var(--blood-bright);
+    background: #cc2a2a12;
+    box-shadow: 0 0 12px #cc2a2a44;
+    animation: bossPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes bossPulse {
+    0%, 100% { box-shadow: 0 0 12px #cc2a2a44; }
+    50% { box-shadow: 0 0 24px #cc2a2a88; }
+  }
+
+  /* Main play button */
+  .play-btn {
+    width: 100%;
+    padding: 18px;
+    font-family: 'Cinzel', serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    border: 1px solid var(--gold-dim);
+    background: linear-gradient(135deg, #1a0e00, #0d0a00);
+    color: var(--gold);
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+    border-radius: 1px;
+  }
+
+  .play-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #c8922a22, transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .play-btn:hover::before { opacity: 1; }
+  .play-btn:hover {
+    border-color: var(--gold);
+    box-shadow: 0 0 30px #c8922a33;
+  }
+
+  .play-btn.playing {
+    border-color: var(--blood-bright);
+    color: var(--blood-bright);
+    background: linear-gradient(135deg, #1a0000, #0d0000);
+    animation: playPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes playPulse {
+    0%, 100% { box-shadow: 0 0 20px #cc2a2a22; }
+    50% { box-shadow: 0 0 40px #cc2a2a55; }
+  }
+
+  /* Visualizer */
+  .visualizer-wrap {
+    margin-top: 20px;
+    position: relative;
+  }
+
+  canvas {
+    width: 100%;
+    height: 80px;
+    display: block;
+    border: 1px solid #1a1a28;
+    border-radius: 1px;
+    background: #05050a;
+  }
+
+  /* Layer indicators */
+  .layers {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .layer-pill {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    font-family: 'Cinzel', serif;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 1px;
+    border: 1px solid #1e1e30;
+    color: var(--text-dim);
+    transition: all 0.5s;
+    position: relative;
+  }
+
+  .layer-pill.on {
+    border-color: currentColor;
+    text-shadow: 0 0 8px currentColor;
+    box-shadow: 0 0 10px currentColor44;
+  }
+
+  .layer-pill.drone   { color: #2a4a6a; }
+  .layer-pill.perc    { color: #6a2a2a; }
+  .layer-pill.bass    { color: #4a2a6a; }
+  .layer-pill.melody  { color: #2a6a4a; }
+  .layer-pill.choir   { color: #6a5a2a; }
+  .layer-pill.chaos   { color: #6a2a3a; }
+
+  /* Status bar */
+  .status {
+    text-align: center;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--text-dim);
+    margin-top: 16px;
+    min-height: 20px;
+    transition: color 0.3s;
+  }
+
+  /* Record section */
+  .record-section {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .record-btn {
+    flex: 1;
+    padding: 12px;
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    border: 1px solid #2a2a40;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 1px;
+  }
+
+  .record-btn:hover { border-color: var(--blood-bright); color: var(--blood-bright); }
+  .record-btn.recording {
+    border-color: var(--blood-bright);
+    color: var(--blood-bright);
+    animation: recPulse 1s ease-in-out infinite;
+  }
+  @keyframes recPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .rec-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--blood-bright);
+    display: inline-block;
+    margin-right: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .recording .rec-dot { opacity: 1; animation: recPulse 1s ease-in-out infinite; }
+
+  @media (max-width: 600px) {
+    .controls { grid-template-columns: 1fr; }
+    .panel { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="crown">✦ Ashen Throne ✦</div>
+    <h1>Music Forge<span>Adaptive Dungeon Synthesizer</span></h1>
+    <div class="divider"></div>
+  </div>
+
+  <!-- Main synth panel -->
+  <div class="panel">
+    <div class="panel-title">Floor Depth</div>
+
+    <div class="floor-section">
+      <div class="floor-label">
+        <div>
+          <div class="name">Void Floor</div>
+          <div class="value" id="floorNum">1</div>
+        </div>
+        <div class="zone-name" id="zoneName">Ashen Fields</div>
+      </div>
+      <input type="range" id="floorSlider" min="1" max="99" value="1"/>
+      <div class="zone-bar" id="zoneBar"></div>
+    </div>
+
+    <div class="panel-title">Composition Layers</div>
+
+    <div class="layers" id="layerPills">
+      <div class="layer-pill drone" id="pill-drone">Drone</div>
+      <div class="layer-pill perc" id="pill-perc">Percussion</div>
+      <div class="layer-pill bass" id="pill-bass">Bass</div>
+      <div class="layer-pill melody" id="pill-melody">Melody</div>
+      <div class="layer-pill choir" id="pill-choir">Choir</div>
+      <div class="layer-pill chaos" id="pill-chaos">Chaos</div>
+    </div>
+
+    <div class="toggles">
+      <button class="toggle-btn active" id="btn-drone" onclick="toggleLayer('drone')">⬛ Drone</button>
+      <button class="toggle-btn" id="btn-perc" onclick="toggleLayer('perc')">🥁 Percussion</button>
+      <button class="toggle-btn" id="btn-bass" onclick="toggleLayer('bass')">〰 Bass</button>
+      <button class="toggle-btn" id="btn-melody" onclick="toggleLayer('melody')">♪ Melody</button>
+      <button class="toggle-btn" id="btn-choir" onclick="toggleLayer('choir')">🎼 Choir</button>
+      <button class="toggle-btn boss-btn" id="btn-boss" onclick="toggleBoss()">⚡ Boss Mode</button>
+    </div>
+
+    <button class="play-btn" id="playBtn" onclick="togglePlay()">
+      ▶ &nbsp; Invoke the Void
+    </button>
+
+    <div class="visualizer-wrap">
+      <canvas id="viz" height="80"></canvas>
+    </div>
+
+    <div class="status" id="status">Awaiting invocation...</div>
+  </div>
+
+  <!-- Record panel -->
+  <div class="panel">
+    <div class="panel-title">Recording</div>
+    <div class="record-section">
+      <button class="record-btn" id="recBtn" onclick="toggleRecord()">
+        <span class="rec-dot"></span>Record
+      </button>
+      <button class="record-btn" id="dlBtn" onclick="downloadRecording()" style="display:none">
+        ↓ Download .wav
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ASHEN THRONE ADAPTIVE MUSIC SYNTHESIZER
+// Web Audio API procedural gothic dungeon music
+// ============================================================
+
+let ctx = null;
+let masterGain = null;
+let analyser = null;
+let isPlaying = false;
+let isBoss = false;
+let isRecording = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+
+// Layer state
+const layers = { drone: true, perc: false, bass: false, melody: false, choir: false };
+
+// Scheduled node refs for cleanup
+let activeNodes = [];
+let scheduledTimers = [];
+
+// Floor → zone mapping
+const ZONES = [
+  { name: "Ashen Fields",    range: [1,5],   color: "#8b3a3a", bpm: 60  },
+  { name: "Rotwood Forest",  range: [6,10],  color: "#5a4a2a", bpm: 68  },
+  { name: "Catacombs Deep",  range: [11,18], color: "#3a3a5a", bpm: 76  },
+  { name: "Shadowmere",      range: [19,26], color: "#4a2a6a", bpm: 84  },
+  { name: "Sorcerer's Veil", range: [27,34], color: "#2a4a6a", bpm: 92  },
+  { name: "Obsidian Keep",   range: [35,42], color: "#6a2a4a", bpm: 100 },
+  { name: "Void Spire",      range: [43,50], color: "#5a2a8a", bpm: 108 },
+  { name: "Infernal Core",   range: [51,99], color: "#8a1a1a", bpm: 116 },
+];
+
+function getZone(floor) {
+  return ZONES.find(z => floor >= z.range[0] && floor <= z.range[1]) || ZONES[ZONES.length-1];
+}
+
+function getIntensity(floor) {
+  return Math.min(1, (floor - 1) / 50); // 0 at floor 1, 1 at floor 50+
+}
+
+// ============================================================
+// AUDIO CONTEXT INIT
+// ============================================================
+function initAudio() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = ctx.createGain();
+  masterGain.gain.value = 0.7;
+
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+
+  masterGain.connect(analyser);
+  analyser.connect(ctx.destination);
+}
+
+// ============================================================
+// NODE HELPERS
+// ============================================================
+function makeOsc(freq, type = 'sine', detune = 0) {
+  const o = ctx.createOscillator();
+  o.type = type;
+  o.frequency.value = freq;
+  o.detune.value = detune;
+  return o;
+}
+
+function makeGain(val) {
+  const g = ctx.createGain();
+  g.gain.value = val;
+  return g;
+}
+
+function makeFilter(freq, type = 'lowpass', Q = 1) {
+  const f = ctx.createBiquadFilter();
+  f.type = type;
+  f.frequency.value = freq;
+  f.Q.value = Q;
+  return f;
+}
+
+function connect(...nodes) {
+  for (let i = 0; i < nodes.length - 1; i++) {
+    nodes[i].connect(nodes[i+1]);
+  }
+}
+
+function track(...nodes) {
+  nodes.forEach(n => activeNodes.push(n));
+}
+
+// ============================================================
+// GOTHIC SCALE — Phrygian dominant (1, b2, 3, 4, 5, b6, b7)
+// Root: A2 = 110 Hz
+// ============================================================
+const ROOT = 55; // A1
+const SCALE_RATIOS = [1, 1.0595, 1.2599, 1.3348, 1.4983, 1.5874, 1.7818];
+const SCALE_FREQS = SCALE_RATIOS.map(r => ROOT * r);
+
+function scaleNote(octave, degree) {
+  return SCALE_FREQS[degree % SCALE_FREQS.length] * Math.pow(2, octave + Math.floor(degree / SCALE_FREQS.length));
+}
+
+// ============================================================
+// LAYER: DRONE
+// Evolving dark pad with slow LFO modulation
+// ============================================================
+function startDrone(intensity) {
+  const g = makeGain(0);
+  const filter = makeFilter(300 + intensity * 800, 'lowpass', 2);
+  connect(filter, g, masterGain);
+
+  const baseFreqs = [ROOT, ROOT * 1.5, ROOT * 2];
+  const oscs = baseFreqs.map((f, i) => {
+    const o = makeOsc(f, i === 0 ? 'sawtooth' : 'sine', (i - 1) * 8);
+    const og = makeGain(i === 0 ? 0.3 : 0.15);
+    connect(o, og, filter);
+    o.start();
+    track(o, og);
+    return o;
+  });
+
+  // LFO for filter sweep
+  const lfo = makeOsc(0.08 + intensity * 0.15, 'sine');
+  const lfoGain = makeGain(200 + intensity * 600);
+  connect(lfo, lfoGain);
+  lfoGain.connect(filter.frequency);
+  lfo.start();
+  track(lfo, lfoGain);
+
+  // Amplitude LFO (breath)
+  const ampLfo = makeOsc(0.05, 'sine');
+  const ampLfoGain = makeGain(0.1);
+  connect(ampLfo, ampLfoGain);
+  ampLfoGain.connect(g.gain);
+  ampLfo.start();
+  track(ampLfo, ampLfoGain);
+
+  g.gain.linearRampToValueAtTime(0.4 + intensity * 0.2, ctx.currentTime + 3);
+  track(g, filter);
+}
+
+// ============================================================
+// LAYER: PERCUSSION
+// Kick + snare + hi-hat pattern via scheduled buffers
+// ============================================================
+function makeBoomBuffer(dur = 0.4, freq = 60, decay = 0.3) {
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    const t = i / ctx.sampleRate;
+    const env = Math.exp(-t / decay);
+    const f = freq * Math.exp(-t * 15);
+    data[i] = Math.sin(2 * Math.PI * f * t) * env * 0.8;
+  }
+  return buf;
+}
+
+function makeNoiseBuffer(dur = 0.15, decay = 0.08) {
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    const t = i / ctx.sampleRate;
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-t / decay);
+  }
+  return buf;
+}
+
+let kickBuf, snareBuf, hihatBuf;
+function initPercBuffers() {
+  kickBuf  = makeBoomBuffer(0.5, 55, 0.25);
+  snareBuf = makeNoiseBuffer(0.2, 0.09);
+  hihatBuf = makeNoiseBuffer(0.08, 0.03);
+}
+
+function schedulePerc(startTime, bpm, intensity, duration) {
+  const beat = 60 / bpm;
+  const hihatG = makeGain(0);
+  const hihatFilter = makeFilter(8000, 'highpass', 1);
+  connect(hihatFilter, hihatG, masterGain);
+  track(hihatG, hihatFilter);
+
+  let t = startTime;
+  const end = startTime + duration;
+
+  function schedBeat() {
+    if (t > end + beat * 4) return;
+
+    // Kick: beat 1, 3
+    const kickPat = [1, 0, 0, 0, 1, 0, 0, 0];
+    // Snare: beat 2, 4
+    const snarePat = [0, 0, 1, 0, 0, 0, 1, 0];
+    // Hihat: every 8th
+    const hihatPat = [1, 1, 1, 1, 1, 1, 1, 1];
+
+    for (let i = 0; i < 8; i++) {
+      const bt = t + i * beat * 0.5;
+      if (bt > end) break;
+
+      if (kickPat[i]) {
+        const src = ctx.createBufferSource();
+        src.buffer = kickBuf;
+        const g = makeGain(0.7 + intensity * 0.3);
+        connect(src, g, masterGain);
+        src.start(bt);
+        track(src, g);
+      }
+
+      if (snarePat[i] && intensity > 0.2) {
+        const src = ctx.createBufferSource();
+        src.buffer = snareBuf;
+        const g = makeGain(0.4 + intensity * 0.4);
+        const f = makeFilter(2000, 'bandpass', 2);
+        connect(src, f, g, masterGain);
+        src.start(bt);
+        track(src, f, g);
+      }
+
+      if (hihatPat[i] && intensity > 0.4) {
+        const src = ctx.createBufferSource();
+        src.buffer = hihatBuf;
+        const g = makeGain(0.15 + intensity * 0.2);
+        connect(src, hihatFilter);
+        src.start(bt);
+        track(src, g);
+      }
+    }
+
+    t += beat * 4;
+    const tid = setTimeout(schedBeat, (beat * 3.5) * 1000);
+    scheduledTimers.push(tid);
+  }
+
+  schedBeat();
+}
+
+// ============================================================
+// LAYER: BASS
+// Plucked sub-bass following gothic scale
+// ============================================================
+function scheduleBass(startTime, bpm, intensity, duration) {
+  const beat = 60 / bpm;
+  const bassPattern = [0, 0, 4, 0, 2, 0, 5, 3]; // scale degrees
+
+  let t = startTime;
+  const end = startTime + duration;
+
+  function schedBar() {
+    if (t > end + beat * 4) return;
+
+    for (let i = 0; i < 8; i++) {
+      const bt = t + i * beat * 0.5;
+      if (bt > end) break;
+
+      const deg = bassPattern[i];
+      const freq = scaleNote(0, deg);
+
+      const osc = makeOsc(freq, 'sawtooth');
+      const env = makeGain(0);
+      const filter = makeFilter(300 + intensity * 500, 'lowpass', 3);
+      connect(osc, filter, env, masterGain);
+
+      const vol = 0.25 + intensity * 0.2;
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, bt + beat * 0.4);
+
+      osc.start(bt);
+      osc.stop(bt + beat * 0.5);
+      track(osc, env, filter);
+    }
+
+    t += beat * 4;
+    const tid = setTimeout(schedBar, (beat * 3.6) * 1000);
+    scheduledTimers.push(tid);
+  }
+
+  schedBar();
+}
+
+// ============================================================
+// LAYER: MELODY
+// Eerie pentatonic minor melody line
+// ============================================================
+const MELODY_PATTERNS = [
+  [0, 2, 4, 2, 5, 4, 2, 0],
+  [4, 5, 4, 2, 0, 2, 4, 5],
+  [0, 4, 2, 5, 3, 2, 4, 0],
+  [5, 4, 2, 0, 2, 4, 5, 6],
+];
+
+function scheduleMelody(startTime, bpm, intensity, duration) {
+  const beat = 60 / bpm;
+  let patIdx = 0;
+  let t = startTime;
+  const end = startTime + duration;
+
+  function schedBar() {
+    if (t > end + beat * 4) return;
+
+    const pat = MELODY_PATTERNS[patIdx % MELODY_PATTERNS.length];
+    patIdx++;
+
+    for (let i = 0; i < pat.length; i++) {
+      const bt = t + i * beat * 0.5;
+      if (bt > end) break;
+
+      // Skip some notes for rhythmic interest
+      if (Math.random() < 0.15) continue;
+
+      const octave = intensity > 0.6 ? 2 : 1;
+      const freq = scaleNote(octave, pat[i]);
+
+      const osc = makeOsc(freq, 'triangle');
+      const osc2 = makeOsc(freq * 1.005, 'sine'); // slight detune
+      const env = makeGain(0);
+      const filter = makeFilter(1500 + intensity * 1000, 'lowpass', 2);
+      const g1 = makeGain(0.5);
+      const g2 = makeGain(0.3);
+      connect(osc, g1, filter);
+      connect(osc2, g2, filter);
+      connect(filter, env, masterGain);
+
+      const vol = 0.08 + intensity * 0.12;
+      const noteDur = beat * (0.3 + Math.random() * 0.3);
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.05);
+      env.gain.setValueAtTime(vol * 0.7, bt + noteDur * 0.7);
+      env.gain.linearRampToValueAtTime(0.001, bt + noteDur);
+
+      osc.start(bt); osc.stop(bt + noteDur + 0.1);
+      osc2.start(bt); osc2.stop(bt + noteDur + 0.1);
+      track(osc, osc2, env, filter, g1, g2);
+    }
+
+    t += beat * 4;
+    const tid = setTimeout(schedBar, (beat * 3.6) * 1000);
+    scheduledTimers.push(tid);
+  }
+
+  schedBar();
+}
+
+// ============================================================
+// LAYER: CHOIR
+// Pad-like vowel formant simulation
+// ============================================================
+function startChoir(intensity) {
+  const voiceFreqs = [ROOT * 2, ROOT * 2 * SCALE_RATIOS[2], ROOT * 2 * SCALE_RATIOS[4]];
+
+  voiceFreqs.forEach((freq, vi) => {
+    const osc = makeOsc(freq, 'sawtooth', vi * 5);
+    const formant1 = makeFilter(800, 'bandpass', 8);
+    const formant2 = makeFilter(1200, 'bandpass', 6);
+    const formant3 = makeFilter(2500, 'bandpass', 4);
+
+    const m = makeGain(0.4);
+    connect(osc, formant1, m);
+    connect(osc, formant2, m);
+    connect(osc, formant3, m);
+
+    const env = makeGain(0);
+    connect(m, env, masterGain);
+    env.gain.linearRampToValueAtTime((0.04 + intensity * 0.05) / voiceFreqs.length, ctx.currentTime + 4);
+
+    // Vibrato
+    const vib = makeOsc(4.5 + vi * 0.3, 'sine');
+    const vibG = makeGain(3);
+    connect(vib, vibG);
+    vibG.connect(osc.frequency);
+    vib.start(); osc.start();
+    track(osc, formant1, formant2, formant3, m, env, vib, vibG);
+  });
+}
+
+// ============================================================
+// LAYER: CHAOS (high floor only)
+// Dissonant clusters, random hits, stingers
+// ============================================================
+function startChaos(intensity) {
+  const chaosFreqs = [ROOT * 3 * 1.05, ROOT * 3 * 1.125, ROOT * 4 * 0.98];
+
+  chaosFreqs.forEach((freq, i) => {
+    const osc = makeOsc(freq, 'square', i * 15 - 7);
+    const filter = makeFilter(600 + Math.random() * 400, 'bandpass', 5);
+    const env = makeGain(0);
+
+    // Tremolo
+    const trem = makeOsc(8 + i * 2, 'sine');
+    const tremG = makeGain(0.3);
+    connect(trem, tremG);
+    tremG.connect(env.gain);
+
+    connect(osc, filter, env, masterGain);
+    env.gain.setValueAtTime(0, ctx.currentTime);
+    env.gain.linearRampToValueAtTime(0.04 * intensity, ctx.currentTime + 2);
+
+    trem.start(); osc.start();
+    track(osc, filter, env, trem, tremG);
+  });
+}
+
+// ============================================================
+// BOSS MODE — adds aggressive cluster
+// ============================================================
+function startBossLayer(intensity) {
+  // Low boom pulse
+  const boomFreqs = [ROOT * 0.5, ROOT * 0.75];
+  boomFreqs.forEach((freq, i) => {
+    const osc = makeOsc(freq, 'sawtooth', i * 20);
+    const filter = makeFilter(150, 'lowpass', 4);
+    const env = makeGain(0);
+
+    const lfo = makeOsc(2 + i * 0.5, 'square');
+    const lfoG = makeGain(0.25);
+    connect(lfo, lfoG);
+    lfoG.connect(env.gain);
+
+    connect(osc, filter, env, masterGain);
+    env.gain.setValueAtTime(0.15, ctx.currentTime);
+    env.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 1);
+
+    lfo.start(); osc.start();
+    track(osc, filter, env, lfo, lfoG);
+  });
+
+  // Shrieking high freq
+  const shriek = makeOsc(ROOT * 16 * SCALE_RATIOS[1], 'sawtooth');
+  const shriekFilter = makeFilter(3000, 'highpass', 3);
+  const shriekEnv = makeGain(0);
+  connect(shriek, shriekFilter, shriekEnv, masterGain);
+  shriekEnv.gain.linearRampToValueAtTime(0.04, ctx.currentTime + 2);
+  shriek.start();
+  track(shriek, shriekFilter, shriekEnv);
+}
+
+// ============================================================
+// MAIN: START / STOP
+// ============================================================
+function startSynth() {
+  initAudio();
+  if (!kickBuf) initPercBuffers();
+
+  const floor = parseInt(document.getElementById('floorSlider').value);
+  const intensity = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
+  const zone = getZone(floor);
+  const bpm = isBoss ? zone.bpm + 20 : zone.bpm;
+
+  setStatus(`Summoning — Floor ${floor} · ${zone.name} · ${bpm} BPM`);
+
+  // Start continuous layers
+  if (layers.drone)   startDrone(intensity);
+  if (layers.choir)   startChoir(intensity);
+  if (layers.chaos && intensity > 0.5) startChaos(intensity);
+  if (isBoss)         startBossLayer(intensity);
+
+  // Start scheduled layers
+  const dur = 99999; // run indefinitely
+  if (layers.perc)    schedulePerc(ctx.currentTime + 0.1, bpm, intensity, dur);
+  if (layers.bass)    scheduleBass(ctx.currentTime + 0.1, bpm, intensity, dur);
+  if (layers.melody)  scheduleMelody(ctx.currentTime + 0.5, bpm, intensity, dur);
+}
+
+function stopSynth() {
+  scheduledTimers.forEach(clearTimeout);
+  scheduledTimers.length = 0;
+
+  activeNodes.forEach(n => {
+    try {
+      if (n.stop) n.stop(ctx.currentTime + 0.05);
+      n.disconnect();
+    } catch(e) {}
+  });
+  activeNodes.length = 0;
+  setStatus('Silence reclaims the void...');
+}
+
+function togglePlay() {
+  if (!isPlaying) {
+    isPlaying = true;
+    document.getElementById('playBtn').textContent = '⏹  Silence the Void';
+    document.getElementById('playBtn').classList.add('playing');
+    startSynth();
+    drawViz();
+  } else {
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶  Invoke the Void';
+    document.getElementById('playBtn').classList.remove('playing');
+    stopSynth();
+  }
+}
+
+function toggleBoss() {
+  isBoss = !isBoss;
+  document.getElementById('btn-boss').classList.toggle('active', isBoss);
+  if (isPlaying) {
+    stopSynth();
+    setTimeout(startSynth, 200);
+    setStatus(isBoss ? '⚡ BOSS MODE — The void trembles...' : 'Boss slain. The fog returns.');
+  }
+}
+
+function toggleLayer(name) {
+  layers[name] = !layers[name];
+  document.getElementById('btn-' + name).classList.toggle('active', layers[name]);
+  document.getElementById('pill-' + name).classList.toggle('on', layers[name]);
+  if (isPlaying) {
+    stopSynth();
+    setTimeout(startSynth, 100);
+  }
+}
+
+// ============================================================
+// FLOOR SLIDER
+// ============================================================
+const slider = document.getElementById('floorSlider');
+
+function updateFloorUI() {
+  const floor = parseInt(slider.value);
+  const zone = getZone(floor);
+  const intensity = getIntensity(floor);
+
+  document.getElementById('floorNum').textContent = floor;
+  document.getElementById('zoneName').textContent = zone.name;
+
+  // Update slider gradient
+  const pct = ((floor - 1) / 98 * 100).toFixed(1);
+  slider.style.setProperty('--pct', pct + '%');
+
+  // Update zone bar
+  const bar = document.getElementById('zoneBar');
+  const segs = bar.querySelectorAll('.zone-seg');
+  const zoneIdx = ZONES.indexOf(zone);
+  segs.forEach((seg, i) => {
+    seg.classList.toggle('active', i <= zoneIdx);
+    seg.style.setProperty('--zone-color', zone.color);
+  });
+
+  // Color floor number by intensity
+  const fnum = document.getElementById('floorNum');
+  const r = Math.floor(200 + intensity * 55);
+  const g = Math.floor(146 - intensity * 100);
+  const b = Math.floor(42 - intensity * 30);
+  fnum.style.color = `rgb(${r},${g},${b})`;
+  fnum.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${r},${g},${b},0.5)`;
+
+  if (isPlaying) {
+    stopSynth();
+    setTimeout(startSynth, 150);
+    setStatus(`Floor ${floor} · ${zone.name} · ${Math.round(isBoss ? zone.bpm + 20 : zone.bpm)} BPM`);
+  }
+}
+
+// Build zone bar segments
+(function() {
+  const bar = document.getElementById('zoneBar');
+  ZONES.forEach(() => {
+    const seg = document.createElement('div');
+    seg.className = 'zone-seg';
+    bar.appendChild(seg);
+  });
+  updateFloorUI();
+})();
+
+slider.addEventListener('input', updateFloorUI);
+
+// ============================================================
+// VISUALIZER
+// ============================================================
+function drawViz() {
+  if (!isPlaying) return;
+  const canvas = document.getElementById('viz');
+  const W = canvas.width = canvas.offsetWidth * devicePixelRatio;
+  const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
+  const c = canvas.getContext('2d');
+  const data = new Uint8Array(analyser ? analyser.frequencyBinCount : 128);
+  if (analyser) analyser.getByteFrequencyData(data);
+
+  c.clearRect(0, 0, W, H);
+  c.fillStyle = '#05050a';
+  c.fillRect(0, 0, W, H);
+
+  const floor = parseInt(slider.value);
+  const intensity = getIntensity(floor);
+  const r = Math.floor(139 + intensity * 100);
+  const g = Math.floor(26 - intensity * 20);
+  const b = Math.floor(26 - intensity * 10);
+
+  const barW = W / data.length * 2.5;
+  for (let i = 0; i < data.length; i++) {
+    const barH = (data[i] / 255) * H * 0.9;
+    const alpha = 0.4 + (data[i] / 255) * 0.6;
+    c.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+    c.fillRect(i * barW, H - barH, barW - 1, barH);
+  }
+
+  // Glow line
+  c.strokeStyle = `rgba(${r},${g},${b},0.3)`;
+  c.lineWidth = 1;
+  c.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = i * barW + barW / 2;
+    const y = H - (data[i] / 255) * H * 0.9;
+    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+  }
+  c.stroke();
+
+  requestAnimationFrame(drawViz);
+}
+
+// ============================================================
+// RECORDING
+// ============================================================
+function toggleRecord() {
+  if (!isPlaying) {
+    setStatus('Start playing first, then record.');
+    return;
+  }
+
+  if (!isRecording) {
+    recordedChunks = [];
+    const dest = ctx.createMediaStreamDestination();
+    masterGain.connect(dest);
+    mediaRecorder = new MediaRecorder(dest.stream);
+    mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+    mediaRecorder.start();
+    isRecording = true;
+    document.getElementById('recBtn').classList.add('recording');
+    document.getElementById('recBtn').innerHTML = '<span class="rec-dot"></span>Stop Recording';
+    setStatus('⏺ Recording...');
+  } else {
+    mediaRecorder.stop();
+    isRecording = false;
+    document.getElementById('recBtn').classList.remove('recording');
+    document.getElementById('recBtn').innerHTML = '<span class="rec-dot"></span>Record';
+    document.getElementById('dlBtn').style.display = 'block';
+    setStatus('Recording complete. Download when ready.');
+  }
+}
+
+function downloadRecording() {
+  if (!recordedChunks.length) return;
+  const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ashen_throne_floor' + document.getElementById('floorSlider').value + '.webm';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+// Init layer pill states
+Object.keys(layers).forEach(k => {
+  if (layers[k]) document.getElementById('pill-' + k).classList.add('on');
+});
+</script>
+</body>
+</html>
