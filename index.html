@@ -252,6 +252,18 @@
     animation: bossPulse 1.5s ease-in-out infinite;
   }
 
+  .cat-label {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    margin-top: 16px;
+    opacity: 0.7;
+  }
+  .cat-label:first-child { margin-top: 0; }
+
   @keyframes bossPulse {
     0%, 100% { box-shadow: 0 0 12px #cc2a2a44; }
     50%       { box-shadow: 0 0 24px #cc2a2a88; }
@@ -554,13 +566,51 @@
       <div class="layer-pill chaos"  id="pill-chaos">Chaos</div>
     </div>
 
+    <!-- Foundation -->
+    <div class="cat-label foundation">⬛ Foundation</div>
     <div class="toggles">
-      <button class="toggle-btn active"   id="btn-drone"  onclick="toggleLayer('drone')">⬛ Drone</button>
-      <button class="toggle-btn"          id="btn-perc"   onclick="toggleLayer('perc')">🥁 Percussion</button>
-      <button class="toggle-btn"          id="btn-bass"   onclick="toggleLayer('bass')">〰 Bass</button>
-      <button class="toggle-btn"          id="btn-melody" onclick="toggleLayer('melody')">♪ Melody</button>
-      <button class="toggle-btn"          id="btn-choir"  onclick="toggleLayer('choir')">🎼 Choir</button>
-      <button class="toggle-btn boss-btn" id="btn-boss"   onclick="toggleBoss()">⚡ Boss Mode</button>
+      <button class="toggle-btn active" id="btn-drone"     onclick="toggleLayer('drone')">Void Drone</button>
+      <button class="toggle-btn"        id="btn-bass"      onclick="toggleLayer('bass')">Deep Bass</button>
+      <button class="toggle-btn"        id="btn-heartbeat" onclick="toggleLayer('heartbeat')">💓 Heartbeat</button>
+    </div>
+
+    <!-- Atmosphere -->
+    <div class="cat-label atmosphere">🌫 Atmosphere</div>
+    <div class="toggles">
+      <button class="toggle-btn" id="btn-wind"        onclick="toggleLayer('wind')">Wind &amp; Cave</button>
+      <button class="toggle-btn" id="btn-riser"       onclick="toggleLayer('riser')">Tension Riser</button>
+      <button class="toggle-btn" id="btn-firecrackle" onclick="toggleLayer('firecrackle')">🔥 Fire Crackle</button>
+    </div>
+
+    <!-- Rhythm -->
+    <div class="cat-label rhythm">🥁 Rhythm</div>
+    <div class="toggles">
+      <button class="toggle-btn" id="btn-perc"      onclick="toggleLayer('perc')">Percussion</button>
+      <button class="toggle-btn" id="btn-wardrums"  onclick="toggleLayer('wardrums')">War Drums</button>
+      <button class="toggle-btn" id="btn-chains"    onclick="toggleLayer('chains')">⛓ Chains</button>
+      <button class="toggle-btn" id="btn-march"     onclick="toggleLayer('march')">March Snare</button>
+      <button class="toggle-btn" id="btn-stomp"     onclick="toggleLayer('stomp')">Ritual Stomp</button>
+    </div>
+
+    <!-- Melodic -->
+    <div class="cat-label melodic">♪ Melodic</div>
+    <div class="toggles">
+      <button class="toggle-btn" id="btn-melody" onclick="toggleLayer('melody')">Melody</button>
+      <button class="toggle-btn" id="btn-choir"  onclick="toggleLayer('choir')">🎼 Choir</button>
+      <button class="toggle-btn" id="btn-lute"   onclick="toggleLayer('lute')">🪕 Lute</button>
+      <button class="toggle-btn" id="btn-horn"   onclick="toggleLayer('horn')">📯 Horn Call</button>
+      <button class="toggle-btn" id="btn-bells"  onclick="toggleLayer('bells')">🔔 Bells</button>
+      <button class="toggle-btn" id="btn-organ"  onclick="toggleLayer('organ')">Pipe Organ</button>
+    </div>
+
+    <!-- Chaos -->
+    <div class="cat-label chaos">☠ Chaos</div>
+    <div class="toggles">
+      <button class="toggle-btn" id="btn-chaos"        onclick="toggleLayer('chaos')">Chaos</button>
+      <button class="toggle-btn" id="btn-whispers"     onclick="toggleLayer('whispers')">Whispers</button>
+      <button class="toggle-btn" id="btn-ritualchant"  onclick="toggleLayer('ritualchant')">Ritual Chant</button>
+      <button class="toggle-btn" id="btn-glitch"       onclick="toggleLayer('glitch')">⚡ Glitch</button>
+      <button class="toggle-btn boss-btn" id="btn-boss" onclick="toggleBoss()">💀 Boss Mode</button>
     </div>
 
     <button class="play-btn" id="playBtn" onclick="togglePlay()">
@@ -713,7 +763,20 @@ const SCALES = [
 let activeScaleId = 'zone';
 
 // ── Layer registries ──────────────────────────────────────────────
-const LAYER_NAMES = ['drone','perc','bass','melody','choir','chaos','boss'];
+const LAYER_NAMES = [
+  // Foundation
+  'drone','bass','heartbeat',
+  // Atmosphere
+  'wind','riser','firecrackle',
+  // Rhythm
+  'perc','wardrums','chains','march','stomp',
+  // Melodic
+  'melody','choir','lute','horn','bells','organ',
+  // Chaos / Dark
+  'chaos','whispers','ritualchant','glitch',
+  // Boss
+  'boss'
+];
 const bus = {}, nodes = {}, timers = {};
 LAYER_NAMES.forEach(n => { nodes[n] = []; timers[n] = []; });
 
@@ -722,7 +785,13 @@ let mediaRecorder=null, recordedChunks=[], recTimerID=null, recSeconds=0;
 let vizModeIdx=0;
 const VIZ_MODES = ['spectrum','waveform'];
 
-const layerOn = { drone:true, perc:false, bass:false, melody:false, choir:false };
+const layerOn = {
+  drone:true, bass:false, heartbeat:false,
+  wind:false, riser:false, firecrackle:false,
+  perc:false, wardrums:false, chains:false, march:false, stomp:false,
+  melody:false, choir:false, lute:false, horn:false, bells:false, organ:false,
+  chaos:false, whispers:false, ritualchant:false, glitch:false
+};
 const FADE_IN=1.6, FADE_OUT=2.0;
 
 // ── Zone presets ──────────────────────────────────────────────────
@@ -853,14 +922,37 @@ function getScale(preset) {
 // ── Audio init ────────────────────────────────────────────────────
 function initAudio() {
   if (ctx) return;
-  ctx = new (window.AudioContext||window.webkitAudioContext)();
-  masterGain = ctx.createGain(); masterGain.gain.value = 0.65;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  masterGain = ctx.createGain();
+  masterGain.gain.value = 0.65;
+
+  // Limiter — prevents clipping from stacked layers
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -6;
+  limiter.knee.value = 3;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.1;
+
+  // Subsonic cut — kills speaker-popping rumble below 30Hz
+  const hpf = ctx.createBiquadFilter();
+  hpf.type = 'highpass';
+  hpf.frequency.value = 30;
+
   analyser = ctx.createAnalyser(); analyser.fftSize = 512;
-  masterGain.connect(analyser); analyser.connect(ctx.destination);
+
+  masterGain.connect(hpf);
+  hpf.connect(limiter);
+  limiter.connect(analyser);
+  analyser.connect(ctx.destination);
+
   recDest = ctx.createMediaStreamDestination();
-  masterGain.connect(recDest);
+  limiter.connect(recDest);
+
   fxInput = ctx.createGain(); fxInput.gain.value = 1.0;
   buildFXChain();
+
   LAYER_NAMES.forEach(name => {
     const b = ctx.createGain(); b.gain.value = 0;
     b.connect(fxInput); bus[name] = b;
@@ -970,7 +1062,16 @@ function scaleFreq(preset, oct, deg) {
 function fadeIn(g, v, d)    { const n=ctx.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(g.gain.value,n); g.gain.linearRampToValueAtTime(v,n+d); }
 function fadeOut(g, d, cb)  { const n=ctx.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(g.gain.value,n); g.gain.linearRampToValueAtTime(0,n+d); if(cb) setTimeout(cb,(d+0.1)*1000); }
 function killLayer(name)    { timers[name].forEach(clearTimeout); timers[name]=[]; nodes[name].forEach(n=>{try{if(n.stop)n.stop(ctx.currentTime+0.04);n.disconnect();}catch(e){}}); nodes[name]=[]; }
-function busTarget(n,i)     { return{drone:.5+i*.25,perc:1,bass:.9,melody:.85,choir:.55+i*.2,chaos:.45*i,boss:.75}[n]??0.5; }
+function busTarget(n,i) {
+  return {
+    drone:.5+i*.25, bass:.9, heartbeat:.55+i*.3,
+    wind:.35+i*.25, riser:.4+i*.3, firecrackle:.3+i*.2,
+    perc:1.0, wardrums:.85+i*.15, chains:.5+i*.2, march:.6+i*.2, stomp:.7+i*.2,
+    melody:.85, choir:.55+i*.2, lute:.6+i*.2, horn:.65+i*.2, bells:.5+i*.3, organ:.55+i*.2,
+    chaos:.45*i, whispers:.4+i*.2, ritualchant:.5+i*.2, glitch:.35*i,
+    boss:.75
+  }[n]??0.5;
+}
 
 // ── Layer builders ────────────────────────────────────────────────
 function buildDrone(preset, intensity, name) {
@@ -1087,7 +1188,574 @@ function buildBoss(preset, intensity, name) {
   chain(sh,shF,shE,b);shE.gain.linearRampToValueAtTime(.035,ctx.currentTime+2.5);sh.start();reg(name,sh,shF,shE);
 }
 
-const BUILDERS = {drone:buildDrone,perc:buildPerc,bass:buildBass,melody:buildMelody,choir:buildChoir,chaos:buildChaos,boss:buildBoss};
+// ── FOUNDATION ────────────────────────────────────────────────────
+
+function buildHeartbeat(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const interval = 60 / (bpm * 0.3); // slower than main tempo
+  let t = ctx.currentTime + 0.1;
+
+  function schedBeat() {
+    // lub
+    const sub1 = mkOsc(preset.root * 0.25, 'sine');
+    const env1 = mkGain(0);
+    chain(sub1, env1, b);
+    env1.gain.setValueAtTime(0, t);
+    env1.gain.linearRampToValueAtTime(0.5 + intensity * 0.3, t + 0.015);
+    env1.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    sub1.start(t); sub1.stop(t + 0.25);
+    reg(name, sub1, env1);
+    // dub (slightly later)
+    const sub2 = mkOsc(preset.root * 0.22, 'sine');
+    const env2 = mkGain(0);
+    chain(sub2, env2, b);
+    env2.gain.setValueAtTime(0, t + 0.2);
+    env2.gain.linearRampToValueAtTime(0.35 + intensity * 0.2, t + 0.215);
+    env2.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+    sub2.start(t + 0.2); sub2.stop(t + 0.45);
+    reg(name, sub2, env2);
+
+    t += interval;
+    regT(name, setTimeout(schedBeat, (interval - 0.1) * 1000));
+  }
+  schedBeat();
+}
+
+// ── ATMOSPHERE ────────────────────────────────────────────────────
+
+function buildWind(preset, intensity, name) {
+  const b = bus[name];
+  // Layered bandpass noise for wind/cave ambience
+  [80, 200, 600, 1400].forEach((freq, i) => {
+    const bufLen = ctx.sampleRate * 3;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let j = 0; j < bufLen; j++) d[j] = Math.random() * 2 - 1;
+
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    src.loopStart = 0; src.loopEnd = 3;
+
+    const filt = mkFilt(freq + intensity * freq * 2, 'bandpass', 0.8 + i * 0.4);
+    const g = mkGain([0.12, 0.08, 0.05, 0.03][i] * (0.4 + intensity * 0.6));
+
+    // Slow amplitude flutter
+    const lfo = mkOsc(0.08 + i * 0.03 + Math.random() * 0.05, 'sine');
+    const lfoG = mkGain(0.04);
+    chain(lfo, lfoG); lfoG.connect(g.gain);
+    lfo.start();
+
+    chain(src, filt, g, b);
+    src.start();
+    reg(name, src, filt, g, lfo, lfoG);
+  });
+}
+
+function buildRiser(preset, intensity, name) {
+  const b = bus[name];
+  const duration = 16; // 16-second cycle riser
+  // Rising noise sweep
+  const bufLen = ctx.sampleRate * 3;
+  const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+
+  const src = ctx.createBufferSource();
+  src.buffer = buf; src.loop = true;
+
+  const filt = mkFilt(80, 'bandpass', 3);
+  const g = mkGain(0);
+  chain(src, filt, g, b);
+  src.start();
+
+  // Sweep filter upward cyclically
+  function sweep() {
+    const now = ctx.currentTime;
+    filt.frequency.cancelScheduledValues(now);
+    filt.frequency.setValueAtTime(80, now);
+    filt.frequency.exponentialRampToValueAtTime(4000, now + duration * 0.7);
+    g.gain.cancelScheduledValues(now);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.15 + intensity * 0.2, now + duration * 0.5);
+    g.gain.linearRampToValueAtTime(0, now + duration * 0.95);
+    regT(name, setTimeout(sweep, duration * 1000));
+  }
+  sweep();
+
+  // Rising tonal layer
+  const toneOsc = mkOsc(preset.root * 0.5, 'sawtooth');
+  const toneFilt = mkFilt(200, 'lowpass', 4);
+  const toneG = mkGain(0);
+  chain(toneOsc, toneFilt, toneG, b);
+  toneOsc.start();
+  const now = ctx.currentTime;
+  toneOsc.frequency.setValueAtTime(preset.root * 0.5, now);
+  toneOsc.frequency.exponentialRampToValueAtTime(preset.root * 4, now + duration * 0.8);
+  toneG.gain.setValueAtTime(0, now);
+  toneG.gain.linearRampToValueAtTime(0.06 + intensity * 0.08, now + duration * 0.3);
+  toneG.gain.linearRampToValueAtTime(0, now + duration * 0.95);
+  reg(name, src, filt, g, toneOsc, toneFilt, toneG);
+}
+
+function buildFireCrackle(preset, intensity, name) {
+  const b = bus[name];
+  const sr = ctx.sampleRate;
+
+  // Continuous low rumble
+  const rumbleBuf = ctx.createBuffer(1, sr * 2, sr);
+  const rd = rumbleBuf.getChannelData(0);
+  for (let i = 0; i < rd.length; i++) rd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.3));
+  const rumble = ctx.createBufferSource();
+  rumble.buffer = rumbleBuf; rumble.loop = true;
+  const rumbleFilt = mkFilt(120, 'lowpass', 1.5);
+  const rumbleG = mkGain(0.06 + intensity * 0.08);
+  chain(rumble, rumbleFilt, rumbleG, b);
+  rumble.start();
+  reg(name, rumble, rumbleFilt, rumbleG);
+
+  // Random crackle pops
+  function schedCrackle() {
+    const now = ctx.currentTime;
+    const crackleBuf = ctx.createBuffer(1, Math.floor(sr * 0.04), sr);
+    const cd = crackleBuf.getChannelData(0);
+    for (let i = 0; i < cd.length; i++) cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.008));
+    const src = ctx.createBufferSource();
+    src.buffer = crackleBuf;
+    const filt = mkFilt(800 + Math.random() * 3000, 'bandpass', 2);
+    const g = mkGain(0.08 + Math.random() * 0.12 * intensity);
+    chain(src, filt, g, b);
+    src.start(now);
+    reg(name, src, filt, g);
+    const next = 0.05 + Math.random() * (0.4 - intensity * 0.25);
+    regT(name, setTimeout(schedCrackle, next * 1000));
+  }
+  schedCrackle();
+}
+
+// ── RHYTHM ────────────────────────────────────────────────────────
+
+function buildWarDrums(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const sr = ctx.sampleRate;
+
+  // Big booming tom buffer
+  const makeTom = (freq, decay) => {
+    const buf = ctx.createBuffer(1, Math.floor(sr * decay * 5), sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      d[i] = Math.sin(2 * Math.PI * freq * Math.exp(-t * 6) * t) * Math.exp(-t / decay) * 0.9;
+    }
+    return buf;
+  };
+
+  const lowTom  = makeTom(preset.root * 0.7, 0.8);
+  const highTom = makeTom(preset.root * 1.1, 0.5);
+  // Pattern: tribal feel, 4 beats with accents
+  const pattern = [[1,0,0,0,1,0,0,0],[0,0,1,0,0,0,1,0]]; // low, high
+  let t = ctx.currentTime + 0.05;
+
+  function schedBar() {
+    for (let i = 0; i < 8; i++) {
+      const bt = t + i * beat * 0.5;
+      if (pattern[0][i]) {
+        const s = ctx.createBufferSource(); s.buffer = lowTom;
+        const g = mkGain(0.7 + intensity * 0.3);
+        chain(s, g, b); s.start(bt); reg(name, s, g);
+      }
+      if (pattern[1][i] && intensity > 0.2) {
+        const s = ctx.createBufferSource(); s.buffer = highTom;
+        const g = mkGain(0.5 + intensity * 0.3);
+        chain(s, g, b); s.start(bt); reg(name, s, g);
+      }
+    }
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.5 * 1000));
+  }
+  schedBar();
+}
+
+function buildChains(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const sr = ctx.sampleRate;
+
+  const makeChain = () => {
+    const dur = 0.12;
+    const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+    const d = buf.getChannelData(0);
+    // Short bursts of high metallic noise
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.018) * Math.sin(2 * Math.PI * 2800 * t);
+    }
+    return buf;
+  };
+  const chainBuf = makeChain();
+
+  // Offbeat clanking pattern
+  const pattern = [0,1,0,0,0,1,0,1];
+  let t = ctx.currentTime + 0.05;
+
+  function schedBar() {
+    for (let i = 0; i < 8; i++) {
+      if (!pattern[i]) continue;
+      const bt = t + i * beat * 0.5;
+      const s = ctx.createBufferSource(); s.buffer = chainBuf;
+      const filt = mkFilt(2000 + Math.random() * 1000, 'highpass', 1.5);
+      const g = mkGain(0.25 + intensity * 0.25);
+      chain(s, filt, g, b); s.start(bt); reg(name, s, filt, g);
+    }
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.5 * 1000));
+  }
+  schedBar();
+}
+
+function buildMarch(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const sr = ctx.sampleRate;
+
+  const makeSnare = () => {
+    const buf = ctx.createBuffer(1, Math.floor(sr * 0.15), sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.04);
+    }
+    return buf;
+  };
+  const snareBuf = makeSnare();
+
+  // Dotted military march: ONE-and-TWO-and
+  const pattern = [1,0,1,1,0,1,0,0];
+  let t = ctx.currentTime + 0.05;
+
+  function schedBar() {
+    for (let i = 0; i < 8; i++) {
+      if (!pattern[i]) continue;
+      const bt = t + i * beat * 0.5;
+      const s = ctx.createBufferSource(); s.buffer = snareBuf;
+      const filt = mkFilt(1800, 'bandpass', 3);
+      const rim = mkFilt(4000, 'highpass', 2);
+      const g = mkGain(0.4 + intensity * 0.3);
+      chain(s, filt, g, b); chain(s, rim, g);
+      s.start(bt); reg(name, s, filt, rim, g);
+    }
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.5 * 1000));
+  }
+  schedBar();
+}
+
+function buildStomp(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const sr = ctx.sampleRate;
+
+  const makeStomp = () => {
+    const buf = ctx.createBuffer(1, Math.floor(sr * 0.35), sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      // Thud: low sine + noise burst
+      d[i] = (Math.sin(2 * Math.PI * 60 * t) * 0.6 + (Math.random() * 2 - 1) * 0.4) * Math.exp(-t / 0.08);
+    }
+    return buf;
+  };
+  const stompBuf = makeStomp();
+
+  // Heavy on-beat stomps with crowd feel
+  const pattern = [1,0,0,0,1,0,0,0];
+  let t = ctx.currentTime + 0.05;
+
+  function schedBar() {
+    for (let i = 0; i < 8; i++) {
+      if (!pattern[i]) continue;
+      const bt = t + i * beat * 0.5;
+      const s = ctx.createBufferSource(); s.buffer = stompBuf;
+      const filt = mkFilt(200, 'lowpass', 2);
+      const g = mkGain(0.6 + intensity * 0.4);
+      chain(s, filt, g, b); s.start(bt); reg(name, s, filt, g);
+    }
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.5 * 1000));
+  }
+  schedBar();
+}
+
+// ── MELODIC ───────────────────────────────────────────────────────
+
+function buildLute(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  let patIdx = 0, t = ctx.currentTime + 0.1;
+  const scale = getScale(preset);
+
+  function schedBar() {
+    const pat = preset.melodyPatterns[patIdx++ % preset.melodyPatterns.length];
+    for (let i = 0; i < pat.length; i++) {
+      if (Math.random() < 0.3) continue;
+      const bt = t + i * beat * 0.5;
+      const freq = scaleFreq(preset, preset.melodyOctave + 1, pat[i]);
+
+      // Pluck: quick attack, exponential decay — Karplus-Strong-ish
+      const osc = mkOsc(freq, 'sawtooth');
+      const osc2 = mkOsc(freq * 2.003, 'sine'); // octave + tiny detune
+      const filt = mkFilt(freq * 3, 'lowpass', 0.8); // warm lowpass
+      const env = mkGain(0);
+      const g1 = mkGain(0.6), g2 = mkGain(0.25);
+      chain(osc, g1, filt); chain(osc2, g2, filt); chain(filt, env, b);
+
+      const vol = 0.06 + intensity * 0.08;
+      const dur = beat * (0.15 + Math.random() * 0.2); // short — plucked
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.006); // very fast attack
+      env.gain.exponentialRampToValueAtTime(0.001, bt + dur);
+
+      osc.start(bt); osc.stop(bt + dur + 0.05);
+      osc2.start(bt); osc2.stop(bt + dur + 0.05);
+      reg(name, osc, osc2, filt, env, g1, g2);
+    }
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.6 * 1000));
+  }
+  schedBar();
+}
+
+function buildHorn(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const scale = getScale(preset);
+  // Horn plays long slow notes — every 2 bars
+  const hornPats = [[0,4],[0,3],[4,6],[2,5]];
+  let patIdx = 0, t = ctx.currentTime + beat * 2;
+
+  function schedNote() {
+    const pair = hornPats[patIdx++ % hornPats.length];
+    const deg = pair[Math.floor(Math.random() * pair.length)];
+    const freq = scaleFreq(preset, preset.melodyOctave, deg);
+    const dur = beat * (3 + Math.random() * 2);
+
+    // Horn: stacked sawtooth with formant filtering
+    const o1 = mkOsc(freq, 'sawtooth');
+    const o2 = mkOsc(freq * 1.002, 'sawtooth');
+    const formant = mkFilt(800 + intensity * 400, 'bandpass', 3);
+    const bright  = mkFilt(1800, 'lowpass', 1);
+    const env = mkGain(0);
+    const g1 = mkGain(0.5), g2 = mkGain(0.3);
+    chain(o1, g1, formant); chain(o2, g2, formant);
+    chain(formant, bright, env, b);
+
+    const vol = 0.09 + intensity * 0.1;
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vol, t + 0.3);       // slow attack
+    env.gain.setValueAtTime(vol * 0.8, t + dur * 0.6);
+    env.gain.linearRampToValueAtTime(0.001, t + dur);
+
+    o1.start(t); o1.stop(t + dur + 0.2);
+    o2.start(t); o2.stop(t + dur + 0.2);
+    reg(name, o1, o2, formant, bright, env, g1, g2);
+
+    t += beat * (4 + Math.random() * 2);
+    regT(name, setTimeout(schedNote, beat * 3.5 * 1000));
+  }
+  schedNote();
+}
+
+function buildBells(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  let t = ctx.currentTime + 0.5;
+
+  function schedBar() {
+    // Sparse — 2-3 bells per bar max
+    const count = 1 + Math.floor(Math.random() * 2);
+    const slots = [0,2,3,5,6].sort(() => Math.random() - 0.5).slice(0, count);
+    const scale = getScale(preset);
+
+    slots.forEach(slot => {
+      const bt = t + slot * beat * 0.5;
+      const deg = Math.floor(Math.random() * scale.length);
+      const freq = scaleFreq(preset, preset.melodyOctave + 2, deg);
+
+      // Bell: inharmonic partials via detuned sines
+      [1, 2.756, 5.404, 8.933].forEach((partial, pi) => {
+        const o = mkOsc(freq * partial, 'sine');
+        const env = mkGain(0);
+        chain(o, env, b);
+        const vol = [0.07, 0.04, 0.02, 0.01][pi] * (0.5 + intensity * 0.5);
+        const dur = 1.5 + pi * 0.4; // higher partials decay faster
+        env.gain.setValueAtTime(0, bt);
+        env.gain.linearRampToValueAtTime(vol, bt + 0.003);
+        env.gain.exponentialRampToValueAtTime(0.0001, bt + dur);
+        o.start(bt); o.stop(bt + dur + 0.1);
+        reg(name, o, env);
+      });
+    });
+
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.6 * 1000));
+  }
+  schedBar();
+}
+
+function buildOrgan(preset, intensity, name) {
+  const b = bus[name];
+  // Pipe organ: additive synthesis with drawbar-style harmonics
+  const root = scaleFreq(preset, 1, 0);
+  const fifth = scaleFreq(preset, 1, 4);
+  const drawbars = [
+    { freq: root,        gain: 0.3  },  // 8'
+    { freq: root * 2,    gain: 0.2  },  // 4'
+    { freq: root * 3,    gain: 0.15 },  // 2⅔'
+    { freq: root * 4,    gain: 0.1  },  // 2'
+    { freq: fifth,       gain: 0.18 },  // 5⅓' (quint)
+    { freq: root * 0.5,  gain: 0.25 },  // 16' sub
+  ];
+
+  const mix = mkGain(1);
+  mix.connect(b);
+  const airFilt = mkFilt(3000 + intensity * 2000, 'lowpass', 0.7);
+  airFilt.connect(mix);
+
+  drawbars.forEach(({ freq, gain }) => {
+    const o = mkOsc(freq, 'sine');
+    const g = mkGain(gain * (0.4 + intensity * 0.4));
+    // Slight detuning for pipe organ wobble
+    const lfo = mkOsc(0.8 + Math.random() * 0.4, 'sine');
+    const lfoG = mkGain(1.5);
+    chain(lfo, lfoG); lfoG.connect(o.detune);
+    chain(o, g, airFilt);
+    lfo.start(); o.start();
+    reg(name, o, g, lfo, lfoG);
+  });
+  reg(name, airFilt, mix);
+}
+
+// ── CHAOS / DARK ──────────────────────────────────────────────────
+
+function buildWhispers(preset, intensity, name) {
+  const b = bus[name];
+  const sr = ctx.sampleRate;
+
+  // Multiple narrow bandpass filtered noise channels panned slightly
+  const formantFreqs = [250, 500, 700, 1000, 1400];
+  formantFreqs.forEach((freq, i) => {
+    const buf = ctx.createBuffer(1, sr * 4, sr);
+    const d = buf.getChannelData(0);
+    for (let j = 0; j < d.length; j++) d[j] = Math.random() * 2 - 1;
+
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+
+    const filt = mkFilt(freq, 'bandpass', 18 + i * 4); // very narrow
+    const trem = mkOsc(2.5 + i * 0.7 + Math.random(), 'sine');
+    const tremG = mkGain(0.3);
+    chain(trem, tremG); tremG.connect(filt.frequency); // wobbling formant
+
+    const g = mkGain(0.018 + intensity * 0.015);
+    chain(src, filt, g, b);
+    trem.start(); src.start();
+    reg(name, src, filt, g, trem, tremG);
+  });
+}
+
+function buildRitualChant(preset, intensity, name) {
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const scale = getScale(preset);
+  // Rhythmic tonal hits — different voicing from choir
+  const chantDegs = [0, 0, 3, 0, 5, 3];
+  let idx = 0, t = ctx.currentTime + 0.1;
+
+  function schedHit() {
+    const bt = t;
+    const freq = scaleFreq(preset, 1, chantDegs[idx++ % chantDegs.length]);
+
+    const o = mkOsc(freq, 'square');
+    const filt = mkFilt(400 + intensity * 300, 'lowpass', 2);
+    const env = mkGain(0);
+    chain(o, filt, env, b);
+
+    const vol = 0.06 + intensity * 0.07;
+    const dur = beat * 0.8;
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(vol, bt + 0.02);
+    env.gain.setValueAtTime(vol * 0.6, bt + dur * 0.4);
+    env.gain.linearRampToValueAtTime(0.001, bt + dur);
+    o.start(bt); o.stop(bt + dur + 0.1);
+    reg(name, o, filt, env);
+
+    t += beat * (1 + (idx % 3 === 0 ? 0.5 : 0)); // irregular rhythm
+    regT(name, setTimeout(schedHit, (beat * 0.85) * 1000));
+  }
+  schedHit();
+}
+
+function buildGlitch(preset, intensity, name) {
+  const b = bus[name];
+  const sr = ctx.sampleRate;
+
+  // Random stuttering artifacts — pitched noise bursts
+  function schedGlitch() {
+    if (!nodes[name].length && !timers[name].length) return; // layer killed
+
+    const now = ctx.currentTime;
+    const glitchCount = 1 + Math.floor(Math.random() * 3);
+
+    for (let i = 0; i < glitchCount; i++) {
+      const offset = i * 0.02;
+      const dur = 0.01 + Math.random() * 0.06;
+      const freq = preset.root * (2 + Math.random() * 8);
+
+      const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+      const d = buf.getChannelData(0);
+      for (let j = 0; j < d.length; j++) {
+        const t2 = j / sr;
+        d[j] = (Math.random() * 2 - 1) * Math.sin(2 * Math.PI * freq * t2);
+      }
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const filt = mkFilt(1000 + Math.random() * 5000, 'bandpass', 4);
+      const g = mkGain(0.1 + intensity * 0.15);
+      chain(src, filt, g, b);
+      src.start(now + offset);
+      reg(name, src, filt, g);
+    }
+
+    const next = 0.1 + Math.random() * (2.0 - intensity * 1.2);
+    regT(name, setTimeout(schedGlitch, next * 1000));
+  }
+  // Seed the glitch loop with a placeholder so killLayer works
+  reg(name, ctx.createGain());
+  schedGlitch();
+}
+
+const BUILDERS = {
+  // Foundation
+  drone:buildDrone, bass:buildBass, heartbeat:buildHeartbeat,
+  // Atmosphere
+  wind:buildWind, riser:buildRiser, firecrackle:buildFireCrackle,
+  // Rhythm
+  perc:buildPerc, wardrums:buildWarDrums, chains:buildChains, march:buildMarch, stomp:buildStomp,
+  // Melodic
+  melody:buildMelody, choir:buildChoir, lute:buildLute, horn:buildHorn, bells:buildBells, organ:buildOrgan,
+  // Chaos
+  chaos:buildChaos, whispers:buildWhispers, ritualchant:buildRitualChant, glitch:buildGlitch,
+  // Boss
+  boss:buildBoss
+};
 
 function startLayer(name, preset, intensity, percBufs) {
   killLayer(name);
@@ -1099,15 +1767,39 @@ function stopLayer(name) { fadeOut(bus[name], FADE_OUT, ()=>killLayer(name)); }
 
 function startSynth() {
   initAudio();
-  const floor=parseInt(slider.value),preset=getZone(floor),intensity=isBoss?Math.min(1,getIntensity(floor)+.4):getIntensity(floor);
+  const floor=parseInt(slider.value), preset=getZone(floor);
+  const intensity=isBoss?Math.min(1,getIntensity(floor)+.4):getIntensity(floor);
   const percBufs=buildPercBufs(preset);
-  if(layerOn.drone)   startLayer('drone', preset,intensity,null);
-  if(layerOn.perc)    startLayer('perc',  preset,intensity,percBufs);
-  if(layerOn.bass)    startLayer('bass',  preset,intensity,null);
-  if(layerOn.melody)  startLayer('melody',preset,intensity,null);
-  if(layerOn.choir)   startLayer('choir', preset,intensity,null);
-  if(intensity>.45)   startLayer('chaos', preset,intensity,null);
-  if(isBoss)          startLayer('boss',  preset,intensity,null);
+
+  // Foundation
+  if(layerOn.drone)      startLayer('drone',      preset,intensity,null);
+  if(layerOn.bass)       startLayer('bass',        preset,intensity,null);
+  if(layerOn.heartbeat)  startLayer('heartbeat',   preset,intensity,null);
+  // Atmosphere
+  if(layerOn.wind)       startLayer('wind',        preset,intensity,null);
+  if(layerOn.riser)      startLayer('riser',       preset,intensity,null);
+  if(layerOn.firecrackle)startLayer('firecrackle', preset,intensity,null);
+  // Rhythm
+  if(layerOn.perc)       startLayer('perc',        preset,intensity,percBufs);
+  if(layerOn.wardrums)   startLayer('wardrums',    preset,intensity,null);
+  if(layerOn.chains)     startLayer('chains',      preset,intensity,null);
+  if(layerOn.march)      startLayer('march',       preset,intensity,null);
+  if(layerOn.stomp)      startLayer('stomp',       preset,intensity,null);
+  // Melodic
+  if(layerOn.melody)     startLayer('melody',      preset,intensity,null);
+  if(layerOn.choir)      startLayer('choir',       preset,intensity,null);
+  if(layerOn.lute)       startLayer('lute',        preset,intensity,null);
+  if(layerOn.horn)       startLayer('horn',        preset,intensity,null);
+  if(layerOn.bells)      startLayer('bells',       preset,intensity,null);
+  if(layerOn.organ)      startLayer('organ',       preset,intensity,null);
+  // Chaos
+  if(layerOn.chaos||intensity>.45) startLayer('chaos', preset,intensity,null);
+  if(layerOn.whispers)   startLayer('whispers',    preset,intensity,null);
+  if(layerOn.ritualchant)startLayer('ritualchant', preset,intensity,null);
+  if(layerOn.glitch)     startLayer('glitch',      preset,intensity,null);
+  // Boss
+  if(isBoss)             startLayer('boss',        preset,intensity,null);
+
   setStatus(preset.desc);
 }
 
