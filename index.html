@@ -613,6 +613,11 @@
       <button class="toggle-btn boss-btn" id="btn-boss" onclick="toggleBoss()">💀 Boss Mode</button>
     </div>
 
+    <div class="toggles" style="margin-top:8px;">
+      <button class="toggle-btn" onclick="muteAll()" style="border-color:#3a3a50;">⬜ Clear All Layers</button>
+      <button class="toggle-btn" onclick="soloLayer('drone')" style="border-color:#3a3a50;">◈ Reset to Drone</button>
+    </div>
+
     <button class="play-btn" id="playBtn" onclick="togglePlay()">
       ▶ &nbsp; Invoke the Void
     </button>
@@ -917,6 +922,35 @@ function getScale(preset) {
   if (activeScaleId==='zone') return preset.scale;
   const s = SCALES.find(s=>s.id===activeScaleId);
   return (s&&s.ratios) ? s.ratios : preset.scale;
+}
+
+function muteAll() {
+  Object.keys(layerOn).forEach(name => {
+    if(!layerOn[name]) return;
+    layerOn[name] = false;
+    document.getElementById('btn-'+name)?.classList.remove('active');
+    document.getElementById('pill-'+name)?.classList.remove('on');
+    if(isPlaying) stopLayer(name);
+  });
+  isBoss = false;
+  document.getElementById('btn-boss')?.classList.remove('active');
+  if(isPlaying && bus['boss']) stopLayer('boss');
+  setStatus('All layers cleared.');
+}
+
+function soloLayer(name) {
+  muteAll();
+  setTimeout(() => {
+    layerOn[name] = true;
+    document.getElementById('btn-'+name)?.classList.add('active');
+    document.getElementById('pill-'+name)?.classList.add('on');
+    if(isPlaying) {
+      initAudio();
+      const floor=parseInt(slider.value),preset=getZone(floor),intensity=getIntensity(floor);
+      startLayer(name,preset,intensity,PERC_BUF_LAYERS.has(name)?buildPercBufs(preset):null);
+    }
+    setStatus('Solo: '+name);
+  }, FADE_OUT * 1000 + 100);
 }
 
 // ── Audio init ────────────────────────────────────────────────────
@@ -1235,7 +1269,7 @@ function buildWind(preset, intensity, name) {
 
     const src = ctx.createBufferSource();
     src.buffer = buf; src.loop = true;
-    src.loopStart = 0; src.loopEnd = 3;
+    src.loopStart = 0; src.loopEnd = bufLen / ctx.sampleRate;
 
     const filt = mkFilt(freq + intensity * freq * 2, 'bandpass', 0.8 + i * 0.4);
     const g = mkGain([0.12, 0.08, 0.05, 0.03][i] * (0.4 + intensity * 0.6));
@@ -1253,6 +1287,7 @@ function buildWind(preset, intensity, name) {
 }
 
 function buildRiser(preset, intensity, name) {
+  reg(name, mkGain(0)); // sentinel so killLayer tracks this layer
   const b = bus[name];
   const duration = 16; // 16-second cycle riser
   // Rising noise sweep
@@ -1308,6 +1343,7 @@ function buildFireCrackle(preset, intensity, name) {
   for (let i = 0; i < rd.length; i++) rd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.3));
   const rumble = ctx.createBufferSource();
   rumble.buffer = rumbleBuf; rumble.loop = true;
+  rumble.loopStart = 0; rumble.loopEnd = rumbleBuf.duration
   const rumbleFilt = mkFilt(120, 'lowpass', 1.5);
   const rumbleG = mkGain(0.06 + intensity * 0.08);
   chain(rumble, rumbleFilt, rumbleG, b);
@@ -1705,12 +1741,13 @@ function buildRitualChant(preset, intensity, name) {
 }
 
 function buildGlitch(preset, intensity, name) {
+  reg(name, mkGain(0)); // sentinel
   const b = bus[name];
   const sr = ctx.sampleRate;
 
   // Random stuttering artifacts — pitched noise bursts
   function schedGlitch() {
-    if (!bus[name] || bus[name].gain.value === 0) return;
+    if(!layerOn[name]) return;
 
     const now = ctx.currentTime;
     const glitchCount = 1 + Math.floor(Math.random() * 3);
@@ -1827,12 +1864,19 @@ function togglePlay() {
 function toggleLayer(name) {
   layerOn[name]=!layerOn[name];
   document.getElementById('btn-'+name).classList.toggle('active',layerOn[name]);
-  document.getElementById('pill-'+name).classList.toggle('on',layerOn[name]);
+  document.getElementById('pill-'+name)?.classList.toggle('on',layerOn[name]);
   if(!isPlaying) return;
   initAudio();
   const floor=parseInt(slider.value),preset=getZone(floor),intensity=isBoss?Math.min(1,getIntensity(floor)+.4):getIntensity(floor);
-  if(layerOn[name]){startLayer(name,preset,intensity,name==='perc'?buildPercBufs(preset):null);setStatus('+ '+name);}
-  else{stopLayer(name);setStatus('− '+name);}
+  if(layerOn[name]){
+    // Briefly duck delay wet to prevent feedback surge on layer add
+    if(delayWetGain) { delayWetGain.gain.setValueAtTime(0,ctx.currentTime); delayWetGain.gain.linearRampToValueAtTime(_delayTime>0?0.35:0, ctx.currentTime+0.3); }
+    startLayer(name,preset,intensity,PERC_BUF_LAYERS.has(name)?buildPercBufs(preset):null);
+    setStatus('+ '+name);
+  } else {
+    stopLayer(name);
+    setStatus('− '+name);
+  }
 }
 
 function toggleBoss() {
