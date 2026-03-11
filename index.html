@@ -134,30 +134,6 @@
     background: var(--zone-color, var(--blood));
     box-shadow: 0 0 8px var(--zone-color, var(--blood));
   }
-  .toggles { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
-  .toggle-btn {
-    font-family: 'Cinzel', serif; font-size: 11px;
-    letter-spacing: 0.15em; text-transform: uppercase;
-    padding: 8px 16px; border: 1px solid #2a2a40;
-    background: transparent; color: var(--text-dim);
-    cursor: pointer; transition: all 0.2s; border-radius: 1px;
-  }
-  .toggle-btn:hover { border-color: var(--gold-dim); color: var(--text); }
-  .toggle-btn.active {
-    border-color: var(--gold); color: var(--gold);
-    background: #c8922a12; box-shadow: 0 0 12px #c8922a22;
-  }
-  .toggle-btn.boss-btn.active {
-    border-color: var(--blood-bright); color: var(--blood-bright);
-    background: #cc2a2a12; box-shadow: 0 0 12px #cc2a2a44;
-    animation: bossPulse 1.5s ease-in-out infinite;
-  }
-  .cat-label {
-    font-family: 'Cinzel', serif; font-size: 9px;
-    letter-spacing: 0.3em; text-transform: uppercase;
-    color: var(--text-dim); margin-bottom: 8px; margin-top: 16px; opacity: 0.7;
-  }
-  .cat-label:first-child { margin-top: 0; }
   @keyframes bossPulse {
     0%,100% { box-shadow: 0 0 12px #cc2a2a44; }
     50%      { box-shadow: 0 0 24px #cc2a2a88; }
@@ -389,6 +365,87 @@
     .scale-grid { grid-template-columns: 1fr 1fr; }
     .debug-panel { grid-template-columns: 1fr 1fr; }
   }
+
+  /* ── TAB SYSTEM ─────────────────────────────────────────── */
+.tabs-nav {
+  display: flex; gap: 0; margin-bottom: -1px; position: relative; z-index: 1;
+  border-bottom: 1px solid #1e1e30;
+}
+.tab-btn {
+  font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.2em;
+  text-transform: uppercase; padding: 10px 18px; border: 1px solid transparent;
+  border-bottom: none; background: transparent; color: var(--text-dim);
+  cursor: pointer; transition: all 0.2s; border-radius: 1px 1px 0 0; margin-right: -1px;
+}
+.tab-btn:hover { color: var(--text); border-color: #1e1e30; }
+.tab-btn.active {
+  color: var(--gold); border-color: #1e1e30; background: #0d0d14;
+  border-bottom-color: #0d0d14;
+}
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ── OST PROGRESS ────────────────────────────────────────── */
+.ost-progress-row {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 12px;
+}
+.ost-step-label {
+  font-family: 'Cinzel', serif; font-size: 12px; color: var(--text);
+  min-width: 200px; letter-spacing: 0.05em;
+}
+.ost-time {
+  font-size: 11px; color: var(--text-dim); font-style: italic;
+  margin-left: auto;
+}
+.song-gen-bar { height: 3px; background: #1e1e30; border-radius: 2px; flex: 1; overflow: hidden; }
+.song-gen-fill { height: 100%; background: linear-gradient(90deg, var(--blood), var(--gold)); width: 0%; transition: width 1s ease; border-radius: 2px; }
+
+/* ── DEBUG COLLAPSED ─────────────────────────────────────── */
+.debug-toggle {
+  font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.2em;
+  text-transform: uppercase; padding: 6px 14px; border: 1px solid #1e1e30;
+  background: transparent; color: var(--text-dim); cursor: pointer;
+  transition: all 0.2s; border-radius: 1px; margin-bottom: 12px; display: block;
+}
+.debug-toggle:hover { border-color: var(--gold-dim); color: var(--text); }
+.debug-body { display: none; }
+.debug-body.open { display: block; }
+
+/* ── LAYER GRID ──────────────────────────────────────────── */
+.layer-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px;
+  margin-bottom: 8px;
+}
+.layer-toggle {
+  font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 9px 10px; border: 1px solid #1e1e30;
+  background: transparent; color: var(--text-dim); cursor: pointer;
+  transition: all 0.18s; border-radius: 1px; text-align: left; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.layer-toggle:hover { border-color: #3a3a50; color: var(--text); }
+.layer-toggle.active { border-color: var(--gold-dim); color: var(--gold); background: #c8922a0c; }
+.layer-toggle.boss-btn.active { border-color: var(--blood-bright); color: var(--blood-bright); background: #cc2a2a0c; animation: bossPulse 1.5s ease-in-out infinite; }
+.layer-cat { font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--text-dim); opacity: 0.5; margin: 12px 0 6px; }
+.layer-cat:first-child { margin-top: 0; }
+
+/* ── PHRASE BAR ──────────────────────────────────────────── */
+.phrase-bar {
+  display: flex; gap: 6px; align-items: center; margin-bottom: 20px;
+  background: #05050a; border: 1px solid #1a1a28; border-radius: 1px; padding: 10px 14px;
+}
+.phrase-pill {
+  font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.15em;
+  text-transform: uppercase; padding: 4px 10px; border-radius: 1px;
+  border: 1px solid #1e1e30; color: var(--text-dim); transition: all 0.4s; cursor: default;
+}
+.phrase-pill.active { border-color: var(--gold); color: var(--gold); background: #c8922a12; }
+.phrase-sep { width: 1px; height: 16px; background: #1e1e30; }
+
+/* ── FX SLIDERS WIDER ────────────────────────────────────── */
+.fx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 36px; }
+@media (max-width: 600px) { .fx-grid { grid-template-columns: 1fr; } }
+  
 </style>
 </head>
 <body>
@@ -410,13 +467,13 @@
     <div class="divider"></div>
   </div>
 
-  <!-- MAIN SYNTH -->
+  <!-- FLOOR + PHRASE always visible -->
   <div class="panel">
-    <div class="panel-title">Floor Depth</div>
+    <div class="panel-title">Void Depth</div>
     <div class="floor-section">
       <div class="floor-label">
         <div>
-          <div class="name">Void Floor</div>
+          <div class="name">Floor</div>
           <div class="value" id="floorNum">1</div>
         </div>
         <div class="zone-name" id="zoneName">Ashen Fields</div>
@@ -425,253 +482,241 @@
       <div class="zone-bar" id="zoneBar"></div>
     </div>
 
-    <div class="panel-title">Phrase Engine</div>
-    <div class="phrase-row" id="phraseRow">
+    <div class="phrase-bar" id="phraseRow">
       <div class="phrase-pill" id="pp-intro">Intro</div>
+      <div class="phrase-sep"></div>
       <div class="phrase-pill" id="pp-build">Build</div>
+      <div class="phrase-sep"></div>
       <div class="phrase-pill" id="pp-tension">Tension</div>
+      <div class="phrase-sep"></div>
       <div class="phrase-pill" id="pp-climax">Climax</div>
+      <div class="phrase-sep"></div>
       <div class="phrase-pill" id="pp-resolution">Resolution</div>
-      <div style="font-size:11px;color:var(--text-dim);font-style:italic;margin-left:auto;" id="phraseCounter">Bar 1 / 8</div>
-    </div>
-
-    <div class="panel-title">Composition Layers</div>
-    <div class="layers" id="layerPills">
-      <div class="layer-pill" id="pill-drone">Drone</div>
-      <div class="layer-pill" id="pill-bass">Bass</div>
-      <div class="layer-pill" id="pill-heartbeat">Heartbeat</div>
-      <div class="layer-pill" id="pill-wind">Wind</div>
-      <div class="layer-pill" id="pill-riser">Riser</div>
-      <div class="layer-pill" id="pill-firecrackle">Fire</div>
-      <div class="layer-pill" id="pill-perc">Perc</div>
-      <div class="layer-pill" id="pill-wardrums">War Drums</div>
-      <div class="layer-pill" id="pill-chains">Chains</div>
-      <div class="layer-pill" id="pill-march">March</div>
-      <div class="layer-pill" id="pill-stomp">Stomp</div>
-      <div class="layer-pill" id="pill-melody">Melody</div>
-      <div class="layer-pill" id="pill-choir">Choir</div>
-      <div class="layer-pill" id="pill-lute">Lute</div>
-      <div class="layer-pill" id="pill-horn">Horn</div>
-      <div class="layer-pill" id="pill-bells">Bells</div>
-      <div class="layer-pill" id="pill-organ">Organ</div>
-      <div class="layer-pill" id="pill-chaos">Chaos</div>
-      <div class="layer-pill" id="pill-whispers">Whispers</div>
-      <div class="layer-pill" id="pill-ritualchant">Chant</div>
-      <div class="layer-pill" id="pill-glitch">Glitch</div>
-    </div>
-
-    <div class="cat-label">⬛ Foundation</div>
-    <div class="toggles">
-      <button class="toggle-btn active" id="btn-drone"     onclick="toggleLayer('drone')">Void Drone</button>
-      <button class="toggle-btn"        id="btn-bass"      onclick="toggleLayer('bass')">Deep Bass</button>
-      <button class="toggle-btn"        id="btn-heartbeat" onclick="toggleLayer('heartbeat')">💓 Heartbeat</button>
-    </div>
-
-    <div class="cat-label">🌫 Atmosphere</div>
-    <div class="toggles">
-      <button class="toggle-btn" id="btn-wind"        onclick="toggleLayer('wind')">Wind &amp; Cave</button>
-      <button class="toggle-btn" id="btn-riser"       onclick="toggleLayer('riser')">Tension Riser</button>
-      <button class="toggle-btn" id="btn-firecrackle" onclick="toggleLayer('firecrackle')">🔥 Fire Crackle</button>
-    </div>
-
-    <div class="cat-label">🥁 Rhythm</div>
-    <div class="toggles">
-      <button class="toggle-btn" id="btn-perc"     onclick="toggleLayer('perc')">Percussion</button>
-      <button class="toggle-btn" id="btn-wardrums" onclick="toggleLayer('wardrums')">War Drums</button>
-      <button class="toggle-btn" id="btn-chains"   onclick="toggleLayer('chains')">⛓ Chains</button>
-      <button class="toggle-btn" id="btn-march"    onclick="toggleLayer('march')">March Snare</button>
-      <button class="toggle-btn" id="btn-stomp"    onclick="toggleLayer('stomp')">Ritual Stomp</button>
-    </div>
-
-    <div class="cat-label">♪ Melodic</div>
-    <div class="toggles">
-      <button class="toggle-btn" id="btn-melody" onclick="toggleLayer('melody')">Melody</button>
-      <button class="toggle-btn" id="btn-choir"  onclick="toggleLayer('choir')">🎼 Choir</button>
-      <button class="toggle-btn" id="btn-lute"   onclick="toggleLayer('lute')">🪕 Lute</button>
-      <button class="toggle-btn" id="btn-horn"   onclick="toggleLayer('horn')">📯 Horn Call</button>
-      <button class="toggle-btn" id="btn-bells"  onclick="toggleLayer('bells')">🔔 Bells</button>
-      <button class="toggle-btn" id="btn-organ"  onclick="toggleLayer('organ')">Pipe Organ</button>
-    </div>
-
-    <div class="cat-label">☠ Chaos</div>
-    <div class="toggles">
-      <button class="toggle-btn" id="btn-chaos"       onclick="toggleLayer('chaos')">Chaos</button>
-      <button class="toggle-btn" id="btn-whispers"    onclick="toggleLayer('whispers')">Whispers</button>
-      <button class="toggle-btn" id="btn-ritualchant" onclick="toggleLayer('ritualchant')">Ritual Chant</button>
-      <button class="toggle-btn" id="btn-glitch"      onclick="toggleLayer('glitch')">⚡ Glitch</button>
-      <button class="toggle-btn boss-btn" id="btn-boss" onclick="toggleBoss()">💀 Boss Mode</button>
-    </div>
-
-    <div class="toggles" style="margin-top:8px;">
-      <button class="toggle-btn" onclick="muteAll()" style="border-color:#3a3a50;">⬜ Clear All Layers</button>
-      <button class="toggle-btn" onclick="soloLayer('drone')" style="border-color:#3a3a50;">◈ Reset to Drone</button>
+      <div style="margin-left:auto;font-size:11px;color:var(--text-dim);font-style:italic;" id="phraseCounter">Bar 1 / 8</div>
     </div>
 
     <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ &nbsp; Invoke the Void</button>
 
-    <div class="visualizer-wrap">
+    <div class="visualizer-wrap" style="margin-top:16px;">
       <div class="viz-controls">
         <button class="viz-mode-btn" id="vizModeBtn" onclick="cycleVizMode()">Spectrum</button>
         <button class="viz-cinematic-btn" id="cinematicBtn" onclick="toggleCinematic()">⛶ Cinematic</button>
       </div>
       <canvas id="viz" height="80"></canvas>
     </div>
-
     <div class="status" id="status">Awaiting invocation...</div>
   </div>
 
-  <!-- ADAPTIVE GAMEPLAY -->
-  <div class="panel">
-    <div class="panel-title">Adaptive Events</div>
-    <div class="adaptive-row">
-      <button class="event-btn" onclick="triggerEvent('enemyNearby')">👁 Enemy Nearby</button>
-      <button class="event-btn" onclick="triggerEvent('combatStart')">⚔ Combat Start</button>
-      <button class="event-btn" onclick="triggerEvent('combatEnd')">🕊 Combat End</button>
-      <button class="event-btn" onclick="triggerEvent('bossStart')">💀 Boss Start</button>
-      <button class="event-btn" onclick="triggerEvent('bossPhase2')">☠ Boss Phase 2</button>
-      <button class="event-btn" onclick="triggerEvent('lowHealth')">❤ Low Health</button>
-      <button class="event-btn" onclick="triggerEvent('zoneEnter')">🗺 Zone Enter</button>
-      <button class="event-btn" onclick="triggerEvent('treasureFound')">✨ Treasure</button>
+  <!-- TABBED PANELS -->
+  <div class="panel" style="padding-bottom:0;">
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="switchTab('layers')">Layers</button>
+      <button class="tab-btn" onclick="switchTab('fx')">Chamber FX</button>
+      <button class="tab-btn" onclick="switchTab('scale')">Scale</button>
+      <button class="tab-btn" onclick="switchTab('events')">Events</button>
+      <button class="tab-btn" onclick="switchTab('ost')">OST</button>
+      <button class="tab-btn" onclick="switchTab('tools')">Tools</button>
     </div>
-    <div class="status" id="eventStatus" style="text-align:left;margin-top:0;">No event active.</div>
-  </div>
 
-  <!-- MOOD + MASTER PROCESSING -->
-  <div class="panel">
-    <div class="panel-title">Chamber Effects</div>
-    <div class="fx-grid">
-      <div class="fx-item">
-        <div class="fx-label-row">
-          <span class="fx-label">Reverb Size</span>
-          <span class="fx-value" id="reverbSizeVal">40%</span>
-        </div>
-        <div class="fx-desc">From crypt to cathedral</div>
-        <input type="range" class="fx-slider" id="reverbSize" min="0" max="100" value="40"
-               style="--pct:40%" oninput="onReverbSize(this)"/>
+    <!-- LAYERS TAB -->
+    <div class="tab-pane active" id="tab-layers" style="padding:24px 0 8px;">
+      <div class="layers" id="layerPills" style="margin-bottom:20px;">
+        <div class="layer-pill" id="pill-drone">Drone</div>
+        <div class="layer-pill" id="pill-bass">Bass</div>
+        <div class="layer-pill" id="pill-heartbeat">Heartbeat</div>
+        <div class="layer-pill" id="pill-wind">Wind</div>
+        <div class="layer-pill" id="pill-riser">Riser</div>
+        <div class="layer-pill" id="pill-firecrackle">Fire</div>
+        <div class="layer-pill" id="pill-perc">Perc</div>
+        <div class="layer-pill" id="pill-wardrums">War Drums</div>
+        <div class="layer-pill" id="pill-chains">Chains</div>
+        <div class="layer-pill" id="pill-march">March</div>
+        <div class="layer-pill" id="pill-stomp">Stomp</div>
+        <div class="layer-pill" id="pill-melody">Melody</div>
+        <div class="layer-pill" id="pill-choir">Choir</div>
+        <div class="layer-pill" id="pill-lute">Lute</div>
+        <div class="layer-pill" id="pill-horn">Horn</div>
+        <div class="layer-pill" id="pill-bells">Bells</div>
+        <div class="layer-pill" id="pill-organ">Organ</div>
+        <div class="layer-pill" id="pill-chaos">Chaos</div>
+        <div class="layer-pill" id="pill-whispers">Whispers</div>
+        <div class="layer-pill" id="pill-ritualchant">Chant</div>
+        <div class="layer-pill" id="pill-glitch">Glitch</div>
       </div>
-      <div class="fx-item">
-        <div class="fx-label-row">
-          <span class="fx-label">Reverb Mix</span>
-          <span class="fx-value" id="reverbMixVal">30%</span>
-        </div>
-        <div class="fx-desc">Dry / wet blend</div>
-        <input type="range" class="fx-slider" id="reverbMix" min="0" max="100" value="30"
-               style="--pct:30%" oninput="onReverbMix(this)"/>
+
+      <div class="layer-cat">Foundation</div>
+      <div class="layer-grid">
+        <button class="layer-toggle active" id="btn-drone"     onclick="toggleLayer('drone')">Void Drone</button>
+        <button class="layer-toggle"        id="btn-bass"      onclick="toggleLayer('bass')">Deep Bass</button>
+        <button class="layer-toggle"        id="btn-heartbeat" onclick="toggleLayer('heartbeat')">Heartbeat</button>
       </div>
-      <div class="fx-item">
-        <div class="fx-label-row">
-          <span class="fx-label">Echo Time</span>
-          <span class="fx-value" id="delayTimeVal">0.00s</span>
-        </div>
-        <div class="fx-desc">Void echo · off to 1.2s</div>
-        <input type="range" class="fx-slider delay-slider" id="delayTime" min="0" max="100" value="0"
-               style="--pct:0%" oninput="onDelayTime(this)"/>
+
+      <div class="layer-cat">Atmosphere</div>
+      <div class="layer-grid">
+        <button class="layer-toggle" id="btn-wind"        onclick="toggleLayer('wind')">Wind &amp; Cave</button>
+        <button class="layer-toggle" id="btn-riser"       onclick="toggleLayer('riser')">Tension Riser</button>
+        <button class="layer-toggle" id="btn-firecrackle" onclick="toggleLayer('firecrackle')">Fire Crackle</button>
       </div>
-      <div class="fx-item">
-        <div class="fx-label-row">
-          <span class="fx-label">Echo Decay</span>
-          <span class="fx-value" id="delayFeedbackVal">0%</span>
-        </div>
-        <div class="fx-desc">How long the echo haunts</div>
-        <input type="range" class="fx-slider delay-slider" id="delayFeedback" min="0" max="85" value="0"
-               style="--pct:0%" oninput="onDelayFeedback(this)"/>
+
+      <div class="layer-cat">Rhythm</div>
+      <div class="layer-grid">
+        <button class="layer-toggle" id="btn-perc"     onclick="toggleLayer('perc')">Percussion</button>
+        <button class="layer-toggle" id="btn-wardrums" onclick="toggleLayer('wardrums')">War Drums</button>
+        <button class="layer-toggle" id="btn-chains"   onclick="toggleLayer('chains')">Chains</button>
+        <button class="layer-toggle" id="btn-march"    onclick="toggleLayer('march')">March Snare</button>
+        <button class="layer-toggle" id="btn-stomp"    onclick="toggleLayer('stomp')">Ritual Stomp</button>
       </div>
-      <div class="fx-item">
-        <div class="fx-label-row">
-          <span class="fx-label">Mood</span>
-          <span class="fx-value" id="moodVal">Tense</span>
-        </div>
-        <div class="fx-desc">calm → tense → nightmare</div>
-        <input type="range" class="fx-slider mood-slider" id="moodSlider" min="0" max="100" value="50"
-               style="--pct:50%" oninput="onMood(this)"/>
+
+      <div class="layer-cat">Melodic</div>
+      <div class="layer-grid">
+        <button class="layer-toggle" id="btn-melody" onclick="toggleLayer('melody')">Melody</button>
+        <button class="layer-toggle" id="btn-choir"  onclick="toggleLayer('choir')">Choir</button>
+        <button class="layer-toggle" id="btn-lute"   onclick="toggleLayer('lute')">Lute</button>
+        <button class="layer-toggle" id="btn-horn"   onclick="toggleLayer('horn')">Horn Call</button>
+        <button class="layer-toggle" id="btn-bells"  onclick="toggleLayer('bells')">Bells</button>
+        <button class="layer-toggle" id="btn-organ"  onclick="toggleLayer('organ')">Pipe Organ</button>
       </div>
-      <div class="fx-item">
-        <div class="fx-label-row">
-          <span class="fx-label">Saturation</span>
-          <span class="fx-value" id="saturationVal">20%</span>
+
+      <div class="layer-cat">Chaos</div>
+      <div class="layer-grid">
+        <button class="layer-toggle"          id="btn-chaos"       onclick="toggleLayer('chaos')">Chaos</button>
+        <button class="layer-toggle"          id="btn-whispers"    onclick="toggleLayer('whispers')">Whispers</button>
+        <button class="layer-toggle"          id="btn-ritualchant" onclick="toggleLayer('ritualchant')">Ritual Chant</button>
+        <button class="layer-toggle"          id="btn-glitch"      onclick="toggleLayer('glitch')">Glitch</button>
+        <button class="layer-toggle boss-btn" id="btn-boss"        onclick="toggleBoss()">💀 Boss Mode</button>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:16px;padding-bottom:16px;">
+        <button class="layer-toggle" onclick="muteAll()"         style="flex:1;border-color:#2a2a40;">Clear All</button>
+        <button class="layer-toggle" onclick="soloLayer('drone')" style="flex:1;border-color:#2a2a40;">Reset to Drone</button>
+      </div>
+    </div>
+
+    <!-- FX TAB -->
+    <div class="tab-pane" id="tab-fx" style="padding:24px 0 24px;">
+      <div class="fx-grid">
+        <div class="fx-item">
+          <div class="fx-label-row"><span class="fx-label">Reverb Size</span><span class="fx-value" id="reverbSizeVal">40%</span></div>
+          <div class="fx-desc">Crypt to cathedral</div>
+          <input type="range" class="fx-slider" id="reverbSize" min="0" max="100" value="40" style="--pct:40%" oninput="onReverbSize(this)"/>
         </div>
-        <div class="fx-desc">Tube warmth / harmonic grit</div>
-        <input type="range" class="fx-slider" id="saturationSlider" min="0" max="100" value="20"
-               style="--pct:20%" oninput="onSaturation(this)"/>
+        <div class="fx-item">
+          <div class="fx-label-row"><span class="fx-label">Reverb Mix</span><span class="fx-value" id="reverbMixVal">30%</span></div>
+          <div class="fx-desc">Dry / wet blend</div>
+          <input type="range" class="fx-slider" id="reverbMix" min="0" max="100" value="30" style="--pct:30%" oninput="onReverbMix(this)"/>
+        </div>
+        <div class="fx-item">
+          <div class="fx-label-row"><span class="fx-label">Echo Time</span><span class="fx-value" id="delayTimeVal">0.00s</span></div>
+          <div class="fx-desc">Void echo · 0 – 1.2s</div>
+          <input type="range" class="fx-slider delay-slider" id="delayTime" min="0" max="100" value="0" style="--pct:0%" oninput="onDelayTime(this)"/>
+        </div>
+        <div class="fx-item">
+          <div class="fx-label-row"><span class="fx-label">Echo Decay</span><span class="fx-value" id="delayFeedbackVal">0%</span></div>
+          <div class="fx-desc">How long the echo haunts</div>
+          <input type="range" class="fx-slider delay-slider" id="delayFeedback" min="0" max="85" value="0" style="--pct:0%" oninput="onDelayFeedback(this)"/>
+        </div>
+        <div class="fx-item">
+          <div class="fx-label-row"><span class="fx-label">Mood</span><span class="fx-value" id="moodVal">Tense</span></div>
+          <div class="fx-desc">Calm → Tense → Nightmare</div>
+          <input type="range" class="fx-slider mood-slider" id="moodSlider" min="0" max="100" value="50" style="--pct:50%" oninput="onMood(this)"/>
+        </div>
+        <div class="fx-item">
+          <div class="fx-label-row"><span class="fx-label">Saturation</span><span class="fx-value" id="saturationVal">20%</span></div>
+          <div class="fx-desc">Tube warmth / harmonic grit</div>
+          <input type="range" class="fx-slider" id="saturationSlider" min="0" max="100" value="20" style="--pct:20%" oninput="onSaturation(this)"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCALE TAB -->
+    <div class="tab-pane" id="tab-scale" style="padding:24px 0 16px;">
+      <div class="scale-grid" id="scaleGrid"></div>
+      <div class="status" id="scaleStatus" style="text-align:left;margin-top:8px;font-size:12px;min-height:16px;">Zone default active</div>
+    </div>
+
+    <!-- EVENTS TAB -->
+    <div class="tab-pane" id="tab-events" style="padding:24px 0 16px;">
+      <div class="layer-grid" style="margin-bottom:16px;">
+        <button class="layer-toggle" onclick="triggerEvent('enemyNearby', event)">👁 Enemy Nearby</button>
+        <button class="layer-toggle" onclick="triggerEvent('combatStart', event)">⚔ Combat Start</button>
+        <button class="layer-toggle" onclick="triggerEvent('combatEnd', event)">🕊 Combat End</button>
+        <button class="layer-toggle" onclick="triggerEvent('bossStart', event)">💀 Boss Start</button>
+        <button class="layer-toggle" onclick="triggerEvent('bossPhase2', event)">☠ Boss Phase 2</button>
+        <button class="layer-toggle" onclick="triggerEvent('lowHealth', event)">❤ Low Health</button>
+        <button class="layer-toggle" onclick="triggerEvent('zoneEnter', event)">🗺 Zone Enter</button>
+        <button class="layer-toggle" onclick="triggerEvent('treasureFound', event)">✨ Treasure</button>
+      </div>
+      <div class="status" id="eventStatus" style="text-align:left;">No event active.</div>
+    </div>
+
+    <!-- OST TAB -->
+    <div class="tab-pane" id="tab-ost" style="padding:24px 0 16px;">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+        <button class="layer-toggle" onclick="startSongGen()" style="flex:0 0 auto;padding:10px 20px;">▶ Generate OST</button>
+        <button class="layer-toggle" onclick="stopSongGen()"  style="flex:0 0 auto;padding:10px 20px;">⏹ Stop</button>
+        <div style="flex:1;">
+          <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--text);margin-bottom:6px;" id="songGenStatus">Idle — 7 min 20 sec of OST</div>
+          <div class="song-gen-bar"><div class="song-gen-fill" id="songGenFill"></div></div>
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-dim);margin-bottom:10px;">Steps</div>
+        <div id="ostStepList" style="display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <button class="layer-toggle" onclick="exportTimeline()" style="flex:1;">⬇ Export Timeline</button>
+        <button class="layer-toggle" onclick="exportMIDI()"     style="flex:1;">⬇ Export MIDI</button>
+      </div>
+      <div class="timeline-output" id="timelineOutput">Timeline appears here after generation.</div>
+      <div class="midi-note">MIDI export generates a .mid file importable into any DAW.</div>
+    </div>
+
+    <!-- TOOLS TAB -->
+    <div class="tab-pane" id="tab-tools" style="padding:24px 0 16px;">
+      <div class="panel-title" style="font-size:9px;margin-bottom:12px;">Seed System</div>
+      <div class="seed-row">
+        <input type="text" class="seed-input" id="seedInput" placeholder="Seed (e.g. 42, dungeon)" maxlength="32"/>
+        <button class="seed-btn" onclick="applySeed()">Apply</button>
+        <button class="seed-btn" onclick="randomSeed()">Random</button>
+      </div>
+      <div class="status" id="seedStatus" style="text-align:left;margin-bottom:16px;font-size:11px;min-height:16px;">No seed active — true random.</div>
+
+      <div class="panel-title" style="font-size:9px;margin-bottom:12px;">Presets</div>
+      <div class="preset-grid" id="presetGrid"></div>
+
+      <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Recording</div>
+      <div class="record-section">
+        <button class="record-btn" id="recBtn" onclick="toggleRecord()"><span class="rec-dot"></span>Record</button>
+        <button class="record-btn" id="dlBtn" onclick="downloadRecording()" style="display:none">↓ Download</button>
+      </div>
+      <div class="format-note" id="fmtNote">Saves as .webm / .ogg — open in Audacity to export WAV.</div>
+    </div>
+
+  </div><!-- end tabbed panel -->
+
+  <!-- DEBUG (collapsed by default) -->
+  <div class="panel" style="margin-top:12px;">
+    <button class="debug-toggle" onclick="toggleDebug()">⚙ Debug ▾</button>
+    <div class="debug-body" id="debugBody">
+      <div class="debug-panel">
+        <div class="debug-item"><div class="debug-label">BPM</div><div class="debug-value" id="dbg-bpm">—</div></div>
+        <div class="debug-item"><div class="debug-label">Phrase</div><div class="debug-value" id="dbg-phrase">—</div></div>
+        <div class="debug-item"><div class="debug-label">Bar</div><div class="debug-value" id="dbg-bar">—</div></div>
+        <div class="debug-item"><div class="debug-label">Intensity</div><div class="debug-value" id="dbg-intensity">—</div></div>
+        <div class="debug-item"><div class="debug-label">Active Layers</div><div class="debug-value" id="dbg-layers">—</div></div>
+        <div class="debug-item"><div class="debug-label">Scale</div><div class="debug-value" id="dbg-scale">—</div></div>
+        <div class="debug-item"><div class="debug-label">Seed</div><div class="debug-value" id="dbg-seed">none</div></div>
+        <div class="debug-item"><div class="debug-label">Zone</div><div class="debug-value" id="dbg-zone">—</div></div>
+        <div class="debug-item"><div class="debug-label">Event</div><div class="debug-value" id="dbg-event">—</div></div>
+        <div class="debug-item"><div class="debug-label">Mood</div><div class="debug-value" id="dbg-mood">tense</div></div>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="cat-label">Hotkeys: Space=Play · B=Boss · 1-6=Layer Groups · R=Record · C=Cinematic</div>
       </div>
     </div>
   </div>
 
-  <!-- SCALE & MODE -->
-  <div class="panel">
-    <div class="panel-title">Scale & Mode</div>
-    <div class="scale-grid" id="scaleGrid"></div>
-    <div class="status" id="scaleStatus" style="text-align:left;margin-top:0;font-size:12px;min-height:16px;">Zone default active</div>
-  </div>
-
-  <!-- COMPOSER TOOLS -->
-  <div class="panel">
-    <div class="panel-title">Composer Tools</div>
-
-    <div class="panel-title" style="font-size:9px;margin-bottom:12px;">Seed System</div>
-    <div class="seed-row">
-      <input type="text" class="seed-input" id="seedInput" placeholder="Enter seed (e.g. 42, dungeon)" maxlength="32"/>
-      <button class="seed-btn" onclick="applySeed()">Apply Seed</button>
-      <button class="seed-btn" onclick="randomSeed()">Random</button>
-    </div>
-    <div class="status" id="seedStatus" style="text-align:left;margin-top:0;font-size:11px;min-height:16px;">No seed active — true random.</div>
-
-    <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Song Generation</div>
-    <div class="adaptive-row">
-      <button class="event-btn" onclick="startSongGen()">▶ Generate OST</button>
-      <button class="event-btn" onclick="stopSongGen()">⏹ Stop</button>
-      <span style="font-size:11px;color:var(--text-dim);font-style:italic;" id="songGenStatus">Idle</span>
-    </div>
-    <div class="song-gen-bar"><div class="song-gen-fill" id="songGenFill"></div></div>
-
-    <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Timeline Export</div>
-    <div class="adaptive-row">
-      <button class="event-btn" onclick="exportTimeline()">⬇ Export Timeline</button>
-      <button class="event-btn" onclick="exportMIDI()">⬇ Export MIDI</button>
-    </div>
-    <div class="timeline-output" id="timelineOutput">Timeline will appear here after generation or playback session.</div>
-    <div class="midi-note">MIDI export generates a .mid file importable into any DAW. Melody + bass channels included.</div>
-  </div>
-
-  <!-- PRESETS -->
-  <div class="panel">
-    <div class="panel-title">Presets</div>
-    <div class="preset-grid" id="presetGrid"></div>
-  </div>
-
-  <!-- RECORDING -->
-  <div class="panel">
-    <div class="panel-title">Recording</div>
-    <div class="record-section">
-      <button class="record-btn" id="recBtn" onclick="toggleRecord()">
-        <span class="rec-dot"></span>Record
-      </button>
-      <button class="record-btn" id="dlBtn" onclick="downloadRecording()" style="display:none">↓ Download</button>
-    </div>
-    <div class="format-note" id="fmtNote">Saves as .webm or .ogg. Open in Audacity → Export WAV if needed.</div>
-  </div>
-
-  <!-- DEBUG PANEL -->
-  <div class="panel">
-    <div class="panel-title">Debug</div>
-    <div class="debug-panel">
-      <div class="debug-item"><div class="debug-label">BPM</div><div class="debug-value" id="dbg-bpm">—</div></div>
-      <div class="debug-item"><div class="debug-label">Phrase</div><div class="debug-value" id="dbg-phrase">—</div></div>
-      <div class="debug-item"><div class="debug-label">Bar</div><div class="debug-value" id="dbg-bar">—</div></div>
-      <div class="debug-item"><div class="debug-label">Intensity</div><div class="debug-value" id="dbg-intensity">—</div></div>
-      <div class="debug-item"><div class="debug-label">Active Layers</div><div class="debug-value" id="dbg-layers">—</div></div>
-      <div class="debug-item"><div class="debug-label">Scale</div><div class="debug-value" id="dbg-scale">—</div></div>
-      <div class="debug-item"><div class="debug-label">Seed</div><div class="debug-value" id="dbg-seed">none</div></div>
-      <div class="debug-item"><div class="debug-label">Zone</div><div class="debug-value" id="dbg-zone">—</div></div>
-      <div class="debug-item"><div class="debug-label">Event</div><div class="debug-value" id="dbg-event">—</div></div>
-      <div class="debug-item"><div class="debug-label">Mood</div><div class="debug-value" id="dbg-mood">tense</div></div>
-    </div>
-    <div style="margin-top:12px;">
-      <div class="cat-label">Hotkeys: Space=Play · B=Boss · 1-6=Layer Groups · R=Record · C=Cinematic</div>
-    </div>
-  </div>
 </div>
-
 <script>
 // ================================================================
 // ASHEN THRONE — MUSIC FORGE v5
@@ -741,6 +786,38 @@ function randomSeed() {
   setStatus('Seed cleared — true random active.');
 }
 
+// ── Tab switcher ──────────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id)?.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    if (b.textContent.toLowerCase().includes(id) || b.getAttribute('onclick')?.includes(id)) {
+      b.classList.add('active');
+    }
+  });
+}
+
+// ── Debug toggle ──────────────────────────────────────────────────
+function toggleDebug() {
+  const body = document.getElementById('debugBody');
+  body.classList.toggle('open');
+}
+
+// ── OST step list (call in init) ──────────────────────────────────
+function buildOSTStepList() {
+  const el = document.getElementById('ostStepList');
+  if (!el) return;
+  OST_STEPS.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.id = 'ost-step-' + i;
+    row.style.cssText = 'display:flex;gap:10px;align-items:center;font-family:Cinzel,serif;font-size:10px;color:var(--text-dim);letter-spacing:0.08em;padding:5px 8px;border:1px solid #1a1a28;border-radius:1px;transition:all 0.4s;';
+    const dur = Math.round(s.duration / 1000);
+    row.innerHTML = `<span style="color:var(--text-dim);min-width:18px;">${i+1}.</span><span style="flex:1;color:var(--text);">${s.label}</span><span style="color:var(--text-dim);">Floor ${s.floor}</span><span style="color:var(--gold-dim);min-width:32px;text-align:right;">${dur}s</span>`;
+    el.appendChild(row);
+  });
+}
+  
 // ── Bar & Phrase system ───────────────────────────────────────────
 const PHRASES = ['intro', 'build', 'tension', 'climax', 'resolution'];
 const PHRASE_DURATIONS = { intro: 8, build: 8, tension: 8, climax: 8, resolution: 8 }; // bars each
@@ -968,74 +1045,127 @@ function exportMIDI() {
 }
 
 // ── Song generation ───────────────────────────────────────────────
-let songGenTimer = null, songGenStep = 0;
-const SONG_GEN_STEPS = [
-  { label: 'Floor 1 · Intro Drone', floor: 1, layers: ['drone'], phrase: 'intro' },
-  { label: 'Floor 10 · Wind Rises', floor: 10, layers: ['drone','wind','heartbeat'], phrase: 'build' },
-  { label: 'Floor 18 · Percussion Enters', floor: 18, layers: ['drone','wind','perc','bass'], phrase: 'build' },
-  { label: 'Floor 26 · Tension Builds', floor: 26, layers: ['drone','bass','perc','wardrums','riser','melody'], phrase: 'tension' },
-  { label: 'Floor 35 · Full Orchestra', floor: 35, layers: ['drone','bass','perc','wardrums','stomp','melody','choir'], phrase: 'climax' },
-  { label: 'Floor 42 · Boss Encounter', floor: 42, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos'], phrase: 'climax', boss: true },
-  { label: 'Floor 50 · Boss Phase 2', floor: 55, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos','glitch'], phrase: 'climax', boss: true },
-  { label: 'Floor 70 · Infernal Core', floor: 70, layers: ['drone','bass','perc','wardrums','march','stomp','melody','choir','chaos','glitch','ritualchant'], phrase: 'climax', boss: true },
-  { label: 'Resolution', floor: 70, layers: ['drone','heartbeat','bells'], phrase: 'resolution', boss: false },
+const OST_STEPS = [
+  { label: 'Opening Silence',   floor: 1,  layers: ['drone'],                                                                       duration: 40000, boss: false, phrase: 'intro'      },
+  { label: 'The Descent',       floor: 10, layers: ['drone','wind','heartbeat'],                                                     duration: 45000, boss: false, phrase: 'build'      },
+  { label: 'Bone March',        floor: 18, layers: ['drone','wind','bass','perc'],                                                   duration: 45000, boss: false, phrase: 'build'      },
+  { label: 'Tension Builds',    floor: 26, layers: ['drone','bass','perc','wardrums','riser','melody'],                              duration: 50000, boss: false, phrase: 'tension'    },
+  { label: 'Shadow Army',       floor: 35, layers: ['drone','bass','perc','wardrums','stomp','melody','choir'],                      duration: 55000, boss: false, phrase: 'climax'     },
+  { label: 'Boss Threshold',    floor: 42, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos'],              duration: 50000, boss: true,  phrase: 'climax'     },
+  { label: 'The Void Tears',    floor: 55, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 55000, boss: true, phrase: 'climax' },
+  { label: 'Infernal Core',     floor: 70, layers: ['drone','bass','perc','wardrums','march','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 60000, boss: true, phrase: 'climax' },
+  { label: 'Ashes',             floor: 70, layers: ['drone','heartbeat','bells'],                                                    duration: 40000, boss: false, phrase: 'resolution' },
 ];
+
+const OST_CROSSFADE_DUR = 4.0; // seconds — overlap between steps
+let songGenTimer = null, songGenStep = 0, songGenRunning = false;
+let ostCurrentLayers = [];
 
 function startSongGen() {
   if (!isPlaying) togglePlay();
   songGenStep = 0;
-  runSongGenStep();
+  songGenRunning = true;
+  ostCurrentLayers = [];
+  document.getElementById('songGenStatus').textContent = 'Starting...';
+  document.getElementById('songGenFill').style.width = '0%';
+  ostRunStep();
 }
 
-function runSongGenStep() {
-  if (songGenStep >= SONG_GEN_STEPS.length) {
-    document.getElementById('songGenStatus').textContent = 'Complete.';
-    document.getElementById('songGenFill').style.width = '100%';
+function ostRunStep() {
+  if (!songGenRunning || songGenStep >= OST_STEPS.length) {
+    document.getElementById('songGenStatus').textContent = songGenStep >= OST_STEPS.length ? 'Complete ✓' : 'Stopped.';
+    // Highlight current step in list
+    document.querySelectorAll('[id^="ost-step-"]').forEach((el, i) => {
+      el.style.borderColor = i === songGenStep - 1 ? 'var(--gold-dim)' : '#1a1a28';
+      el.style.color = i === songGenStep - 1 ? 'var(--gold)' : 'var(--text-dim)';
+    });
+    document.getElementById('songGenFill').style.width = songGenStep >= OST_STEPS.length ? '100%' : document.getElementById('songGenFill').style.width;
+    songGenRunning = false;
     return;
   }
-  const step = SONG_GEN_STEPS[songGenStep];
-  const pct = ((songGenStep / SONG_GEN_STEPS.length) * 100).toFixed(0) + '%';
-  document.getElementById('songGenFill').style.width = pct;
-  document.getElementById('songGenStatus').textContent = `${step.label} (${songGenStep + 1}/${SONG_GEN_STEPS.length})`;
 
-  // Set floor
+  const step     = OST_STEPS[songGenStep];
+  const nextStep = OST_STEPS[songGenStep + 1] || null;
+  const pct      = ((songGenStep / OST_STEPS.length) * 100).toFixed(0) + '%';
+
+  document.getElementById('songGenFill').style.width = pct;
+  document.getElementById('songGenStatus').textContent = `${step.label}  (${songGenStep + 1}/${OST_STEPS.length})`;
+
+  // Floor + boss
   slider.value = step.floor;
   updateFloorUI();
+  if (step.boss !== isBoss) {
+    isBoss = step.boss;
+    document.getElementById('btn-boss')?.classList.toggle('active', isBoss);
+  }
 
-  // Set boss
-  if (step.boss !== undefined && step.boss !== isBoss) toggleBoss();
+  // Phrase
+  currentPhrase = step.phrase;
+  updatePhraseUI();
 
-  // Set layers
-  muteAll();
-  setTimeout(() => {
-    initAudio();
-    step.layers.forEach(name => {
-      layerOn[name] = true;
-      document.getElementById('btn-' + name)?.classList.add('active');
-      document.getElementById('pill-' + name)?.classList.add('on');
-    });
-    const preset = getZone(step.floor);
-    const intensity = getIntensity(step.floor);
-    const percBufs = buildPercBufs(preset);
-    step.layers.forEach(name => {
+  initAudio();
+  const preset    = getZone(step.floor);
+  const intensity = isBoss ? Math.min(1, getIntensity(step.floor) + 0.4) : getIntensity(step.floor);
+  const percBufs  = buildPercBufs(preset);
+
+  // Determine which layers are new vs continuing vs retiring
+  const incoming = step.layers;
+  const continuing = incoming.filter(n => ostCurrentLayers.includes(n));
+  const toStart    = incoming.filter(n => !ostCurrentLayers.includes(n));
+  const toStop     = ostCurrentLayers.filter(n => !incoming.includes(n));
+
+  // Fade out retiring layers
+  toStop.forEach(name => {
+    layerOn[name] = false;
+    document.getElementById('btn-' + name)?.classList.remove('active');
+    document.getElementById('pill-' + name)?.classList.remove('on');
+    stopLayer(name); // fades over FADE_OUT
+  });
+
+  // Start new layers (with fade-in — no gap, no muteAll)
+  toStart.forEach(name => {
+    layerOn[name] = true;
+    document.getElementById('btn-' + name)?.classList.add('active');
+    document.getElementById('pill-' + name)?.classList.add('on');
+    startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+  });
+
+  // Continuing layers: restart with new preset if zone changed
+  const prevPreset = songGenStep > 0 ? getZone(OST_STEPS[songGenStep - 1].floor) : null;
+  if (prevPreset && prevPreset.name !== preset.name) {
+    continuing.forEach(name => {
       startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
     });
-    currentPhrase = step.phrase;
-    updatePhraseUI();
-    logTimeline(step.label);
-    setStatus(`Song Gen: ${step.label}`);
-    songGenStep++;
-    songGenTimer = setTimeout(runSongGenStep, 12000);
-  }, 1500);
+  }
+
+  // Update boss layer
+  if (isBoss && !nodes['boss']?.length) {
+    startLayer('boss', preset, intensity, null);
+  } else if (!isBoss && nodes['boss']?.length) {
+    stopLayer('boss');
+  }
+
+  ostCurrentLayers = [...incoming];
+  barLength = (60 / preset.bpm) * 4;
+
+  logTimeline(`OST: ${step.label} · Floor ${step.floor}`);
+  setStatus(`OST: ${step.label}`);
+
+  // Schedule next step — fire OST_CROSSFADE_DUR before end so fade overlaps
+  const holdTime = step.duration - (OST_CROSSFADE_DUR * 1000);
+  songGenStep++;
+  songGenTimer = setTimeout(ostRunStep, holdTime);
 }
 
 function stopSongGen() {
+  songGenRunning = false;
   if (songGenTimer) { clearTimeout(songGenTimer); songGenTimer = null; }
   document.getElementById('songGenStatus').textContent = 'Stopped.';
   document.getElementById('songGenFill').style.width = '0%';
   songGenStep = 0;
+  ostCurrentLayers = [];
 }
-
+  
 // ── Scales ───────────────────────────────────────────────────────
 const SCALES = [
   { id:'zone',       name:'Zone Default',  feel:'Follows floor depth',           ratios:null,
@@ -1252,7 +1382,6 @@ function triggerEvent(name) {
   logTimeline(`Event: ${cfg.desc}`);
   // Flash btn
   document.querySelectorAll('.event-btn').forEach(b => b.classList.remove('triggered'));
-  event && event.currentTarget && event.currentTarget.classList.add('triggered');
   if (eventTimeout) clearTimeout(eventTimeout);
   if (cfg.duration > 0) {
     eventTimeout = setTimeout(() => {
@@ -1453,6 +1582,7 @@ function soloLayer(name) {
 function initAudio() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume();
 
   masterGain = ctx.createGain();
   masterGain.gain.value = 0.85;
