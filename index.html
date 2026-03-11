@@ -664,9 +664,9 @@
           <input type="range" class="fx-slider" id="reverbSize" min="0" max="100" value="40" style="--pct:40%" oninput="onReverbSize(this)"/>
         </div>
         <div class="fx-item">
-          <div class="fx-label-row"><span class="fx-label">Reverb Mix</span><span class="fx-value" id="reverbMixVal">30%</span></div>
+          <div class="fx-label-row"><span class="fx-label">Reverb Mix</span><span class="fx-value" id="reverbMixVal">18%</span></div>
           <div class="fx-desc">Dry / wet blend</div>
-          <input type="range" class="fx-slider" id="reverbMix" min="0" max="100" value="30" style="--pct:30%" oninput="onReverbMix(this)"/>
+          <input type="range" class="fx-slider" id="reverbMix" min="0" max="100" value="18" style="--pct:18%" oninput="onReverbMix(this)"/>
         </div>
         <div class="fx-item">
           <div class="fx-label-row"><span class="fx-label">Echo Time</span><span class="fx-value" id="delayTimeVal">0.00s</span></div>
@@ -686,7 +686,7 @@
         <div class="fx-item">
           <div class="fx-label-row"><span class="fx-label">Saturation</span><span class="fx-value" id="saturationVal">20%</span></div>
           <div class="fx-desc">Tube warmth / harmonic grit</div>
-          <input type="range" class="fx-slider" id="saturationSlider" min="0" max="100" value="20" style="--pct:20%" oninput="onSaturation(this)"/>
+          <input type="range" class="fx-slider" id="saturationSlider" min="0" max="100" value="8" style="--pct:20%" oninput="onSaturation(this)"/>
         </div>
       </div>
     </div>
@@ -801,9 +801,9 @@ let reverbNode = null, reverbDryGain = null, reverbWetGain = null;
 let delayNode = null, delayFbGain = null, delayWetGain = null;
 let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF = null;
 
-let _reverbSize = 0.4, _reverbMix = 0.3, _delayTime = 0.0, _delayFb = 0.0;
+let _reverbSize = 0.4, _reverbMix = 0.18, _delayTime = 0.0, _delayFb = 0.0;
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
-let _saturation = 0.2;
+let _saturation = 0.08;
 
 // ── Seeded RNG ───────────────────────────────────────────────────
 let activeSeed = null;
@@ -1651,7 +1651,7 @@ function initAudio() {
   ctx.resume();
 
   masterGain = ctx.createGain();
-  masterGain.gain.value = 0.85;
+  masterGain.gain.value = 0.55;
 
   // Subsonic HPF
   masterHPF = ctx.createBiquadFilter();
@@ -1671,11 +1671,11 @@ function initAudio() {
 
   // Master compressor / limiter
   masterCompressor = ctx.createDynamicsCompressor();
-  masterCompressor.threshold.value = -6;
+  masterCompressor.threshold.value = -12;
   masterCompressor.knee.value = 6;
-  masterCompressor.ratio.value = 12;
+  masterCompressor.ratio.value = 6;
   masterCompressor.attack.value = 0.003;
-  masterCompressor.release.value = 0.15;
+  masterCompressor.release.value = 0.25;
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
@@ -1793,7 +1793,7 @@ function onMood(el) {
   document.getElementById('dbg-mood').textContent = labels[idx].toLowerCase();
   if (!ctx) return;
   // Mood: filter cutoff, reverb wetness, LFO feel
-  const freq = 800 + _mood * 12000;
+  const freq = 600 + _mood * 8000;
   const Q    = 0.5 + _mood * 3;
   moodFilter.frequency.setTargetAtTime(freq, ctx.currentTime, 0.2);
   moodFilter.Q.setTargetAtTime(Q, ctx.currentTime, 0.2);
@@ -1827,13 +1827,29 @@ function fadeOut(g, d, cb) { const n = ctx.currentTime; g.gain.cancelScheduledVa
 function killLayer(name)   { timers[name].forEach(clearTimeout); timers[name] = []; nodes[name].forEach(n => { try { if (n.stop) n.stop(ctx.currentTime + 0.04); n.disconnect(); } catch(e) {} }); nodes[name] = []; }
 function busTarget(n, i) {
   return {
-    drone:.7+i*.3, bass:1.0, heartbeat:.7+i*.3,
-    wind:.55+i*.35, riser:.6+i*.4, firecrackle:.5+i*.3,
-    perc:1.2, wardrums:1.1+i*.2, chains:.75+i*.3, march:.85+i*.3, stomp:1.0+i*.2,
-    melody:1.0, choir:.75+i*.25, lute:.8+i*.25, horn:.85+i*.25, bells:.7+i*.35, organ:.75+i*.25,
-    chaos:.6*i, whispers:.55+i*.25, ritualchant:.7+i*.25, glitch:.5*i,
-    boss:.9
-  }[n] ?? 0.6;
+    drone:.55+i*.2,        // was .7+i*.3
+    bass:.75,              // was 1.0
+    heartbeat:.5+i*.2,     // was .7+i*.3
+    wind:.4+i*.25,         // was .55+i*.35
+    riser:.45+i*.3,        // was .6+i*.4
+    firecrackle:.35+i*.2,  // was .5+i*.3
+    perc:.85,              // was 1.2
+    wardrums:.8+i*.15,     // was 1.1+i*.2
+    chains:.55+i*.2,       // was .75+i*.3
+    march:.65+i*.2,        // was .85+i*.3
+    stomp:.75+i*.15,       // was 1.0+i*.2
+    melody:.75,            // was 1.0
+    choir:.55+i*.18,       // was .75+i*.25
+    lute:.6+i*.18,         // was .8+i*.25
+    horn:.65+i*.18,        // was .85+i*.25
+    bells:.5+i*.25,        // was .7+i*.35
+    organ:.55+i*.18,       // was .75+i*.25
+    chaos:.4*i,            // was .6*i
+    whispers:.4+i*.18,     // was .55+i*.25
+    ritualchant:.5+i*.18,  // was .7+i*.25
+    glitch:.35*i,          // was .5*i
+    boss:.65               // was .9
+  }[n] ?? 0.45;
 }
 
 // ── Layer builders ────────────────────────────────────────────────
