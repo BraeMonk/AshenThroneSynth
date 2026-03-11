@@ -974,11 +974,11 @@ function initAudio() {
   ctx = new (window.AudioContext || window.webkitAudioContext)();
 
   masterGain = ctx.createGain();
-  masterGain.gain.value = 0.65;
+  masterGain.gain.value = 0.9;
 
   // Limiter — prevents clipping from stacked layers
   const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -6;
+  limiter.threshold.value = -3;
   limiter.knee.value = 3;
   limiter.ratio.value = 20;
   limiter.attack.value = 0.001;
@@ -1113,13 +1113,13 @@ function fadeOut(g, d, cb)  { const n=ctx.currentTime; g.gain.cancelScheduledVal
 function killLayer(name)    { timers[name].forEach(clearTimeout); timers[name]=[]; nodes[name].forEach(n=>{try{if(n.stop)n.stop(ctx.currentTime+0.04);n.disconnect();}catch(e){}}); nodes[name]=[]; }
 function busTarget(n,i) {
   return {
-    drone:.5+i*.25, bass:.9, heartbeat:.55+i*.3,
-    wind:.35+i*.25, riser:.4+i*.3, firecrackle:.3+i*.2,
-    perc:1.0, wardrums:.85+i*.15, chains:.5+i*.2, march:.6+i*.2, stomp:.7+i*.2,
-    melody:.85, choir:.55+i*.2, lute:.6+i*.2, horn:.65+i*.2, bells:.5+i*.3, organ:.55+i*.2,
-    chaos:.45*i, whispers:.4+i*.2, ritualchant:.5+i*.2, glitch:.35*i,
-    boss:.75
-  }[n]??0.5;
+    drone:.7+i*.3, bass:1.0, heartbeat:.7+i*.3,
+    wind:.55+i*.35, riser:.6+i*.4, firecrackle:.5+i*.3,
+    perc:1.2, wardrums:1.1+i*.2, chains:.75+i*.3, march:.85+i*.3, stomp:1.0+i*.2,
+    melody:1.0, choir:.75+i*.25, lute:.8+i*.25, horn:.85+i*.25, bells:.7+i*.35, organ:.75+i*.25,
+    chaos:.6*i, whispers:.55+i*.25, ritualchant:.7+i*.25, glitch:.5*i,
+    boss:.9
+  }[n]??0.6;
 }
 
 // ── Layer builders ────────────────────────────────────────────────
