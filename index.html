@@ -2036,7 +2036,7 @@ function drawViz() {
 
 // ── Recording ─────────────────────────────────────────────────────
 function toggleRecord() {
-  if(!isPlaying){setStatus('Start playing first, then record.');return;}
+  if(!isPlaying) togglePlay();
   initAudio();
   if(!isRecording){
     recordedChunks=[];
