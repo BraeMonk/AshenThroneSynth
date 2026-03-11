@@ -747,6 +747,22 @@
       <div class="panel-title" style="font-size:9px;margin-bottom:12px;">Presets</div>
       <div class="preset-grid" id="presetGrid"></div>
 
+      <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Randomizer</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+        <button class="seed-btn" onclick="randomizeCoherent()" style="flex:1;min-width:120px;padding:10px;">
+          🎲 Randomize
+        </button>
+        <span id="randArchetypeLabel" style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.2em;color:var(--gold-dim);">—</span>
+      </div>
+      <div class="layer-grid" style="margin-bottom:8px;">
+        <button class="layer-toggle" onclick="randomizeCoherent('desolate')">Desolate</button>
+        <button class="layer-toggle" onclick="randomizeCoherent('marching')">Marching</button>
+        <button class="layer-toggle" onclick="randomizeCoherent('choral')">Choral</button>
+        <button class="layer-toggle" onclick="randomizeCoherent('combat')">Combat</button>
+        <button class="layer-toggle" onclick="randomizeCoherent('arcane')">Arcane</button>
+        <button class="layer-toggle" onclick="randomizeCoherent('nightmare')">Nightmare</button>
+      </div>
+
       <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Recording</div>
       <div class="record-section">
         <button class="record-btn" id="recBtn" onclick="toggleRecord()"><span class="rec-dot"></span>Record</button>
@@ -1351,6 +1367,68 @@ function buildPresetUI() {
     btn.onclick = () => applyPreset(p);
     grid.appendChild(btn);
   });
+}
+
+// ── Coherent Randomizer ───────────────────────────────────────────
+const LAYER_ARCHETYPES = {
+  desolate:  { required: ['drone'],                    pool: ['wind','heartbeat','whispers','firecrackle','bells'],     max: 3, floors: [1,20]  },
+  marching:  { required: ['drone','bass'],             pool: ['perc','wardrums','march','stomp','chains','horn'],       max: 4, floors: [15,60] },
+  choral:    { required: ['drone','choir'],            pool: ['organ','bells','heartbeat','ritualchant','lute'],        max: 3, floors: [10,50] },
+  combat:    { required: ['drone','bass','perc'],      pool: ['wardrums','stomp','march','chaos','melody','choir'],     max: 5, floors: [25,80] },
+  arcane:    { required: ['drone','melody'],           pool: ['lute','bells','riser','glitch','choir','organ'],         max: 4, floors: [20,70] },
+  nightmare: { required: ['drone','bass','chaos'],     pool: ['wardrums','stomp','glitch','ritualchant','riser'],       max: 5, floors: [40,99] },
+};
+
+function getEligibleArchetypes(floor) {
+  return Object.entries(LAYER_ARCHETYPES)
+    .filter(([_, cfg]) => floor >= cfg.floors[0] && floor <= cfg.floors[1])
+    .map(([name]) => name);
+}
+
+function pickArchetype(floor) {
+  const eligible = getEligibleArchetypes(floor);
+  if (!eligible.length) return 'desolate';
+  // Weight toward more intense archetypes at deeper floors
+  const intensity = getIntensity(floor);
+  const intense = ['combat','nightmare','marching'];
+  const calm    = ['desolate','choral','arcane'];
+  const pool = rng() < intensity ? intense : calm;
+  const filtered = pool.filter(a => eligible.includes(a));
+  const source = filtered.length ? filtered : eligible;
+  return source[Math.floor(rng() * source.length)];
+}
+
+function randomizeCoherent(forcedArchetype) {
+  const floor = parseInt(slider.value);
+  const archetypeName = forcedArchetype || pickArchetype(floor);
+  const cfg = LAYER_ARCHETYPES[archetypeName];
+  if (!cfg) return;
+
+  muteAll();
+
+  // Shuffle pool and pick up to max
+  const shuffled = [...cfg.pool].sort(() => rng() - 0.5);
+  const picked = shuffled.slice(0, cfg.max);
+  const toEnable = [...cfg.required, ...picked];
+
+  setTimeout(() => {
+    initAudio();
+    const preset = getZone(floor);
+    const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+    const percBufs = buildPercBufs(preset);
+
+    toEnable.forEach(name => {
+      if (!(name in layerOn)) return;
+      layerOn[name] = true;
+      document.getElementById('btn-' + name)?.classList.add('active');
+      document.getElementById('pill-' + name)?.classList.add('on');
+      if (isPlaying) startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+    });
+
+    setStatus(`🎲 ${archetypeName.charAt(0).toUpperCase() + archetypeName.slice(1)} · ${toEnable.join(', ')}`);
+    logTimeline(`Randomize: ${archetypeName}`);
+    document.getElementById('randArchetypeLabel').textContent = archetypeName.toUpperCase();
+  }, FADE_OUT * 1000 + 100);
 }
 
 // ── Event system ──────────────────────────────────────────────────
