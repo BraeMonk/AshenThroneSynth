@@ -1710,7 +1710,7 @@ function buildGlitch(preset, intensity, name) {
 
   // Random stuttering artifacts — pitched noise bursts
   function schedGlitch() {
-    if (!nodes[name].length && !timers[name].length) return; // layer killed
+    if (!bus[name] || bus[name].gain.value === 0) return;
 
     const now = ctx.currentTime;
     const glitchCount = 1 + Math.floor(Math.random() * 3);
@@ -1738,7 +1738,6 @@ function buildGlitch(preset, intensity, name) {
     regT(name, setTimeout(schedGlitch, next * 1000));
   }
   // Seed the glitch loop with a placeholder so killLayer works
-  reg(name, ctx.createGain());
   schedGlitch();
 }
 
@@ -1757,9 +1756,12 @@ const BUILDERS = {
   boss:buildBoss
 };
 
+const PERC_BUF_LAYERS = new Set(['perc','wardrums','chains','march','stomp']);
+
 function startLayer(name, preset, intensity, percBufs) {
   killLayer(name);
-  name==='perc' ? BUILDERS.perc(preset,intensity,name,percBufs) : BUILDERS[name](preset,intensity,name);
+  if(PERC_BUF_LAYERS.has(name)) BUILDERS[name](preset,intensity,name,percBufs||buildPercBufs(preset));
+  else BUILDERS[name](preset,intensity,name);
   fadeIn(bus[name], busTarget(name,intensity), FADE_IN);
 }
 
