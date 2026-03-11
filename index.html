@@ -1219,7 +1219,7 @@ function buildChaos(preset, intensity, name) {
     const filt=mkFilt(500+Math.random()*600,'bandpass',6),env=mkGain(0);
     const trem=mkOsc(6+i*3,'sine'),tG=mkGain(.25);
     chain(trem,tG);tG.connect(env.gain);chain(o,filt,env,b);
-    env.gain.linearRampToValueAtTime(.03*intensity,ctx.currentTime+1.5);
+    if(intensity > 0.01) env.gain.linearRampToValueAtTime(.03*intensity, ctx.currentTime+1.5);
     trem.start();o.start();reg(name,o,filt,env,trem,tG);
   });
 }
@@ -1847,7 +1847,7 @@ function startSynth() {
   if(layerOn.bells)      startLayer('bells',       preset,intensity,null);
   if(layerOn.organ)      startLayer('organ',       preset,intensity,null);
   // Chaos
-  if(layerOn.chaos||intensity>.45) startLayer('chaos', preset,intensity,null);
+  if(layerOn.chaos) startLayer('chaos',            preset,intensity,null);
   if(layerOn.whispers)   startLayer('whispers',    preset,intensity,null);
   if(layerOn.ritualchant)startLayer('ritualchant', preset,intensity,null);
   if(layerOn.glitch)     startLayer('glitch',      preset,intensity,null);
@@ -1977,7 +1977,7 @@ function updateFloorUI() {
     if(layerOn.horn)        startLayer('horn',        np,ni,null);
     if(layerOn.bells)       startLayer('bells',       np,ni,null);
     if(layerOn.organ)       startLayer('organ',       np,ni,null);
-    if(layerOn.chaos||ni>.45) startLayer('chaos',     np,ni,null); else stopLayer('chaos');
+    if(layerOn.chaos)       startLayer('chaos',       np,ni,null); else stopLayer('chaos');
     if(layerOn.whispers)    startLayer('whispers',    np,ni,null);
     if(layerOn.ritualchant) startLayer('ritualchant', np,ni,null);
     if(layerOn.glitch)      startLayer('glitch',      np,ni,null);
