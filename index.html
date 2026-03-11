@@ -558,12 +558,27 @@
     <div class="panel-title">Composition Layers</div>
 
     <div class="layers" id="layerPills">
-      <div class="layer-pill drone"  id="pill-drone">Drone</div>
-      <div class="layer-pill perc"   id="pill-perc">Percussion</div>
-      <div class="layer-pill bass"   id="pill-bass">Bass</div>
-      <div class="layer-pill melody" id="pill-melody">Melody</div>
-      <div class="layer-pill choir"  id="pill-choir">Choir</div>
-      <div class="layer-pill chaos"  id="pill-chaos">Chaos</div>
+      <div class="layer-pill" id="pill-drone">Drone</div>
+      <div class="layer-pill" id="pill-bass">Bass</div>
+      <div class="layer-pill" id="pill-heartbeat">Heartbeat</div>
+      <div class="layer-pill" id="pill-wind">Wind</div>
+      <div class="layer-pill" id="pill-riser">Riser</div>
+      <div class="layer-pill" id="pill-firecrackle">Fire</div>
+      <div class="layer-pill" id="pill-perc">Perc</div>
+      <div class="layer-pill" id="pill-wardrums">War Drums</div>
+      <div class="layer-pill" id="pill-chains">Chains</div>
+      <div class="layer-pill" id="pill-march">March</div>
+      <div class="layer-pill" id="pill-stomp">Stomp</div>
+      <div class="layer-pill" id="pill-melody">Melody</div>
+      <div class="layer-pill" id="pill-choir">Choir</div>
+      <div class="layer-pill" id="pill-lute">Lute</div>
+      <div class="layer-pill" id="pill-horn">Horn</div>
+      <div class="layer-pill" id="pill-bells">Bells</div>
+      <div class="layer-pill" id="pill-organ">Organ</div>
+      <div class="layer-pill" id="pill-chaos">Chaos</div>
+      <div class="layer-pill" id="pill-whispers">Whispers</div>
+      <div class="layer-pill" id="pill-ritualchant">Chant</div>
+      <div class="layer-pill" id="pill-glitch">Glitch</div>
     </div>
 
     <!-- Foundation -->
@@ -1945,13 +1960,28 @@ function updateFloorUI() {
     const f2=parseInt(slider.value),np=getZone(f2),ni=isBoss?Math.min(1,getIntensity(f2)+.4):getIntensity(f2);
     const pb=buildPercBufs(np),changed=(np.name!==lastZoneName);
     lastZoneName=np.name;
-    if(layerOn.drone)   startLayer('drone', np,ni,null);
-    if(layerOn.perc)    startLayer('perc',  np,ni,pb);
-    if(layerOn.bass)    startLayer('bass',  np,ni,null);
-    if(layerOn.melody)  startLayer('melody',np,ni,null);
-    if(layerOn.choir)   startLayer('choir', np,ni,null);
-    if(ni>.45)          startLayer('chaos', np,ni,null); else stopLayer('chaos');
-    if(isBoss)          startLayer('boss',  np,ni,null);
+    if(layerOn.drone)       startLayer('drone',       np,ni,null);
+    if(layerOn.bass)        startLayer('bass',        np,ni,null);
+    if(layerOn.heartbeat)   startLayer('heartbeat',   np,ni,null);
+    if(layerOn.wind)        startLayer('wind',        np,ni,null);
+    if(layerOn.riser)       startLayer('riser',       np,ni,null);
+    if(layerOn.firecrackle) startLayer('firecrackle', np,ni,null);
+    if(layerOn.perc)        startLayer('perc',        np,ni,pb);
+    if(layerOn.wardrums)    startLayer('wardrums',    np,ni,null);
+    if(layerOn.chains)      startLayer('chains',      np,ni,null);
+    if(layerOn.march)       startLayer('march',       np,ni,null);
+    if(layerOn.stomp)       startLayer('stomp',       np,ni,null);
+    if(layerOn.melody)      startLayer('melody',      np,ni,null);
+    if(layerOn.choir)       startLayer('choir',       np,ni,null);
+    if(layerOn.lute)        startLayer('lute',        np,ni,null);
+    if(layerOn.horn)        startLayer('horn',        np,ni,null);
+    if(layerOn.bells)       startLayer('bells',       np,ni,null);
+    if(layerOn.organ)       startLayer('organ',       np,ni,null);
+    if(layerOn.chaos||ni>.45) startLayer('chaos',     np,ni,null); else stopLayer('chaos');
+    if(layerOn.whispers)    startLayer('whispers',    np,ni,null);
+    if(layerOn.ritualchant) startLayer('ritualchant', np,ni,null);
+    if(layerOn.glitch)      startLayer('glitch',      np,ni,null);
+    if(isBoss)              startLayer('boss',        np,ni,null);
     setStatus(changed?np.desc:`Floor ${f2} · ${np.name}`);
   },250);
 }
