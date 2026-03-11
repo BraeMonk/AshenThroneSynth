@@ -1074,10 +1074,12 @@ function startSongGen() {
 function ostRunStep() {
   if (!songGenRunning || songGenStep >= OST_STEPS.length) {
     document.getElementById('songGenStatus').textContent = songGenStep >= OST_STEPS.length ? 'Complete ✓' : 'Stopped.';
-    // Highlight current step in list
+    // Highlight active step in list
     document.querySelectorAll('[id^="ost-step-"]').forEach((el, i) => {
-      el.style.borderColor = i === songGenStep - 1 ? 'var(--gold-dim)' : '#1a1a28';
-      el.style.color = i === songGenStep - 1 ? 'var(--gold)' : 'var(--text-dim)';
+      const isActive = i === songGenStep; // songGenStep not yet incremented here
+      el.style.borderColor = isActive ? 'var(--gold)' : '#1a1a28';
+      el.style.color = isActive ? 'var(--gold)' : 'var(--text-dim)';
+      el.style.background = isActive ? '#c8922a08' : 'transparent';
     });
     document.getElementById('songGenFill').style.width = songGenStep >= OST_STEPS.length ? '100%' : document.getElementById('songGenFill').style.width;
     songGenRunning = false;
@@ -1368,7 +1370,7 @@ const EVENT_CONFIGS = {
   },
 };
 
-function triggerEvent(name) {
+function triggerEvent(name, e) {
   if (!isPlaying) togglePlay();
   initAudio();
   const preset = getZone(parseInt(slider.value));
@@ -1381,7 +1383,8 @@ function triggerEvent(name) {
   document.getElementById('dbg-event').textContent = name;
   logTimeline(`Event: ${cfg.desc}`);
   // Flash btn
-  document.querySelectorAll('.event-btn').forEach(b => b.classList.remove('triggered'));
+  document.querySelectorAll('.layer-toggle').forEach(b => b.classList.remove('triggered'));
+  e?.currentTarget?.classList.add('triggered');
   if (eventTimeout) clearTimeout(eventTimeout);
   if (cfg.duration > 0) {
     eventTimeout = setTimeout(() => {
@@ -2644,6 +2647,7 @@ function setStatus(msg) { document.getElementById('status').textContent = msg; }
   updateFloorUI();
   buildScaleUI();
   buildPresetUI();
+  buildOSTStepList();
   Object.keys(layerOn).forEach(k => { if (layerOn[k]) document.getElementById('pill-' + k)?.classList.add('on'); });
   document.getElementById('dbg-scale').textContent = 'Zone Default';
   document.getElementById('dbg-mood').textContent = 'tense';
