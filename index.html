@@ -792,6 +792,8 @@
         <div class="debug-item"><div class="debug-label">Zone</div><div class="debug-value" id="dbg-zone">—</div></div>
         <div class="debug-item"><div class="debug-label">Event</div><div class="debug-value" id="dbg-event">—</div></div>
         <div class="debug-item"><div class="debug-label">Mood</div><div class="debug-value" id="dbg-mood">tense</div></div>
+        <div class="debug-item"><div class="debug-label">Chord</div><div class="debug-value" id="dbg-chord">—</div></div>
+        <div class="debug-item"><div class="debug-label">Prog</div><div class="debug-value" id="dbg-prog">—</div></div>
       </div>
       <div style="margin-top:12px;">
         <div class="cat-label">Hotkeys: Space=Play · B=Boss · 1-6=Layer Groups · R=Record · C=Cinematic</div>
@@ -1001,6 +1003,7 @@ function tickBar() {
     }
   }
 
+  CE.tick(getZone(parseInt(slider.value)));
   updatePhraseUI();
   updateDebug();
 
@@ -1018,6 +1021,7 @@ function advancePhrase() {
   const next = phraseSeq[phraseSeqIdx];
   if (next !== currentPhrase) {
     currentPhrase = next;
+    CE.onPhrase(currentPhrase, getZone(parseInt(slider.value)));
     if (autoEvolution) {
       applyPhraseLayers();
       // Restart melodic layers so new patterns schedule
@@ -1509,6 +1513,7 @@ function randomizeCoherent(forcedArchetype) {
 
   setTimeout(() => {
     initAudio();
+    CE.onPhrase(currentPhrase, getZone(floor));
     const preset = getZone(floor);
     const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
     const percBufs = buildPercBufs(preset);
@@ -1602,6 +1607,7 @@ function startRandomJourney() {
     const cfg = LAYER_ARCHETYPES[archetypeName];
     if (!cfg) return;
     initAudio();
+    CE.onZoneChange(getZone(floor));
     const preset = getZone(floor);
     const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
     const percBufs = buildPercBufs(preset);
@@ -1704,6 +1710,7 @@ const EVENT_CONFIGS = {
       ['wardrums','stomp','chaos','riser'].forEach(n => { if (layerOn[n]) toggleLayer(n); });
       phraseSeq = PHRASE_SEQUENCES.normal;
       currentPhrase = 'resolution';
+      CE.releaseEvent(preset);
     },
     duration: 0,
   },
@@ -1764,6 +1771,7 @@ function triggerEvent(name, e) {
   const cfg = EVENT_CONFIGS[name];
   if (!cfg) return;
   cfg.action(preset, intensity);
+  CE.onEvent(name, preset);
   document.getElementById('eventStatus').textContent = cfg.desc;
   document.getElementById('dbg-event').textContent = name;
   logTimeline(`Event: ${cfg.desc}`);
@@ -2254,6 +2262,395 @@ function pickVoice(layer) {
   if (!bank) return 'sine';
   return bank[Math.floor(Math.random() * bank.length)];
 }
+
+const CE = (() => {
+ 
+  // ── Chord quality definitions ─────────────────────────────────
+  // Each quality is an array of semitone intervals from the root.
+  // We express them as just-intonation-ish ratios instead of ET
+  // so they sit naturally inside the zone's scale.
+  const QUALITIES = {
+    min:       [0, 3, 7],           // natural minor triad
+    maj:       [0, 4, 7],           // major triad
+    dim:       [0, 3, 6],           // diminished
+    aug:       [0, 4, 8],           // augmented
+    min7:      [0, 3, 7, 10],       // minor 7th
+    maj7:      [0, 4, 7, 11],       // major 7th
+    dom7:      [0, 4, 7, 10],       // dominant 7th
+    dim7:      [0, 3, 6, 9],        // fully diminished
+    hdim7:     [0, 3, 6, 10],       // half-diminished (min7b5)
+    minMaj7:   [0, 3, 7, 11],       // minor-major 7th (haunting)
+    sus2:      [0, 2, 7],           // suspended 2nd
+    sus4:      [0, 5, 7],           // suspended 4th
+    phrygian:  [0, 1, 7],           // phrygian cluster (root + b2 + 5th)
+    tritone:   [0, 6],              // tritone dyad (boss grinding)
+    openFifth: [0, 7],              // power chord — no third, ambiguous
+    stack4ths: [0, 5, 10],          // quartal harmony
+  };
+ 
+  // Semitone ratios (equal temperament)
+  const SEMITONE = Math.pow(2, 1/12);
+  function semisToRatio(semis) { return Math.pow(SEMITONE, semis); }
+ 
+  // ── Zone progressions ─────────────────────────────────────────
+  // Each zone has progressions for normal/combat/boss/resolution.
+  // Chord = [scaleDegree, quality]
+  // scaleDegree is an index into the zone's scale array.
+  //
+  // We use roman numeral shorthand in comments for readability:
+  //   0 = i, 2 = ii (approx), 3 = III, 4 = iv/IV, 5 = V/v, 6 = VI, 7 = VII
+ 
+  const ZONE_PROGRESSIONS = {
+    'Ashen Fields': {
+      normal:     [[0,'min'], [6,'maj'], [3,'maj'], [5,'min']],       // i – VI – III – v
+      combat:     [[0,'min'], [5,'dim'], [0,'min'], [5,'dim']],       // i – v° – i – v°
+      boss:       [[0,'tritone'], [0,'tritone'], [1,'phrygian'], [0,'tritone']],
+      resolution: [[0,'openFifth'], [6,'sus2'], [3,'sus4'], [0,'min']],
+      tension:    [[0,'hdim7'], [5,'dim7'], [1,'phrygian'], [0,'min7']],
+    },
+    'Rotwood Forest': {
+      normal:     [[0,'min7'], [3,'maj'], [6,'maj'], [5,'min']],      // i7 – III – VI – v
+      combat:     [[0,'min'], [1,'phrygian'], [5,'dim'], [0,'min']],
+      boss:       [[0,'dim7'], [6,'dim7'], [3,'dim7'], [0,'dim7']],   // dim7 cycle
+      resolution: [[0,'min'], [6,'sus2'], [3,'maj'], [0,'openFifth']],
+      tension:    [[0,'hdim7'], [1,'phrygian'], [5,'dim7'], [0,'min7']],
+    },
+    'Catacombs Deep': {
+      normal:     [[0,'min'], [1,'phrygian'], [6,'maj'], [0,'min']],  // i – bII – VI – i
+      combat:     [[0,'dim7'], [5,'dim'], [0,'min'], [1,'phrygian']],
+      boss:       [[0,'tritone'], [1,'tritone'], [0,'dim7'], [1,'phrygian']],
+      resolution: [[0,'min'], [6,'sus2'], [0,'openFifth'], [0,'min']],
+      tension:    [[0,'dim7'], [6,'dim7'], [1,'phrygian'], [0,'hdim7']],
+    },
+    'Shadowmere': {
+      normal:     [[0,'min7'], [6,'minMaj7'], [3,'maj7'], [5,'hdim7']],
+      combat:     [[0,'min'], [1,'phrygian'], [0,'min'], [5,'dim7']],
+      boss:       [[0,'dim7'], [1,'phrygian'], [6,'dim7'], [0,'dim7']],
+      resolution: [[0,'min'], [3,'sus4'], [6,'maj'], [0,'openFifth']],
+      tension:    [[0,'hdim7'], [5,'dim7'], [1,'phrygian'], [0,'minMaj7']],
+    },
+    "Sorcerer's Veil": {
+      normal:     [[0,'min7'], [4,'maj7'], [2,'hdim7'], [6,'maj7']],
+      combat:     [[0,'min'], [2,'dim'], [5,'dom7'], [0,'min']],
+      boss:       [[0,'dim7'], [3,'aug'], [0,'dim7'], [6,'dim7']],
+      resolution: [[0,'sus2'], [4,'sus4'], [2,'min'], [0,'min7']],
+      tension:    [[0,'minMaj7'], [5,'dim7'], [2,'hdim7'], [0,'dim7']],
+    },
+    'Obsidian Keep': {
+      normal:     [[0,'min'], [1,'phrygian'], [5,'min'], [6,'maj']],
+      combat:     [[0,'min7'], [5,'dim7'], [1,'phrygian'], [0,'min']],
+      boss:       [[0,'tritone'], [5,'tritone'], [1,'phrygian'], [0,'dim7']],
+      resolution: [[0,'min'], [6,'sus2'], [3,'maj'], [0,'openFifth']],
+      tension:    [[0,'dim7'], [1,'phrygian'], [5,'hdim7'], [0,'minMaj7']],
+    },
+    'Void Spire': {
+      normal:     [[0,'hdim7'], [1,'phrygian'], [6,'min7'], [5,'dim7']],
+      combat:     [[0,'dim7'], [1,'phrygian'], [0,'dim7'], [5,'tritone']],
+      boss:       [[0,'tritone'], [1,'tritone'], [6,'dim7'], [0,'tritone']],
+      resolution: [[0,'min'], [3,'stack4ths'], [0,'openFifth'], [0,'min']],
+      tension:    [[0,'dim7'], [6,'dim7'], [3,'dim7'], [0,'hdim7']],
+    },
+    'Infernal Core': {
+      normal:     [[0,'dim7'], [1,'phrygian'], [5,'tritone'], [0,'dim7']],
+      combat:     [[0,'tritone'], [1,'phrygian'], [0,'dim7'], [1,'tritone']],
+      boss:       [[0,'tritone'], [0,'tritone'], [1,'tritone'], [0,'tritone']],
+      resolution: [[0,'min'], [0,'openFifth'], [6,'min'], [0,'min']],
+      tension:    [[0,'dim7'], [1,'phrygian'], [0,'tritone'], [0,'dim7']],
+    },
+  };
+ 
+  // Fallback progression if zone not found
+  const DEFAULT_PROG = {
+    normal:     [[0,'min'], [5,'min'], [6,'maj'], [3,'maj']],
+    combat:     [[0,'min'], [1,'phrygian'], [5,'dim'], [0,'min']],
+    boss:       [[0,'tritone'], [1,'phrygian'], [0,'dim7'], [0,'tritone']],
+    resolution: [[0,'openFifth'], [6,'sus2'], [0,'min'], [0,'min']],
+    tension:    [[0,'hdim7'], [5,'dim7'], [1,'phrygian'], [0,'min7']],
+  };
+ 
+  // ── Event chord overrides ─────────────────────────────────────
+  // Certain game events force an immediate chord change for drama.
+  // After the event duration expires, normal progression resumes.
+  const EVENT_CHORDS = {
+    enemyNearby:   { scaleDeg: 0, quality: 'hdim7',   bars: 4  },
+    combatStart:   { scaleDeg: 0, quality: 'min',      bars: 0  }, // 0 = hold until combatEnd
+    combatEnd:     { scaleDeg: 0, quality: 'openFifth',bars: 4  },
+    bossStart:     { scaleDeg: 0, quality: 'tritone',  bars: 0  },
+    bossPhase2:    { scaleDeg: 1, quality: 'phrygian', bars: 0  },
+    lowHealth:     { scaleDeg: 0, quality: 'dim7',     bars: 8  },
+    zoneEnter:     { scaleDeg: 0, quality: 'sus4',     bars: 2  },
+    treasureFound: { scaleDeg: 4, quality: 'maj7',     bars: 4  }, // briefly major!
+  };
+ 
+  // ── Phrase → progression key mapping ─────────────────────────
+  const PHRASE_TO_PROG = {
+    intro:      'normal',
+    build:      'normal',
+    tension:    'tension',
+    climax:     'combat',
+    resolution: 'resolution',
+  };
+ 
+  // ── Voice memory ──────────────────────────────────────────────
+  // Each layer remembers its last frequency so we can do voice leading.
+  const voiceMemory = {};
+ 
+  // ── Internal state ────────────────────────────────────────────
+  let _zone          = null;   // current zone object
+  let _chordIdx      = 0;      // position in current progression
+  let _progKey       = 'normal';
+  let _eventOverride = null;   // { scaleDeg, quality, barsLeft }
+  let _bossActive    = false;
+  let _barCount      = 0;      // internal bar counter
+ 
+  // Public current chord — layers read this
+  let currentChord = {
+    root:    0,      // Hz
+    quality: 'min',
+    degrees: [0, 3, 7],   // semitone offsets
+    ratios:  [1, Math.pow(SEMITONE,3), Math.pow(SEMITONE,7)],
+    label:   'i',
+  };
+ 
+  // ── Build chord from zone + scaleDeg + quality ────────────────
+  function buildChord(zone, scaleDeg, quality) {
+    const scale    = zone.scale;
+    const rootRatio = scale[scaleDeg % scale.length];
+    const root     = zone.root * rootRatio;
+    const semis    = QUALITIES[quality] || QUALITIES.min;
+    const ratios   = semis.map(s => semisToRatio(s));
+    return {
+      root,
+      quality,
+      degrees: semis,
+      ratios,
+      label: `${scaleDeg}-${quality}`,
+    };
+  }
+ 
+  // ── Get active progression array ──────────────────────────────
+  function getProgression(zone) {
+    const name = zone?.name || '';
+    const zoneProgs = ZONE_PROGRESSIONS[name] || DEFAULT_PROG;
+    const key = _bossActive ? 'boss' : _progKey;
+    return zoneProgs[key] || zoneProgs.normal || DEFAULT_PROG.normal;
+  }
+ 
+  // ── Advance to next chord in progression ─────────────────────
+  function advanceChord(zone) {
+    if (_eventOverride && _eventOverride.barsLeft > 0) {
+      _eventOverride.barsLeft--;
+      currentChord = buildChord(zone, _eventOverride.scaleDeg, _eventOverride.quality);
+      if (_eventOverride.barsLeft <= 0) _eventOverride = null;
+      return;
+    }
+    if (_eventOverride && _eventOverride.barsLeft === 0) {
+      // Held until explicit release (combatStart, bossStart etc)
+      currentChord = buildChord(zone, _eventOverride.scaleDeg, _eventOverride.quality);
+      return;
+    }
+ 
+    const prog = getProgression(zone);
+    _chordIdx  = (_chordIdx + 1) % prog.length;
+    const [deg, qual] = prog[_chordIdx];
+    currentChord = buildChord(zone, deg, qual);
+  }
+ 
+  // ── Public: tick every bar ────────────────────────────────────
+  function tick(zone) {
+    _zone     = zone;
+    _barCount++;
+    // Advance chord every 2 bars (half a typical 4-bar phrase feels musical)
+    // Boss mode hammers every bar for urgency
+    const rate = _bossActive ? 1 : 2;
+    if (_barCount % rate === 0) advanceChord(zone);
+    updateDebugDisplay();
+  }
+ 
+  // ── Public: react to game events ─────────────────────────────
+  function onEvent(eventName, zone) {
+    const cfg = EVENT_CHORDS[eventName];
+    if (!cfg || !zone) return;
+    _eventOverride = { ...cfg };
+    currentChord   = buildChord(zone, cfg.scaleDeg, cfg.quality);
+    updateDebugDisplay();
+  }
+ 
+  // ── Public: react to phrase change ───────────────────────────
+  function onPhrase(phraseName, zone) {
+    const newKey = PHRASE_TO_PROG[phraseName] || 'normal';
+    if (newKey !== _progKey) {
+      _progKey  = newKey;
+      _chordIdx = 0; // reset to start of new progression
+      if (zone && !_eventOverride) {
+        const prog      = getProgression(zone);
+        const [deg, qual] = prog[0];
+        currentChord    = buildChord(zone, deg, qual);
+      }
+    }
+    updateDebugDisplay();
+  }
+ 
+  // ── Public: boss mode toggle ──────────────────────────────────
+  function onBoss(active, zone) {
+    _bossActive = active;
+    _chordIdx   = 0;
+    if (zone && active) {
+      currentChord = buildChord(zone, 0, 'tritone');
+    } else if (zone) {
+      const prog      = getProgression(zone);
+      const [deg, qual] = prog[0];
+      currentChord    = buildChord(zone, deg, qual);
+    }
+    updateDebugDisplay();
+  }
+ 
+  // ── Public: zone change — reset progression ───────────────────
+  function onZoneChange(zone) {
+    _zone     = zone;
+    _chordIdx = 0;
+    if (!_eventOverride) {
+      const prog      = getProgression(zone);
+      const [deg, qual] = prog[0];
+      currentChord    = buildChord(zone, deg, qual);
+    }
+    updateDebugDisplay();
+  }
+ 
+  // ── Core: chordTone(layer, octave, voiceIdx) ──────────────────
+  // Returns a frequency that:
+  //   1. Is a tone of the current chord
+  //   2. Is voice-led from the layer's last note (nearest tone wins)
+  //   3. Is placed in the requested octave register
+  //
+  // voiceIdx: which chord tone to prefer (0=root, 1=3rd, 2=5th, 3=7th)
+  //           pass -1 for "nearest via voice leading"
+  function chordTone(layerName, octave, voiceIdx) {
+    const chord   = currentChord;
+    const baseOct = Math.pow(2, octave);
+ 
+    // Build absolute frequencies for all chord tones across ±1 octave
+    const candidates = [];
+    for (let oct = -1; oct <= 2; oct++) {
+      chord.ratios.forEach((r, i) => {
+        candidates.push({
+          freq: chord.root * r * Math.pow(2, oct) * baseOct,
+          toneIdx: i,
+          octOffset: oct,
+        });
+      });
+    }
+ 
+    // Filter to sane frequency range per layer
+    const ranges = {
+      drone:       [20,  150],
+      bass:        [30,  200],
+      heartbeat:   [20,  100],
+      choir:       [150, 800],
+      melody:      [200, 2000],
+      lute:        [200, 1600],
+      horn:        [100, 600],
+      bells:       [400, 4000],
+      organ:       [60,  800],
+      chaos:       [80,  2000],
+      ritualchant: [100, 500],
+      whispers:    [200, 1000],
+    };
+    const [lo, hi] = ranges[layerName] || [80, 2000];
+    const inRange  = candidates.filter(c => c.freq >= lo && c.freq <= hi);
+    if (!inRange.length) return chord.root * baseOct; // fallback
+ 
+    let chosen;
+ 
+    if (voiceIdx >= 0) {
+      // Prefer the requested chord tone index, closest octave to range center
+      const center  = (lo + hi) / 2;
+      const matches = inRange.filter(c => c.toneIdx === voiceIdx % chord.ratios.length);
+      chosen = (matches.length ? matches : inRange)
+        .reduce((a, b) => Math.abs(a.freq - center) < Math.abs(b.freq - center) ? a : b);
+    } else {
+      // Voice leading — pick nearest to last note
+      const last = voiceMemory[layerName];
+      if (last) {
+        chosen = inRange.reduce((a, b) =>
+          Math.abs(a.freq - last) < Math.abs(b.freq - last) ? a : b
+        );
+      } else {
+        // No memory yet — pick root tone nearest center of range
+        const center  = (lo + hi) / 2;
+        chosen = inRange.reduce((a, b) =>
+          Math.abs(a.freq - center) < Math.abs(b.freq - center) ? a : b
+        );
+      }
+    }
+ 
+    voiceMemory[layerName] = chosen.freq;
+    return chosen.freq;
+  }
+ 
+  // ── scaleStep: drop-in for scaleFreq() ───────────────────────
+  // For layers that still want scale-degree access but harmonized
+  // to the current chord. Snaps the requested scale degree to the
+  // nearest chord tone.
+  function scaleStep(zone, oct, deg) {
+    const scale     = zone.scale;
+    const rawRatio  = scale[deg % scale.length];
+    const rawFreq   = zone.root * rawRatio * Math.pow(2, oct + Math.floor(deg / scale.length));
+ 
+    // Snap to nearest chord tone within a minor third (3 semitones)
+    const chord     = currentChord;
+    const baseOct   = Math.pow(2, oct);
+    const SNAP_THRESHOLD = Math.pow(SEMITONE, 3); // 3 semitones tolerance
+ 
+    let best = rawFreq, bestDist = Infinity;
+    for (let o = -1; o <= 2; o++) {
+      chord.ratios.forEach(r => {
+        const cf   = chord.root * r * Math.pow(2, o) * baseOct;
+        const dist = Math.abs(cf - rawFreq) / rawFreq;
+        if (dist < bestDist) { bestDist = dist; best = cf; }
+      });
+    }
+ 
+    // Only snap if close enough; otherwise return raw scale tone
+    // This preserves passing tones and ornaments
+    return bestDist < (SNAP_THRESHOLD - 1) ? best : rawFreq;
+  }
+ 
+  // ── Debug display ─────────────────────────────────────────────
+  function updateDebugDisplay() {
+    const el = document.getElementById('dbg-chord');
+    if (el) el.textContent = currentChord.label;
+    const el2 = document.getElementById('dbg-prog');
+    if (el2) el2.textContent = _progKey + (_bossActive ? ' [BOSS]' : '');
+  }
+ 
+  // ── Release event override (for combatEnd etc) ────────────────
+  function releaseEvent(zone) {
+    _eventOverride = null;
+    if (zone) {
+      const prog      = getProgression(zone);
+      const [deg, qual] = prog[_chordIdx % prog.length];
+      currentChord    = buildChord(zone, deg, qual);
+    }
+  }
+ 
+  // ── Public API ────────────────────────────────────────────────
+  return {
+    get currentChord() { return currentChord; },
+    tick,
+    onEvent,
+    onPhrase,
+    onBoss,
+    onZoneChange,
+    chordTone,
+    scaleStep,
+    releaseEvent,
+    // Expose for debugging
+    getProgKey: () => _progKey,
+    getChordIdx: () => _chordIdx,
+  };
+ 
+})();
   
 // ── Layer builders ────────────────────────────────────────────────
 function buildDrone(preset, intensity, name) {
@@ -2458,7 +2855,7 @@ function buildBass(preset, intensity, name) {
         if (deg === 0 && i !== 0 && rng() < 0.18) continue;
 
         const t    = barStart + i * step;
-        const freq = scaleFreq(preset, 0, deg);
+        const freq = CE.chordTone('bass', 0, i % Math.max(1, CE.currentChord.ratios.length));
         const dur  = beat * 0.38;
 
         // Main tone — gentle saturation, not hard clip
@@ -2539,7 +2936,7 @@ function buildMelody(preset, intensity, name) {
 
       const bt   = cursor;
       const deg  = motifPat[i];
-      const freq = scaleFreq(preset, preset.melodyOctave, deg);
+      const freq = CE.scaleStep(preset, preset.melodyOctave, deg);
 
       // Duration — mix of short and long notes for rhythmic interest
       const durChoice = rng();
@@ -2617,7 +3014,7 @@ function buildChoir(preset, intensity, name) {
 
   // Three voices on scale degrees 0, 2, 4
   [0, 2, 4].forEach((deg, vi) => {
-    const freq = scaleFreq(preset, 2, deg);
+    const freq = CE.chordTone('choir', 2, vi);
     const detune = (vi - 1) * 6;
     const o = mkOsc(freq, 'sawtooth', detune);
 
@@ -2661,7 +3058,7 @@ function buildChoir(preset, intensity, name) {
   reg(name, breathSrc, breathFilt, breathFilt2, breathG);
 
   // Sub octave pad — fills out the low end
-  const subFreq = scaleFreq(preset, 1, 0);
+  const subFreq = CE.chordTone('choir', 1, 0);
   const subO  = mkOsc(subFreq, 'sine');
   const subG  = mkGain(0.12 + intensity * 0.08);
   const subF  = mkFilt(400, 'lowpass', 0.7);
@@ -3244,7 +3641,7 @@ function buildLute(preset, intensity, name) {
       if (rng() < 0.28) continue;
 
       const bt   = t + i * beat * 0.5;
-      const freq = scaleFreq(preset, preset.melodyOctave + 1, pat[i]);
+      const freq = CE.scaleStep(preset, preset.melodyOctave + 1, pat[i]);
       const dur  = beat * (0.12 + rng() * 0.18); // short pluck decay
 
       // Main pluck — two detuned saws shaped into a pluck envelope
@@ -3318,7 +3715,7 @@ function buildHorn(preset, intensity, name) {
   function schedNote() {
     const pair = hornPats[patIdx++ % hornPats.length];
     const deg  = pair[Math.floor(rng() * pair.length)];
-    const freq = scaleFreq(preset, preset.melodyOctave, deg);
+    const freq = CE.chordTone('horn', preset.melodyOctave, deg % 4);
     const dur  = beat * (3.5 + rng() * 2);
 
     // Brass source — sawtooth + square blend gives lip buzz character
@@ -3386,7 +3783,7 @@ function buildBells(preset, intensity, name) {
     slots.forEach(slot => {
       const bt  = t + slot * beat * 0.5;
       const deg = Math.floor(rng() * scale.length);
-      const freq = scaleFreq(preset, preset.melodyOctave + 2, deg);
+      const freq = CE.scaleStep(preset, preset.melodyOctave + 2, deg);
 
       // Inharmonic partials — what makes bells sound like bells, not sine waves
       const partials = [
@@ -3442,9 +3839,9 @@ function buildBells(preset, intensity, name) {
 function buildOrgan(preset, intensity, name) {
   const b = bus[name];
 
-  const root  = scaleFreq(preset, 1, 0);
-  const fifth = scaleFreq(preset, 1, 4);
-  const third = scaleFreq(preset, 1, 2);
+  const root  = CE.chordTone('organ', 1, 0);
+  const fifth = CE.chordTone('organ', 1, 2);
+  const third = CE.chordTone('organ', 1, 1);
 
   // Drawbar configuration — each bar is a separate oscillator
   // Gains tuned to a dark cathedral registration, not a bright theatre organ
@@ -3555,7 +3952,7 @@ function buildRitualChant(preset, intensity, name) {
   function schedHit() {
     if (!layerOn[name]) return;
     const bt   = t;
-    const freq = scaleFreq(preset, 1, chantDegs[idx % chantDegs.length]);
+    const freq = CE.chordTone('ritualchant', 1, idx % Math.max(1, CE.currentChord.ratios.length));
 
     // Voice source — sawtooth through saturation gives it chest resonance
     // Square alone was hollow; this adds the odd+even harmonic mix of a real voice
@@ -3737,12 +4134,14 @@ function toggleBoss() {
   const floor = parseInt(slider.value), preset = getZone(floor);
   const intensity = Math.min(1, getIntensity(floor) + (isBoss ? .4 : 0));
   if (isBoss) {
+    CE.onBoss(true, preset);
     startLayer('boss', preset, intensity, null);
     phraseSeq = PHRASE_SEQUENCES.boss;
     phraseSeqIdx = 0; currentPhrase = 'climax'; updatePhraseUI();
     logTimeline('BOSS MODE');
     setStatus('⚡ BOSS MODE — The void trembles...');
   } else {
+    CE.onBoss(false, preset);
     stopLayer('boss');
     phraseSeq = PHRASE_SEQUENCES.normal;
     currentPhrase = 'resolution'; updatePhraseUI();
@@ -3970,6 +4369,7 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
     toZone:    realTo,
   });
 
+  CE.onZoneChange(realTo);
   logTimeline(`Crossfade → ${realTo.name}`);
 }
   
