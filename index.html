@@ -1481,7 +1481,17 @@ function randomizeCoherent(forcedArchetype) {
 }
 
 const JOURNEY_ARC = ['desolate', 'desolate', 'choral', 'marching', 'marching', 'combat', 'combat', 'nightmare'];
-  
+
+const SCALE_MOODS = {
+  dark:    ['phrygian', 'locrian', 'nat_minor'],
+  eerie:   ['harmonic', 'diminished', 'chromatic'],
+  epic:    ['dorian', 'mixolydian', 'nat_minor'],
+  arcane:  ['lydian', 'whole_tone', 'chromatic'],
+  dread:   ['locrian', 'diminished', 'chromatic'],
+};
+
+const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dread', 'dread'];
+
 function startRandomJourney() {
   if (!isPlaying) togglePlay();
   
@@ -1499,6 +1509,11 @@ function startRandomJourney() {
     updateFloorUI();
     
     const archetypeName = JOURNEY_ARC[step] || 'nightmare';
+    const scaleMood = JOURNEY_SCALE_ARC[step] || 'dread';
+    const scalePool = SCALE_MOODS[scaleMood];
+    const chosenScale = scalePool[Math.floor(Math.random() * scalePool.length)];
+    selectScale(chosenScale);
+
     const cfg = LAYER_ARCHETYPES[archetypeName];
     if (!cfg) return;
     initAudio();
