@@ -1445,6 +1445,23 @@ function randomizeCoherent(forcedArchetype) {
     setStatus(`🎲 ${archetypeName.charAt(0).toUpperCase() + archetypeName.slice(1)} · ${toEnable.join(', ')}`);
     logTimeline(`Randomize: ${archetypeName}`);
     document.getElementById('randArchetypeLabel').textContent = archetypeName.toUpperCase();
+    
+    const archetypePhrase = {
+      desolate:  PHRASE_SEQUENCES.normal,
+      marching:  PHRASE_SEQUENCES.combat,
+      choral:    PHRASE_SEQUENCES.normal,
+      combat:    PHRASE_SEQUENCES.combat,
+      arcane:    PHRASE_SEQUENCES.normal,
+      nightmare: PHRASE_SEQUENCES.boss,
+    };
+
+    phraseSeq = archetypePhrase[archetypeName] || PHRASE_SEQUENCES.normal;
+    phraseSeqIdx = 0;
+    currentPhrase = phraseSeq[0];
+    autoEvolution = true;
+
+    if (!isPlaying) togglePlay();
+    startPhraseEngine();
   }, FADE_OUT * 1000 + 100);
 }
 
