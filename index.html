@@ -1525,8 +1525,6 @@ function startRandomJourney() {
     
     const JOURNEY_FLOORS = [1, 13, 25, 37, 49, 61, 73, 85];
     const floor = JOURNEY_FLOORS[step] ?? 85;
-
-    crawlToFloor(floor, dur * 0.6, null);
     
     const archetypeName = JOURNEY_ARC[step] || 'nightmare';
     
