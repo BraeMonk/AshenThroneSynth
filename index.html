@@ -1228,7 +1228,7 @@ function ostRunStep() {
   const now         = ctx.currentTime;
   const barProgress = (now % barLength);
   const toNextBar   = barLength - barProgress;
-  const barDelay    = toNextBar < 0.1 ? barLength : toNextBar; // avoid tiny gaps
+  const barDelay    = barLength;
 
   // Boss layer handled immediately at bar boundary
   setTimeout(() => {
