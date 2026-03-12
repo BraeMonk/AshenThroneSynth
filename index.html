@@ -1786,6 +1786,10 @@ function initAudio() {
   saturationNode.curve = makeSatCurve(_saturation);
   saturationNode.oversample = '4x';
 
+  const satMakeup = ctx.createGain();
+  satMakeup.gain.value = 1.4;
+  saturationNode.connect(satMakeup);
+  
   // Mood filter (master lowpass modulated by mood)
   moodFilter = ctx.createBiquadFilter();
   moodFilter.type = 'lowpass';
@@ -1805,7 +1809,7 @@ function initAudio() {
   // Chain: masterGain → HPF → saturation → moodFilter → compressor → analyser → destination
   masterGain.connect(masterHPF);
   masterHPF.connect(saturationNode);
-  saturationNode.connect(moodFilter);
+  satMakeup.connect(moodFilter);
   moodFilter.connect(masterCompressor);
   masterCompressor.connect(analyser);
   analyser.connect(ctx.destination);
@@ -1825,11 +1829,14 @@ function initAudio() {
 function makeSatCurve(amount) {
   const n = 256;
   const curve = new Float32Array(n);
-  const deg = Math.PI / 180;
-  const k = amount < 0.01 ? 0.01 : amount * 200;
   for (let i = 0; i < n; i++) {
     const x = (i * 2) / n - 1;
-    curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    if (amount < 0.01) {
+      curve[i] = x; // pure bypass at zero
+    } else {
+      const k = amount * 20; // was amount * 200 — much gentler
+      curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+    }
   }
   return curve;
 }
