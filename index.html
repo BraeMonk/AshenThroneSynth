@@ -1509,11 +1509,7 @@ function startRandomJourney() {
     updateFloorUI();
     
     const archetypeName = JOURNEY_ARC[step] || 'nightmare';
-    const scaleMood = JOURNEY_SCALE_ARC[step] || 'dread';
-    const scalePool = SCALE_MOODS[scaleMood];
-    const chosenScale = scalePool[Math.floor(Math.random() * scalePool.length)];
-    selectScale(chosenScale);
-
+    
     const cfg = LAYER_ARCHETYPES[archetypeName];
     if (!cfg) return;
     initAudio();
@@ -1537,6 +1533,11 @@ function startRandomJourney() {
       if (Math.abs(oldBpm - newBpm) > 4) {
         barLength = (60 / newBpm) * 4;
       }
+
+      const scaleMood = JOURNEY_SCALE_ARC[step] || 'dread';
+      const scalePool = SCALE_MOODS[scaleMood];
+      const chosenScale = scalePool[Math.floor(Math.random() * scalePool.length)];
+      selectScale(chosenScale);
 
       Object.keys(layerOn).forEach(name => {
         if (name === 'drone' || name === 'bass') return;
