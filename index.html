@@ -1503,9 +1503,17 @@ function crawlToFloor(targetFloor, durationMs, onComplete) {
   const id = setInterval(() => {
     current += dir;
     slider.value = current;
-    updateFloorUI();
+    // Visual + zone bar only — no audio restart
+    const floor = current;
+    const zone = getZone(floor);
+    document.getElementById('floorNum').textContent = floor;
+    document.getElementById('zoneName').textContent = zone.name;
+    slider.style.setProperty('--pct', ((floor - 1) / 98 * 100).toFixed(1) + '%');
+    document.getElementById('ciZone').textContent = zone.name;
+    document.getElementById('ciFloor').textContent = `Void Floor ${floor}`;
     if (current === targetFloor) {
       clearInterval(id);
+      updateFloorUI(); // only trigger audio crossfade once at destination
       onComplete?.();
     }
   }, stepMs);
