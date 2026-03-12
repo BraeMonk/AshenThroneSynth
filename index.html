@@ -1439,7 +1439,7 @@ function randomizeCoherent(forcedArchetype) {
   muteAll();
 
   // Shuffle pool and pick up to max
-  const shuffled = [...cfg.pool].sort(() => rng() - 0.5);
+  const shuffled = [...cfg.pool].sort(() => Math.random() - 0.5);
   const picked = shuffled.slice(0, cfg.max);
   const toEnable = [...cfg.required, ...picked];
 
