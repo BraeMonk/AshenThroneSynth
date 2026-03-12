@@ -526,7 +526,7 @@
 <div class="container">
   <div class="header">
     <div class="crown">✦ Ashen Throne ✦</div>
-    <h1>Music Forge<span>Adaptive Dungeon Synthesizer · v5</span></h1>
+    <h1>Music Forge<span>Adaptive Dungeon Synthesizer</span></h1>
     <div class="divider"></div>
   </div>
 
@@ -2090,7 +2090,26 @@ function scaleFreq(preset, oct, deg) {
 
 function fadeIn(g, v, d)   { const n = ctx.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(g.gain.value, n); g.gain.linearRampToValueAtTime(v, n + d); }
 function fadeOut(g, d, cb) { const n = ctx.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(g.gain.value, n); g.gain.linearRampToValueAtTime(0, n + d); if (cb) setTimeout(cb, (d + 0.1) * 1000); }
-function killLayer(name)   { timers[name].forEach(clearTimeout); timers[name] = []; nodes[name].forEach(n => { try { if (n.stop) n.stop(ctx.currentTime + 0.04); n.disconnect(); } catch(e) {} }); nodes[name] = []; }
+function killLayer(name) {
+  timers[name].forEach(clearTimeout);
+  timers[name] = [];
+
+  const now = ctx.currentTime;
+
+  nodes[name].forEach(n => {
+    try {
+      if (n.stop) n.stop(now + 0.06);
+
+      setTimeout(() => {
+        try { n.disconnect(); } catch(e) {}
+      }, 80);
+
+    } catch(e) {}
+  });
+
+  nodes[name] = [];
+}
+
 function busTarget(n, i) {
   return {
     drone:.55+i*.2,        // was .7+i*.3
