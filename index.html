@@ -2204,77 +2204,84 @@ function buildDrone(preset, intensity, name) {
   const filt = mkFilt(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
   filt.connect(b);
 
-  // 6 detuned oscillators instead of 4 — wider, denser
-  const detunes = [-14, -7, 0, 7, 14, 0];
-  const gains   = [0.18, 0.22, 0.4, 0.22, 0.18, 0.15];
-  const freqMults = [1, 1, 1, 1, 1, 2];
-  detunes.forEach((det, i) => {
-    const wave = i === 0 ? (sessionVoices['drone'] || preset.droneWave) : i === 5 ? 'sine' : 'sawtooth';
-    const o = mkOsc(preset.root * freqMults[i], wave, det);
-    const g = mkGain(gains[i]);
+  // Core cluster — one primary wave, rest are sine to avoid wall-of-saw
+  const voices = [
+    { det: -12, wave: preset.droneWave, gain: 0.32 },
+    { det:   0, wave: preset.droneWave, gain: 0.42 },
+    { det:  12, wave: preset.droneWave, gain: 0.32 },
+    { det:  -5, wave: 'sine',           gain: 0.18 }, // perfect fourth — adds depth not harshness
+    { det:   5, wave: 'sine',           gain: 0.18 },
+  ];
+  voices.forEach(({ det, wave, gain: gv }) => {
+    const o = mkOsc(preset.root, wave, det);
+    const g = mkGain(gv);
     chain(o, g, filt); o.start(); reg(name, o, g);
   });
 
-  // Fifth above for richness
-  const fifth = mkOsc(preset.root * 1.5, 'sine', 3);
-  const fifthG = mkGain(0.12);
+  // Fifth — sine only, low gain, warmth not clutter
+  const fifth  = mkOsc(preset.root * 1.5, 'sine', 2);
+  const fifthG = mkGain(0.1);
   chain(fifth, fifthG, filt); fifth.start(); reg(name, fifth, fifthG);
 
-  // Sub octave
-  const subO = mkOsc(preset.root * 0.5, 'sine');
-  const subG = mkGain(0.2);
-  const subFilt = mkFilt(120, 'lowpass', 0.8);
+  // Sub — separate gain node so fade system never touches it via b.gain
+  const subO    = mkOsc(preset.root * 0.5, 'sine');
+  const subG    = mkGain(0.22);
+  const subFilt = mkFilt(110, 'lowpass', 0.7);
   chain(subO, subG, subFilt, b); subO.start(); reg(name, subO, subG, subFilt);
 
   // Filter LFO
-  const lfo = mkOsc(preset.droneLfoRate + intensity * 0.1, 'sine');
-  const lfoG = mkGain(preset.droneLfoDepth + intensity * 400);
+  const lfo  = mkOsc(preset.droneLfoRate + intensity * 0.08, 'sine');
+  const lfoG = mkGain(preset.droneLfoDepth + intensity * 350);
   chain(lfo, lfoG); lfoG.connect(filt.frequency); lfo.start(); reg(name, lfo, lfoG);
 
-  // Amp LFO — slow breathe
-  const aLfo = mkOsc(preset.droneAmpLfo, 'sine');
-  const aLfoG = mkGain(0.07 + intensity * 0.06);
-  chain(aLfo, aLfoG); aLfoG.connect(b.gain); aLfo.start();
-  reg(name, aLfo, aLfoG, filt);
+  // Amp breathe — targets filt input gain, NOT b.gain, so fade system is undisturbed
+  const breathGain = mkGain(1.0);
+  // reconnect: voices already go to filt, filt goes to b — insert breathGain between filt and b
+  filt.disconnect(); chain(filt, breathGain, b); reg(name, breathGain);
+  const aLfo  = mkOsc(0.05 + preset.droneAmpLfo * 0.5, 'sine');
+  const aLfoG = mkGain(0.06 + intensity * 0.04);
+  chain(aLfo, aLfoG); aLfoG.connect(breathGain.gain);
+  aLfo.start(); reg(name, aLfo, aLfoG, filt);
 }
 
 function buildPercBufs(preset) {
   const sr = ctx.sampleRate;
 
-  // Kick — layered sine sweep + click transient + sub
-  const kickLen = Math.floor(sr * 0.5);
+  // Kick — deeper sub, softer click, more weight
+  const kickLen = Math.floor(sr * 0.6);
   const kick = ctx.createBuffer(1, kickLen, sr);
   const kd = kick.getChannelData(0);
   for (let i = 0; i < kickLen; i++) {
     const t = i / sr;
-    const freq = preset.kickFreq * Math.exp(-t * 28) + 30;
-    const click = t < 0.004 ? (Math.random() * 2 - 1) * 0.8 * (1 - t / 0.004) : 0;
-    const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.18);
-    const sub = Math.sin(2 * Math.PI * 40 * t) * Math.exp(-t / 0.35);
-    kd[i] = (click * 0.4 + body * 0.5 + sub * 0.5) * Math.exp(-t / preset.kickDecay);
+    const freq = preset.kickFreq * Math.exp(-t * 18) + 28;
+    const click = t < 0.003 ? (Math.random() * 2 - 1) * 0.25 * (1 - t / 0.003) : 0;
+    const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.22);
+    const sub  = Math.sin(2 * Math.PI * 38 * t)  * Math.exp(-t / 0.45);
+    const thud = Math.sin(2 * Math.PI * 55 * t)  * Math.exp(-t / 0.18);
+    kd[i] = (click * 0.15 + body * 0.45 + sub * 0.65 + thud * 0.3) * Math.exp(-t / (preset.kickDecay * 1.3));
   }
 
-  // Snare — tonal body + noise layer + crack
-  const snareLen = Math.floor(sr * 0.28);
+  // Snare — much louder crack, stronger tone layer
+  const snareLen = Math.floor(sr * 0.32);
   const snare = ctx.createBuffer(1, snareLen, sr);
   const sd = snare.getChannelData(0);
   for (let i = 0; i < snareLen; i++) {
     const t = i / sr;
-    const tone = Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t / 0.04);
-    const tone2 = Math.sin(2 * Math.PI * 280 * t) * Math.exp(-t / 0.03);
+    const tone  = Math.sin(2 * Math.PI * 185 * t) * Math.exp(-t / 0.055);
+    const tone2 = Math.sin(2 * Math.PI * 290 * t) * Math.exp(-t / 0.04);
     const noise = (Math.random() * 2 - 1) * Math.exp(-t / preset.snareDecay);
-    const crack = t < 0.003 ? (Math.random() * 2 - 1) * (1 - t / 0.003) : 0;
-    sd[i] = (tone * 0.25 + tone2 * 0.2 + noise * 0.45 + crack * 0.3);
+    const crack = t < 0.005 ? (Math.random() * 2 - 1) * (1 - t / 0.005) : 0;
+    sd[i] = (tone * 0.35 + tone2 * 0.3 + noise * 0.65 + crack * 0.7);
   }
 
-  // Hihat — metallic noise with tighter decay
+  // Hihat — same, fine as-is
   const hhLen = Math.floor(sr * 0.06);
   const hihat = ctx.createBuffer(1, hhLen, sr);
   const hd = hihat.getChannelData(0);
   for (let i = 0; i < hhLen; i++) {
     const t = i / sr;
-    const metal = Math.sin(2 * Math.PI * 8000 * t) * 0.3
-                + Math.sin(2 * Math.PI * 9700 * t) * 0.2
+    const metal = Math.sin(2 * Math.PI * 8000  * t) * 0.3
+                + Math.sin(2 * Math.PI * 9700  * t) * 0.2
                 + Math.sin(2 * Math.PI * 11200 * t) * 0.15
                 + (Math.random() * 2 - 1) * 0.35;
     hd[i] = metal * Math.exp(-t / 0.018);
@@ -2369,46 +2376,48 @@ function buildBass(preset, intensity, name) {
 
   function tick() {
     if (!layerOn[name]) return;
-    const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
-    const beat = 60 / bpm;
+    const bpm    = isBoss ? preset.bpm + 22 : preset.bpm;
+    const beat   = 60 / bpm;
     const barDur = beat * 4;
 
     while (nextBarTime < ctx.currentTime + SCHED_AHEAD + barDur) {
       const barStart = nextBarTime;
-      const step = beat * 0.5;
+      const step     = beat * 0.5;
 
       for (let i = 0; i < 8; i++) {
         const deg = preset.bassPattern[i];
-        if (deg === 0 && i !== 0 && rng() < 0.2) continue;
-        const t = barStart + i * step;
-        const freq = scaleFreq(preset, 0, deg);
-        const dur = beat * 0.42;
+        if (deg === 0 && i !== 0 && rng() < 0.18) continue;
 
-        // Main bass tone — sawtooth through soft clip
-        const o = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
-        const filt = mkFilt(preset.bassFilterFreq + intensity * 300, 'lowpass', 1.8);
+        const t    = barStart + i * step;
+        const freq = scaleFreq(preset, 0, deg);
+        const dur  = beat * 0.38;
+
+        // Main tone — gentle saturation, not hard clip
+        const o      = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
+        const filt   = mkFilt(preset.bassFilterFreq + intensity * 250, 'lowpass', 1.4);
         const shaper = ctx.createWaveShaper();
-        shaper.curve = makeSatCurve(0.35);
-        const env = mkGain(0);
+        shaper.curve = makeSatCurve(0.12); // was 0.35 — much cleaner
+        const env    = mkGain(0);
         chain(o, filt, shaper, env, b);
 
-        // Sub sine underneath
-        const sub = mkOsc(freq * 0.5, 'sine');
-        const subFilt = mkFilt(120, 'lowpass', 0.8);
-        const subEnv = mkGain(0);
+        // Sub — shorter stop time so it doesn't blur into next note
+        const sub     = mkOsc(freq * 0.5, 'sine');
+        const subFilt = mkFilt(100, 'lowpass', 0.7);
+        const subEnv  = mkGain(0);
         chain(sub, subFilt, subEnv, b);
 
-        const v = 0.22 + intensity * 0.18;
+        const v = 0.28 + intensity * 0.16;
+
         env.gain.setValueAtTime(0, t);
-        env.gain.linearRampToValueAtTime(v, t + 0.012);
+        env.gain.linearRampToValueAtTime(v, t + 0.014);
         env.gain.exponentialRampToValueAtTime(0.001, t + dur);
 
         subEnv.gain.setValueAtTime(0, t);
-        subEnv.gain.linearRampToValueAtTime(v * 0.6, t + 0.018);
-        subEnv.gain.exponentialRampToValueAtTime(0.001, t + dur * 1.2);
+        subEnv.gain.linearRampToValueAtTime(v * 0.5, t + 0.02);
+        subEnv.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.75); // stops earlier — tighter low end
 
-        o.start(t); o.stop(t + dur + 0.05);
-        sub.start(t); sub.stop(t + dur + 0.1);
+        o.start(t);   o.stop(t + dur + 0.04);
+        sub.start(t); sub.stop(t + dur * 0.85); // sub stops before main — prevents bloom
         reg(name, o, filt, shaper, env, sub, subFilt, subEnv);
       }
 
@@ -2420,102 +2429,115 @@ function buildBass(preset, intensity, name) {
 
   tick();
 }
-
+  
 function buildMelody(preset, intensity, name) {
   const b = bus[name];
   const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
-  const baseMotif = mutateMotif(preset);
+  const motif = mutateMotif(preset);
   let patIdx = 0;
   let t = ctx.currentTime + 0.1;
 
-  // Soft waveshaper for warmth
+  // Soft waveshaper — warmth without smearing
   const melodyShaper = ctx.createWaveShaper();
-  melodyShaper.curve = makeSatCurve(0.15);
+  melodyShaper.curve = makeSatCurve(0.08);
   melodyShaper.connect(b);
   reg(name, melodyShaper);
 
   function schedBar() {
-    const useMotif = (patIdx % 2 === 0);
-    let motif = useMotif ? [...baseMotif] : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
+    const useMotif = (patIdx % 3 === 0);
+    let motifPat = useMotif
+      ? [...motif]
+      : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
 
-    if (rng() < 0.3) motif = motif.map(d => d + [-2,0,2][Math.floor(rng()*3)]);
-    if (rng() < 0.2) motif = motif.reverse();
-    if (rng() < 0.2) motif = motif.map(d => d + (rng()<0.5 ? 12 : -12));
+    // Occasional variation — reverse or transpose up an octave, never both
+    if (rng() < 0.25) motifPat = [...motifPat].reverse();
+    else if (rng() < 0.2) motifPat = motifPat.map(d => d + 7);
 
-    let counterMotif = null;
-    if (rng() < 0.5) counterMotif = motif.map(d => d + [3,5,7][Math.floor(rng()*3)]);
+    // Rhythmic grid — 16th note slots, each note picks a duration subdivision
+    const subdivisions = [0.25, 0.5, 0.75, 1.0]; // in beats
+    let cursor = t;
 
-    for (let i = 0; i < motif.length; i++) {
-      if (rng() < preset.melodySkip) continue;
+    for (let i = 0; i < motifPat.length; i++) {
+      // Rest probability — higher at phrase start, lower at climax
+      const restChance = currentPhrase === 'climax' ? 0.08
+                       : currentPhrase === 'intro'   ? 0.35
+                       : preset.melodySkip;
+      if (rng() < restChance) {
+        cursor += beat * subdivisions[Math.floor(rng() * 2)];
+        continue;
+      }
 
-      const bt = t + i * beat * (0.45 + rng()*0.15);
-      const deg = motif[i];
-      const dur = beat * (0.25 + rng()*0.35);
-      const vel = 0.05 + intensity * 0.12 + rng()*0.02;
+      const bt   = cursor;
+      const deg  = motifPat[i];
       const freq = scaleFreq(preset, preset.melodyOctave, deg);
 
-      // Three detuned oscillators for thickness
-      const o1 = mkOsc(freq, 'sawtooth', -6);
-      const o2 = mkOsc(freq, 'sawtooth',  6);
-      const o3 = mkOsc(freq * 0.5, 'sine', 0); // sub octave sine
-      const filt = mkFilt(800 + intensity * 2200, 'lowpass', 1.4);
-      const env = mkGain(0);
-      const g1 = mkGain(0.35), g2 = mkGain(0.35), g3 = mkGain(0.2);
+      // Duration — mix of short and long notes for rhythmic interest
+      const durChoice = rng();
+      const noteDur = durChoice < 0.4 ? beat * 0.22        // short — punchy
+                    : durChoice < 0.7 ? beat * 0.48        // medium
+                    :                   beat * 0.85;        // long — sustained
+
+      cursor += beat * subdivisions[Math.floor(rng() * subdivisions.length)];
+
+      // Voice — single oscillator pair, tightly detuned, with character
+      // Use zone's wave type for identity — saw for dark zones, triangle for lighter
+      const waveA = preset.melodyWave === 'sine' ? 'triangle' : preset.melodyWave;
+      const o1  = mkOsc(freq,         waveA,      -4);
+      const o2  = mkOsc(freq * 1.003, 'triangle',  4); // triangle second voice — softens saw harshness
+      const g1  = mkGain(0.55), g2 = mkGain(0.28);
+
+      // Brightness filter — sweeps based on note length, not static
+      // Short notes stay bright; long notes bloom then darken
+      const filterStart = 800  + intensity * 1800;
+      const filterPeak  = 2400 + intensity * 3000;
+      const filterEnd   = 500  + intensity * 800;
+
+      const filt = mkFilt(filterStart, 'lowpass', 1.2);
+      const env  = mkGain(0);
 
       chain(o1, g1, filt);
       chain(o2, g2, filt);
-      chain(o3, g3, filt);
       chain(filt, env, melodyShaper);
 
+      const vol = 0.1 + intensity * 0.11;
+
+      // Amplitude envelope — fast attack, natural decay shape
       env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vel, bt + 0.035);
-      env.gain.setValueAtTime(vel * 0.65, bt + dur * 0.5);
-      env.gain.linearRampToValueAtTime(0.001, bt + dur);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.018);
+      env.gain.setValueAtTime(vol * 0.72, bt + noteDur * 0.35);
+      env.gain.linearRampToValueAtTime(0.001, bt + noteDur);
 
-      o1.start(bt); o1.stop(bt+dur+0.08);
-      o2.start(bt); o2.stop(bt+dur+0.08);
-      o3.start(bt); o3.stop(bt+dur+0.08);
-      reg(name, o1, o2, o3, filt, env, g1, g2, g3);
+      // Filter envelope — blooms open then closes, adds movement to each note
+      filt.frequency.setValueAtTime(filterStart, bt);
+      filt.frequency.linearRampToValueAtTime(filterPeak, bt + noteDur * 0.25);
+      filt.frequency.exponentialRampToValueAtTime(filterEnd, bt + noteDur * 0.9);
 
-      if (counterMotif) {
-        const cfreq = scaleFreq(preset, preset.melodyOctave, counterMotif[i]);
-        const co1 = mkOsc(cfreq, 'sawtooth', -4);
-        const co2 = mkOsc(cfreq, 'sawtooth',  4);
-        const cfilt = mkFilt(800 + intensity * 2200, 'lowpass', 1.4);
-        const cenv = mkGain(0);
-        const cg1 = mkGain(0.2), cg2 = mkGain(0.2);
-        chain(co1, cg1, cfilt); chain(co2, cg2, cfilt);
-        chain(cfilt, cenv, melodyShaper);
-        cenv.gain.setValueAtTime(0, bt);
-        cenv.gain.linearRampToValueAtTime(vel*0.5, bt+0.035);
-        cenv.gain.linearRampToValueAtTime(0.001, bt+dur);
-        co1.start(bt); co1.stop(bt+dur);
-        co2.start(bt); co2.stop(bt+dur);
-        reg(name, co1, co2, cfilt, cenv, cg1, cg2);
-      }
+      o1.start(bt); o1.stop(bt + noteDur + 0.06);
+      o2.start(bt); o2.stop(bt + noteDur + 0.06);
+      reg(name, o1, o2, g1, g2, filt, env);
 
-      if (rng() < 0.3) {
-        const overlayDeg = deg + [7,12,19][Math.floor(rng()*3)];
-        const overlayFreq = scaleFreq(preset, preset.melodyOctave, overlayDeg);
-        const oo1 = mkOsc(overlayFreq, 'sine');
-        const oo2 = mkOsc(overlayFreq * 1.002, 'sine');
-        const ofilt = mkFilt(3000 + intensity*2000, 'lowpass', 1);
-        const oenv = mkGain(0), og1 = mkGain(0.18), og2 = mkGain(0.08);
-        chain(oo1, og1, ofilt); chain(oo2, og2, ofilt);
-        chain(ofilt, oenv, melodyShaper);
-        oenv.gain.setValueAtTime(0, bt);
-        oenv.gain.linearRampToValueAtTime(vel*0.35, bt+0.02);
-        oenv.gain.linearRampToValueAtTime(0.001, bt+dur);
-        oo1.start(bt); oo1.stop(bt+dur);
-        oo2.start(bt); oo2.stop(bt+dur);
-        reg(name, oo1, oo2, ofilt, oenv, og1, og2);
+      // Counter-melody — only on long notes, different octave, quieter
+      // Keeps it out of the way of the main voice
+      if (noteDur > beat * 0.6 && rng() < 0.35) {
+        const counterDeg  = motifPat[(i + 2) % motifPat.length];
+        const counterFreq = scaleFreq(preset, preset.melodyOctave + 1, counterDeg);
+        const co   = mkOsc(counterFreq, 'sine'); // always sine — stays transparent
+        const cFilt = mkFilt(1200 + intensity * 1000, 'lowpass', 0.9);
+        const cEnv = mkGain(0);
+        chain(co, cFilt, cEnv, melodyShaper);
+        const cVol = vol * 0.28;
+        cEnv.gain.setValueAtTime(0, bt + 0.04);
+        cEnv.gain.linearRampToValueAtTime(cVol, bt + 0.12);
+        cEnv.gain.linearRampToValueAtTime(0.001, bt + noteDur * 1.1);
+        co.start(bt + 0.04); co.stop(bt + noteDur * 1.2);
+        reg(name, co, cFilt, cEnv);
       }
     }
 
-    t += beat * 4;
+    t = cursor + beat * (rng() < 0.2 ? beat * 0.5 : 0); // occasional bar-end breath
     patIdx++;
-    regT(name, setTimeout(schedBar, (beat*3.6)*1000));
+    regT(name, setTimeout(schedBar, (beat * 3.7) * 1000));
   }
 
   schedBar();
@@ -2523,367 +2545,1001 @@ function buildMelody(preset, intensity, name) {
 
 function buildChoir(preset, intensity, name) {
   const b = bus[name];
+
+  // Three voices on scale degrees 0, 2, 4
   [0, 2, 4].forEach((deg, vi) => {
     const freq = scaleFreq(preset, 2, deg);
-    const o = mkOsc(freq, sessionVoices['choir'] || 'sawtooth', vi * 4);
-    const f1 = mkFilt(preset.choirFormants[0], 'bandpass', 9), f2 = mkFilt(preset.choirFormants[1], 'bandpass', 7), f3 = mkFilt(preset.choirFormants[2], 'bandpass', 5);
-    const m = mkGain(.38); chain(o, f1, m); chain(o, f2, m); chain(o, f3, m); m.connect(b);
-    const vib = mkOsc(preset.choirVibRate + vi * .4, 'sine'), vibG = mkGain(preset.choirVibDepth);
-    chain(vib, vibG); vibG.connect(o.frequency); vib.start(); o.start();
-    reg(name, o, f1, f2, f3, m, vib, vibG);
+    const detune = (vi - 1) * 6;
+    const o = mkOsc(freq, 'sawtooth', detune);
+
+    // Richer formant stack — 4 formants instead of 3
+    const f1 = mkFilt(preset.choirFormants[0],       'bandpass', 11);
+    const f2 = mkFilt(preset.choirFormants[1],       'bandpass',  8);
+    const f3 = mkFilt(preset.choirFormants[2],       'bandpass',  5);
+    const f4 = mkFilt(preset.choirFormants[2] * 1.6, 'bandpass',  3);
+
+    const m = mkGain(0.32);
+    o.connect(f1); o.connect(f2); o.connect(f3); o.connect(f4);
+    f1.connect(m); f2.connect(m); f3.connect(m); f4.connect(m);
+    m.connect(b);
+
+    // Vibrato
+    const vib  = mkOsc(preset.choirVibRate + vi * 0.5, 'sine');
+    const vibG = mkGain(preset.choirVibDepth + intensity * 2);
+    chain(vib, vibG); vibG.connect(o.frequency);
+    vib.start(); o.start();
+
+    // Slow formant LFO — vowel morph feel
+    const fLfo  = mkOsc(0.07 + vi * 0.03, 'sine');
+    const fLfoG = mkGain(preset.choirFormants[0] * 0.18);
+    chain(fLfo, fLfoG); fLfoG.connect(f1.frequency);
+    fLfo.start();
+
+    reg(name, o, f1, f2, f3, f4, m, vib, vibG, fLfo, fLfoG);
   });
+
+  // Breath noise layer underneath — gives it air and life
+  const breathBuf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+  const bd = breathBuf.getChannelData(0);
+  for (let i = 0; i < bd.length; i++) bd[i] = Math.random() * 2 - 1;
+  const breathSrc = ctx.createBufferSource();
+  breathSrc.buffer = breathBuf; breathSrc.loop = true;
+  const breathFilt = mkFilt(2800, 'bandpass', 0.6);
+  const breathFilt2 = mkFilt(800, 'highpass', 0.5);
+  const breathG = mkGain(0.018 + intensity * 0.012);
+  chain(breathSrc, breathFilt, breathFilt2, breathG, b);
+  breathSrc.start();
+  reg(name, breathSrc, breathFilt, breathFilt2, breathG);
+
+  // Sub octave pad — fills out the low end
+  const subFreq = scaleFreq(preset, 1, 0);
+  const subO  = mkOsc(subFreq, 'sine');
+  const subG  = mkGain(0.12 + intensity * 0.08);
+  const subF  = mkFilt(400, 'lowpass', 0.7);
+  chain(subO, subF, subG, b);
+  subO.start();
+  reg(name, subO, subF, subG);
 }
 
 function buildChaos(preset, intensity, name) {
   const b = bus[name];
-  [1.05, 1.13, .97, 1.21].forEach((mult, i) => {
-    const o = mkOsc(preset.root * 4 * mult, sessionVoices['chaos'] || (i % 2 === 0 ? 'square' : 'sawtooth'), i * 18 - 9);
-    const filt = mkFilt(500 + rng() * 600, 'bandpass', 6), env = mkGain(0);
-    const trem = mkOsc(6 + i * 3, 'sine'), tG = mkGain(.25);
-    chain(trem, tG); tG.connect(env.gain); chain(o, filt, env, b);
-    if (intensity > 0.01) env.gain.linearRampToValueAtTime(.03 * intensity, ctx.currentTime + 1.5);
-    trem.start(); o.start(); reg(name, o, filt, env, trem, tG);
+
+  // Chaos gets its own pre-gain that the trem modulates
+  // The fade system controls b.gain — these never touch it
+  [1.07, 1.15, 0.96, 1.24].forEach((mult, i) => {
+    const freq = preset.root * 4 * mult;
+    const o    = mkOsc(freq, i % 2 === 0 ? 'square' : 'sawtooth', i * 20 - 10);
+
+    const filt    = mkFilt(400 + rng() * 800, 'bandpass', 5);
+    const preGain = mkGain(0.04 * intensity); // static gain — no LFO on this node
+    const env     = mkGain(1.0);              // env sits at 1.0, trem modulates preGain
+
+    // Trem — targets preGain, never b.gain
+    const trem  = mkOsc(5 + i * 2.5 + rng(), 'sine');
+    const tremG = mkGain(0.02 * intensity);   // depth scales with intensity, no clicks
+    chain(trem, tremG); tremG.connect(preGain.gain);
+
+    chain(o, filt, preGain, env, b);
+
+    // Slow filter sweep — makes it feel alive and unstable
+    const sweepLfo  = mkOsc(0.15 + i * 0.08, 'sine');
+    const sweepLfoG = mkGain(300 + rng() * 400);
+    chain(sweepLfo, sweepLfoG); sweepLfoG.connect(filt.frequency);
+    sweepLfo.start();
+
+    trem.start(); o.start();
+    reg(name, o, filt, preGain, env, trem, tremG, sweepLfo, sweepLfoG);
   });
+
+  // Subharmonic grind — octave below, filtered heavily, adds a physical rumble to chaos
+  const subO    = mkOsc(preset.root * 2, 'sawtooth');
+  const subFilt = mkFilt(200, 'lowpass', 2);
+  const subG    = mkGain(0.035 * intensity);
+  chain(subO, subFilt, subG, b);
+  subO.start();
+  reg(name, subO, subFilt, subG);
 }
 
 function buildBoss(preset, intensity, name) {
   const b = bus[name];
-  [preset.root * .5, preset.root * .75].forEach((freq, i) => {
-    const o = mkOsc(freq, sessionVoices['boss'] || 'sawtooth', i * 22);
-    const filt = mkFilt(300 + intensity * 600, 'lowpass', 3);
-    const env = mkGain(0);
-    const lfo = mkOsc(1.8 + i * .6, 'square'), lfoG = mkGain(.28);
-    chain(lfo, lfoG); lfoG.connect(env.gain); chain(o, filt, env, b);
-    env.gain.linearRampToValueAtTime(.28, ctx.currentTime + 1.2);
-    lfo.start(); o.start(); reg(name, o, filt, env, lfo, lfoG);
+
+  // Layer 1 — sub octave foundation, massive and slow
+  const sub1  = mkOsc(preset.root * 0.25, 'sine');
+  const sub2  = mkOsc(preset.root * 0.25 * 1.003, 'sine'); // slight detune = slow beat freq
+  const subG1 = mkGain(0.35), subG2 = mkGain(0.3);
+  const subF  = mkFilt(80, 'lowpass', 0.8);
+  sub1.connect(subG1); sub2.connect(subG2);
+  subG1.connect(subF); subG2.connect(subF);
+  subF.connect(b);
+  sub1.start(); sub2.start();
+  reg(name, sub1, sub2, subG1, subG2, subF);
+
+  // Layer 2 — mid body, two saws heavily detuned, gives the classic boss growl
+  [preset.root * 0.5, preset.root * 0.75].forEach((freq, i) => {
+    const o1    = mkOsc(freq,       'sawtooth', -18 + i * 6);
+    const o2    = mkOsc(freq,       'sawtooth',  18 - i * 6);
+    const filt  = mkFilt(280 + intensity * 500, 'lowpass', 2.8);
+    const sat   = ctx.createWaveShaper(); sat.curve = makeSatCurve(0.45); // aggressive grind
+    const preG  = mkGain(0.22);
+
+    // Slow LFO on filter — gives it the breathing dread quality
+    const lfo   = mkOsc(0.6 + i * 0.35, 'sine');
+    const lfoG  = mkGain(180 + intensity * 220);
+    chain(lfo, lfoG); lfoG.connect(filt.frequency);
+    lfo.start();
+
+    // Slow amp swell — not a click-prone envelope, just a gentle ramp
+    const swellG = mkGain(0);
+    swellG.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 2.5);
+
+    o1.connect(preG); o2.connect(preG);
+    chain(preG, filt, sat, swellG, b);
+    o1.start(); o2.start();
+    reg(name, o1, o2, filt, sat, preG, lfo, lfoG, swellG);
   });
-  const sh = mkOsc(preset.root * 8 * preset.scale[1], 'sawtooth'), shF = mkFilt(2800, 'highpass', 4), shE = mkGain(0);
-  chain(sh, shF, shE, b); shE.gain.linearRampToValueAtTime(.035, ctx.currentTime + 2.5); sh.start(); reg(name, sh, shF, shE);
+
+  // Layer 3 — upper dissonance, minor 2nd above root, high-passed, adds terror
+  const dissonFreq = preset.root * preset.scale[1] * 2; // minor 2nd two octaves up
+  const disO  = mkOsc(dissonFreq, 'sawtooth', 8);
+  const disF  = mkFilt(2200, 'highpass', 3.5);
+  const disLPF = mkFilt(6000, 'lowpass', 0.8);
+  const disG  = mkGain(0);
+  disG.gain.linearRampToValueAtTime(0.04 + intensity * 0.04, ctx.currentTime + 4.0); // enters late
+  chain(disO, disF, disLPF, disG, b);
+  disO.start();
+  reg(name, disO, disF, disLPF, disG);
+
+  // Layer 4 — rhythmic pulse via ring modulation feel
+  // Low freq sine × slightly offset sine = tremolo at the difference frequency
+  const ringCarrier = mkOsc(preset.root * 1.5, 'sine');
+  const ringMod     = mkOsc(preset.root * 1.5 + 2.2, 'sine'); // 2.2Hz beating
+  const ringG       = mkGain(0.08 + intensity * 0.06);
+  const ringFilt    = mkFilt(400, 'lowpass', 1.2);
+  chain(ringCarrier, ringFilt, ringG, b);
+  // Ring modulator — mod oscillator controls carrier gain
+  const ringModG = mkGain(0.05);
+  chain(ringMod, ringModG); ringModG.connect(ringG.gain);
+  ringCarrier.start(); ringMod.start();
+  reg(name, ringCarrier, ringMod, ringG, ringFilt, ringModG);
 }
 
 function buildHeartbeat(preset, intensity, name) {
   const b = bus[name];
-  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
-  const interval = 60 / (bpm * 0.3);
+  const bpm      = isBoss ? preset.bpm + 22 : preset.bpm;
+  const interval = 60 / (bpm * 0.28);
   let t = ctx.currentTime + 0.1;
+
   function schedBeat() {
-    const sub1 = mkOsc(preset.root * 0.25, 'sine'), env1 = mkGain(0);
-    chain(sub1, env1, b);
-    env1.gain.setValueAtTime(0, t); env1.gain.linearRampToValueAtTime(0.5 + intensity * 0.3, t + 0.015); env1.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-    sub1.start(t); sub1.stop(t + 0.25); reg(name, sub1, env1);
-    const sub2 = mkOsc(preset.root * 0.22, 'sine'), env2 = mkGain(0);
-    chain(sub2, env2, b);
-    env2.gain.setValueAtTime(0, t + 0.2); env2.gain.linearRampToValueAtTime(0.35 + intensity * 0.2, t + 0.215); env2.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
-    sub2.start(t + 0.2); sub2.stop(t + 0.45); reg(name, sub2, env2);
-    t += interval; regT(name, setTimeout(schedBeat, (interval - 0.1) * 1000));
+    if (!layerOn[name]) return;
+
+    // First thump — use different freqs to avoid phase cancellation
+    const f1   = mkOsc(preset.root * 0.28, 'sine');
+    const env1 = mkGain(0);
+    chain(f1, env1, b);
+    env1.gain.setValueAtTime(0, t);
+    env1.gain.linearRampToValueAtTime(0.55 + intensity * 0.3, t + 0.012);
+    env1.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    f1.start(t); f1.stop(t + 0.28);
+    reg(name, f1, env1);
+
+    // Second thump — clearly different pitch, slight delay, softer
+    const t2   = t + 0.22;
+    const f2   = mkOsc(preset.root * 0.19, 'sine'); // lower, not almost-unison
+    const env2 = mkGain(0);
+    chain(f2, env2, b);
+    env2.gain.setValueAtTime(0, t2);
+    env2.gain.linearRampToValueAtTime(0.38 + intensity * 0.2, t2 + 0.012);
+    env2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.18);
+    f2.start(t2); f2.stop(t2 + 0.28);
+    reg(name, f2, env2);
+
+    // Transient click on first thump — physical impact feel
+    const clickBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.008), ctx.sampleRate);
+    const cd = clickBuf.getChannelData(0);
+    for (let i = 0; i < cd.length; i++) {
+      cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.002));
+    }
+    const clickSrc  = ctx.createBufferSource(); clickSrc.buffer = clickBuf;
+    const clickFilt = mkFilt(180, 'lowpass', 1.2);
+    const clickG    = mkGain(0.18 + intensity * 0.1);
+    chain(clickSrc, clickFilt, clickG, b);
+    clickSrc.start(t);
+    reg(name, clickSrc, clickFilt, clickG);
+
+    t += interval;
+    regT(name, setTimeout(schedBeat, (interval - 0.15) * 1000));
   }
+
   schedBeat();
 }
 
 function buildWind(preset, intensity, name) {
   const b = bus[name];
-  [80, 200, 600, 1400].forEach((freq, i) => {
-    const bufLen = ctx.sampleRate * 3;
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let j = 0; j < bufLen; j++) d[j] = Math.random() * 2 - 1;
-    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-    const filt = mkFilt(freq + intensity * freq * 2, 'bandpass', 0.8 + i * 0.4);
-    const g = mkGain([0.12, 0.08, 0.05, 0.03][i] * (0.4 + intensity * 0.6));
-    const lfo = mkOsc(0.08 + i * 0.03 + Math.random() * 0.05, 'sine'), lfoG = mkGain(0.04);
-    chain(lfo, lfoG); lfoG.connect(g.gain); lfo.start();
-    chain(src, filt, g, b); src.start();
-    reg(name, src, filt, g, lfo, lfoG);
+  const sr = ctx.sampleRate;
+
+  // Longer buffer — eliminates the loop click from short buffers
+  const bufLen = sr * 8;
+  const noiseBuf = ctx.createBuffer(2, bufLen, sr); // stereo buffer
+  for (let ch = 0; ch < 2; ch++) {
+    const d = noiseBuf.getChannelData(ch);
+    for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+  }
+
+  // Four layered bands — low rumble, mid body, high whistle, ultra-high air
+  const bands = [
+    { freq:  80, Q: 0.6, gain: 0.14 + intensity * 0.08, lfoRate: 0.06, lfoDepth: 30  },
+    { freq: 220, Q: 0.8, gain: 0.09 + intensity * 0.06, lfoRate: 0.09, lfoDepth: 60  },
+    { freq: 700, Q: 1.0, gain: 0.05 + intensity * 0.05, lfoRate: 0.13, lfoDepth: 140 },
+    { freq: 1800, Q: 1.4, gain: 0.03 + intensity * 0.04, lfoRate: 0.18, lfoDepth: 280 },
+  ];
+
+  bands.forEach(({ freq, Q, gain: gv, lfoRate, lfoDepth }) => {
+    const src  = ctx.createBufferSource();
+    src.buffer = noiseBuf; src.loop = true;
+    // Random loop start offset per band — prevents phase coherence between bands
+    src.loopStart = rng() * 4;
+    src.loopEnd   = 8;
+
+    const filt = mkFilt(freq, 'bandpass', Q);
+    const g    = mkGain(gv);
+
+    // LFO with meaningful depth — actually modulates the wind howl
+    const lfo  = mkOsc(lfoRate + rng() * 0.04, 'sine');
+    const lfoG = mkGain(lfoDepth);
+    chain(lfo, lfoG); lfoG.connect(filt.frequency);
+    lfo.start();
+
+    // Amplitude gust LFO — wind doesn't blow at constant volume
+    const gustLfo  = mkOsc(0.04 + rng() * 0.03, 'sine');
+    const gustLfoG = mkGain(gv * 0.4);
+    chain(gustLfo, gustLfoG); gustLfoG.connect(g.gain);
+    gustLfo.start();
+
+    chain(src, filt, g, b);
+    src.start();
+    reg(name, src, filt, g, lfo, lfoG, gustLfo, gustLfoG);
   });
+
+  // Cave resonance — comb-like low rumble that reads as space
+  const caveO    = mkOsc(preset.root * 0.25, 'sine');
+  const caveFilt = mkFilt(60, 'lowpass', 3.5); // resonant peak at room mode
+  const caveG    = mkGain(0.06 + intensity * 0.05);
+  const caveLfo  = mkOsc(0.03, 'sine');
+  const caveLfoG = mkGain(0.025);
+  chain(caveLfo, caveLfoG); caveLfoG.connect(caveG.gain);
+  chain(caveO, caveFilt, caveG, b);
+  caveO.start(); caveLfo.start();
+  reg(name, caveO, caveFilt, caveG, caveLfo, caveLfoG);
 }
 
 function buildRiser(preset, intensity, name) {
-  const b = bus[name]; const duration = 16;
-  const bufLen = ctx.sampleRate * 3;
-  const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-  const d = buf.getChannelData(0);
+  const b = bus[name];
+  const duration = 16;
+  const sr = ctx.sampleRate;
+
+  // Noise sweep — 8s buffer to avoid loop click
+  const bufLen = sr * 8;
+  const buf    = ctx.createBuffer(1, bufLen, sr);
+  const d      = buf.getChannelData(0);
   for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
-  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-  const filt = mkFilt(80, 'bandpass', 3), g = mkGain(0);
-  chain(src, filt, g, b); src.start();
+
+  const src  = ctx.createBufferSource();
+  src.buffer = buf; src.loop = true;
+  const filt = mkFilt(80, 'bandpass', 2.5);
+  const g    = mkGain(0);
+  chain(src, filt, g, b);
+  src.start();
+
   function sweep() {
     const now = ctx.currentTime;
-    filt.frequency.cancelScheduledValues(now); filt.frequency.setValueAtTime(80, now); filt.frequency.exponentialRampToValueAtTime(4000, now + duration * 0.7);
-    g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.15 + intensity * 0.2, now + duration * 0.5); g.gain.linearRampToValueAtTime(0, now + duration * 0.95);
+    // Noise sweep
+    filt.frequency.cancelScheduledValues(now);
+    filt.frequency.setValueAtTime(80, now);
+    filt.frequency.exponentialRampToValueAtTime(5000, now + duration * 0.72);
+    g.gain.cancelScheduledValues(now);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.12 + intensity * 0.18, now + duration * 0.45);
+    g.gain.linearRampToValueAtTime(0, now + duration * 0.96);
+
+    // Tone riser — waits for noise to build before entering
+    // Start delay: noise establishes first ~3s, then tone joins
+    const toneDelay = duration * 0.22;
+    const toneO     = mkOsc(preset.root * 0.5, 'sawtooth');
+    const toneFilt  = mkFilt(200, 'lowpass', 3);
+    const toneG     = mkGain(0);
+    chain(toneO, toneFilt, toneG, b);
+    toneO.start(now + toneDelay);
+    toneO.frequency.setValueAtTime(preset.root * 0.5, now + toneDelay);
+    toneO.frequency.exponentialRampToValueAtTime(preset.root * 5, now + duration * 0.85);
+    toneG.gain.setValueAtTime(0, now + toneDelay);
+    toneG.gain.linearRampToValueAtTime(0.07 + intensity * 0.07, now + toneDelay + duration * 0.2);
+    toneG.gain.linearRampToValueAtTime(0, now + duration * 0.96);
+    toneO.stop(now + duration);
+    reg(name, toneO, toneFilt, toneG);
+
     regT(name, setTimeout(sweep, duration * 1000));
   }
+
   sweep();
-  const toneOsc = mkOsc(preset.root * 0.5, 'sawtooth'), toneFilt = mkFilt(200, 'lowpass', 4), toneG = mkGain(0);
-  chain(toneOsc, toneFilt, toneG, b); toneOsc.start();
-  const now2 = ctx.currentTime;
-  toneOsc.frequency.setValueAtTime(preset.root * 0.5, now2); toneOsc.frequency.exponentialRampToValueAtTime(preset.root * 4, now2 + duration * 0.8);
-  toneG.gain.setValueAtTime(0, now2); toneG.gain.linearRampToValueAtTime(0.06 + intensity * 0.08, now2 + duration * 0.3); toneG.gain.linearRampToValueAtTime(0, now2 + duration * 0.95);
-  reg(name, src, filt, g, toneOsc, toneFilt, toneG);
+  reg(name, src, filt, g);
 }
 
 function buildFireCrackle(preset, intensity, name) {
-  const b = bus[name], sr = ctx.sampleRate;
-  const rumbleBuf = ctx.createBuffer(1, sr * 2, sr);
-  const rd = rumbleBuf.getChannelData(0);
-  for (let i = 0; i < rd.length; i++) rd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.3));
-  const rumble = ctx.createBufferSource(); rumble.buffer = rumbleBuf; rumble.loop = true;
-  const rumbleFilt = mkFilt(120, 'lowpass', 1.5), rumbleG = mkGain(0.06 + intensity * 0.08);
-  chain(rumble, rumbleFilt, rumbleG, b); rumble.start();
-  reg(name, rumble, rumbleFilt, rumbleG);
+  const b  = bus[name];
+  const sr = ctx.sampleRate;
+
+  // Rumble — 6s buffer, crossfade loop to eliminate click
+  const rumbleLen = sr * 6;
+  const rumbleBuf = ctx.createBuffer(1, rumbleLen, sr);
+  const rd        = rumbleBuf.getChannelData(0);
+  for (let i = 0; i < rd.length; i++) {
+    const fade = Math.min(1, Math.min(i, rumbleLen - i) / (sr * 0.1)); // 100ms fade each end
+    rd[i] = (Math.random() * 2 - 1) * 0.6 * fade;
+  }
+  const rumble     = ctx.createBufferSource();
+  rumble.buffer    = rumbleBuf; rumble.loop = true;
+  const rumbleFilt = mkFilt(140, 'lowpass', 1.2);
+  const rumbleHPF  = mkFilt(40,  'highpass', 0.7); // removes subsonic DC
+  const rumbleG    = mkGain(0.07 + intensity * 0.07);
+  // Slow gust LFO — fire breathes
+  const gustLfo    = mkOsc(0.07, 'sine');
+  const gustG      = mkGain(0.03);
+  chain(gustLfo, gustG); gustG.connect(rumbleG.gain);
+  gustLfo.start();
+  chain(rumble, rumbleFilt, rumbleHPF, rumbleG, b);
+  rumble.start();
+  reg(name, rumble, rumbleFilt, rumbleHPF, rumbleG, gustLfo, gustG);
+
+  // Crackle events — variable density based on intensity
   function schedCrackle() {
+    if (!layerOn[name]) return;
     const now = ctx.currentTime;
-    const crackleBuf = ctx.createBuffer(1, Math.floor(sr * 0.04), sr);
-    const cd = crackleBuf.getChannelData(0);
-    for (let i = 0; i < cd.length; i++) cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.008));
-    const src = ctx.createBufferSource(); src.buffer = crackleBuf;
-    const filt = mkFilt(800 + Math.random() * 3000, 'bandpass', 2), g = mkGain(0.08 + Math.random() * 0.12 * intensity);
-    chain(src, filt, g, b); src.start(now); reg(name, src, filt, g);
-    const next = 0.05 + Math.random() * (0.4 - intensity * 0.25);
+
+    // Cluster: 1–3 micro-crackles per event — fire pops in bursts
+    const count = 1 + (rng() < 0.4 + intensity * 0.3 ? 1 : 0) + (rng() < 0.2 ? 1 : 0);
+    for (let i = 0; i < count; i++) {
+      const offset  = i * (0.006 + rng() * 0.012);
+      const dur     = 0.008 + rng() * 0.035;
+      const crBuf   = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+      const cd      = crBuf.getChannelData(0);
+      for (let j = 0; j < cd.length; j++) {
+        const tt = j / sr;
+        cd[j] = (Math.random() * 2 - 1) * Math.exp(-tt / (dur * 0.3));
+      }
+      const src  = ctx.createBufferSource(); src.buffer = crBuf;
+      const filt = mkFilt(1200 + rng() * 4000, 'bandpass', 1.8);
+      const g    = mkGain(0.07 + rng() * 0.14 * (0.5 + intensity * 0.5));
+      chain(src, filt, g, b);
+      src.start(now + offset);
+      reg(name, src, filt, g);
+    }
+
+    const next = 0.04 + rng() * (0.5 - intensity * 0.3);
     regT(name, setTimeout(schedCrackle, next * 1000));
   }
+
   schedCrackle();
 }
 
 function buildWarDrums(preset, intensity, name) {
-  const b = bus[name], sr = ctx.sampleRate;
-  const makeTom = (freq, decay) => {
-    const buf = ctx.createBuffer(1, Math.floor(sr * decay * 5), sr);
-    const d = buf.getChannelData(0);
+  const b  = bus[name];
+  const sr = ctx.sampleRate;
+
+  const makeTom = (freq, decay, crackAmp) => {
+    const len = Math.floor(sr * (decay * 4 + 0.1));
+    const buf = ctx.createBuffer(1, len, sr);
+    const d   = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
-      const t = i / sr;
-      d[i] = Math.sin(2 * Math.PI * freq * Math.exp(-t * 6) * t) * Math.exp(-t / decay) * 0.9;
+      const t     = i / sr;
+      // Pitch sweep — starts high, falls to fundamental
+      const sweep = freq * Math.exp(-t * 5) + freq * 0.6;
+      const body  = Math.sin(2 * Math.PI * sweep * t) * Math.exp(-t / decay);
+      // Transient crack — noise burst at onset gives the stick attack
+      const crack = t < 0.012 ? (Math.random() * 2 - 1) * crackAmp * Math.exp(-t / 0.004) : 0;
+      // Subtle tone at 2× for membrane ring
+      const ring  = Math.sin(2 * Math.PI * freq * 2.1 * t) * Math.exp(-t / (decay * 0.3)) * 0.15;
+      d[i] = (body * 0.75 + crack + ring) * 0.9;
     }
     return buf;
   };
-  const lowTom = makeTom(preset.root * 0.7, 0.8);
-  const highTom = makeTom(preset.root * 1.1, 0.5);
 
-  const lowPat  = [1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0];
-  const highPat = [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1];
+  const lowTom  = makeTom(preset.root * 0.65,  0.85, 0.7);
+  const highTom = makeTom(preset.root * 1.05,  0.5,  0.55);
+  const floorTom = makeTom(preset.root * 0.45, 1.1,  0.8); // deep floor tom
+
+  // Patterns — vary per bar via groove mutation
+  const lowPat   = [1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0];
+  const highPat  = [0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0];
+  const floorPat = [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0]; // sparse, heavy
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
+
+    // Mutate patterns slightly each bar for variation
+    const mutate = (pat) => pat.map((v, i) => (rng() < 0.08 && i !== 0) ? (v ? 0 : (rng() < 0.4 ? 1 : 0)) : v);
+    const lp = mutate(lowPat);
+    const hp = mutate(highPat);
+    const fp = intensity > 0.5 ? mutate(floorPat) : floorPat;
+
     for (let i = 0; i < 16; i++) {
       const t = barStart + i * step;
-      if (lowPat[i] && rng() > 0.06) {
+
+      if (lp[i]) {
         const s = ctx.createBufferSource(); s.buffer = lowTom;
-        const g = mkGain(0.8 + intensity * 0.2);
+        const g = mkGain(0.85 + intensity * 0.2);
+        const lpf = mkFilt(800, 'lowpass', 0.8);
+        chain(s, lpf, g, b); s.start(t); reg(name, s, g, lpf);
+      }
+      if (hp[i] && intensity > 0.15) {
+        const s = ctx.createBufferSource(); s.buffer = highTom;
+        const g = mkGain(0.6 + intensity * 0.25);
         chain(s, g, b); s.start(t); reg(name, s, g);
       }
-      if (highPat[i] && intensity > 0.2 && rng() > 0.1) {
-        const s = ctx.createBufferSource(); s.buffer = highTom;
-        const g = mkGain(0.55 + intensity * 0.3);
-        chain(s, g, b); s.start(t); reg(name, s, g);
+      if (fp[i] && intensity > 0.4) {
+        const s = ctx.createBufferSource(); s.buffer = floorTom;
+        const g = mkGain(0.9 + intensity * 0.15);
+        const lpf = mkFilt(500, 'lowpass', 1.0);
+        chain(s, lpf, g, b); s.start(t); reg(name, s, g, lpf);
       }
     }
   });
 }
 
 function buildChains(preset, intensity, name) {
-  const b = bus[name], sr = ctx.sampleRate;
-  const makeChain = () => {
-    const dur = 0.12, buf = ctx.createBuffer(1, Math.floor(sr * dur), sr), d = buf.getChannelData(0);
+  const b  = bus[name];
+  const sr = ctx.sampleRate;
+
+  // Three chain types — short rattle, long drag, heavy impact
+  const makeChainBuf = (dur, freqBase, decayRate) => {
+    const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+    const d   = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
-      const t = i / sr;
-      d[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.018) * Math.sin(2 * Math.PI * 2800 * t);
+      const t  = i / sr;
+      const n  = Math.random() * 2 - 1;
+      const m1 = Math.sin(2 * Math.PI * freqBase       * t);
+      const m2 = Math.sin(2 * Math.PI * freqBase * 1.7 * t);
+      d[i] = (n * 0.6 + m1 * 0.25 + m2 * 0.15) * Math.exp(-t / decayRate);
     }
     return buf;
   };
-  const chainBuf = makeChain();
-  const pattern = [0,0,1,0,0,0,1,0,0,1,0,0,0,1,0,1];
+
+  const chainShort  = makeChainBuf(0.08,  2600, 0.014);
+  const chainLong   = makeChainBuf(0.22,  1800, 0.045);
+  const chainHeavy  = makeChainBuf(0.35,  900,  0.08);
+
+  // Base pattern + accent hits
+  const basePat   = [0,0,1,0,0,0,1,0,0,1,0,0,0,1,0,0];
+  const accentPat = [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0]; // heavy hit mid-bar
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
+
+    // Mutate base pattern slightly
+    const pat = basePat.map((v, i) =>
+      (rng() < 0.12 && i > 0) ? (v ? 0 : (rng() < 0.35 ? 1 : 0)) : v
+    );
+
     for (let i = 0; i < 16; i++) {
-      if (!pattern[i]) continue;
       const t = barStart + i * step;
-      const s = ctx.createBufferSource(); s.buffer = chainBuf;
-      const filt = mkFilt(2000 + Math.random() * 1000, 'highpass', 1.5);
-      const g = mkGain(0.28 + intensity * 0.22);
-      chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+
+      if (pat[i]) {
+        // Alternate between short rattle and long drag
+        const buf  = rng() < 0.65 ? chainShort : chainLong;
+        const filt = mkFilt(2200 + rng() * 1200, 'highpass', 1.2);
+        const g    = mkGain(0.25 + intensity * 0.2 + rng() * 0.08);
+        const s    = ctx.createBufferSource(); s.buffer = buf;
+        chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+
+        // Occasional rattle ghost — very quiet, slightly offset
+        if (rng() < 0.3) {
+          const gs  = ctx.createBufferSource(); gs.buffer = chainShort;
+          const gg  = mkGain(0.06 + rng() * 0.04);
+          const gf  = mkFilt(3000, 'highpass', 0.8);
+          chain(gs, gf, gg, b);
+          gs.start(t + 0.018 + rng() * 0.015);
+          reg(name, gs, gf, gg);
+        }
+      }
+
+      if (accentPat[i] && intensity > 0.3) {
+        const s    = ctx.createBufferSource(); s.buffer = chainHeavy;
+        const filt = mkFilt(800, 'bandpass', 1.5);
+        const g    = mkGain(0.45 + intensity * 0.3);
+        chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+      }
     }
   });
 }
 
 function buildMarch(preset, intensity, name) {
-  const b = bus[name], sr = ctx.sampleRate;
-  const makeSnare = () => {
-    const buf = ctx.createBuffer(1, Math.floor(sr * 0.15), sr), d = buf.getChannelData(0);
+  const b  = bus[name];
+  const sr = ctx.sampleRate;
+
+  // Snare body — tonal component gives it a wood/skin feel
+  const makeSnare = (toneFreq, noiseMix) => {
+    const dur = 0.18;
+    const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+    const d   = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
-      const t = i / sr;
-      d[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.04);
+      const t     = i / sr;
+      const tone  = Math.sin(2 * Math.PI * toneFreq * t) * Math.exp(-t / 0.035);
+      const tone2 = Math.sin(2 * Math.PI * toneFreq * 1.6 * t) * Math.exp(-t / 0.02);
+      const noise = (Math.random() * 2 - 1) * Math.exp(-t / 0.055);
+      const crack = t < 0.004 ? (Math.random() * 2 - 1) * Math.exp(-t / 0.001) : 0;
+      d[i] = (tone * (1 - noiseMix) * 0.5 + tone2 * 0.2 + noise * noiseMix + crack * 0.6);
     }
     return buf;
   };
-  const snareBuf = makeSnare();
-  const pattern = [1,0,1,0,0,1,0,0,1,0,1,0,0,1,0,1];
+
+  const mainSnare = makeSnare(220, 0.6);  // main — balanced
+  const rimShot   = makeSnare(380, 0.35); // rim — tighter, higher pitched
+
+  // Classic military snare pattern — dotted feel
+  const mainPat = [1,0,0,1,0,0,1,0,1,0,0,1,0,0,1,0];
+  const rimPat  = [0,0,1,0,1,0,0,1,0,0,1,0,1,0,0,1];
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
+
     for (let i = 0; i < 16; i++) {
-      if (!pattern[i]) continue;
-      const accent = (i % 4 === 0);
-      const t = barStart + i * step;
-      const s = ctx.createBufferSource(); s.buffer = snareBuf;
-      const filt = mkFilt(1800, 'bandpass', 3);
-      const rim = mkFilt(4000, 'highpass', 2);
-      const g = mkGain((accent ? 0.55 : 0.35) + intensity * 0.3);
-      chain(s, filt, g, b); chain(s, rim, g); s.start(t); reg(name, s, filt, rim, g);
+      const t      = barStart + i * step;
+      const accent = (i % 8 === 0); // strong beats get accent
+
+      if (mainPat[i]) {
+        const s    = ctx.createBufferSource(); s.buffer = mainSnare;
+        const filt = mkFilt(1600, 'bandpass', 2.2);
+        const hpf  = mkFilt(200,  'highpass', 0.8);
+        const g    = mkGain((accent ? 0.65 : 0.42) + intensity * 0.28);
+        chain(s, filt, hpf, g, b); s.start(t); reg(name, s, filt, hpf, g);
+      }
+
+      if (rimPat[i] && intensity > 0.2) {
+        const s = ctx.createBufferSource(); s.buffer = rimShot;
+        const g = mkGain(0.28 + intensity * 0.2);
+        const f = mkFilt(2800, 'highpass', 1.5);
+        chain(s, f, g, b); s.start(t); reg(name, s, f, g);
+      }
     }
   });
 }
 
 function buildStomp(preset, intensity, name) {
-  const b = bus[name], sr = ctx.sampleRate;
-  const makeStomp = () => {
-    const buf = ctx.createBuffer(1, Math.floor(sr * 0.35), sr), d = buf.getChannelData(0);
+  const b  = bus[name];
+  const sr = ctx.sampleRate;
+
+  const makeStomp = (freq, bodyMix) => {
+    const dur = 0.4;
+    const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+    const d   = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
-      const t = i / sr;
-      d[i] = (Math.sin(2 * Math.PI * 60 * t) * 0.6 + (Math.random() * 2 - 1) * 0.4) * Math.exp(-t / 0.08);
+      const t    = i / sr;
+      const tone = Math.sin(2 * Math.PI * freq * Math.exp(-t * 4) * t) * Math.exp(-t / 0.09);
+      const sub  = Math.sin(2 * Math.PI * freq * 0.5 * t) * Math.exp(-t / 0.15);
+      const thud = (Math.random() * 2 - 1) * Math.exp(-t / 0.02) * (1 - bodyMix);
+      d[i] = (tone * 0.5 + sub * bodyMix * 0.4 + thud * 0.3);
     }
     return buf;
   };
-  const stompBuf = makeStomp();
-  const pattern = [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0];
+
+  const heavyStomp = makeStomp(55,  0.8); // floor stomp — deep and roomy
+  const lightStomp = makeStomp(80,  0.5); // offbeat — less sub
+  const stompAccent = makeStomp(45, 1.0); // boss accent — pure sub
+
+  // Quarter notes with occasional syncopation
+  const basePat = [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0];
+  const offPat  = [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0]; // offbeat layer at higher intensity
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
+
+    // Occasional syncopation — shift one hit slightly
+    const pat = basePat.map((v, i) => {
+      if (v && rng() < 0.15 && i > 0 && i < 14) return 0; // drop a beat
+      return v;
+    });
+    // Sometimes add a syncopated anticipation hit
+    if (rng() < 0.25 + intensity * 0.2) pat[14] = 1;
+
     for (let i = 0; i < 16; i++) {
-      if (!pattern[i]) continue;
-      const t = barStart + i * step;
-      const s = ctx.createBufferSource(); s.buffer = stompBuf;
-      const filt = mkFilt(200, 'lowpass', 2);
-      const g = mkGain(0.7 + intensity * 0.3);
-      chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+      const t      = barStart + i * step;
+      const accent = (i === 0 || i === 8);
+
+      if (pat[i]) {
+        const buf  = (accent && intensity > 0.6) ? stompAccent : heavyStomp;
+        const filt = mkFilt(180, 'lowpass', 1.5);
+        const g    = mkGain((accent ? 0.85 : 0.65) + intensity * 0.2);
+        const s    = ctx.createBufferSource(); s.buffer = buf;
+        chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+      }
+
+      if (offPat[i] && intensity > 0.45) {
+        const s    = ctx.createBufferSource(); s.buffer = lightStomp;
+        const filt = mkFilt(250, 'lowpass', 1.2);
+        const g    = mkGain(0.4 + intensity * 0.2);
+        chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+      }
     }
   });
 }
 
 function buildLute(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm;
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
   let patIdx = 0, t = ctx.currentTime + 0.1;
+
   function schedBar() {
     const pat = preset.melodyPatterns[patIdx++ % preset.melodyPatterns.length];
+
     for (let i = 0; i < pat.length; i++) {
-      if (rng() < 0.3) continue;
-      const bt = t + i * beat * 0.5, freq = scaleFreq(preset, preset.melodyOctave + 1, pat[i]);
-      const osc = mkOsc(freq, sessionVoices['lute'] || 'sawtooth');
-      const osc2 = mkOsc(freq * 1.004, sessionVoices['lute'] || 'sawtooth');
-      const filt = mkFilt(freq * 3, 'lowpass', 0.8), env = mkGain(0), g1 = mkGain(0.6), g2 = mkGain(0.25);
-      chain(osc, g1, filt); chain(osc2, g2, filt); chain(filt, env, b);
-      const vol = 0.06 + intensity * 0.08, dur = beat * (0.15 + rng() * 0.2);
-      env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(vol, bt + 0.006); env.gain.exponentialRampToValueAtTime(0.001, bt + dur);
-      osc.start(bt); osc.stop(bt + dur + 0.05); osc2.start(bt); osc2.stop(bt + dur + 0.05);
-      reg(name, osc, osc2, filt, env, g1, g2);
+      if (rng() < 0.28) continue;
+
+      const bt   = t + i * beat * 0.5;
+      const freq = scaleFreq(preset, preset.melodyOctave + 1, pat[i]);
+      const dur  = beat * (0.12 + rng() * 0.18); // short pluck decay
+
+      // Main pluck — two detuned saws shaped into a pluck envelope
+      const o1   = mkOsc(freq,         'sawtooth', -5);
+      const o2   = mkOsc(freq,         'sawtooth',  5);
+      const o3   = mkOsc(freq * 2,     'sine',      0); // octave harmonic
+      const g1   = mkGain(0.5), g2 = mkGain(0.35), g3 = mkGain(0.15);
+
+      // Bright pluck filter that closes fast — the signature lute sound
+      const filt = mkFilt(freq * 8, 'lowpass', 0.7);
+      const env  = mkGain(0);
+      chain(o1, g1, filt); chain(o2, g2, filt); chain(o3, g3, filt);
+      chain(filt, env, b);
+
+      const vol = 0.1 + intensity * 0.1;
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.001, bt + dur);
+
+      // Filter closes over the pluck duration — brightness decays like a real string
+      filt.frequency.setValueAtTime(freq * 8, bt);
+      filt.frequency.exponentialRampToValueAtTime(freq * 1.5, bt + dur * 0.7);
+
+      o1.start(bt); o1.stop(bt + dur + 0.05);
+      o2.start(bt); o2.stop(bt + dur + 0.05);
+      o3.start(bt); o3.stop(bt + dur + 0.05);
+      reg(name, o1, o2, o3, g1, g2, g3, filt, env);
+
+      // Body resonance — short filtered noise burst mimics the instrument body
+      const bodyBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.04), ctx.sampleRate);
+      const bd = bodyBuf.getChannelData(0);
+      for (let j = 0; j < bd.length; j++) {
+        const tt = j / ctx.sampleRate;
+        bd[j] = (Math.random() * 2 - 1) * Math.exp(-tt / 0.012);
+      }
+      const bodySrc  = ctx.createBufferSource(); bodySrc.buffer = bodyBuf;
+      const bodyFilt = mkFilt(freq * 2.5, 'bandpass', 4);
+      const bodyG    = mkGain(0.04 + intensity * 0.03);
+      chain(bodySrc, bodyFilt, bodyG, b);
+      bodySrc.start(bt);
+      reg(name, bodySrc, bodyFilt, bodyG);
+
+      // Sympathetic string overtone — ghostly ring that follows the pluck
+      if (rng() < 0.45) {
+        const sympFreq = freq * (rng() < 0.5 ? 1.5 : 2.0);
+        const sympO    = mkOsc(sympFreq, 'sine');
+        const sympEnv  = mkGain(0);
+        chain(sympO, sympEnv, b);
+        sympEnv.gain.setValueAtTime(0, bt + 0.01);
+        sympEnv.gain.linearRampToValueAtTime(0.012 + intensity * 0.008, bt + 0.04);
+        sympEnv.gain.exponentialRampToValueAtTime(0.0001, bt + dur * 2.5);
+        sympO.start(bt + 0.01); sympO.stop(bt + dur * 3);
+        reg(name, sympO, sympEnv);
+      }
     }
-    t += beat * 4; regT(name, setTimeout(schedBar, beat * 3.6 * 1000));
+
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.6 * 1000));
   }
+
   schedBar();
 }
 
 function buildHorn(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm;
-  const hornPats = [[0,4],[0,3],[4,6],[2,5]];
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const hornPats = [[0, 4], [0, 3], [4, 6], [2, 5]];
   let patIdx = 0, t = ctx.currentTime + beat * 2;
+
   function schedNote() {
     const pair = hornPats[patIdx++ % hornPats.length];
-    const deg = pair[Math.floor(rng() * pair.length)];
+    const deg  = pair[Math.floor(rng() * pair.length)];
     const freq = scaleFreq(preset, preset.melodyOctave, deg);
-    const dur = beat * (3 + rng() * 2);
-    const o1 = mkOsc(freq, sessionVoices['horn'] || 'sawtooth'), o2 = mkOsc(freq * 1.002, sessionVoices['horn'] || 'sawtooth');
-    const formant = mkFilt(800 + intensity * 400, 'bandpass', 3), bright = mkFilt(1800, 'lowpass', 1), env = mkGain(0);
-    const g1 = mkGain(0.5), g2 = mkGain(0.3);
-    chain(o1, g1, formant); chain(o2, g2, formant); chain(formant, bright, env, b);
-    const vol = 0.09 + intensity * 0.1;
-    env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(vol, t + 0.3); env.gain.setValueAtTime(vol * 0.8, t + dur * 0.6); env.gain.linearRampToValueAtTime(0.001, t + dur);
-    o1.start(t); o1.stop(t + dur + 0.2); o2.start(t); o2.stop(t + dur + 0.2);
-    reg(name, o1, o2, formant, bright, env, g1, g2);
-    t += beat * (4 + rng() * 2); regT(name, setTimeout(schedNote, beat * 3.5 * 1000));
+    const dur  = beat * (3.5 + rng() * 2);
+
+    // Brass source — sawtooth + square blend gives lip buzz character
+    const o1   = mkOsc(freq,         'sawtooth',  0);
+    const o2   = mkOsc(freq,         'square',    2);  // adds odd harmonics
+    const o3   = mkOsc(freq * 0.5,   'sawtooth',  0);  // sub octave warmth
+    const g1   = mkGain(0.55), g2 = mkGain(0.2), g3 = mkGain(0.18);
+
+    // Formant stack — brass resonance body
+    const formant1 = mkFilt(700  + intensity * 300, 'bandpass', 4);
+    const formant2 = mkFilt(1400 + intensity * 400, 'bandpass', 2.5);
+    const bright   = mkFilt(2400, 'lowpass', 0.8);
+    const env      = mkGain(0);
+
+    chain(o1, g1, formant1); chain(o2, g2, formant1);
+    chain(o3, g3, formant2);
+    formant1.connect(bright); formant2.connect(bright);
+    chain(bright, env, b);
+
+    const vol = 0.12 + intensity * 0.12;
+
+    // Brass attack — slow swell in, slight overshoot, then sustain
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vol * 1.08, t + 0.22);   // slight attack overshoot
+    env.gain.linearRampToValueAtTime(vol * 0.85, t + 0.55);   // settle into sustain
+    env.gain.setValueAtTime(vol * 0.85, t + dur * 0.75);
+    env.gain.linearRampToValueAtTime(0.001, t + dur);
+
+    // Lip tension — filter brightens slightly as note sustains (player pushes)
+    formant1.frequency.setValueAtTime(600 + intensity * 200, t);
+    formant1.frequency.linearRampToValueAtTime(800 + intensity * 400, t + dur * 0.5);
+
+    // Vibrato comes in late — as a player would naturally
+    const vib  = mkOsc(5.2 + rng() * 0.6, 'sine');
+    const vibG = mkGain(0);
+    chain(vib, vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
+    // Vibrato swells in after initial attack settles
+    vibG.gain.setValueAtTime(0, t + 0.5);
+    vibG.gain.linearRampToValueAtTime(3.5 + intensity * 3, t + dur * 0.4);
+    vib.start(t); vib.stop(t + dur + 0.2);
+
+    o1.start(t); o1.stop(t + dur + 0.2);
+    o2.start(t); o2.stop(t + dur + 0.2);
+    o3.start(t); o3.stop(t + dur + 0.2);
+    reg(name, o1, o2, o3, g1, g2, g3, formant1, formant2, bright, env, vib, vibG);
+
+    t += beat * (4 + rng() * 2);
+    regT(name, setTimeout(schedNote, beat * 3.5 * 1000));
   }
+
   schedNote();
 }
 
 function buildBells(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm;
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
   let t = ctx.currentTime + 0.5;
+
   function schedBar() {
-    const count = 1 + Math.floor(rng() * 2);
-    const slots = [0,2,3,5,6].sort(() => rng() - 0.5).slice(0, count);
+    const count = 1 + Math.floor(rng() * 3);
+    const slots = [0, 1, 2, 3, 4, 5].sort(() => rng() - 0.5).slice(0, count);
     const scale = getScale(preset);
+
     slots.forEach(slot => {
-      const bt = t + slot * beat * 0.5;
+      const bt  = t + slot * beat * 0.5;
       const deg = Math.floor(rng() * scale.length);
       const freq = scaleFreq(preset, preset.melodyOctave + 2, deg);
-      [1, 2.756, 5.404, 8.933].forEach((partial, pi) => {
-        const o = mkOsc(freq * partial, 'sine'), env = mkGain(0);
+
+      // Inharmonic partials — what makes bells sound like bells, not sine waves
+      const partials = [
+        { ratio: 1,     amp: 0.55, decay: 2.8  },
+        { ratio: 2.756, amp: 0.28, decay: 1.6  },
+        { ratio: 5.404, amp: 0.14, decay: 0.9  },
+        { ratio: 8.933, amp: 0.07, decay: 0.55 },
+        { ratio: 13.34, amp: 0.03, decay: 0.3  },
+        // Shimmer partial — slight detuning creates chorus shimmer
+        { ratio: 2.772, amp: 0.12, decay: 1.4  },
+      ];
+
+      partials.forEach(({ ratio, amp, decay }) => {
+        const o   = mkOsc(freq * ratio, 'sine');
+        const env = mkGain(0);
         chain(o, env, b);
-        const vol = [0.07, 0.04, 0.02, 0.01][pi] * (0.5 + intensity * 0.5), dur = 1.5 + pi * 0.4;
-        env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(vol, bt + 0.003); env.gain.exponentialRampToValueAtTime(0.0001, bt + dur);
-        o.start(bt); o.stop(bt + dur + 0.1); reg(name, o, env);
+
+        // Velocity variation — hits are never the same loudness
+        const vel = amp * (0.55 + intensity * 0.45) * (0.7 + rng() * 0.3);
+
+        env.gain.setValueAtTime(0, bt);
+        env.gain.linearRampToValueAtTime(vel, bt + 0.004);
+        env.gain.exponentialRampToValueAtTime(0.0001, bt + decay * (1.2 + intensity * 0.5));
+
+        o.start(bt);
+        o.stop(bt + decay * 2.0);
+        reg(name, o, env);
       });
+
+      // Attack transient — small noise burst gives the strike a physical feel
+      const transientBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.025), ctx.sampleRate);
+      const td = transientBuf.getChannelData(0);
+      for (let i = 0; i < td.length; i++) {
+        const tt = i / ctx.sampleRate;
+        td[i] = (Math.random() * 2 - 1) * Math.exp(-tt / 0.004)
+               * Math.sin(2 * Math.PI * freq * 2 * tt);
+      }
+      const tSrc = ctx.createBufferSource(); tSrc.buffer = transientBuf;
+      const tFilt = mkFilt(freq * 3, 'bandpass', 2);
+      const tG    = mkGain(0.08 + intensity * 0.06);
+      chain(tSrc, tFilt, tG, b);
+      tSrc.start(bt);
+      reg(name, tSrc, tFilt, tG);
     });
-    t += beat * 4; regT(name, setTimeout(schedBar, beat * 3.6 * 1000));
+
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.6 * 1000));
   }
+
   schedBar();
 }
 
 function buildOrgan(preset, intensity, name) {
   const b = bus[name];
-  const root = scaleFreq(preset, 1, 0), fifth = scaleFreq(preset, 1, 4);
+
+  const root  = scaleFreq(preset, 1, 0);
+  const fifth = scaleFreq(preset, 1, 4);
+  const third = scaleFreq(preset, 1, 2);
+
+  // Drawbar configuration — each bar is a separate oscillator
+  // Gains tuned to a dark cathedral registration, not a bright theatre organ
   const drawbars = [
-    { freq: root,        gain: 0.3  },
-    { freq: root * 2,    gain: 0.2  },
-    { freq: root * 3,    gain: 0.15 },
-    { freq: root * 4,    gain: 0.1  },
-    { freq: fifth,       gain: 0.18 },
-    { freq: root * 0.5,  gain: 0.25 },
+    { freq: root * 0.5,  gain: 0.28 }, // 16' — sub fundamental
+    { freq: root,        gain: 0.38 }, // 8'  — unison
+    { freq: root * 2,    gain: 0.22 }, // 4'  — octave
+    { freq: root * 3,    gain: 0.14 }, // 2⅔' — quint
+    { freq: root * 4,    gain: 0.08 }, // 2'  — super octave
+    { freq: fifth,       gain: 0.16 }, // 5th
+    { freq: third,       gain: 0.10 }, // 3rd — adds some warmth
   ];
-  const mix = mkGain(1); mix.connect(b);
-  const airFilt = mkFilt(3000 + intensity * 2000, 'lowpass', 0.7); airFilt.connect(mix);
-  drawbars.forEach(({ freq, gain }) => {
-    const o = mkOsc(freq, 'sine'), g = mkGain(gain * (0.4 + intensity * 0.4));
-    const lfo = mkOsc(0.8 + rng() * 0.4, 'sine'), lfoG = mkGain(1.5);
-    chain(lfo, lfoG); lfoG.connect(o.detune); chain(o, g, airFilt);
-    lfo.start(); o.start(); reg(name, o, g, lfo, lfoG);
+
+  const mix     = mkGain(0.7); mix.connect(b);
+  // Air filter — softens the harsh top end
+  const airFilt = mkFilt(2800 + intensity * 1500, 'lowpass', 0.65);
+  airFilt.connect(mix);
+
+  // Slight overall saturation — gives the organ its characteristic grind
+  const orgSat = ctx.createWaveShaper();
+  orgSat.curve = makeSatCurve(0.18);
+  orgSat.connect(airFilt);
+
+  drawbars.forEach(({ freq, gain: gv }) => {
+    const o = mkOsc(freq, 'sine'); // pure sine drawbars — saturation adds harmonics
+
+    // Leslie simulation — two LFOs: slow rotation + faster tremolo
+    // Targets a separate gain node, NOT detune (which caused pitch wobble)
+    const leslieGain = mkGain(gv * (0.4 + intensity * 0.4));
+    const leslieRate = 0.9 + rng() * 0.3; // ~1Hz Leslie slow speed
+    const leslieAmp  = mkOsc(leslieRate, 'sine');
+    const leslieModG = mkGain(gv * 0.08); // subtle — just a shimmer
+    chain(leslieAmp, leslieModG); leslieModG.connect(leslieGain.gain);
+
+    chain(o, leslieGain, orgSat);
+    leslieAmp.start(); o.start();
+    reg(name, o, leslieGain, leslieAmp, leslieModG);
   });
-  reg(name, airFilt, mix);
+
+  reg(name, airFilt, mix, orgSat);
 }
 
 function buildWhispers(preset, intensity, name) {
-  const b = bus[name], sr = ctx.sampleRate;
-  const formantFreqs = [250, 500, 700, 1000, 1400];
-  formantFreqs.forEach((freq, i) => {
-    const buf = ctx.createBuffer(1, sr * 4, sr), d = buf.getChannelData(0);
-    for (let j = 0; j < d.length; j++) d[j] = Math.random() * 2 - 1;
-    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-    const filt = mkFilt(freq, 'bandpass', 18 + i * 4);
-    const trem = mkOsc(2.5 + i * 0.7 + Math.random(), 'sine'), tremG = mkGain(0.3);
-    chain(trem, tremG); tremG.connect(filt.frequency);
-    const g = mkGain(0.018 + intensity * 0.015);
-    chain(src, filt, g, b); trem.start(); src.start();
-    reg(name, src, filt, g, trem, tremG);
+  const b  = bus[name];
+  const sr = ctx.sampleRate;
+
+  // Long buffer — eliminates loop artifacts in the noise
+  const bufLen  = sr * 6;
+  const noiseBuf = ctx.createBuffer(1, bufLen, sr);
+  const nd       = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+  // Formant stack — Q reduced dramatically from original Q=18-22
+  // That was resonating like a filter bank, not a voice
+  const formants = [
+    { freq: 270,  Q: 5  }, // /a/ vowel low formant
+    { freq: 530,  Q: 4  }, // /a/ mid
+    { freq: 1000, Q: 3  }, // presence
+    { freq: 2000, Q: 2.5 }, // sibilance region
+    { freq: 3500, Q: 2  }, // air/breath
+  ];
+
+  formants.forEach(({ freq, Q }, i) => {
+    const src  = ctx.createBufferSource();
+    src.buffer = noiseBuf; src.loop = true;
+    src.loopStart = rng() * 3; src.loopEnd = 6; // offset each voice
+
+    const filt = mkFilt(freq, 'bandpass', Q);
+    const g    = mkGain(0.016 + intensity * 0.012);
+
+    // Slow waver — voices drift subtly, not vibrate rapidly
+    const waver  = mkOsc(0.4 + i * 0.15 + rng() * 0.2, 'sine');
+    const waverG = mkGain(freq * 0.04); // gentle drift, not a modem sweep
+    chain(waver, waverG); waverG.connect(filt.frequency);
+    waver.start();
+
+    // Amplitude flutter — each formant breathes at different rate
+    const flutter  = mkOsc(0.9 + i * 0.3 + rng() * 0.4, 'sine');
+    const flutterG = mkGain(0.008);
+    chain(flutter, flutterG); flutterG.connect(g.gain);
+    flutter.start();
+
+    chain(src, filt, g, b);
+    src.start();
+    reg(name, src, filt, g, waver, waverG, flutter, flutterG);
   });
+
+  // Breath layer — continuous white noise very quietly underneath
+  // Fills in between the formants and makes it feel like exhalation
+  const breathSrc  = ctx.createBufferSource();
+  breathSrc.buffer = noiseBuf; breathSrc.loop = true;
+  const breathFilt = mkFilt(3000, 'highpass', 0.4);
+  const breathG    = mkGain(0.008 + intensity * 0.006);
+  chain(breathSrc, breathFilt, breathG, b);
+  breathSrc.start();
+  reg(name, breathSrc, breathFilt, breathG);
 }
 
 function buildRitualChant(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm;
-  const chantDegs = [0, 0, 3, 0, 5, 3];
+  const b   = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+
+  // Chant degrees — slow, deliberate, pentatonic feel
+  const chantDegs = [0, 0, 3, 0, 5, 3, 0, 2];
   let idx = 0, t = ctx.currentTime + 0.1;
+
   function schedHit() {
-    const bt = t, freq = scaleFreq(preset, 1, chantDegs[idx++ % chantDegs.length]);
-    const o = mkOsc(freq, sessionVoices['ritualchant'] || 'square');
-    const filt = mkFilt(600 + intensity * 400, 'lowpass', 2);
-    const env = mkGain(0);
-    chain(o, filt, env, b);
-    const vol = 0.06 + intensity * 0.07, dur = beat * 0.8;
-    env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(vol, bt + 0.02); env.gain.setValueAtTime(vol * 0.6, bt + dur * 0.4); env.gain.linearRampToValueAtTime(0.001, bt + dur);
-    o.start(bt); o.stop(bt + dur + 0.1); reg(name, o, filt, env);
+    if (!layerOn[name]) return;
+    const bt   = t;
+    const freq = scaleFreq(preset, 1, chantDegs[idx % chantDegs.length]);
+
+    // Voice source — sawtooth through saturation gives it chest resonance
+    // Square alone was hollow; this adds the odd+even harmonic mix of a real voice
+    const o1   = mkOsc(freq,       'sawtooth',  0);
+    const o2   = mkOsc(freq,       'square',    1); // blend in odd harmonics
+    const o3   = mkOsc(freq * 2,   'sine',      0); // octave reinforcement
+    const g1   = mkGain(0.5), g2 = mkGain(0.2), g3 = mkGain(0.15);
+
+    // Vocal formants — two bandpass nodes tuned to a low vowel
+    const f1   = mkFilt(480  + intensity * 120, 'bandpass', 6);
+    const f2   = mkFilt(1050 + intensity * 200, 'bandpass', 4);
+    const sat  = ctx.createWaveShaper(); sat.curve = makeSatCurve(0.22); // vocal warmth
+    const env  = mkGain(0);
+
+    o1.connect(g1); o2.connect(g2); o3.connect(g3);
+    g1.connect(f1); g2.connect(f1);
+    g1.connect(f2); g2.connect(f2);
+    g3.connect(f2);
+    f1.connect(sat); f2.connect(sat);
+    chain(sat, env, b);
+
+    const dur = beat * (0.75 + (idx % 3 === 0 ? 0.5 : 0)); // every 3rd note is held longer
+    const vol = 0.08 + intensity * 0.08;
+
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(vol, bt + 0.035);         // slow vocal attack
+    env.gain.setValueAtTime(vol * 0.82, bt + dur * 0.5);
+    env.gain.linearRampToValueAtTime(0.001, bt + dur);
+
+    // Formant shift mid-note — vowel morphs slightly as note sustains
+    f1.frequency.setValueAtTime(480 + intensity * 120, bt);
+    f1.frequency.linearRampToValueAtTime(550 + intensity * 150, bt + dur * 0.6);
+
+    // Subtle vibrato — human voices always wobble slightly
+    const vib  = mkOsc(4.5 + rng() * 0.8, 'sine');
+    const vibG = mkGain(0);
+    chain(vib, vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
+    vibG.gain.setValueAtTime(0, bt + 0.08);
+    vibG.gain.linearRampToValueAtTime(2.5 + intensity * 2, bt + 0.3);
+    vib.start(bt); vib.stop(bt + dur + 0.1);
+
+    o1.start(bt); o1.stop(bt + dur + 0.1);
+    o2.start(bt); o2.stop(bt + dur + 0.1);
+    o3.start(bt); o3.stop(bt + dur + 0.1);
+    reg(name, o1, o2, o3, g1, g2, g3, f1, f2, sat, env, vib, vibG);
+
+    idx++;
     t += beat * (1 + (idx % 3 === 0 ? 0.5 : 0));
-    regT(name, setTimeout(schedHit, (beat * 0.85) * 1000));
+    regT(name, setTimeout(schedHit, beat * 0.88 * 1000));
   }
+
   schedHit();
 }
-
 function buildGlitch(preset, intensity, name) {
   const b = bus[name], sr = ctx.sampleRate;
   function schedGlitch() {
@@ -3065,16 +3721,66 @@ let crossfadeTimer = null;
 
 function lerpZone(zA, zB, t) {
   const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+
+  // Interpolate scale ratios element by element
+  // If scales are different lengths, blend toward the longer one
+  const scaleA = zA.scale, scaleB = zB.scale;
+  const scaleLen = Math.max(scaleA.length, scaleB.length);
+  const blendedScale = Array.from({ length: scaleLen }, (_, i) => {
+    const a = scaleA[i % scaleA.length];
+    const b = scaleB[i % scaleB.length];
+    return a + (b - a) * e;
+  });
+
+  // Interpolate bass pattern by blending toward new pattern at midpoint
+  // Before 50%: use zA pattern. After 50%: crossfade to zB pattern.
+  const bassPattern = t < 0.5
+    ? zA.bassPattern
+    : zA.bassPattern.map((v, i) => (e > 0.7 ? zB.bassPattern[i] : v));
+
   return {
     ...zB,
+
+    // Pitch
+    root:            zA.root            + (zB.root            - zA.root)            * e,
+
+    // Rhythm — BPM blends gradually
     bpm:             zA.bpm             + (zB.bpm             - zA.bpm)             * e,
+
+    // Drone params
     droneFilterFreq: zA.droneFilterFreq + (zB.droneFilterFreq - zA.droneFilterFreq) * e,
     droneFilterQ:    zA.droneFilterQ    + (zB.droneFilterQ    - zA.droneFilterQ)    * e,
     droneLfoRate:    zA.droneLfoRate    + (zB.droneLfoRate    - zA.droneLfoRate)    * e,
     droneLfoDepth:   zA.droneLfoDepth   + (zB.droneLfoDepth   - zA.droneLfoDepth)  * e,
     droneAmpLfo:     zA.droneAmpLfo     + (zB.droneAmpLfo     - zA.droneAmpLfo)    * e,
-    root:            zA.root            + (zB.root            - zA.root)            * e,
+    droneWave:       t < 0.5 ? zA.droneWave : zB.droneWave, // swap at midpoint
+
+    // Bass
     bassFilterFreq:  zA.bassFilterFreq  + (zB.bassFilterFreq  - zA.bassFilterFreq)  * e,
+    bassPattern,
+
+    // Perc
+    kickFreq:        zA.kickFreq        + (zB.kickFreq        - zA.kickFreq)        * e,
+    kickDecay:       zA.kickDecay       + (zB.kickDecay       - zA.kickDecay)       * e,
+    snareDecay:      zA.snareDecay      + (zB.snareDecay      - zA.snareDecay)      * e,
+    snareFilterFreq: zA.snareFilterFreq + (zB.snareFilterFreq - zA.snareFilterFreq) * e,
+
+    // Melodic
+    melodyWave:      t < 0.6 ? zA.melodyWave : zB.melodyWave,
+    melodyOctave:    t < 0.5 ? zA.melodyOctave : zB.melodyOctave,
+    melodyPatterns:  t < 0.5 ? zA.melodyPatterns : zB.melodyPatterns,
+    melodySkip:      zA.melodySkip      + (zB.melodySkip      - zA.melodySkip)      * e,
+
+    // Choir
+    choirFormants:   zA.choirFormants.map((f, i) =>
+                       f + ((zB.choirFormants[i] ?? f) - f) * e),
+    choirVibRate:    zA.choirVibRate    + (zB.choirVibRate    - zA.choirVibRate)    * e,
+    choirVibDepth:   zA.choirVibDepth  + (zB.choirVibDepth   - zA.choirVibDepth)   * e,
+
+    // Scale
+    scale:           blendedScale,
+
+    // Viz color
     vizR:            Math.round(zA.vizR + (zB.vizR - zA.vizR) * e),
     vizG:            Math.round(zA.vizG + (zB.vizG - zA.vizG) * e),
     vizB:            Math.round(zA.vizB + (zB.vizB - zA.vizB) * e),
@@ -3084,116 +3790,260 @@ function lerpZone(zA, zB, t) {
 function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
   if (crossfadeTimer) { clearInterval(crossfadeTimer); crossfadeTimer = null; }
 
-  const STEPS     = 40;
-  const STEP_MS   = 150; // 40 × 150ms = 6 seconds total
-  let   step      = 0;
+  const STEPS   = 60;   // 60 × 100ms = 6 seconds
+  const STEP_MS = 100;
+  let step = 0;
+
+  // --- BPM transition ---
+  // Instead of snapping barLength, we nudge it by a small amount each bar
+  // so the rhythm grid shifts without a lurch
+  const bpmStart = fromZone.bpm;
+  const bpmEnd   = toZone.bpm;
+  let   bpmNow   = bpmStart;
+
+  // Track which layers have already been restarted so we don't double-fire
+  const restarted = new Set();
+
+  // --- Drone live morph ---
+  // Rather than ever restarting the drone, we update its nodes directly
+  // We identify drone filter and LFO nodes by tagging them at build time
+  // Since we can't retag old nodes, we use a heuristic:
+  //   BiquadFilterNode with frequency > 50  → drone filter
+  //   OscillatorNode with frequency < 3     → amp LFO (very slow)
+  //   OscillatorNode with frequency 0.03–1  → filter LFO
+  function morphDroneNodes(blended) {
+    if (!layerOn['drone'] || !nodes['drone'].length) return;
+    nodes['drone'].forEach(n => {
+      try {
+        if (n instanceof BiquadFilterNode && n.frequency.value > 50) {
+          n.frequency.setTargetAtTime(
+            blended.droneFilterFreq + intensity * 600,
+            ctx.currentTime, 0.6
+          );
+          n.Q.setTargetAtTime(blended.droneFilterQ, ctx.currentTime, 0.6);
+        }
+        if (n instanceof OscillatorNode) {
+          const f = n.frequency.value;
+          if (f > 0.02 && f < 1.5) {
+            // filter LFO
+            n.frequency.setTargetAtTime(blended.droneLfoRate, ctx.currentTime, 0.8);
+          }
+          if (f < 0.15) {
+            // amp LFO
+            n.frequency.setTargetAtTime(blended.droneAmpLfo, ctx.currentTime, 1.0);
+          }
+        }
+        if (n instanceof GainNode && n !== bus['drone']) {
+          // LFO gain nodes — update depth
+          // We identify them by having a small current value (< 5)
+          // This is imperfect but avoids restarting the drone
+          const cv = n.gain.value;
+          if (cv > 0.001 && cv < 5 && cv !== 1.0) {
+            const depthTarget = blended.droneLfoDepth + intensity * 350;
+            if (depthTarget > 10) {
+              n.gain.setTargetAtTime(depthTarget, ctx.currentTime, 0.8);
+            }
+          }
+        }
+      } catch(e) {}
+    });
+  }
+
+  // Tracks the bar boundary we're waiting for before restarting a layer group
+  let barBoundaryScheduled = false;
 
   crossfadeTimer = setInterval(() => {
     step++;
-    const t      = step / STEPS;
+    const t       = step / STEPS;
     const blended = lerpZone(fromZone, toZone, t);
 
-    // BPM
-    barLength = (60 / blended.bpm) * 4;
-
-    // Drone — morph filter + LFO params live without restarting
-    if (layerOn['drone'] && nodes['drone'].length) {
-      nodes['drone'].forEach(n => {
-        if (n instanceof BiquadFilterNode) {
-          n.frequency.setTargetAtTime(
-            blended.droneFilterFreq + intensity * 600,
-            ctx.currentTime, 0.4
-          );
-          n.Q.setTargetAtTime(blended.droneFilterQ, ctx.currentTime, 0.4);
-        }
-        if (n instanceof OscillatorNode && n.frequency.value < 5) {
-          // LFO — identified by very low frequency
-          n.frequency.setTargetAtTime(blended.droneLfoRate, ctx.currentTime, 0.4);
-        }
-      });
+    // --- BPM: nudge gradually, lock to bar boundaries ---
+    // Each tick we allow the BPM to drift by at most 0.5 units
+    const bpmDelta = bpmEnd - bpmNow;
+    const bpmStep  = Math.sign(bpmDelta) * Math.min(Math.abs(bpmDelta), 0.5);
+    bpmNow += bpmStep;
+    // Only apply to barLength between bars — check if we're near a bar boundary
+    const nowTime    = ctx.currentTime;
+    const barPhase   = nowTime % barLength;
+    const nearBoundary = barPhase < (STEP_MS / 1000) * 2 || barPhase > barLength - (STEP_MS / 1000) * 2;
+    if (nearBoundary || Math.abs(bpmDelta) < 1) {
+      barLength = (60 / bpmNow) * 4;
     }
 
-    // Visualizer color blend — update floor num display
+    // --- Drone: live morph, never restart ---
+    morphDroneNodes(blended);
+
+    // --- Visualizer color: smooth blend throughout ---
     const fn = document.getElementById('floorNum');
     fn.style.color      = `rgb(${blended.vizR},${blended.vizG},${blended.vizB})`;
     fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${blended.vizR},${blended.vizG},${blended.vizB},0.6)`;
 
-    // At halfway: restart melodic + perc layers with new zone params
-    // so they land on the new root/scale/patterns smoothly
+    // --- Zone name: update at midpoint, not at start ---
     if (step === Math.floor(STEPS * 0.5)) {
-      ['perc','wardrums','march','stomp','chains'].forEach(name => {
-        if (layerOn[name]) startLayer(name, toZone, intensity, percBufs);
-      });
+      const zEl = document.getElementById('zoneName');
+      zEl.classList.add('changing');
+      setTimeout(() => {
+        zEl.textContent = toZone.name;
+        zEl.classList.remove('changing');
+      }, 150);
+      document.getElementById('ciZone').textContent  = toZone.name;
+      document.getElementById('status').textContent  = toZone.desc;
+      logTimeline(`Zone: ${toZone.name}`);
     }
 
-    // At 75%: swap melodic layers to new zone
-    if (step === Math.floor(STEPS * 0.75)) {
-      ['bass','melody','choir','lute','horn','bells','organ'].forEach(name => {
-        if (layerOn[name]) startLayer(name, toZone, intensity, null);
-      });
+    // --- Perc layers: restart on next bar boundary at 40% ---
+    // Scheduled once, fires when the bar actually turns over
+    if (t >= 0.4 && !restarted.has('perc') && !barBoundaryScheduled) {
+      barBoundaryScheduled = true;
+      const barPhaseNow = ctx.currentTime % barLength;
+      const waitMs      = Math.max(0, (barLength - barPhaseNow) * 1000);
+      setTimeout(() => {
+        if (!crossfadeTimer && step < STEPS) return; // aborted
+        ['perc','wardrums','march','stomp','chains'].forEach(n => {
+          if (layerOn[n] && !restarted.has(n)) {
+            restarted.add(n);
+            startLayer(n, toZone, intensity, percBufs);
+          }
+        });
+      }, waitMs);
     }
 
-    if (step >= STEPS) {
+    // --- Bass: restart on bar boundary at 55% ---
+    if (t >= 0.55 && !restarted.has('bass')) {
+      restarted.add('bass');
+      const barPhaseNow = ctx.currentTime % barLength;
+      const waitMs      = Math.max(0, (barLength - barPhaseNow) * 1000);
+      setTimeout(() => {
+        if (layerOn['bass']) startLayer('bass', toZone, intensity, null);
+      }, waitMs);
+    }
+
+    // --- Melodic layers: staggered restarts from 65% onward ---
+    // Each layer enters on its own bar boundary, spaced a bar apart
+    // so they don't all restart simultaneously
+    const melodicOrder = ['choir','melody','lute','horn','bells','organ'];
+    melodicOrder.forEach((n, i) => {
+      const threshold = 0.65 + i * (0.25 / melodicOrder.length);
+      if (t >= threshold && !restarted.has(n) && layerOn[n]) {
+        restarted.add(n);
+        const barPhaseNow = ctx.currentTime % barLength;
+        const waitMs      = Math.max(0, (barLength - barPhaseNow + i * barLength) * 1000);
+        setTimeout(() => {
+          if (layerOn[n]) startLayer(n, toZone, intensity, null);
+        }, waitMs);
+      }
+    });
+
+    // --- Drone root pitch: only restart if root drifted more than a minor third ---
+    if (step === STEPS) {
       clearInterval(crossfadeTimer);
       crossfadeTimer = null;
-      // Drone is already morphed close enough — only restart if root pitch
-      // drifted more than a semitone from destination
-      if (layerOn['drone']) {
-        const currentRoot = toZone.root;
-        const driftedRoot = lerpZone(fromZone, toZone, 1).root;
-        if (Math.abs(currentRoot - driftedRoot) > 1) {
-          startLayer('drone', toZone, intensity, null);
-        }
+      barLength = (60 / toZone.bpm) * 4; // lock to exact target BPM at end
+
+      const semitonesDrift = Math.abs(12 * Math.log2(toZone.root / fromZone.root));
+      if (semitonesDrift > 1.5 && layerOn['drone'] && !restarted.has('drone')) {
+        restarted.add('drone');
+        const barPhaseNow = ctx.currentTime % barLength;
+        const waitMs      = Math.max(0, (barLength - barPhaseNow) * 1000);
+        setTimeout(() => {
+          if (layerOn['drone']) startLayer('drone', toZone, intensity, null);
+        }, waitMs);
       }
+
+      // Atmosphere layers last — they're continuous so they can fade in quietly
+      ['wind','riser','firecrackle','chaos','whispers','ritualchant','glitch','heartbeat'].forEach(n => {
+        if (layerOn[n] && !restarted.has(n)) {
+          restarted.add(n);
+          startLayer(n, toZone, intensity, null);
+        }
+      });
     }
   }, STEP_MS);
 }
 
 function updateFloorUI() {
-  const floor = parseInt(slider.value), zone = getZone(floor), intensity = getIntensity(floor);
+  const floor     = parseInt(slider.value);
+  const zone      = getZone(floor);
+  const intensity = getIntensity(floor);
+
+  // Floor number always updates immediately
   document.getElementById('floorNum').textContent = floor;
-  const zEl = document.getElementById('zoneName');
-  if (zone.name !== lastZoneName && lastZoneName !== '') {
-    zEl.classList.add('changing');
-    setTimeout(() => { zEl.textContent = zone.name; zEl.classList.remove('changing'); }, 150);
-  } else { zEl.textContent = zone.name; }
+
+  // Zone name: only update immediately if not playing
+  // While playing, the crossfade system owns the zone name update timing
+  if (!isPlaying) {
+    document.getElementById('zoneName').textContent = zone.name;
+  }
+
+  // Slider fill
   slider.style.setProperty('--pct', ((floor - 1) / 98 * 100).toFixed(1) + '%');
-  const segs = document.getElementById('zoneBar').querySelectorAll('.zone-seg'), zoneIdx = ZONES.indexOf(zone);
-  segs.forEach((s, i) => { s.classList.toggle('active', i <= zoneIdx); s.style.setProperty('--zone-color', zone.color); });
-  const fn = document.getElementById('floorNum');
-  fn.style.color = `rgb(${zone.vizR},${zone.vizG},${zone.vizB})`;
-  fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.6)`;
-  // Cinematic zone names
-  document.getElementById('ciZone').textContent = zone.name;
+
+  // Zone bar segments — update immediately, it's a subtle UI element
+  const segs    = document.getElementById('zoneBar').querySelectorAll('.zone-seg');
+  const zoneIdx = ZONES.indexOf(zone);
+  segs.forEach((s, i) => {
+    s.classList.toggle('active', i <= zoneIdx);
+    s.style.setProperty('--zone-color', zone.color);
+  });
+
+  // Color: only snap immediately if not playing
+  // While playing, crossfade lerps color — don't override it here
+  if (!isPlaying) {
+    const fn = document.getElementById('floorNum');
+    fn.style.color      = `rgb(${zone.vizR},${zone.vizG},${zone.vizB})`;
+    fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.6)`;
+  }
+
+  // Cinematic overlay labels — always live
+  document.getElementById('ciZone').textContent  = zone.name;
   document.getElementById('ciFloor').textContent = `Void Floor ${floor}`;
+
   updateDebug();
-  if (!isPlaying) { setStatus(zone.desc); return; }
+
+  if (!isPlaying) {
+    setStatus(zone.desc);
+    lastZoneName = zone.name;
+    return;
+  }
+
+  // Debounce the actual audio transition so fast slider drags
+  // don't fire a crossfade on every pixel
   clearTimeout(floorDebounce);
   floorDebounce = setTimeout(() => {
     initAudio();
-    const f2   = parseInt(slider.value);
-    const np   = getZone(f2);
-    const ni   = isBoss ? Math.min(1, getIntensity(f2) + .4) : getIntensity(f2);
-    const pb   = buildPercBufs(np);
-    const fromZone = ZONES.find(z => z.name === lastZoneName) || np;
-    const changed  = (np.name !== lastZoneName);
-    lastZoneName   = np.name;
+
+    const f2       = parseInt(slider.value);
+    const toZone   = getZone(f2);
+    const ni       = isBoss ? Math.min(1, getIntensity(f2) + 0.4) : getIntensity(f2);
+    const pb       = buildPercBufs(toZone);
+    const fromZone = ZONES.find(z => z.name === lastZoneName) || toZone;
+    const changed  = toZone.name !== lastZoneName;
+
+    lastZoneName = toZone.name;
 
     if (changed) {
-      startZoneCrossfade(fromZone, np, ni, pb);
-      logTimeline(`Zone: ${np.name} · Floor ${f2}`);
-      setStatus(np.desc);
+      // Full crossfade — color, name, BPM, and all layers transition smoothly
+      startZoneCrossfade(fromZone, toZone, ni, pb);
     } else {
-      // Same zone — just update BPM and restart layers normally
-      barLength = (60 / np.bpm) * 4;
-      LAYER_NAMES.forEach(name => {
-        if (name === 'boss') { if (isBoss) startLayer(name, np, ni, null); return; }
-        if (journeyActive && (name === 'drone' || name === 'bass')) return;
-        if (layerOn[name]) startLayer(name, np, ni, PERC_BUF_LAYERS.has(name) ? pb : null);
-      });
-      setStatus(`Floor ${f2} · ${np.name}`);
+      // Same zone — just update BPM and let schedulers pick it up naturally
+      // Don't restart layers, don't snap barLength — nudge it
+      const targetBarLength = (60 / toZone.bpm) * 4;
+      const delta = targetBarLength - barLength;
+      // Apply in small steps over the next few bars via a gentle ramp
+      if (Math.abs(delta) > 0.01) {
+        const steps = 8;
+        let s = 0;
+        const nudge = setInterval(() => {
+          s++;
+          barLength += delta / steps;
+          if (s >= steps) {
+            barLength = targetBarLength;
+            clearInterval(nudge);
+          }
+        }, (barLength * 1000) / steps);
+      }
     }
-  }, 250);
+  }, 220); // slightly longer debounce than original — avoids firing mid-drag
 }
 
 // ── Debug ─────────────────────────────────────────────────────────
