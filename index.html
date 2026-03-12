@@ -1493,6 +1493,24 @@ const SCALE_MOODS = {
 
 const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dread', 'dread'];
 
+function crawlToFloor(targetFloor, durationMs, onComplete) {
+  const startFloor = parseInt(slider.value);
+  const steps = Math.abs(targetFloor - startFloor);
+  if (steps === 0) { onComplete?.(); return; }
+  const stepMs = durationMs / steps;
+  let current = startFloor;
+  const dir = targetFloor > startFloor ? 1 : -1;
+  const id = setInterval(() => {
+    current += dir;
+    slider.value = current;
+    updateFloorUI();
+    if (current === targetFloor) {
+      clearInterval(id);
+      onComplete?.();
+    }
+  }, stepMs);
+}
+
 function startRandomJourney() {
   if (!isPlaying) togglePlay();
   
@@ -1508,8 +1526,7 @@ function startRandomJourney() {
     const JOURNEY_FLOORS = [1, 13, 25, 37, 49, 61, 73, 85];
     const floor = JOURNEY_FLOORS[step] ?? 85;
 
-    slider.value = floor;
-    updateFloorUI();
+    crawlToFloor(floor, dur * 0.6, null);
     
     const archetypeName = JOURNEY_ARC[step] || 'nightmare';
     
@@ -1578,7 +1595,9 @@ function startRandomJourney() {
     step++;
     if (step < JOURNEY_STEPS) {
       const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
+      crawlToFloor(floor, dur * 0.6, null);
       setTimeout(journeyStep, dur);
+
     } else {
       journeyActive = false;
     }
