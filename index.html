@@ -719,12 +719,12 @@
         <button class="layer-toggle" onclick="stopSongGen()"  style="flex:0 0 auto;padding:10px 20px;">⏹ Stop</button>
       </div>
 
+      <button class="layer-toggle" onclick="startRandomJourney()" style="width:100%;padding:12px;margin-bottom:16px;">🌑 Journey</button>
+
       <div style="flex:1;">
         <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--text);margin-bottom:6px;" id="songGenStatus">Idle — 7 min 20 sec of OST</div>
         <div class="song-gen-bar"><div class="song-gen-fill" id="songGenFill"></div></div>
       </div>
-
-      <button class="layer-toggle" onclick="startRandomJourney()" style="width:100%;padding:12px;margin-bottom:16px;">🌑 Journey</button>
       
       <div style="margin-bottom:16px;">
         <div style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-dim);margin-bottom:10px;">Steps</div>
@@ -1480,6 +1480,8 @@ function randomizeCoherent(forcedArchetype) {
   }, FADE_OUT * 1000 + 100);
 }
 
+const JOURNEY_ARC = ['desolate', 'desolate', 'choral', 'marching', 'marching', 'combat', 'combat', 'nightmare'];
+  
 function startRandomJourney() {
   if (!isPlaying) togglePlay();
   
@@ -1490,18 +1492,63 @@ function startRandomJourney() {
   function journeyStep() {
     if (!isPlaying) return;
     
-    // Progress floor deeper each step
-    const floor = Math.min(99, startFloor + Math.floor((step / JOURNEY_STEPS) * (60 + rng() * 30)));
+    const floor = Math.min(99, 1 + Math.floor((step / JOURNEY_STEPS) * 98));
     slider.value = floor;
     updateFloorUI();
     
-    randomizeCoherent();
-    
+    const archetypeName = JOURNEY_ARC[step] || 'nightmare';
+    const cfg = LAYER_ARCHETYPES[archetypeName];
+    if (!cfg) return;
+    initAudio();
+    const preset = getZone(floor);
+    const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+    const percBufs = buildPercBufs(preset);
+
+    const shuffled = [...cfg.pool].sort(() => rng() - 0.5);
+    const picked = shuffled.slice(0, cfg.max);
+    const toEnable = new Set([...cfg.required, ...picked]);
+    toEnable.add('drone');
+
+    // Snap all layer changes to next bar boundary
+    const now = ctx.currentTime;
+    const toNextBar = barLength - (now % barLength);
+
+    setTimeout(() => {
+      Object.keys(layerOn).forEach(name => {
+        if (name === 'drone' || name === 'bass') return;
+        if (layerOn[name] && !toEnable.has(name)) {
+          layerOn[name] = false;
+          document.getElementById('btn-' + name)?.classList.remove('active');
+          document.getElementById('pill-' + name)?.classList.remove('on');
+          stopLayer(name);
+        }
+      });
+
+      toEnable.forEach(name => {
+        if (!(name in layerOn)) return;
+        if (!layerOn[name]) {
+          layerOn[name] = true;
+          document.getElementById('btn-' + name)?.classList.add('active');
+          document.getElementById('pill-' + name)?.classList.add('on');
+          startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+        }
+      });
+    }, toNextBar * 1000);
+
+    phraseSeq = { desolate: PHRASE_SEQUENCES.normal, marching: PHRASE_SEQUENCES.combat, choral: PHRASE_SEQUENCES.normal, combat: PHRASE_SEQUENCES.combat, arcane: PHRASE_SEQUENCES.normal, nightmare: PHRASE_SEQUENCES.boss }[archetypeName] || PHRASE_SEQUENCES.normal;
+    phraseSeqIdx = 0;
+    currentPhrase = phraseSeq[0];
+    autoEvolution = true;
+    startPhraseEngine();
+
+    setStatus(`🌑 Journey · ${archetypeName} · Floor ${floor}`);
+    logTimeline(`Journey step ${step + 1}: ${archetypeName} · Floor ${floor}`);
+    document.getElementById('randArchetypeLabel').textContent = archetypeName.toUpperCase();
+
     step++;
     if (step < JOURNEY_STEPS) {
-      // Each step lasts 40-70 seconds
-      const dur = 40000 + rng() * 30000;
-      setTimeout(journeyStep, dur + FADE_OUT * 1000 + 100);
+      const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
+      setTimeout(journeyStep, dur);
     }
   }
   
