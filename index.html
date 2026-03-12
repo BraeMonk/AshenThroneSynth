@@ -716,7 +716,9 @@
     <div class="tab-pane" id="tab-ost" style="padding:24px 0 16px;">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
         <button class="layer-toggle" onclick="startSongGen()" style="flex:0 0 auto;padding:10px 20px;">▶ Generate OST</button>
+        <button class="layer-toggle" onclick="startRandomJourney()" style="flex:0 0 auto;padding:10px 20px;">🌑 Journey</button>
         <button class="layer-toggle" onclick="stopSongGen()"  style="flex:0 0 auto;padding:10px 20px;">⏹ Stop</button>
+
         <div style="flex:1;">
           <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--text);margin-bottom:6px;" id="songGenStatus">Idle — 7 min 20 sec of OST</div>
           <div class="song-gen-bar"><div class="song-gen-fill" id="songGenFill"></div></div>
@@ -762,11 +764,6 @@
         <button class="layer-toggle" onclick="randomizeCoherent('arcane')">Arcane</button>
         <button class="layer-toggle" onclick="randomizeCoherent('nightmare')">Nightmare</button>
       </div>
-
-      <button class="seed-btn" onclick="startRandomJourney()" 
-        style="width:100%;padding:10px;margin-top:8px;">
-        🌑 Journey (auto-evolving)
-      </button>
 
       <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Recording</div>
       <div class="record-section">
