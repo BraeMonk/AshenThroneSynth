@@ -2006,32 +2006,50 @@ function buildFXChain() {
 
 function buildIR(size) {
   const sr = ctx.sampleRate;
-  const dur = 0.3 + size * 7.7;
-  const decay = 1.5 + size * 4.0;
-  const len = Math.floor(sr * dur);
+  const dur = 1.5 + size * 10.0;
+  const decay = 2.0 + size * 5.0;
+  const preDelay = Math.floor(sr * (0.02 + size * 0.04));
+  const len = Math.floor(sr * dur) + preDelay;
   const ir = ctx.createBuffer(2, len, sr);
+
   for (let ch = 0; ch < 2; ch++) {
     const d = ir.getChannelData(ch);
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-      const earlyBoost = t < 0.015 ? 1.4 : 1.0;
-      d[i] = (Math.random() * 2 - 1) * earlyBoost * Math.pow(Math.max(0, 1 - t / dur), decay);
+
+    // Pre-delay silence
+    for (let i = 0; i < preDelay; i++) d[i] = 0;
+
+    // Early reflections — sparse distinct echoes
+    const numReflections = 12;
+    for (let r = 0; r < numReflections; r++) {
+      const pos = preDelay + Math.floor(sr * (0.005 + r * 0.011 + Math.random() * 0.008));
+      const amp = (0.6 - r * 0.04) * (ch === 0 ? 1 : 0.85 + Math.random() * 0.3);
+      if (pos < len) d[pos] += (Math.random() * 2 - 1) * amp;
+    }
+
+    // Dense tail
+    for (let i = preDelay; i < len; i++) {
+      const t = (i - preDelay) / sr;
+      const earlyBoost = t < 0.02 ? 1.6 : 1.0;
+      const diffusion = 1 + Math.sin(i * 0.00731) * 0.08;
+      d[i] += (Math.random() * 2 - 1) * earlyBoost * diffusion
+              * Math.pow(Math.max(0, 1 - t / dur), decay);
     }
   }
+
   return ir;
 }
 
 // ── FX handlers ───────────────────────────────────────────────────
+let reverbDebounce = null;
 function onReverbSize(el) {
   _reverbSize = el.value / 100;
   el.style.setProperty('--pct', el.value + '%');
   document.getElementById('reverbSizeVal').textContent = el.value + '%';
-  if (!ctx) return;
-  try { reverbNode.disconnect(); } catch(e) {}
-  reverbNode = ctx.createConvolver();
-  reverbNode.buffer = buildIR(_reverbSize);
-  fxInput.connect(reverbNode);
-  reverbNode.connect(reverbWetGain);
+  clearTimeout(reverbDebounce);
+  reverbDebounce = setTimeout(() => {
+    if (!ctx) return;
+    reverbNode.buffer = buildIR(_reverbSize);
+  }, 120);
 }
 function onReverbMix(el) {
   _reverbMix = el.value / 100;
@@ -2073,12 +2091,16 @@ function onMood(el) {
   const addedWet = _mood > 0.75 ? 0.15 : 0;
   reverbWetGain.gain.setTargetAtTime(_reverbMix + addedWet, ctx.currentTime, 0.3);
 }
+let satDebounce = null;
 function onSaturation(el) {
   _saturation = el.value / 100;
   el.style.setProperty('--pct', el.value + '%');
   document.getElementById('saturationVal').textContent = el.value + '%';
-  if (!ctx) return;
-  saturationNode.curve = makeSatCurve(_saturation);
+  clearTimeout(satDebounce);
+  satDebounce = setTimeout(() => {
+    if (!ctx) return;
+    saturationNode.curve = makeSatCurve(_saturation);
+  }, 80);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -2181,34 +2203,84 @@ function buildDrone(preset, intensity, name) {
   const b = bus[name];
   const filt = mkFilt(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
   filt.connect(b);
-  [preset.root, preset.root * 1.5, preset.root * 2, preset.root * 3].forEach((f, i) => {
-    const o = mkOsc(f, i === 0 ? (sessionVoices['drone'] || preset.droneWave) : 'sine', (i - 1) * 9);
-    const g = mkGain(i === 0 ? 0.5 : 0.2);
+
+  // 6 detuned oscillators instead of 4 — wider, denser
+  const detunes = [-14, -7, 0, 7, 14, 0];
+  const gains   = [0.18, 0.22, 0.4, 0.22, 0.18, 0.15];
+  const freqMults = [1, 1, 1, 1, 1, 2];
+  detunes.forEach((det, i) => {
+    const wave = i === 0 ? (sessionVoices['drone'] || preset.droneWave) : i === 5 ? 'sine' : 'sawtooth';
+    const o = mkOsc(preset.root * freqMults[i], wave, det);
+    const g = mkGain(gains[i]);
     chain(o, g, filt); o.start(); reg(name, o, g);
   });
-  const dO = mkOsc(preset.root * 2, sessionVoices['drone'] || preset.droneWave, 14);
-  const dG = mkGain(0.15);
-  chain(dO, dG, filt); dO.start(); reg(name, dO, dG);
-  const lfo = mkOsc(preset.droneLfoRate + intensity * .1, 'sine'), lfoG = mkGain(preset.droneLfoDepth + intensity * 400);
+
+  // Fifth above for richness
+  const fifth = mkOsc(preset.root * 1.5, 'sine', 3);
+  const fifthG = mkGain(0.12);
+  chain(fifth, fifthG, filt); fifth.start(); reg(name, fifth, fifthG);
+
+  // Sub octave
+  const subO = mkOsc(preset.root * 0.5, 'sine');
+  const subG = mkGain(0.2);
+  const subFilt = mkFilt(120, 'lowpass', 0.8);
+  chain(subO, subG, subFilt, b); subO.start(); reg(name, subO, subG, subFilt);
+
+  // Filter LFO
+  const lfo = mkOsc(preset.droneLfoRate + intensity * 0.1, 'sine');
+  const lfoG = mkGain(preset.droneLfoDepth + intensity * 400);
   chain(lfo, lfoG); lfoG.connect(filt.frequency); lfo.start(); reg(name, lfo, lfoG);
-  const aLfo = mkOsc(preset.droneAmpLfo, 'sine'), aLfoG = mkGain(.07 + intensity * .06);
-  chain(aLfo, aLfoG); aLfoG.connect(b.gain); aLfo.start(); reg(name, aLfo, aLfoG, filt);
+
+  // Amp LFO — slow breathe
+  const aLfo = mkOsc(preset.droneAmpLfo, 'sine');
+  const aLfoG = mkGain(0.07 + intensity * 0.06);
+  chain(aLfo, aLfoG); aLfoG.connect(b.gain); aLfo.start();
+  reg(name, aLfo, aLfoG, filt);
 }
 
 function buildPercBufs(preset) {
   const sr = ctx.sampleRate;
-  const kick = ctx.createBuffer(1, Math.floor(sr * preset.kickDecay * 4), sr);
+
+  // Kick — layered sine sweep + click transient + sub
+  const kickLen = Math.floor(sr * 0.5);
+  const kick = ctx.createBuffer(1, kickLen, sr);
   const kd = kick.getChannelData(0);
-  for (let i = 0; i < kd.length; i++) {
+  for (let i = 0; i < kickLen; i++) {
     const t = i / sr;
-    kd[i] = Math.sin(2 * Math.PI * preset.kickFreq * Math.exp(-t * 18) * t) * Math.exp(-t / preset.kickDecay) * .85;
+    const freq = preset.kickFreq * Math.exp(-t * 28) + 30;
+    const click = t < 0.004 ? (Math.random() * 2 - 1) * 0.8 * (1 - t / 0.004) : 0;
+    const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.18);
+    const sub = Math.sin(2 * Math.PI * 40 * t) * Math.exp(-t / 0.35);
+    kd[i] = (click * 0.4 + body * 0.5 + sub * 0.5) * Math.exp(-t / preset.kickDecay);
   }
-  const mkNoise = d => {
-    const b = ctx.createBuffer(1, Math.floor(sr * d * 6), sr), dd = b.getChannelData(0);
-    for (let i = 0; i < dd.length; i++) dd[i] = (Math.random() * 2 - 1) * Math.exp(-(i / sr) / d);
-    return b;
-  };
-  return { kick, snare: mkNoise(preset.snareDecay), hihat: mkNoise(.022) };
+
+  // Snare — tonal body + noise layer + crack
+  const snareLen = Math.floor(sr * 0.28);
+  const snare = ctx.createBuffer(1, snareLen, sr);
+  const sd = snare.getChannelData(0);
+  for (let i = 0; i < snareLen; i++) {
+    const t = i / sr;
+    const tone = Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t / 0.04);
+    const tone2 = Math.sin(2 * Math.PI * 280 * t) * Math.exp(-t / 0.03);
+    const noise = (Math.random() * 2 - 1) * Math.exp(-t / preset.snareDecay);
+    const crack = t < 0.003 ? (Math.random() * 2 - 1) * (1 - t / 0.003) : 0;
+    sd[i] = (tone * 0.25 + tone2 * 0.2 + noise * 0.45 + crack * 0.3);
+  }
+
+  // Hihat — metallic noise with tighter decay
+  const hhLen = Math.floor(sr * 0.06);
+  const hihat = ctx.createBuffer(1, hhLen, sr);
+  const hd = hihat.getChannelData(0);
+  for (let i = 0; i < hhLen; i++) {
+    const t = i / sr;
+    const metal = Math.sin(2 * Math.PI * 8000 * t) * 0.3
+                + Math.sin(2 * Math.PI * 9700 * t) * 0.2
+                + Math.sin(2 * Math.PI * 11200 * t) * 0.15
+                + (Math.random() * 2 - 1) * 0.35;
+    hd[i] = metal * Math.exp(-t / 0.018);
+  }
+
+  return { kick, snare, hihat };
 }
 
 const SCHED_AHEAD = 0.12; // seconds to look ahead
@@ -2303,24 +2375,41 @@ function buildBass(preset, intensity, name) {
 
     while (nextBarTime < ctx.currentTime + SCHED_AHEAD + barDur) {
       const barStart = nextBarTime;
-      const step = beat * 0.5; // 8th notes
+      const step = beat * 0.5;
 
       for (let i = 0; i < 8; i++) {
         const deg = preset.bassPattern[i];
-        if (deg === 0 && i !== 0 && rng() < 0.2) continue; // occasional rest
+        if (deg === 0 && i !== 0 && rng() < 0.2) continue;
         const t = barStart + i * step;
         const freq = scaleFreq(preset, 0, deg);
-        const o = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
-        const filt = mkFilt(preset.bassFilterFreq + intensity * 300, 'lowpass', 2);
-        const env = mkGain(0);
-        chain(o, filt, env, b);
-        const v = 0.22 + intensity * 0.18;
         const dur = beat * 0.42;
+
+        // Main bass tone — sawtooth through soft clip
+        const o = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
+        const filt = mkFilt(preset.bassFilterFreq + intensity * 300, 'lowpass', 1.8);
+        const shaper = ctx.createWaveShaper();
+        shaper.curve = makeSatCurve(0.35);
+        const env = mkGain(0);
+        chain(o, filt, shaper, env, b);
+
+        // Sub sine underneath
+        const sub = mkOsc(freq * 0.5, 'sine');
+        const subFilt = mkFilt(120, 'lowpass', 0.8);
+        const subEnv = mkGain(0);
+        chain(sub, subFilt, subEnv, b);
+
+        const v = 0.22 + intensity * 0.18;
         env.gain.setValueAtTime(0, t);
         env.gain.linearRampToValueAtTime(v, t + 0.012);
         env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+        subEnv.gain.setValueAtTime(0, t);
+        subEnv.gain.linearRampToValueAtTime(v * 0.6, t + 0.018);
+        subEnv.gain.exponentialRampToValueAtTime(0.001, t + dur * 1.2);
+
         o.start(t); o.stop(t + dur + 0.05);
-        reg(name, o, env, filt);
+        sub.start(t); sub.stop(t + dur + 0.1);
+        reg(name, o, filt, shaper, env, sub, subFilt, subEnv);
       }
 
       nextBarTime += barDur;
@@ -2332,15 +2421,19 @@ function buildBass(preset, intensity, name) {
   tick();
 }
 
-
 function buildMelody(preset, intensity, name) {
   const b = bus[name];
   const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
-
   const baseMotif = mutateMotif(preset);
   let patIdx = 0;
   let t = ctx.currentTime + 0.1;
+
+  // Soft waveshaper for warmth
+  const melodyShaper = ctx.createWaveShaper();
+  melodyShaper.curve = makeSatCurve(0.15);
+  melodyShaper.connect(b);
+  reg(name, melodyShaper);
 
   function schedBar() {
     const useMotif = (patIdx % 2 === 0);
@@ -2360,55 +2453,62 @@ function buildMelody(preset, intensity, name) {
       const deg = motif[i];
       const dur = beat * (0.25 + rng()*0.35);
       const vel = 0.05 + intensity * 0.12 + rng()*0.02;
-
       const freq = scaleFreq(preset, preset.melodyOctave, deg);
-      const o1 = mkOsc(freq, sessionVoices['melody'] || 'triangle');
-      const o2 = mkOsc(freq * 1.003, sessionVoices['melody'] || 'triangle');
+
+      // Three detuned oscillators for thickness
+      const o1 = mkOsc(freq, 'sawtooth', -6);
+      const o2 = mkOsc(freq, 'sawtooth',  6);
+      const o3 = mkOsc(freq * 0.5, 'sine', 0); // sub octave sine
+      const filt = mkFilt(800 + intensity * 2200, 'lowpass', 1.4);
       const env = mkGain(0);
-      const filt = mkFilt(1200 + intensity*1500, 'lowpass', 2);
-      const g1 = mkGain(0.55), g2 = mkGain(0.28);
-      chain(o1, g1, filt); chain(o2, g2, filt); chain(filt, env, b);
+      const g1 = mkGain(0.35), g2 = mkGain(0.35), g3 = mkGain(0.2);
+
+      chain(o1, g1, filt);
+      chain(o2, g2, filt);
+      chain(o3, g3, filt);
+      chain(filt, env, melodyShaper);
 
       env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vel, bt+0.02);
-      env.gain.setValueAtTime(vel*0.6, bt+dur*0.6);
-      env.gain.linearRampToValueAtTime(0.001, bt+dur);
+      env.gain.linearRampToValueAtTime(vel, bt + 0.035);
+      env.gain.setValueAtTime(vel * 0.65, bt + dur * 0.5);
+      env.gain.linearRampToValueAtTime(0.001, bt + dur);
 
-      o1.start(bt); o1.stop(bt+dur+0.05);
-      o2.start(bt); o2.stop(bt+dur+0.05);
-      reg(name, o1, o2, env, filt, g1, g2);
+      o1.start(bt); o1.stop(bt+dur+0.08);
+      o2.start(bt); o2.stop(bt+dur+0.08);
+      o3.start(bt); o3.stop(bt+dur+0.08);
+      reg(name, o1, o2, o3, filt, env, g1, g2, g3);
 
       if (counterMotif) {
         const cfreq = scaleFreq(preset, preset.melodyOctave, counterMotif[i]);
-        const co1 = mkOsc(cfreq, sessionVoices['choir'] || 'sawtooth');
-        const co2 = mkOsc(cfreq * 1.002, sessionVoices['choir'] || 'sawtooth');
+        const co1 = mkOsc(cfreq, 'sawtooth', -4);
+        const co2 = mkOsc(cfreq, 'sawtooth',  4);
+        const cfilt = mkFilt(800 + intensity * 2200, 'lowpass', 1.4);
         const cenv = mkGain(0);
-        const cfilt = mkFilt(1200 + intensity*1500, 'lowpass', 2);
-        const cg1 = mkGain(0.25), cg2 = mkGain(0.12);
-        chain(co1, cg1, cfilt); chain(co2, cg2, cfilt); chain(cfilt, cenv, b);
-
+        const cg1 = mkGain(0.2), cg2 = mkGain(0.2);
+        chain(co1, cg1, cfilt); chain(co2, cg2, cfilt);
+        chain(cfilt, cenv, melodyShaper);
         cenv.gain.setValueAtTime(0, bt);
-        cenv.gain.linearRampToValueAtTime(vel*0.6, bt+0.02);
+        cenv.gain.linearRampToValueAtTime(vel*0.5, bt+0.035);
         cenv.gain.linearRampToValueAtTime(0.001, bt+dur);
-
-        co1.start(bt); co1.stop(bt+dur); co2.start(bt); co2.stop(bt+dur);
-        reg(name, co1, co2, cenv, cfilt, cg1, cg2);
+        co1.start(bt); co1.stop(bt+dur);
+        co2.start(bt); co2.stop(bt+dur);
+        reg(name, co1, co2, cfilt, cenv, cg1, cg2);
       }
 
       if (rng() < 0.3) {
         const overlayDeg = deg + [7,12,19][Math.floor(rng()*3)];
         const overlayFreq = scaleFreq(preset, preset.melodyOctave, overlayDeg);
-        const oo1 = mkOsc(overlayFreq, sessionVoices['bells'] || 'sine');
-        const oo2 = mkOsc(overlayFreq * 1.002, sessionVoices['bells'] || 'sine');
+        const oo1 = mkOsc(overlayFreq, 'sine');
+        const oo2 = mkOsc(overlayFreq * 1.002, 'sine');
         const ofilt = mkFilt(3000 + intensity*2000, 'lowpass', 1);
         const oenv = mkGain(0), og1 = mkGain(0.18), og2 = mkGain(0.08);
-        chain(oo1, og1, ofilt); chain(oo2, og2, ofilt); chain(ofilt, oenv, b);
-
+        chain(oo1, og1, ofilt); chain(oo2, og2, ofilt);
+        chain(ofilt, oenv, melodyShaper);
         oenv.gain.setValueAtTime(0, bt);
         oenv.gain.linearRampToValueAtTime(vel*0.35, bt+0.02);
         oenv.gain.linearRampToValueAtTime(0.001, bt+dur);
-
-        oo1.start(bt); oo1.stop(bt+dur); oo2.start(bt); oo2.stop(bt+dur);
+        oo1.start(bt); oo1.stop(bt+dur);
+        oo2.start(bt); oo2.stop(bt+dur);
         reg(name, oo1, oo2, ofilt, oenv, og1, og2);
       }
     }
