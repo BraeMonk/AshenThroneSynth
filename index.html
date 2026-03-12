@@ -2267,23 +2267,46 @@ function buildPerc(preset, intensity, name, bufs) {
 }
 
 function buildBass(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm;
-  let t = ctx.currentTime + .05;
-  function schedBar() {
-    for (let i = 0; i < 8; i++) {
-      const bt = t + i * beat * .5, freq = scaleFreq(preset, 0, preset.bassPattern[i]);
-      const o = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
-      const filt = mkFilt(preset.bassFilterFreq + intensity * 300, 'lowpass', 2);
-      const env = mkGain(0);
-      chain(o, filt, env, b);
-      const v = .22 + intensity * .18;
-      env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(v, bt + .015); env.gain.exponentialRampToValueAtTime(.001, bt + beat * .45);
-      o.start(bt); o.stop(bt + beat * .5); reg(name, o, env, filt);
+  const b = bus[name];
+  let nextBarTime = ctx.currentTime + 0.05;
+
+  function tick() {
+    if (!layerOn[name]) return;
+    const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+    const beat = 60 / bpm;
+    const barDur = beat * 4;
+
+    while (nextBarTime < ctx.currentTime + SCHED_AHEAD + barDur) {
+      const barStart = nextBarTime;
+      const step = beat * 0.5; // 8th notes
+
+      for (let i = 0; i < 8; i++) {
+        const deg = preset.bassPattern[i];
+        if (deg === 0 && i !== 0 && rng() < 0.2) continue; // occasional rest
+        const t = barStart + i * step;
+        const freq = scaleFreq(preset, 0, deg);
+        const o = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
+        const filt = mkFilt(preset.bassFilterFreq + intensity * 300, 'lowpass', 2);
+        const env = mkGain(0);
+        chain(o, filt, env, b);
+        const v = 0.22 + intensity * 0.18;
+        const dur = beat * 0.42;
+        env.gain.setValueAtTime(0, t);
+        env.gain.linearRampToValueAtTime(v, t + 0.012);
+        env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.start(t); o.stop(t + dur + 0.05);
+        reg(name, o, env, filt);
+      }
+
+      nextBarTime += barDur;
     }
-    t += beat * 4; regT(name, setTimeout(schedBar, (beat * 3.6) * 1000));
+
+    regT(name, setTimeout(tick, SCHED_INTERVAL));
   }
-  schedBar();
+
+  tick();
 }
+
 
 function buildMelody(preset, intensity, name) {
   const b = bus[name];
