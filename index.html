@@ -1501,6 +1501,10 @@ function startRandomJourney() {
   let step = 0;
   
   journeyActive = true;
+
+  const allJourneyScales = [...new Set(Object.values(SCALE_MOODS).flat())];
+  const journeyScale = allJourneyScales[Math.floor(Math.random() * allJourneyScales.length)];
+  selectScale(journeyScale);
   
   function journeyStep() {
     if (!isPlaying) return;
@@ -1536,11 +1540,6 @@ function startRandomJourney() {
       if (Math.abs(oldBpm - newBpm) > 4) {
         barLength = (60 / newBpm) * 4;
       }
-
-      const scaleMood = JOURNEY_SCALE_ARC[step] || 'dread';
-      const scalePool = SCALE_MOODS[scaleMood];
-      const chosenScale = scalePool[Math.floor(Math.random() * scalePool.length)];
-      selectScale(chosenScale);
 
       Object.keys(layerOn).forEach(name => {
         if (name === 'drone' || name === 'bass') return;
