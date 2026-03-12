@@ -4046,14 +4046,9 @@ function buildWhispers(preset, intensity, name) {
   breathSrc.buffer = noiseBuf; breathSrc.loop = true;
   const breathFilt = mkFilt(3000, 'highpass', 0.4);
   const breathG    = mkGain(0.008 + intensity * 0.006);
-  chain(breathSrc, breathFilt, whisperNotch, breathG, b);
+  chain(breathSrc, breathFilt, breathG, b);
   breathSrc.start();
   reg(name, breathSrc, breathFilt, breathG);
-
-  const mix     = mkGain(0.7);
-  const orgHPF  = mkFilt(80, 'highpass', 0.6);
-  mix.connect(orgHPF); orgHPF.connect(b);
-  reg(name, orgHPF);
 }
 
 function buildRitualChant(preset, intensity, name) {
