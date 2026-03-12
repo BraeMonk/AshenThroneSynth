@@ -1136,7 +1136,7 @@ const OST_STEPS = [
   { label: 'Ashes',             floor: 70, layers: ['drone','heartbeat','bells'],                                                    duration: 40000, boss: false, phrase: 'resolution' },
 ];
 
-const OST_CROSSFADE_DUR = 4.0; // seconds — overlap between steps
+const OST_CROSSFADE_DUR = 8.0; // seconds — overlap between steps
 let songGenTimer = null, songGenStep = 0, songGenRunning = false;
 let ostCurrentLayers = [];
 
@@ -1153,24 +1153,27 @@ function startSongGen() {
 function ostRunStep() {
   if (!songGenRunning || songGenStep >= OST_STEPS.length) {
     document.getElementById('songGenStatus').textContent = songGenStep >= OST_STEPS.length ? 'Complete ✓' : 'Stopped.';
-    // Highlight active step in list
     document.querySelectorAll('[id^="ost-step-"]').forEach((el, i) => {
-      const isActive = i === songGenStep; // songGenStep not yet incremented here
-      el.style.borderColor = isActive ? 'var(--gold)' : '#1a1a28';
-      el.style.color = isActive ? 'var(--gold)' : 'var(--text-dim)';
-      el.style.background = isActive ? '#c8922a08' : 'transparent';
+      el.style.borderColor = '#1a1a28';
+      el.style.color = 'var(--text-dim)';
+      el.style.background = 'transparent';
     });
-    document.getElementById('songGenFill').style.width = songGenStep >= OST_STEPS.length ? '100%' : document.getElementById('songGenFill').style.width;
     songGenRunning = false;
     return;
   }
 
-  const step     = OST_STEPS[songGenStep];
-  const nextStep = OST_STEPS[songGenStep + 1] || null;
-  const pct      = ((songGenStep / OST_STEPS.length) * 100).toFixed(0) + '%';
+  const step = OST_STEPS[songGenStep];
+  const pct  = ((songGenStep / OST_STEPS.length) * 100).toFixed(0) + '%';
 
   document.getElementById('songGenFill').style.width = pct;
   document.getElementById('songGenStatus').textContent = `${step.label}  (${songGenStep + 1}/${OST_STEPS.length})`;
+
+  // Highlight current step
+  document.querySelectorAll('[id^="ost-step-"]').forEach((el, i) => {
+    el.style.borderColor = i === songGenStep ? 'var(--gold)' : '#1a1a28';
+    el.style.color = i === songGenStep ? 'var(--gold)' : 'var(--text-dim)';
+    el.style.background = i === songGenStep ? '#c8922a08' : 'transparent';
+  });
 
   // Floor + boss
   slider.value = step.floor;
@@ -1180,7 +1183,6 @@ function ostRunStep() {
     document.getElementById('btn-boss')?.classList.toggle('active', isBoss);
   }
 
-  // Phrase
   currentPhrase = step.phrase;
   updatePhraseUI();
 
@@ -1188,30 +1190,22 @@ function ostRunStep() {
   const preset    = getZone(step.floor);
   const intensity = isBoss ? Math.min(1, getIntensity(step.floor) + 0.4) : getIntensity(step.floor);
   const percBufs  = buildPercBufs(preset);
+  barLength       = (60 / preset.bpm) * 4;
 
-  // Determine which layers are new vs continuing vs retiring
-  const incoming = step.layers;
-  const continuing = incoming.filter(n => ostCurrentLayers.includes(n));
-  const toStart    = incoming.filter(n => !ostCurrentLayers.includes(n));
+  const incoming   = step.layers;
   const toStop     = ostCurrentLayers.filter(n => !incoming.includes(n));
+  const toStart    = incoming.filter(n => !ostCurrentLayers.includes(n));
+  const continuing = incoming.filter(n => ostCurrentLayers.includes(n));
 
-  // Fade out retiring layers
+  // Fade out retiring layers immediately
   toStop.forEach(name => {
     layerOn[name] = false;
     document.getElementById('btn-' + name)?.classList.remove('active');
     document.getElementById('pill-' + name)?.classList.remove('on');
-    stopLayer(name); // fades over FADE_OUT
+    stopLayer(name);
   });
 
-  // Start new layers (with fade-in — no gap, no muteAll)
-  toStart.forEach(name => {
-    layerOn[name] = true;
-    document.getElementById('btn-' + name)?.classList.add('active');
-    document.getElementById('pill-' + name)?.classList.add('on');
-    startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
-  });
-
-  // Continuing layers: restart with new preset if zone changed
+  // Restart continuing layers if zone changed
   const prevPreset = songGenStep > 0 ? getZone(OST_STEPS[songGenStep - 1].floor) : null;
   if (prevPreset && prevPreset.name !== preset.name) {
     continuing.forEach(name => {
@@ -1219,24 +1213,47 @@ function ostRunStep() {
     });
   }
 
-  // Update boss layer
-  if (isBoss && !nodes['boss']?.length) {
-    startLayer('boss', preset, intensity, null);
-  } else if (!isBoss && nodes['boss']?.length) {
-    stopLayer('boss');
-  }
+  // Delay new layer starts to next bar boundary
+  const now         = ctx.currentTime;
+  const barProgress = (now % barLength);
+  const toNextBar   = barLength - barProgress;
+  const barDelay    = toNextBar < 0.1 ? barLength : toNextBar; // avoid tiny gaps
+
+  // Boss layer handled immediately at bar boundary
+  setTimeout(() => {
+    if (!songGenRunning) return;
+    if (isBoss && !nodes['boss']?.length) startLayer('boss', preset, intensity, null);
+    else if (!isBoss && nodes['boss']?.length) stopLayer('boss');
+  }, barDelay * 1000);
+
+  // Stagger new layers across bars
+  const order = ['drone','bass','heartbeat','perc','wardrums','march','stomp','chains',
+                 'wind','firecrackle','riser','melody','choir','lute','horn','bells',
+                 'organ','whispers','ritualchant','chaos','glitch'];
+  toStart.forEach(name => {
+    const priority = order.indexOf(name);
+    const entryBar = Math.floor(priority / 4);
+    const entryDelay = (barDelay + entryBar * barLength) * 1000;
+    setTimeout(() => {
+      if (!songGenRunning) return;
+      layerOn[name] = true;
+      document.getElementById('btn-' + name)?.classList.add('active');
+      document.getElementById('pill-' + name)?.classList.add('on');
+      startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+    }, entryDelay);
+  });
 
   ostCurrentLayers = [...incoming];
-  barLength = (60 / preset.bpm) * 4;
 
   logTimeline(`OST: ${step.label} · Floor ${step.floor}`);
   setStatus(`OST: ${step.label}`);
 
-  // Schedule next step — fire OST_CROSSFADE_DUR before end so fade overlaps
+  // Schedule next step
   const holdTime = step.duration - (OST_CROSSFADE_DUR * 1000);
   songGenStep++;
   songGenTimer = setTimeout(ostRunStep, holdTime);
 }
+
 
 function stopSongGen() {
   songGenRunning = false;
@@ -1561,7 +1578,7 @@ const layerOn = {
   melody:false, choir:false, lute:false, horn:false, bells:false, organ:false,
   chaos:false, whispers:false, ritualchant:false, glitch:false
 };
-const FADE_IN = 1.6, FADE_OUT = 2.0;
+const FADE_IN = 2.4, FADE_OUT = 8.0;
 
 // Cinematic
 let cinematicActive = false;
