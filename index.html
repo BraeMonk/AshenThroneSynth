@@ -2211,20 +2211,59 @@ function buildPercBufs(preset) {
   return { kick, snare: mkNoise(preset.snareDecay), hihat: mkNoise(.022) };
 }
 
-function buildPerc(preset, intensity, name, bufs) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm;
-  const hhF = mkFilt(preset.snareFilterFreq * 4, 'highpass', 1); hhF.connect(b); reg(name, hhF);
-  let t = ctx.currentTime + .05;
-  function schedBar() {
-    for (let i = 0; i < 8; i++) {
-      const bt = t + i * beat * .5;
-      if (preset.kickPattern[i]) { const s = ctx.createBufferSource(); s.buffer = bufs.kick; const g = mkGain(.65 + intensity * .35); chain(s, g, b); s.start(bt); reg(name, s, g); }
-      if (preset.snarePattern[i] && intensity > .1) { const s = ctx.createBufferSource(); s.buffer = bufs.snare; const g = mkGain(.35 + intensity * .45), f = mkFilt(preset.snareFilterFreq, 'bandpass', 2.5); chain(s, f, g, b); s.start(bt); reg(name, s, f, g); }
-      if (preset.hihatPattern[i] && intensity > .3) { const s = ctx.createBufferSource(); s.buffer = bufs.hihat; const g = mkGain(.1 + intensity * .15); chain(s, g, hhF); s.start(bt); reg(name, s, g); }
+const SCHED_AHEAD = 0.12; // seconds to look ahead
+const SCHED_INTERVAL = 50; // ms between scheduler ticks
+
+function makeSchedLoop(name, schedFn) {
+  let nextBarTime = ctx.currentTime + 0.05;
+  function tick() {
+    if (!layerOn[name]) return;
+    const bpm = isBoss ? getZone(parseInt(slider.value)).bpm + 22 : getZone(parseInt(slider.value)).bpm;
+    const beat = 60 / bpm;
+    const barDur = beat * 4;
+    while (nextBarTime < ctx.currentTime + SCHED_AHEAD + barDur) {
+      schedFn(nextBarTime, beat);
+      nextBarTime += barDur;
     }
-    t += beat * 4; regT(name, setTimeout(schedBar, (beat * 3.5) * 1000));
+    regT(name, setTimeout(tick, SCHED_INTERVAL));
   }
-  schedBar();
+  tick();
+}
+
+function buildPerc(preset, intensity, name, bufs) {
+  const b = bus[name];
+  const hhF = mkFilt(preset.snareFilterFreq * 4, 'highpass', 1);
+  hhF.connect(b); reg(name, hhF);
+
+  const patterns = {
+    kick:  [1,0,0,0,1,0,0,0,1,0,0,1,0,0,1,0],
+    snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+    hihat: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
+  };
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const step = beat * 0.25; // 16th notes
+    for (let i = 0; i < 16; i++) {
+      const t = barStart + i * step;
+      if (patterns.kick[i] && rng() > 0.05) {
+        const s = ctx.createBufferSource(); s.buffer = bufs.kick;
+        const g = mkGain(0.8 + intensity * 0.2);
+        chain(s, g, b); s.start(t); reg(name, s, g);
+      }
+      if (patterns.snare[i] && intensity > 0.1 && rng() > 0.08) {
+        const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+        const g = mkGain(0.45 + intensity * 0.4);
+        const f = mkFilt(preset.snareFilterFreq, 'bandpass', 2.5);
+        chain(s, f, g, b); s.start(t); reg(name, s, f, g);
+      }
+      if (patterns.hihat[i] && intensity > 0.3) {
+        const vel = (i % 4 === 0) ? 0.18 : 0.08;
+        const s = ctx.createBufferSource(); s.buffer = bufs.hihat;
+        const g = mkGain(vel + rng() * 0.04);
+        chain(s, g, hhF); s.start(t); reg(name, s, g);
+      }
+    }
+  });
 }
 
 function buildBass(preset, intensity, name) {
@@ -2458,83 +2497,118 @@ function buildFireCrackle(preset, intensity, name) {
 }
 
 function buildWarDrums(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm, sr = ctx.sampleRate;
+  const b = bus[name], sr = ctx.sampleRate;
   const makeTom = (freq, decay) => {
     const buf = ctx.createBuffer(1, Math.floor(sr * decay * 5), sr);
     const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = Math.sin(2 * Math.PI * freq * Math.exp(-t * 6) * t) * Math.exp(-t / decay) * 0.9; }
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      d[i] = Math.sin(2 * Math.PI * freq * Math.exp(-t * 6) * t) * Math.exp(-t / decay) * 0.9;
+    }
     return buf;
   };
-  const lowTom = makeTom(preset.root * 0.7, 0.8), highTom = makeTom(preset.root * 1.1, 0.5);
-  const pattern = [[1,0,0,0,1,0,0,0],[0,0,1,0,0,0,1,0]];
-  let t = ctx.currentTime + 0.05;
-  function schedBar() {
-    for (let i = 0; i < 8; i++) {
-      const bt = t + i * beat * 0.5;
-      if (pattern[0][i]) { const s = ctx.createBufferSource(); s.buffer = lowTom; const g = mkGain(0.7 + intensity * 0.3); chain(s, g, b); s.start(bt); reg(name, s, g); }
-      if (pattern[1][i] && intensity > 0.2) { const s = ctx.createBufferSource(); s.buffer = highTom; const g = mkGain(0.5 + intensity * 0.3); chain(s, g, b); s.start(bt); reg(name, s, g); }
+  const lowTom = makeTom(preset.root * 0.7, 0.8);
+  const highTom = makeTom(preset.root * 1.1, 0.5);
+
+  const lowPat  = [1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0];
+  const highPat = [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1];
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const step = beat * 0.25;
+    for (let i = 0; i < 16; i++) {
+      const t = barStart + i * step;
+      if (lowPat[i] && rng() > 0.06) {
+        const s = ctx.createBufferSource(); s.buffer = lowTom;
+        const g = mkGain(0.8 + intensity * 0.2);
+        chain(s, g, b); s.start(t); reg(name, s, g);
+      }
+      if (highPat[i] && intensity > 0.2 && rng() > 0.1) {
+        const s = ctx.createBufferSource(); s.buffer = highTom;
+        const g = mkGain(0.55 + intensity * 0.3);
+        chain(s, g, b); s.start(t); reg(name, s, g);
+      }
     }
-    t += beat * 4; regT(name, setTimeout(schedBar, beat * 3.5 * 1000));
-  }
-  schedBar();
+  });
 }
 
 function buildChains(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm, sr = ctx.sampleRate;
+  const b = bus[name], sr = ctx.sampleRate;
   const makeChain = () => {
     const dur = 0.12, buf = ctx.createBuffer(1, Math.floor(sr * dur), sr), d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.018) * Math.sin(2 * Math.PI * 2800 * t); }
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.018) * Math.sin(2 * Math.PI * 2800 * t);
+    }
     return buf;
   };
-  const chainBuf = makeChain(), pattern = [0,1,0,0,0,1,0,1];
-  let t = ctx.currentTime + 0.05;
-  function schedBar() {
-    for (let i = 0; i < 8; i++) {
+  const chainBuf = makeChain();
+  const pattern = [0,0,1,0,0,0,1,0,0,1,0,0,0,1,0,1];
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const step = beat * 0.25;
+    for (let i = 0; i < 16; i++) {
       if (!pattern[i]) continue;
-      const bt = t + i * beat * 0.5;
+      const t = barStart + i * step;
       const s = ctx.createBufferSource(); s.buffer = chainBuf;
-      const filt = mkFilt(2000 + Math.random() * 1000, 'highpass', 1.5), g = mkGain(0.25 + intensity * 0.25);
-      chain(s, filt, g, b); s.start(bt); reg(name, s, filt, g);
+      const filt = mkFilt(2000 + Math.random() * 1000, 'highpass', 1.5);
+      const g = mkGain(0.28 + intensity * 0.22);
+      chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
     }
-    t += beat * 4; regT(name, setTimeout(schedBar, beat * 3.5 * 1000));
-  }
-  schedBar();
+  });
 }
 
 function buildMarch(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm, sr = ctx.sampleRate;
-  const makeSnare = () => { const buf = ctx.createBuffer(1, Math.floor(sr * 0.15), sr), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.04); } return buf; };
-  const snareBuf = makeSnare(), pattern = [1,0,1,1,0,1,0,0];
-  let t = ctx.currentTime + 0.05;
-  function schedBar() {
-    for (let i = 0; i < 8; i++) {
-      if (!pattern[i]) continue;
-      const bt = t + i * beat * 0.5;
-      const s = ctx.createBufferSource(); s.buffer = snareBuf;
-      const filt = mkFilt(1800, 'bandpass', 3), rim = mkFilt(4000, 'highpass', 2), g = mkGain(0.4 + intensity * 0.3);
-      chain(s, filt, g, b); chain(s, rim, g); s.start(bt); reg(name, s, filt, rim, g);
+  const b = bus[name], sr = ctx.sampleRate;
+  const makeSnare = () => {
+    const buf = ctx.createBuffer(1, Math.floor(sr * 0.15), sr), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.04);
     }
-    t += beat * 4; regT(name, setTimeout(schedBar, beat * 3.5 * 1000));
-  }
-  schedBar();
+    return buf;
+  };
+  const snareBuf = makeSnare();
+  const pattern = [1,0,1,0,0,1,0,0,1,0,1,0,0,1,0,1];
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const step = beat * 0.25;
+    for (let i = 0; i < 16; i++) {
+      if (!pattern[i]) continue;
+      const accent = (i % 4 === 0);
+      const t = barStart + i * step;
+      const s = ctx.createBufferSource(); s.buffer = snareBuf;
+      const filt = mkFilt(1800, 'bandpass', 3);
+      const rim = mkFilt(4000, 'highpass', 2);
+      const g = mkGain((accent ? 0.55 : 0.35) + intensity * 0.3);
+      chain(s, filt, g, b); chain(s, rim, g); s.start(t); reg(name, s, filt, rim, g);
+    }
+  });
 }
 
 function buildStomp(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm, sr = ctx.sampleRate;
-  const makeStomp = () => { const buf = ctx.createBuffer(1, Math.floor(sr * 0.35), sr), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = (Math.sin(2 * Math.PI * 60 * t) * 0.6 + (Math.random() * 2 - 1) * 0.4) * Math.exp(-t / 0.08); } return buf; };
-  const stompBuf = makeStomp(), pattern = [1,0,0,0,1,0,0,0];
-  let t = ctx.currentTime + 0.05;
-  function schedBar() {
-    for (let i = 0; i < 8; i++) {
-      if (!pattern[i]) continue;
-      const bt = t + i * beat * 0.5;
-      const s = ctx.createBufferSource(); s.buffer = stompBuf;
-      const filt = mkFilt(200, 'lowpass', 2), g = mkGain(0.6 + intensity * 0.4);
-      chain(s, filt, g, b); s.start(bt); reg(name, s, filt, g);
+  const b = bus[name], sr = ctx.sampleRate;
+  const makeStomp = () => {
+    const buf = ctx.createBuffer(1, Math.floor(sr * 0.35), sr), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      d[i] = (Math.sin(2 * Math.PI * 60 * t) * 0.6 + (Math.random() * 2 - 1) * 0.4) * Math.exp(-t / 0.08);
     }
-    t += beat * 4; regT(name, setTimeout(schedBar, beat * 3.5 * 1000));
-  }
-  schedBar();
+    return buf;
+  };
+  const stompBuf = makeStomp();
+  const pattern = [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0];
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const step = beat * 0.25;
+    for (let i = 0; i < 16; i++) {
+      if (!pattern[i]) continue;
+      const t = barStart + i * step;
+      const s = ctx.createBufferSource(); s.buffer = stompBuf;
+      const filt = mkFilt(200, 'lowpass', 2);
+      const g = mkGain(0.7 + intensity * 0.3);
+      chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+    }
+  });
 }
 
 function buildLute(preset, intensity, name) {
