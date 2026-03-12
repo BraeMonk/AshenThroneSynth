@@ -1012,6 +1012,7 @@ function updatePhraseUI() {
 }
 
 let autoEvolution = false;
+let journeyActive = false;
 
 // ── Motif memory ─────────────────────────────────────────────────
 let baseMotif = [0, 2, 4, 2]; // reused across phrases
@@ -1499,6 +1500,8 @@ function startRandomJourney() {
   const startFloor = parseInt(slider.value);
   let step = 0;
   
+  journeyActive = true;
+  
   function journeyStep() {
     if (!isPlaying) return;
     
@@ -1576,6 +1579,8 @@ function startRandomJourney() {
     if (step < JOURNEY_STEPS) {
       const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
       setTimeout(journeyStep, dur);
+    } else {
+      journeyActive = false;
     }
   }
   
@@ -2684,6 +2689,7 @@ function updateFloorUI() {
     barLength = (60 / np.bpm) * 4;
     LAYER_NAMES.forEach(name => {
       if (name === 'boss') { if (isBoss) startLayer(name, np, ni, null); return; }
+      if (journeyActive && (name === 'drone' || name === 'bass')) return;
       if (layerOn[name]) startLayer(name, np, ni, PERC_BUF_LAYERS.has(name) ? pb : null);
     });
     if (changed) logTimeline(`Zone: ${np.name} · Floor ${f2}`);
