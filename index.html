@@ -1141,15 +1141,15 @@ function exportMIDI() {
 
 // ── Song generation ───────────────────────────────────────────────
 const OST_STEPS = [
-  { label: 'Opening Silence',   floor: 1,  layers: ['drone'],                                                                       duration: 40000, boss: false, phrase: 'intro'      },
-  { label: 'The Descent',       floor: 10, layers: ['drone','wind','heartbeat'],                                                     duration: 45000, boss: false, phrase: 'build'      },
-  { label: 'Bone March',        floor: 18, layers: ['drone','wind','bass','perc'],                                                   duration: 45000, boss: false, phrase: 'build'      },
-  { label: 'Tension Builds',    floor: 26, layers: ['drone','bass','perc','wardrums','riser','melody'],                              duration: 50000, boss: false, phrase: 'tension'    },
-  { label: 'Shadow Army',       floor: 35, layers: ['drone','bass','perc','wardrums','stomp','melody','choir'],                      duration: 55000, boss: false, phrase: 'climax'     },
-  { label: 'Boss Threshold',    floor: 42, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos'],              duration: 50000, boss: true,  phrase: 'climax'     },
-  { label: 'The Void Tears',    floor: 55, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 55000, boss: true, phrase: 'climax' },
-  { label: 'Infernal Core',     floor: 70, layers: ['drone','bass','perc','wardrums','march','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 60000, boss: true, phrase: 'climax' },
-  { label: 'Ashes',             floor: 70, layers: ['drone','heartbeat','bells'],                                                    duration: 40000, boss: false, phrase: 'resolution' },
+  { label: 'Opening Silence',   floor: 6,  layers: ['drone'],                                                                       duration: 40000, boss: false, phrase: 'intro'      },
+  { label: 'The Descent',       floor: 18, layers: ['drone','wind','heartbeat'],                                                     duration: 45000, boss: false, phrase: 'build'      },
+  { label: 'Bone March',        floor: 30, layers: ['drone','wind','bass','perc'],                                                   duration: 45000, boss: false, phrase: 'build'      },
+  { label: 'Tension Builds',    floor: 42, layers: ['drone','bass','perc','wardrums','riser','melody'],                              duration: 50000, boss: false, phrase: 'tension'    },
+  { label: 'Shadow Army',       floor: 54, layers: ['drone','bass','perc','wardrums','stomp','melody','choir'],                      duration: 55000, boss: false, phrase: 'climax'     },
+  { label: 'Boss Threshold',    floor: 66, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos'],              duration: 50000, boss: true,  phrase: 'climax'     },
+  { label: 'The Void Tears',    floor: 78, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 55000, boss: true, phrase: 'climax' },
+  { label: 'Infernal Core',     floor: 92, layers: ['drone','bass','perc','wardrums','march','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 60000, boss: true, phrase: 'climax' },
+  { label: 'Ashes',             floor: 92, layers: ['drone','heartbeat','bells'],                                                    duration: 40000, boss: false, phrase: 'resolution' },
 ];
 
 const OST_CROSSFADE_DUR = 8.0; // seconds — overlap between steps
@@ -1509,7 +1509,7 @@ function startRandomJourney() {
   function journeyStep() {
     if (!isPlaying) return;
     
-    const JOURNEY_FLOORS = [1, 10, 18, 26, 35, 50, 65, 85];
+    const JOURNEY_FLOORS = [1, 13, 25, 37, 49, 61, 73, 85];
     const floor = JOURNEY_FLOORS[step] ?? 85;
 
     slider.value = floor;
@@ -1726,7 +1726,7 @@ const particles = [];
 // ── Zone presets ──────────────────────────────────────────────────
 const ZONES = [
   {
-    name:'Ashen Fields', range:[1,5], color:'#8b3a3a', bpm:58,
+    name:'Ashen Fields', range:[1,12], color:'#8b3a3a', bpm:58,
     root:41.2, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818],
     droneWave:'sine', droneFilterFreq:220, droneFilterQ:1.2,
     droneLfoRate:0.04, droneLfoDepth:80, droneAmpLfo:0.06,
@@ -1740,7 +1740,7 @@ const ZONES = [
     desc:'Sparse. Foreboding. Distant war drums echo across ash.'
   },
   {
-    name:'Rotwood Forest', range:[6,10], color:'#5a4a2a', bpm:66,
+    name:'Rotwood Forest', range:[13,24], color:'#5a4a2a', bpm:66,
     root:46.2, scale:[1,1.0595,1.1225,1.3348,1.4983,1.5874,1.6818],
     droneWave:'sawtooth', droneFilterFreq:280, droneFilterQ:3,
     droneLfoRate:0.09, droneLfoDepth:160, droneAmpLfo:0.09,
@@ -1754,7 +1754,7 @@ const ZONES = [
     desc:'Creaking wood. Dripping. Something follows in the dark.'
   },
   {
-    name:'Catacombs Deep', range:[11,18], color:'#3a3a5a', bpm:74,
+    name:'Catacombs Deep', range:[25,36], color:'#3a3a5a', bpm:74,
     root:36.7, scale:[1,1.0595,1.2599,1.3348,1.4142,1.5874,1.7818],
     droneWave:'sawtooth', droneFilterFreq:160, droneFilterQ:4,
     droneLfoRate:0.06, droneLfoDepth:300, droneAmpLfo:0.12,
@@ -1768,7 +1768,7 @@ const ZONES = [
     desc:'Bone-hollow reverb. The dead breathe here.'
   },
   {
-    name:'Shadowmere', range:[19,26], color:'#4a2a6a', bpm:82,
+    name:'Shadowmere', range:[37,48], color:'#4a2a6a', bpm:82,
     root:55, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
     droneWave:'sawtooth', droneFilterFreq:340, droneFilterQ:5,
     droneLfoRate:0.12, droneLfoDepth:450, droneAmpLfo:0.14,
@@ -1782,7 +1782,7 @@ const ZONES = [
     desc:'Wraith-song. Dense choir. Minor 2nd dissonance cuts through fog.'
   },
   {
-    name:"Sorcerer's Veil", range:[27,34], color:'#2a4a6a', bpm:90,
+    name:"Sorcerer's Veil", range:[49,60], color:'#2a4a6a', bpm:90,
     root:61.7, scale:[1,1.0595,1.1892,1.2599,1.4983,1.6818,1.7818],
     droneWave:'triangle', droneFilterFreq:500, droneFilterQ:6,
     droneLfoRate:0.18, droneLfoDepth:600, droneAmpLfo:0.18,
@@ -1796,7 +1796,7 @@ const ZONES = [
     desc:'Arcane shimmer. Fast arpeggios. Reality unravels at the edges.'
   },
   {
-    name:'Obsidian Keep', range:[35,42], color:'#6a2a4a', bpm:100,
+    name:'Obsidian Keep', range:[61,72], color:'#6a2a4a', bpm:100,
     root:49, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
     droneWave:'sawtooth', droneFilterFreq:420, droneFilterQ:3.5,
     droneLfoRate:0.22, droneLfoDepth:700, droneAmpLfo:0.2,
@@ -1810,7 +1810,7 @@ const ZONES = [
     desc:'Iron and blood. Full orchestral dread. War drums cascade.'
   },
   {
-    name:'Void Spire', range:[43,50], color:'#5a2a8a', bpm:110,
+    name:'Void Spire', range:[73,84], color:'#5a2a8a', bpm:110,
     root:51.9, scale:[1,1.0595,1.1225,1.3348,1.4142,1.5874,1.6818],
     droneWave:'sawtooth', droneFilterFreq:550, droneFilterQ:5,
     droneLfoRate:0.28, droneLfoDepth:900, droneAmpLfo:0.22,
@@ -1824,7 +1824,7 @@ const ZONES = [
     desc:'The spire tears through reality. Dissonant. Relentless.'
   },
   {
-    name:'Infernal Core', range:[51,99], color:'#8a1a1a', bpm:120,
+    name:'Infernal Core', range:[85,99], color:'#8a1a1a', bpm:120,
     root:43.65, scale:[1,1.0595,1.1225,1.2599,1.4142,1.4983,1.7818],
     droneWave:'sawtooth', droneFilterFreq:800, droneFilterQ:7,
     droneLfoRate:0.4, droneLfoDepth:1200, droneAmpLfo:0.3,
@@ -2685,7 +2685,20 @@ function updateFloorUI() {
     const f2 = parseInt(slider.value), np = getZone(f2), ni = isBoss ? Math.min(1, getIntensity(f2) + .4) : getIntensity(f2);
     const pb = buildPercBufs(np), changed = (np.name !== lastZoneName);
     lastZoneName = np.name;
-    barLength = (60 / np.bpm) * 4;
+    const oldBpm = (60 / barLength) * 4; // reverse-derive current bpm from barLength
+    if (Math.abs(np.bpm - oldBpm) > 1) {
+      const steps = 30, stepMs = 100;
+      let s = 0;
+      const bpmTimer = setInterval(() => {
+        s++;
+        const t = s / steps;
+        const interp = oldBpm + (np.bpm - oldBpm) * (1 - Math.pow(1 - t, 3));
+        barLength = (60 / interp) * 4;
+        if (s >= steps) clearInterval(bpmTimer);
+      }, stepMs);
+    } else {
+      barLength = (60 / np.bpm) * 4;
+    }
     LAYER_NAMES.forEach(name => {
       if (name === 'boss') { if (isBoss) startLayer(name, np, ni, null); return; }
       if (journeyActive && (name === 'drone' || name === 'bass')) return;
