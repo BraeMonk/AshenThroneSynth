@@ -2660,6 +2660,95 @@ function selectScale(id) {
 const slider = document.getElementById('floorSlider');
 let floorDebounce = null, lastZoneName = '';
 
+// ── Zone crossfade state ──────────────────────────────────────────
+let crossfadeTimer = null;
+
+function lerpZone(zA, zB, t) {
+  const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+  return {
+    ...zB,
+    bpm:             zA.bpm             + (zB.bpm             - zA.bpm)             * e,
+    droneFilterFreq: zA.droneFilterFreq + (zB.droneFilterFreq - zA.droneFilterFreq) * e,
+    droneFilterQ:    zA.droneFilterQ    + (zB.droneFilterQ    - zA.droneFilterQ)    * e,
+    droneLfoRate:    zA.droneLfoRate    + (zB.droneLfoRate    - zA.droneLfoRate)    * e,
+    droneLfoDepth:   zA.droneLfoDepth   + (zB.droneLfoDepth   - zA.droneLfoDepth)  * e,
+    droneAmpLfo:     zA.droneAmpLfo     + (zB.droneAmpLfo     - zA.droneAmpLfo)    * e,
+    root:            zA.root            + (zB.root            - zA.root)            * e,
+    bassFilterFreq:  zA.bassFilterFreq  + (zB.bassFilterFreq  - zA.bassFilterFreq)  * e,
+    vizR:            Math.round(zA.vizR + (zB.vizR - zA.vizR) * e),
+    vizG:            Math.round(zA.vizG + (zB.vizG - zA.vizG) * e),
+    vizB:            Math.round(zA.vizB + (zB.vizB - zA.vizB) * e),
+  };
+}
+
+function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
+  if (crossfadeTimer) { clearInterval(crossfadeTimer); crossfadeTimer = null; }
+
+  const STEPS     = 40;
+  const STEP_MS   = 150; // 40 × 150ms = 6 seconds total
+  let   step      = 0;
+
+  crossfadeTimer = setInterval(() => {
+    step++;
+    const t      = step / STEPS;
+    const blended = lerpZone(fromZone, toZone, t);
+
+    // BPM
+    barLength = (60 / blended.bpm) * 4;
+
+    // Drone — morph filter + LFO params live without restarting
+    if (layerOn['drone'] && nodes['drone'].length) {
+      nodes['drone'].forEach(n => {
+        if (n instanceof BiquadFilterNode) {
+          n.frequency.setTargetAtTime(
+            blended.droneFilterFreq + intensity * 600,
+            ctx.currentTime, 0.4
+          );
+          n.Q.setTargetAtTime(blended.droneFilterQ, ctx.currentTime, 0.4);
+        }
+        if (n instanceof OscillatorNode && n.frequency.value < 5) {
+          // LFO — identified by very low frequency
+          n.frequency.setTargetAtTime(blended.droneLfoRate, ctx.currentTime, 0.4);
+        }
+      });
+    }
+
+    // Visualizer color blend — update floor num display
+    const fn = document.getElementById('floorNum');
+    fn.style.color      = `rgb(${blended.vizR},${blended.vizG},${blended.vizB})`;
+    fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${blended.vizR},${blended.vizG},${blended.vizB},0.6)`;
+
+    // At halfway: restart melodic + perc layers with new zone params
+    // so they land on the new root/scale/patterns smoothly
+    if (step === Math.floor(STEPS * 0.5)) {
+      ['perc','wardrums','march','stomp','chains'].forEach(name => {
+        if (layerOn[name]) startLayer(name, toZone, intensity, percBufs);
+      });
+    }
+
+    // At 75%: swap melodic layers to new zone
+    if (step === Math.floor(STEPS * 0.75)) {
+      ['bass','melody','choir','lute','horn','bells','organ'].forEach(name => {
+        if (layerOn[name]) startLayer(name, toZone, intensity, null);
+      });
+    }
+
+    if (step >= STEPS) {
+      clearInterval(crossfadeTimer);
+      crossfadeTimer = null;
+      // Drone is already morphed close enough — only restart if root pitch
+      // drifted more than a semitone from destination
+      if (layerOn['drone']) {
+        const currentRoot = toZone.root;
+        const driftedRoot = lerpZone(fromZone, toZone, 1).root;
+        if (Math.abs(currentRoot - driftedRoot) > 1) {
+          startLayer('drone', toZone, intensity, null);
+        }
+      }
+    }
+  }, STEP_MS);
+}
+
 function updateFloorUI() {
   const floor = parseInt(slider.value), zone = getZone(floor), intensity = getIntensity(floor);
   document.getElementById('floorNum').textContent = floor;
@@ -2682,30 +2771,28 @@ function updateFloorUI() {
   clearTimeout(floorDebounce);
   floorDebounce = setTimeout(() => {
     initAudio();
-    const f2 = parseInt(slider.value), np = getZone(f2), ni = isBoss ? Math.min(1, getIntensity(f2) + .4) : getIntensity(f2);
-    const pb = buildPercBufs(np), changed = (np.name !== lastZoneName);
-    lastZoneName = np.name;
-    const oldBpm = (60 / barLength) * 4; // reverse-derive current bpm from barLength
-    if (Math.abs(np.bpm - oldBpm) > 1) {
-      const steps = 30, stepMs = 100;
-      let s = 0;
-      const bpmTimer = setInterval(() => {
-        s++;
-        const t = s / steps;
-        const interp = oldBpm + (np.bpm - oldBpm) * (1 - Math.pow(1 - t, 3));
-        barLength = (60 / interp) * 4;
-        if (s >= steps) clearInterval(bpmTimer);
-      }, stepMs);
+    const f2   = parseInt(slider.value);
+    const np   = getZone(f2);
+    const ni   = isBoss ? Math.min(1, getIntensity(f2) + .4) : getIntensity(f2);
+    const pb   = buildPercBufs(np);
+    const fromZone = ZONES.find(z => z.name === lastZoneName) || np;
+    const changed  = (np.name !== lastZoneName);
+    lastZoneName   = np.name;
+
+    if (changed) {
+      startZoneCrossfade(fromZone, np, ni, pb);
+      logTimeline(`Zone: ${np.name} · Floor ${f2}`);
+      setStatus(np.desc);
     } else {
+      // Same zone — just update BPM and restart layers normally
       barLength = (60 / np.bpm) * 4;
+      LAYER_NAMES.forEach(name => {
+        if (name === 'boss') { if (isBoss) startLayer(name, np, ni, null); return; }
+        if (journeyActive && (name === 'drone' || name === 'bass')) return;
+        if (layerOn[name]) startLayer(name, np, ni, PERC_BUF_LAYERS.has(name) ? pb : null);
+      });
+      setStatus(`Floor ${f2} · ${np.name}`);
     }
-    LAYER_NAMES.forEach(name => {
-      if (name === 'boss') { if (isBoss) startLayer(name, np, ni, null); return; }
-      if (journeyActive && (name === 'drone' || name === 'bass')) return;
-      if (layerOn[name]) startLayer(name, np, ni, PERC_BUF_LAYERS.has(name) ? pb : null);
-    });
-    if (changed) logTimeline(`Zone: ${np.name} · Floor ${f2}`);
-    setStatus(changed ? np.desc : `Floor ${f2} · ${np.name}`);
   }, 250);
 }
 
