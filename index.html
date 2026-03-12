@@ -1154,6 +1154,7 @@ const OST_STEPS = [
 
 const OST_CROSSFADE_DUR = 8.0; // seconds — overlap between steps
 let songGenTimer = null, songGenStep = 0, songGenRunning = false;
+let crawlInterval = null;
 let ostCurrentLayers = [];
 let journeyTimers = [];
   
@@ -1504,10 +1505,10 @@ function crawlToFloor(targetFloor, durationMs, onComplete) {
   const stepMs = durationMs / steps;
   let current = startFloor;
   const dir = targetFloor > startFloor ? 1 : -1;
-  const id = setInterval(() => {
+  if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
+  crawlInterval = setInterval(() => {
     current += dir;
     slider.value = current;
-    // Visual + zone bar only — no audio restart
     const floor = current;
     const zone = getZone(floor);
     document.getElementById('floorNum').textContent = floor;
@@ -1516,8 +1517,9 @@ function crawlToFloor(targetFloor, durationMs, onComplete) {
     document.getElementById('ciZone').textContent = zone.name;
     document.getElementById('ciFloor').textContent = `Void Floor ${floor}`;
     if (current === targetFloor) {
-      clearInterval(id);
-      updateFloorUI(); // only trigger audio crossfade once at destination
+      clearInterval(crawlInterval);
+      crawlInterval = null;
+      updateFloorUI();
       onComplete?.();
     }
   }, stepMs);
