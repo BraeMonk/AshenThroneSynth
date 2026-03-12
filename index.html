@@ -2172,13 +2172,16 @@ function pickVoice(layer) {
   
 // ── Layer builders ────────────────────────────────────────────────
 function buildDrone(preset, intensity, name) {
-  const b = bus[name], filt = mkFilt(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
+  const b = bus[name];
+  const filt = mkFilt(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
   filt.connect(b);
   [preset.root, preset.root * 1.5, preset.root * 2, preset.root * 3].forEach((f, i) => {
-    const o = mkOsc(f, i === 0 ? (sessionVoices['drone'] || preset.droneWave) : 'sine', (i - 1) * 9)
+    const o = mkOsc(f, i === 0 ? (sessionVoices['drone'] || preset.droneWave) : 'sine', (i - 1) * 9);
+    const g = mkGain(i === 0 ? 0.5 : 0.2);
     chain(o, g, filt); o.start(); reg(name, o, g);
   });
-  const dO = mkOsc(preset.root * 2, sessionVoices['drone'] || preset.droneWave, 14)
+  const dO = mkOsc(preset.root * 2, sessionVoices['drone'] || preset.droneWave, 14);
+  const dG = mkGain(0.15);
   chain(dO, dG, filt); dO.start(); reg(name, dO, dG);
   const lfo = mkOsc(preset.droneLfoRate + intensity * .1, 'sine'), lfoG = mkGain(preset.droneLfoDepth + intensity * 400);
   chain(lfo, lfoG); lfoG.connect(filt.frequency); lfo.start(); reg(name, lfo, lfoG);
@@ -2224,7 +2227,9 @@ function buildBass(preset, intensity, name) {
   function schedBar() {
     for (let i = 0; i < 8; i++) {
       const bt = t + i * beat * .5, freq = scaleFreq(preset, 0, preset.bassPattern[i]);
-      const o = mkOsc(freq, sessionVoices['bass'] || preset.bassWave)
+      const o = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
+      const filt = mkFilt(preset.bassFilterFreq + intensity * 300, 'lowpass', 2);
+      const env = mkGain(0);
       chain(o, filt, env, b);
       const v = .22 + intensity * .18;
       env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(v, bt + .015); env.gain.exponentialRampToValueAtTime(.001, bt + beat * .45);
@@ -2235,7 +2240,7 @@ function buildBass(preset, intensity, name) {
   schedBar();
 }
 
-function buildMelody(preset, intensity, name, journeyMode) {
+function buildMelody(preset, intensity, name) {
   const b = bus[name];
   const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
@@ -2248,12 +2253,10 @@ function buildMelody(preset, intensity, name, journeyMode) {
     const useMotif = (patIdx % 2 === 0);
     let motif = useMotif ? [...baseMotif] : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
 
-    // Motif transformations for variation
     if (rng() < 0.3) motif = motif.map(d => d + [-2,0,2][Math.floor(rng()*3)]);
     if (rng() < 0.2) motif = motif.reverse();
     if (rng() < 0.2) motif = motif.map(d => d + (rng()<0.5 ? 12 : -12));
 
-    // Counter-melody or harmony
     let counterMotif = null;
     if (rng() < 0.5) counterMotif = motif.map(d => d + [3,5,7][Math.floor(rng()*3)]);
 
@@ -2265,16 +2268,13 @@ function buildMelody(preset, intensity, name, journeyMode) {
       const dur = beat * (0.25 + rng()*0.35);
       const vel = 0.05 + intensity * 0.12 + rng()*0.02;
 
-      // --- MAIN LAYER ---
       const freq = scaleFreq(preset, preset.melodyOctave, deg);
-      const wave1 = sessionVoices['melody'] || 'triangle';
-      const wave2 = sessionVoices['melody'] || 'triangle';
-      const o1 = mkOsc(freq, wave1);
-      const o2 = mkOsc(freq*1.003, wave2);
+      const o1 = mkOsc(freq, sessionVoices['melody'] || 'triangle');
+      const o2 = mkOsc(freq * 1.003, sessionVoices['melody'] || 'triangle');
       const env = mkGain(0);
       const filt = mkFilt(1200 + intensity*1500, 'lowpass', 2);
-      const g1 = mkGain(0.55); const g2 = mkGain(0.28);
-      chain(o1,g1,filt); chain(o2,g2,filt); chain(filt,env,b);
+      const g1 = mkGain(0.55), g2 = mkGain(0.28);
+      chain(o1, g1, filt); chain(o2, g2, filt); chain(filt, env, b);
 
       env.gain.setValueAtTime(0, bt);
       env.gain.linearRampToValueAtTime(vel, bt+0.02);
@@ -2283,45 +2283,46 @@ function buildMelody(preset, intensity, name, journeyMode) {
 
       o1.start(bt); o1.stop(bt+dur+0.05);
       o2.start(bt); o2.stop(bt+dur+0.05);
-      reg(name, o1,o2,env,filt,g1,g2);
+      reg(name, o1, o2, env, filt, g1, g2);
 
-      // --- COUNTER-MELODY ---
       if (counterMotif) {
-        const cfreq = scaleFreq(preset,preset.melodyOctave,counterMotif[i]);
+        const cfreq = scaleFreq(preset, preset.melodyOctave, counterMotif[i]);
         const co1 = mkOsc(cfreq, sessionVoices['choir'] || 'sawtooth');
-        const co2 = mkOsc(cfreq*1.002, sessionVoices['choir'] || 'sawtooth');
+        const co2 = mkOsc(cfreq * 1.002, sessionVoices['choir'] || 'sawtooth');
         const cenv = mkGain(0);
-        const cg1 = mkGain(0.25); const cg2 = mkGain(0.12);
-        chain(co1,cg1,filt); chain(co2,cg2,filt); chain(filt,cenv,b);
+        const cfilt = mkFilt(1200 + intensity*1500, 'lowpass', 2);
+        const cg1 = mkGain(0.25), cg2 = mkGain(0.12);
+        chain(co1, cg1, cfilt); chain(co2, cg2, cfilt); chain(cfilt, cenv, b);
 
         cenv.gain.setValueAtTime(0, bt);
         cenv.gain.linearRampToValueAtTime(vel*0.6, bt+0.02);
         cenv.gain.linearRampToValueAtTime(0.001, bt+dur);
 
         co1.start(bt); co1.stop(bt+dur); co2.start(bt); co2.stop(bt+dur);
-        reg(name, co1,co2,cenv,cg1,cg2);
+        reg(name, co1, co2, cenv, cfilt, cg1, cg2);
       }
 
-      // --- HARMONIC OVERLAY ---
-      if (rng()<0.3) {
+      if (rng() < 0.3) {
         const overlayDeg = deg + [7,12,19][Math.floor(rng()*3)];
-        const oo1 = mkOsc(..., sessionVoices['bells'] || 'sine');
-        const oo2 = mkOsc(..., sessionVoices['bells'] || 'sine');
-        const oenv = mkGain(0); const og1 = mkGain(0.18); const og2 = mkGain(0.08);
-        chain(oo1,og1,filt); chain(oo2,og2,filt); chain(filt,oenv,b);
+        const overlayFreq = scaleFreq(preset, preset.melodyOctave, overlayDeg);
+        const oo1 = mkOsc(overlayFreq, sessionVoices['bells'] || 'sine');
+        const oo2 = mkOsc(overlayFreq * 1.002, sessionVoices['bells'] || 'sine');
+        const ofilt = mkFilt(3000 + intensity*2000, 'lowpass', 1);
+        const oenv = mkGain(0), og1 = mkGain(0.18), og2 = mkGain(0.08);
+        chain(oo1, og1, ofilt); chain(oo2, og2, ofilt); chain(ofilt, oenv, b);
 
-        oenv.gain.setValueAtTime(0,bt);
-        oenv.gain.linearRampToValueAtTime(vel*0.35,bt+0.02);
-        oenv.gain.linearRampToValueAtTime(0.001,bt+dur);
+        oenv.gain.setValueAtTime(0, bt);
+        oenv.gain.linearRampToValueAtTime(vel*0.35, bt+0.02);
+        oenv.gain.linearRampToValueAtTime(0.001, bt+dur);
 
         oo1.start(bt); oo1.stop(bt+dur); oo2.start(bt); oo2.stop(bt+dur);
-        reg(name, oo1,oo2,oenv,og1,og2);
+        reg(name, oo1, oo2, ofilt, oenv, og1, og2);
       }
     }
 
     t += beat * 4;
     patIdx++;
-    regT(name,setTimeout(schedBar,(beat*3.6)*1000));
+    regT(name, setTimeout(schedBar, (beat*3.6)*1000));
   }
 
   schedBar();
@@ -2330,7 +2331,8 @@ function buildMelody(preset, intensity, name, journeyMode) {
 function buildChoir(preset, intensity, name) {
   const b = bus[name];
   [0, 2, 4].forEach((deg, vi) => {
-    const freq = scaleFreq(preset, 2, deg), o = mkOsc(freq, sessionVoices['choir'] || 'sawtooth', vi * 4)
+    const freq = scaleFreq(preset, 2, deg);
+    const o = mkOsc(freq, sessionVoices['choir'] || 'sawtooth', vi * 4);
     const f1 = mkFilt(preset.choirFormants[0], 'bandpass', 9), f2 = mkFilt(preset.choirFormants[1], 'bandpass', 7), f3 = mkFilt(preset.choirFormants[2], 'bandpass', 5);
     const m = mkGain(.38); chain(o, f1, m); chain(o, f2, m); chain(o, f3, m); m.connect(b);
     const vib = mkOsc(preset.choirVibRate + vi * .4, 'sine'), vibG = mkGain(preset.choirVibDepth);
@@ -2342,7 +2344,7 @@ function buildChoir(preset, intensity, name) {
 function buildChaos(preset, intensity, name) {
   const b = bus[name];
   [1.05, 1.13, .97, 1.21].forEach((mult, i) => {
-    const o = mkOsc(preset.root * 4 * mult, sessionVoices['chaos'] || (i % 2 === 0 ? 'square' : 'sawtooth'), i * 18 - 9)
+    const o = mkOsc(preset.root * 4 * mult, sessionVoices['chaos'] || (i % 2 === 0 ? 'square' : 'sawtooth'), i * 18 - 9);
     const filt = mkFilt(500 + rng() * 600, 'bandpass', 6), env = mkGain(0);
     const trem = mkOsc(6 + i * 3, 'sine'), tG = mkGain(.25);
     chain(trem, tG); tG.connect(env.gain); chain(o, filt, env, b);
@@ -2354,7 +2356,9 @@ function buildChaos(preset, intensity, name) {
 function buildBoss(preset, intensity, name) {
   const b = bus[name];
   [preset.root * .5, preset.root * .75].forEach((freq, i) => {
-    const o = mkOsc(freq, sessionVoices['boss'] || 'sawtooth', i * 22)
+    const o = mkOsc(freq, sessionVoices['boss'] || 'sawtooth', i * 22);
+    const filt = mkFilt(300 + intensity * 600, 'lowpass', 3);
+    const env = mkGain(0);
     const lfo = mkOsc(1.8 + i * .6, 'square'), lfoG = mkGain(.28);
     chain(lfo, lfoG); lfoG.connect(env.gain); chain(o, filt, env, b);
     env.gain.linearRampToValueAtTime(.28, ctx.currentTime + 1.2);
@@ -2401,7 +2405,6 @@ function buildWind(preset, intensity, name) {
 }
 
 function buildRiser(preset, intensity, name) {
-  reg(name, mkGain(0));
   const b = bus[name]; const duration = 16;
   const bufLen = ctx.sampleRate * 3;
   const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
@@ -2536,7 +2539,8 @@ function buildLute(preset, intensity, name) {
     for (let i = 0; i < pat.length; i++) {
       if (rng() < 0.3) continue;
       const bt = t + i * beat * 0.5, freq = scaleFreq(preset, preset.melodyOctave + 1, pat[i]);
-      const osc = mkOsc(freq, sessionVoices['lute'] || 'sawtooth')
+      const osc = mkOsc(freq, sessionVoices['lute'] || 'sawtooth');
+      const osc2 = mkOsc(freq * 1.004, sessionVoices['lute'] || 'sawtooth');
       const filt = mkFilt(freq * 3, 'lowpass', 0.8), env = mkGain(0), g1 = mkGain(0.6), g2 = mkGain(0.25);
       chain(osc, g1, filt); chain(osc2, g2, filt); chain(filt, env, b);
       const vol = 0.06 + intensity * 0.08, dur = beat * (0.15 + rng() * 0.2);
@@ -2558,7 +2562,7 @@ function buildHorn(preset, intensity, name) {
     const deg = pair[Math.floor(rng() * pair.length)];
     const freq = scaleFreq(preset, preset.melodyOctave, deg);
     const dur = beat * (3 + rng() * 2);
-    const o1 = mkOsc(freq, sessionVoices['horn'] || 'sawtooth'), o2 = mkOsc(freq * 1.002, sessionVoices['horn'] || 'sawtooth')
+    const o1 = mkOsc(freq, sessionVoices['horn'] || 'sawtooth'), o2 = mkOsc(freq * 1.002, sessionVoices['horn'] || 'sawtooth');
     const formant = mkFilt(800 + intensity * 400, 'bandpass', 3), bright = mkFilt(1800, 'lowpass', 1), env = mkGain(0);
     const g1 = mkGain(0.5), g2 = mkGain(0.3);
     chain(o1, g1, formant); chain(o2, g2, formant); chain(formant, bright, env, b);
@@ -2639,7 +2643,9 @@ function buildRitualChant(preset, intensity, name) {
   let idx = 0, t = ctx.currentTime + 0.1;
   function schedHit() {
     const bt = t, freq = scaleFreq(preset, 1, chantDegs[idx++ % chantDegs.length]);
-    const o = mkOsc(freq, sessionVoices['ritualchant'] || 'square')
+    const o = mkOsc(freq, sessionVoices['ritualchant'] || 'square');
+    const filt = mkFilt(600 + intensity * 400, 'lowpass', 2);
+    const env = mkGain(0);
     chain(o, filt, env, b);
     const vol = 0.06 + intensity * 0.07, dur = beat * 0.8;
     env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(vol, bt + 0.02); env.gain.setValueAtTime(vol * 0.6, bt + dur * 0.4); env.gain.linearRampToValueAtTime(0.001, bt + dur);
@@ -2651,7 +2657,6 @@ function buildRitualChant(preset, intensity, name) {
 }
 
 function buildGlitch(preset, intensity, name) {
-  reg(name, mkGain(0));
   const b = bus[name], sr = ctx.sampleRate;
   function schedGlitch() {
     if (!layerOn[name]) return;
@@ -2682,18 +2687,14 @@ const PERC_BUF_LAYERS = new Set(['perc','wardrums','chains','march','stomp']);
 
 function startLayer(name, preset, intensity, percBufs) {
   killLayer(name);
-
-  // Pick a voice automatically in Journey mode
-  if (journeyMode) {
+  if (journeyActive) {
     preset.journeyVoice = pickVoice(name);
   }
-
   if (PERC_BUF_LAYERS.has(name)) {
     BUILDERS[name](preset, intensity, name, percBufs || buildPercBufs(preset));
   } else {
     BUILDERS[name](preset, intensity, name);
   }
-
   fadeIn(bus[name], busTarget(name, intensity), FADE_IN);
 }
 
