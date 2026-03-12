@@ -1403,12 +1403,12 @@ function buildPresetUI() {
 
 // ── Coherent Randomizer ───────────────────────────────────────────
 const LAYER_ARCHETYPES = {
-  desolate:  { required: ['drone'],                    pool: ['wind','heartbeat','whispers','firecrackle','bells'],     max: 3, floors: [1,20]  },
-  marching:  { required: ['drone','bass'],             pool: ['perc','wardrums','march','stomp','chains','horn'],       max: 4, floors: [15,60] },
-  choral:    { required: ['drone','choir'],            pool: ['organ','bells','heartbeat','ritualchant','lute'],        max: 3, floors: [10,50] },
-  combat:    { required: ['drone','bass','perc'],      pool: ['wardrums','stomp','march','chaos','melody','choir'],     max: 5, floors: [25,80] },
-  arcane:    { required: ['drone','melody'],           pool: ['lute','bells','riser','glitch','choir','organ'],         max: 4, floors: [20,70] },
-  nightmare: { required: ['drone','bass','chaos'],     pool: ['wardrums','stomp','glitch','ritualchant','riser'],       max: 5, floors: [40,99] },
+  desolate:  { required: ['drone'],                    pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ'],              max: 3, floors: [1,20]  },
+  marching:  { required: ['drone','bass'],             pool: ['perc','wardrums','march','stomp','chains','horn','melody','ritualchant'],          max: 5, floors: [15,60] },
+  choral:    { required: ['drone','choir'],            pool: ['organ','bells','heartbeat','ritualchant','lute','melody','whispers','riser'],      max: 4, floors: [10,50] },
+  combat:    { required: ['drone','bass','perc'],      pool: ['wardrums','stomp','march','chaos','melody','choir','horn','chains','ritualchant'], max: 6, floors: [25,80] },
+  arcane:    { required: ['drone','melody'],           pool: ['lute','bells','riser','glitch','choir','organ','whispers','heartbeat'],            max: 5, floors: [20,70] },
+  nightmare: { required: ['drone','bass','chaos'],     pool: ['wardrums','stomp','glitch','ritualchant','riser','perc','march','choir','bells'],  max: 6, floors: [40,99] },
 };
 
 function getEligibleArchetypes(floor) {
