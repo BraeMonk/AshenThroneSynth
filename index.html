@@ -1155,7 +1155,8 @@ const OST_STEPS = [
 const OST_CROSSFADE_DUR = 8.0; // seconds — overlap between steps
 let songGenTimer = null, songGenStep = 0, songGenRunning = false;
 let ostCurrentLayers = [];
-
+let journeyTimers = [];
+  
 function startSongGen() {
   if (!isPlaying) togglePlay();
   songGenStep = 0;
@@ -1278,6 +1279,9 @@ function stopSongGen() {
   document.getElementById('songGenFill').style.width = '0%';
   songGenStep = 0;
   ostCurrentLayers = [];
+  journeyTimers.forEach(clearTimeout);
+  journeyTimers = [];
+  journeyActive = false;
 }
   
 // ── Scales ───────────────────────────────────────────────────────
@@ -1602,7 +1606,7 @@ function startRandomJourney() {
     if (step < JOURNEY_STEPS) {
       const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
       crawlToFloor(floor, dur * 0.6, null);
-      setTimeout(journeyStep, dur);
+      journeyTimers.push(setTimeout(journeyStep, dur));
 
     } else {
       journeyActive = false;
@@ -2734,6 +2738,9 @@ function stopSynth() {
   });
   stopPhraseEngine();
   if (sessionStartTime) logTimeline('Stop');
+  journeyTimers.forEach(clearTimeout);
+  journeyTimers = [];
+  journeyActive = false;
 }
 
 // ── Controls ──────────────────────────────────────────────────────
