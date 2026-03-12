@@ -1501,10 +1501,6 @@ function startRandomJourney() {
   let step = 0;
   
   journeyActive = true;
-
-  const allJourneyScales = [...new Set(Object.values(SCALE_MOODS).flat())];
-  const journeyScale = allJourneyScales[Math.floor(Math.random() * allJourneyScales.length)];
-  selectScale(journeyScale);
   
   function journeyStep() {
     if (!isPlaying) return;
@@ -1570,6 +1566,11 @@ function startRandomJourney() {
     autoEvolution = true;
     startPhraseEngine();
 
+    const scaleMood = JOURNEY_SCALE_ARC[step] || 'dread';
+    const moodScales = SCALE_MOODS[scaleMood];
+    const newScale = moodScales[Math.floor(rng() * moodScales.length)];
+    selectScale(newScale);
+    
     setStatus(`🌑 Journey · ${archetypeName} · Floor ${floor}`);
     logTimeline(`Journey step ${step + 1}: ${archetypeName} · Floor ${floor}`);
     document.getElementById('randArchetypeLabel').textContent = archetypeName.toUpperCase();
