@@ -1476,7 +1476,6 @@ function randomizeCoherent(forcedArchetype) {
     currentPhrase = phraseSeq[0];
     autoEvolution = true;
 
-    if (!isPlaying) togglePlay();
     startPhraseEngine();
   }, FADE_OUT * 1000 + 100);
 }
@@ -1494,7 +1493,6 @@ const SCALE_MOODS = {
 const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dread', 'dread'];
 
 function startRandomJourney() {
-  if (!isPlaying) togglePlay();
   
   const JOURNEY_STEPS = 8;
   const startFloor = parseInt(slider.value);
