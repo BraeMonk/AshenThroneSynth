@@ -822,7 +822,12 @@ let fxInput = null;
 let reverbNode = null, reverbDryGain = null, reverbWetGain = null;
 let delayNode = null, delayFbGain = null, delayWetGain = null;
 let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF = null;
-
+let rhythmBus    = null, rhythmComp    = null;
+let melodicBus   = null, melodicComp   = null;
+let dangerBus    = null, dangerLimiter = null;
+let bassScGain   = null; // sits between bass bus output and fxInput
+let sidechainActive = false;
+  
 let _reverbSize = 0.4, _reverbMix = 0.18, _delayTime = 0.0, _delayFb = 0.0;
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
 let _saturation = 0.08;
@@ -1979,57 +1984,133 @@ function initAudio() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
   ctx.resume();
-
+ 
+  // ── Master gain ───────────────────────────────────────────────
+  // Raised slightly because individual bus gains are all lower now
   masterGain = ctx.createGain();
-  masterGain.gain.value = 0.55;
-
-  // Subsonic HPF
+  masterGain.gain.value = 0.72; // was 0.55 — compensates for lower bus gains
+ 
+  // ── Subsonic HPF ──────────────────────────────────────────────
   masterHPF = ctx.createBiquadFilter();
   masterHPF.type = 'highpass';
   masterHPF.frequency.value = 30;
-
-  // Saturation (WaveShaper)
+ 
+  // ── Saturation ────────────────────────────────────────────────
   saturationNode = ctx.createWaveShaper();
   saturationNode.curve = makeSatCurve(_saturation);
   saturationNode.oversample = '4x';
-
   const satMakeup = ctx.createGain();
-  satMakeup.gain.value = 1.4;
-  saturationNode.connect(satMakeup);
-  
-  // Mood filter (master lowpass modulated by mood)
+  satMakeup.gain.value = 1.2; // was 1.4 — less makeup needed, lower bus gains
+ 
+  // ── Mood filter ───────────────────────────────────────────────
   moodFilter = ctx.createBiquadFilter();
   moodFilter.type = 'lowpass';
   moodFilter.frequency.value = 4000 + _mood * 8000;
   moodFilter.Q.value = 0.5 + _mood * 2;
-
-  // Master compressor / limiter
+ 
+  // ── Master compressor ─────────────────────────────────────────
+  // Gentler settings — it's now a glue compressor, not a lifesaver
   masterCompressor = ctx.createDynamicsCompressor();
-  masterCompressor.threshold.value = -12;
-  masterCompressor.knee.value = 6;
-  masterCompressor.ratio.value = 6;
-  masterCompressor.attack.value = 0.003;
-  masterCompressor.release.value = 0.25;
-
-  analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
-
-  // Chain: masterGain → HPF → saturation → moodFilter → compressor → analyser → destination
+  masterCompressor.threshold.value = -14; // was -12
+  masterCompressor.knee.value      = 8;   // was 6 — softer knee
+  masterCompressor.ratio.value     = 4;   // was 6 — less aggressive
+  masterCompressor.attack.value    = 0.008; // was 0.003 — let transients breathe
+  masterCompressor.release.value   = 0.35;  // was 0.25 — slower release = less pumping
+ 
+  // ── Analyser ──────────────────────────────────────────────────
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+ 
+  // ── Master chain ──────────────────────────────────────────────
   masterGain.connect(masterHPF);
   masterHPF.connect(saturationNode);
+  saturationNode.connect(satMakeup);
   satMakeup.connect(moodFilter);
   moodFilter.connect(masterCompressor);
   masterCompressor.connect(analyser);
   analyser.connect(ctx.destination);
-
+ 
+  // ── Record destination ────────────────────────────────────────
   recDest = ctx.createMediaStreamDestination();
   masterCompressor.connect(recDest);
-
-  fxInput = ctx.createGain(); fxInput.gain.value = 1.0;
+ 
+  // ── FX input ─────────────────────────────────────────────────
+  fxInput = ctx.createGain();
+  fxInput.gain.value = 1.0;
   buildFXChain();
-
+ 
+  // ── Group buses ───────────────────────────────────────────────
+ 
+  // RHYTHM BUS — punchy, transient-preserving compressor
+  rhythmBus  = ctx.createGain(); rhythmBus.gain.value  = 1.0;
+  rhythmComp = ctx.createDynamicsCompressor();
+  rhythmComp.threshold.value = -18;
+  rhythmComp.knee.value      = 4;
+  rhythmComp.ratio.value     = 5;
+  rhythmComp.attack.value    = 0.001; // very fast — catches transients but lets crack through
+  rhythmComp.release.value   = 0.12;
+  // High-pass the whole rhythm bus — nothing below 60Hz
+  const rhythmHPF = ctx.createBiquadFilter();
+  rhythmHPF.type = 'highpass';
+  rhythmHPF.frequency.value = 60;
+  rhythmBus.connect(rhythmHPF);
+  rhythmHPF.connect(rhythmComp);
+  rhythmComp.connect(fxInput);
+ 
+  // MELODIC BUS — gentle glue, soft knee, tame the top end slightly
+  melodicBus  = ctx.createGain(); melodicBus.gain.value  = 1.0;
+  melodicComp = ctx.createDynamicsCompressor();
+  melodicComp.threshold.value = -20;
+  melodicComp.knee.value      = 10;  // very soft knee — transparent
+  melodicComp.ratio.value     = 3;
+  melodicComp.attack.value    = 0.015;
+  melodicComp.release.value   = 0.4;
+  // Shelf: pull top end down very slightly on the melodic bus
+  // Stops melody/choir/horn from getting brittle at high intensity
+  const melodicShelf = ctx.createBiquadFilter();
+  melodicShelf.type            = 'highshelf';
+  melodicShelf.frequency.value = 6000;
+  melodicShelf.gain.value      = -3; // -3dB above 6k — subtle air reduction
+  melodicBus.connect(melodicComp);
+  melodicComp.connect(melodicShelf);
+  melodicShelf.connect(fxInput);
+ 
+  // DANGER BUS — hard limiter, these layers should never dominate
+  dangerBus     = ctx.createGain(); dangerBus.gain.value = 1.0;
+  dangerLimiter = ctx.createDynamicsCompressor();
+  dangerLimiter.threshold.value = -24; // hits early
+  dangerLimiter.knee.value      = 2;   // hard knee
+  dangerLimiter.ratio.value     = 12;  // near-limiting
+  dangerLimiter.attack.value    = 0.001;
+  dangerLimiter.release.value   = 0.2;
+  dangerBus.connect(dangerLimiter);
+  dangerLimiter.connect(fxInput);
+ 
+  // BASS SIDECHAIN GAIN — sits in the bass→fxInput path
+  // Triggered manually by perc/stomp builders on kick transients
+  bassScGain = ctx.createGain();
+  bassScGain.gain.value = 1.0;
+  bassScGain.connect(fxInput);
+ 
+  // ── Individual layer buses ────────────────────────────────────
   LAYER_NAMES.forEach(name => {
-    const b = ctx.createGain(); b.gain.value = 0;
-    b.connect(fxInput); bus[name] = b;
+    const b = ctx.createGain();
+    b.gain.value = 0;
+ 
+    // Route to the correct group bus
+    if (RHYTHM_LAYERS.has(name)) {
+      b.connect(rhythmBus);
+    } else if (MELODIC_LAYERS.has(name)) {
+      b.connect(melodicBus);
+    } else if (DANGER_LAYERS.has(name)) {
+      b.connect(dangerBus);
+    } else if (name === 'bass') {
+      b.connect(bassScGain); // bass goes through sidechain gain
+    } else {
+      b.connect(fxInput);    // drone, heartbeat, wind, riser, firecrackle, whispers, boss
+    }
+ 
+    bus[name] = b;
   });
 }
 
@@ -2046,6 +2127,16 @@ function makeSatCurve(amount) {
     }
   }
   return curve;
+}
+
+function triggerSidechain(hitTime, duckAmount, releaseTime) {
+  if (!bassScGain) return;
+  const g = bassScGain.gain;
+  g.cancelScheduledValues(hitTime);
+  g.setValueAtTime(1.0, hitTime);
+  g.linearRampToValueAtTime(duckAmount, hitTime + 0.004); // near-instant duck
+  g.exponentialRampToValueAtTime(0.9999, hitTime + releaseTime); // smooth recovery
+  g.setValueAtTime(1.0, hitTime + releaseTime + 0.01);
 }
 
 // ── FX chain ──────────────────────────────────────────────────────
@@ -2205,31 +2296,44 @@ function killLayer(name) {
 
 function busTarget(n, i) {
   return {
-    drone:.55+i*.2,        // was .7+i*.3
-    bass:.75,              // was 1.0
-    heartbeat:.5+i*.2,     // was .7+i*.3
-    wind:.4+i*.25,         // was .55+i*.35
-    riser:.45+i*.3,        // was .6+i*.4
-    firecrackle:.35+i*.2,  // was .5+i*.3
-    perc:.85,              // was 1.2
-    wardrums:.8+i*.15,     // was 1.1+i*.2
-    chains:.55+i*.2,       // was .75+i*.3
-    march:.65+i*.2,        // was .85+i*.3
-    stomp:.75+i*.15,       // was 1.0+i*.2
-    melody:.75,            // was 1.0
-    choir:.55+i*.18,       // was .75+i*.25
-    lute:.6+i*.18,         // was .8+i*.25
-    horn:.65+i*.18,        // was .85+i*.25
-    bells:.5+i*.25,        // was .7+i*.35
-    organ:.55+i*.18,       // was .75+i*.25
-    chaos:.4*i,            // was .6*i
-    whispers:.4+i*.18,     // was .55+i*.25
-    ritualchant:.5+i*.18,  // was .7+i*.25
-    glitch:.35*i,          // was .5*i
-    boss:.65               // was .9
-  }[n] ?? 0.45;
+    // FOUNDATION — low gains, they sit under everything
+    // Drone is texture not lead — keep it felt not heard
+    drone:       0.28 + i * 0.10,   // was 0.55+i*0.2 — far too loud as a bed
+    bass:        0.32 + i * 0.14,   // was flat 0.75 — now breathes with intensity
+    heartbeat:   0.22 + i * 0.12,   // was 0.5+i*0.2
+ 
+    // ATMOSPHERE — low, spacial, never competes with rhythm
+    wind:        0.18 + i * 0.12,   // was 0.4+i*0.25
+    riser:       0.20 + i * 0.18,   // was 0.45+i*0.3 — riser should build, not sit loud
+    firecrackle: 0.14 + i * 0.10,   // was 0.35+i*0.2
+ 
+    // RHYTHM — perc is the loudest thing, everything else supports it
+    perc:        0.55 + i * 0.10,   // was flat 0.85 — still punchy, less crushing
+    wardrums:    0.38 + i * 0.14,   // was 0.8+i*0.15 — was the loudest layer, now sits behind perc
+    chains:      0.22 + i * 0.10,   // was 0.55+i*0.2
+    march:       0.28 + i * 0.10,   // was 0.65+i*0.2
+    stomp:       0.32 + i * 0.12,   // was 0.75+i*0.15
+ 
+    // MELODIC — shared melodic bus handles blending
+    // Individual gains are modest — the bus glues them
+    melody:      0.30 + i * 0.08,   // was flat 0.75
+    choir:       0.24 + i * 0.10,   // was 0.55+i*0.18
+    lute:        0.22 + i * 0.08,   // was 0.6+i*0.18 — lute is delicate, don't push it
+    horn:        0.26 + i * 0.10,   // was 0.65+i*0.18
+    bells:       0.20 + i * 0.12,   // was 0.5+i*0.25
+    organ:       0.22 + i * 0.08,   // was 0.55+i*0.18
+ 
+    // CHAOS — correctly scales from 0, but was too loud at i=1
+    chaos:       0.00 + i * 0.18,   // was 0.4*i — 0.4 was too loud
+    whispers:    0.16 + i * 0.10,   // was 0.4+i*0.18 — whispers should whisper
+    ritualchant: 0.20 + i * 0.10,   // was 0.5+i*0.18
+    glitch:      0.00 + i * 0.14,   // was 0.35*i
+ 
+    // BOSS — slightly louder than normal layers, that's its job
+    boss:        0.38 + i * 0.10,   // was flat 0.65
+  }[n] ?? 0.22;
 }
-
+  
 // ── VOICE BANKS ───────────────────────────────
 const VOICE_BANKS = {
   drone:      ['sine', 'triangle', 'sawtooth', 'customDrone1', 'customDrone2'],
@@ -2816,10 +2920,11 @@ function buildPerc(preset, intensity, name, bufs) {
     for (let i = 0; i < 16; i++) {
       const t = barStart + i * step;
       if (patterns.kick[i] && rng() > 0.05) {
-        const s = ctx.createBufferSource(); s.buffer = bufs.kick;
-        const g = mkGain(0.8 + intensity * 0.2);
-        chain(s, g, b); s.start(t); reg(name, s, g);
-      }
+       const s = ctx.createBufferSource(); s.buffer = bufs.kick;
+       const g = mkGain(0.8 + intensity * 0.2);
+       chain(s, g, b); s.start(t); reg(name, s, g);
+       triggerSidechain(t, 0.55, 0.12); // duck bass -5dB for 120ms
+     }
       if (patterns.snare[i] && intensity > 0.1 && rng() > 0.08) {
         const s = ctx.createBufferSource(); s.buffer = bufs.snare;
         const g = mkGain(0.45 + intensity * 0.4);
@@ -2860,11 +2965,12 @@ function buildBass(preset, intensity, name) {
 
         // Main tone — gentle saturation, not hard clip
         const o      = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
-        const filt   = mkFilt(preset.bassFilterFreq + intensity * 250, 'lowpass', 1.4);
+        const bassHPF = mkFilt(55, 'highpass', 0.7);
+        const filt    = mkFilt(preset.bassFilterFreq + intensity * 250, 'lowpass', 1.4);
         const shaper = ctx.createWaveShaper();
         shaper.curve = makeSatCurve(0.12); // was 0.35 — much cleaner
         const env    = mkGain(0);
-        chain(o, filt, shaper, env, b);
+        chain(o, bassHPF, filt, shaper, env, b);
 
         // Sub — shorter stop time so it doesn't blur into next note
         const sub     = mkOsc(freq * 0.5, 'sine');
@@ -3025,9 +3131,10 @@ function buildChoir(preset, intensity, name) {
     const f4 = mkFilt(preset.choirFormants[2] * 1.6, 'bandpass',  3);
 
     const m = mkGain(0.32);
+    const choirHPF = mkFilt(180, 'highpass', 0.7);
     o.connect(f1); o.connect(f2); o.connect(f3); o.connect(f4);
     f1.connect(m); f2.connect(m); f3.connect(m); f4.connect(m);
-    m.connect(b);
+    m.connect(choirHPF); choirHPF.connect(b);
 
     // Vibrato
     const vib  = mkOsc(preset.choirVibRate + vi * 0.5, 'sine');
@@ -3611,12 +3718,13 @@ function buildStomp(preset, intensity, name) {
       const accent = (i === 0 || i === 8);
 
       if (pat[i]) {
-        const buf  = (accent && intensity > 0.6) ? stompAccent : heavyStomp;
-        const filt = mkFilt(180, 'lowpass', 1.5);
-        const g    = mkGain((accent ? 0.85 : 0.65) + intensity * 0.2);
-        const s    = ctx.createBufferSource(); s.buffer = buf;
-        chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
-      }
+       const buf  = (accent && intensity > 0.6) ? stompAccent : heavyStomp;
+       const filt = mkFilt(180, 'lowpass', 1.5);
+       const g    = mkGain((accent ? 0.85 : 0.65) + intensity * 0.2);
+       const s    = ctx.createBufferSource(); s.buffer = buf;
+       chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+       if (accent) triggerSidechain(t, 0.65, 0.18); // lighter duck on stomp
+     }
 
       if (offPat[i] && intensity > 0.45) {
         const s    = ctx.createBufferSource(); s.buffer = lightStomp;
@@ -3855,7 +3963,10 @@ function buildOrgan(preset, intensity, name) {
     { freq: third,       gain: 0.10 }, // 3rd — adds some warmth
   ];
 
-  const mix     = mkGain(0.7); mix.connect(b);
+  const mix     = mkGain(0.7);
+  const orgHPF  = mkFilt(80, 'highpass', 0.6);
+  mix.connect(orgHPF); orgHPF.connect(b);
+  reg(name, orgHPF);
   // Air filter — softens the harsh top end
   const airFilt = mkFilt(2800 + intensity * 1500, 'lowpass', 0.65);
   airFilt.connect(mix);
@@ -3935,9 +4046,14 @@ function buildWhispers(preset, intensity, name) {
   breathSrc.buffer = noiseBuf; breathSrc.loop = true;
   const breathFilt = mkFilt(3000, 'highpass', 0.4);
   const breathG    = mkGain(0.008 + intensity * 0.006);
-  chain(breathSrc, breathFilt, breathG, b);
+  chain(breathSrc, breathFilt, whisperNotch, breathG, b);
   breathSrc.start();
   reg(name, breathSrc, breathFilt, breathG);
+
+  const mix     = mkGain(0.7);
+  const orgHPF  = mkFilt(80, 'highpass', 0.6);
+  mix.connect(orgHPF); orgHPF.connect(b);
+  reg(name, orgHPF);
 }
 
 function buildRitualChant(preset, intensity, name) {
