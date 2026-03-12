@@ -944,6 +944,63 @@ function tickBar() {
   phraseBar++;
   totalBar++;
 
+  // ── Drain the pending queue ──────────────────────────────────────
+  // Work on a snapshot so any startLayer calls that re-enqueue don't
+  // mutate the array we're iterating
+  const due = pendingLayerChanges.filter(c => c.targetBar <= totalBar);
+  due.forEach(c => {
+    const idx = pendingLayerChanges.indexOf(c);
+    if (idx !== -1) pendingLayerChanges.splice(idx, 1);
+
+    if (c.type === 'stop') {
+      // Zone name sentinel
+      if (c.name === '__zoneName__') {
+        const zEl = document.getElementById('zoneName');
+        zEl.classList.add('changing');
+        setTimeout(() => {
+          zEl.textContent = c.toZone.name;
+          zEl.classList.remove('changing');
+        }, 150);
+        document.getElementById('ciZone').textContent = c.toZone.name;
+        setStatus(c.toZone.desc);
+        return;
+      }
+      if (!layerOn[c.name]) stopLayer(c.name); // only stop if still off
+      return;
+    }
+
+    // 'start' or 'morph' — only fire if layer is still supposed to be on
+    if (!layerOn[c.name] && c.type !== 'morph') return;
+    startLayer(c.name, c.toZone, c.intensity,
+      PERC_BUF_LAYERS.has(c.name) ? (c.percBufs ?? buildPercBufs(c.toZone)) : null);
+  });
+
+  // ── BPM crossfade ────────────────────────────────────────────────
+  if (xfade.active) {
+    const elapsed = totalBar - xfade.startBar;
+    const t       = Math.min(1, elapsed / xfade.totalBars);
+    const e       = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    const newBpm  = xfade.bpmStart + (xfade.bpmEnd - xfade.bpmStart) * e;
+    barLength     = (60 / newBpm) * 4;
+
+    // Update drone nodes live
+    if (xfade.fromZone && xfade.toZone) {
+      const blended = lerpZone(xfade.fromZone, xfade.toZone, e);
+      morphDroneNodes(blended, xfade.intensity ?? 0);
+
+      // Color lerp
+      const fn = document.getElementById('floorNum');
+      fn.style.color      = `rgb(${blended.vizR},${blended.vizG},${blended.vizB})`;
+      fn.style.textShadow = `0 0 ${20 + (xfade.intensity ?? 0) * 30}px `
+                          + `rgba(${blended.vizR},${blended.vizG},${blended.vizB},0.6)`;
+    }
+
+    if (t >= 1) {
+      xfade.active  = false;
+      barLength     = (60 / xfade.bpmEnd) * 4;
+    }
+  }
+
   updatePhraseUI();
   updateDebug();
 
@@ -3731,50 +3788,65 @@ let floorDebounce = null, lastZoneName = '';
 // ── Zone crossfade state ──────────────────────────────────────────
 let crossfadeTimer = null;
 
+// Bar-accurate layer change queue
+// Each entry: { name, toZone, intensity, percBufs, targetBar, type }
+// type: 'start' | 'stop' | 'morph'
+const pendingLayerChanges = [];
+
+// Crossfade state — single source of truth
+const xfade = {
+  active:    false,
+  fromZone:  null,
+  toZone:    null,
+  startBar:  0,
+  totalBars: 12,      // crossfade plays out over 12 bars
+  bpmStart:  0,
+  bpmEnd:    0,
+};
+  
 function lerpZone(zA, zB, t) {
   const e = 1 - Math.pow(1 - t, 3);
 
-  // Always read scale from the original ZONES array entries, never from
-  // a previously blended object — blended scales break on re-entry
-  const scaleA = ZONES.find(z => z.name === zA.name)?.scale ?? zA.scale;
-  const scaleB = ZONES.find(z => z.name === zB.name)?.scale ?? zB.scale;
-  const scaleLen = Math.max(scaleA.length, scaleB.length);
+  // Always resolve to canonical zone objects so blended intermediates
+  // never get passed in and corrupt the scale interpolation
+  const realA = ZONES.find(z => z.name === zA.name) ?? zA;
+  const realB = ZONES.find(z => z.name === zB.name) ?? zB;
+
+  const scaleLen    = Math.max(realA.scale.length, realB.scale.length);
   const blendedScale = Array.from({ length: scaleLen }, (_, i) => {
-    const a = scaleA[i % scaleA.length];
-    const b = scaleB[i % scaleB.length];
+    const a = realA.scale[i % realA.scale.length];
+    const b = realB.scale[i % realB.scale.length];
     return a + (b - a) * e;
   });
 
-  const bassPattern = e < 0.7 ? zA.bassPattern : zB.bassPattern;
-
   return {
-    ...zB,
-    root:            zA.root            + (zB.root            - zA.root)            * e,
-    bpm:             zA.bpm             + (zB.bpm             - zA.bpm)             * e,
-    droneFilterFreq: zA.droneFilterFreq + (zB.droneFilterFreq - zA.droneFilterFreq) * e,
-    droneFilterQ:    zA.droneFilterQ    + (zB.droneFilterQ    - zA.droneFilterQ)    * e,
-    droneLfoRate:    zA.droneLfoRate    + (zB.droneLfoRate    - zA.droneLfoRate)    * e,
-    droneLfoDepth:   zA.droneLfoDepth   + (zB.droneLfoDepth   - zA.droneLfoDepth)  * e,
-    droneAmpLfo:     zA.droneAmpLfo     + (zB.droneAmpLfo     - zA.droneAmpLfo)    * e,
-    droneWave:       e < 0.5 ? zA.droneWave : zB.droneWave,
-    bassFilterFreq:  zA.bassFilterFreq  + (zB.bassFilterFreq  - zA.bassFilterFreq)  * e,
-    bassPattern,
-    kickFreq:        zA.kickFreq        + (zB.kickFreq        - zA.kickFreq)        * e,
-    kickDecay:       zA.kickDecay       + (zB.kickDecay       - zA.kickDecay)       * e,
-    snareDecay:      zA.snareDecay      + (zB.snareDecay      - zA.snareDecay)      * e,
-    snareFilterFreq: zA.snareFilterFreq + (zB.snareFilterFreq - zA.snareFilterFreq) * e,
-    melodyWave:      e < 0.6 ? zA.melodyWave : zB.melodyWave,
-    melodyOctave:    e < 0.5 ? zA.melodyOctave : zB.melodyOctave,
-    melodyPatterns:  e < 0.5 ? zA.melodyPatterns : zB.melodyPatterns,
-    melodySkip:      zA.melodySkip      + (zB.melodySkip      - zA.melodySkip)      * e,
-    choirFormants:   zA.choirFormants.map((f, i) =>
-                       f + ((zB.choirFormants[i] ?? f) - f) * e),
-    choirVibRate:    zA.choirVibRate    + (zB.choirVibRate    - zA.choirVibRate)    * e,
-    choirVibDepth:   zA.choirVibDepth   + (zB.choirVibDepth   - zA.choirVibDepth)  * e,
+    ...realB,
+    root:            realA.root            + (realB.root            - realA.root)            * e,
+    bpm:             realA.bpm             + (realB.bpm             - realA.bpm)             * e,
+    droneFilterFreq: realA.droneFilterFreq + (realB.droneFilterFreq - realA.droneFilterFreq) * e,
+    droneFilterQ:    realA.droneFilterQ    + (realB.droneFilterQ    - realA.droneFilterQ)    * e,
+    droneLfoRate:    realA.droneLfoRate    + (realB.droneLfoRate    - realA.droneLfoRate)    * e,
+    droneLfoDepth:   realA.droneLfoDepth   + (realB.droneLfoDepth   - realA.droneLfoDepth)  * e,
+    droneAmpLfo:     realA.droneAmpLfo     + (realB.droneAmpLfo     - realA.droneAmpLfo)    * e,
+    droneWave:       e < 0.5 ? realA.droneWave : realB.droneWave,
+    bassFilterFreq:  realA.bassFilterFreq  + (realB.bassFilterFreq  - realA.bassFilterFreq)  * e,
+    bassPattern:     e < 0.7 ? realA.bassPattern : realB.bassPattern,
+    kickFreq:        realA.kickFreq        + (realB.kickFreq        - realA.kickFreq)        * e,
+    kickDecay:       realA.kickDecay       + (realB.kickDecay       - realA.kickDecay)       * e,
+    snareDecay:      realA.snareDecay      + (realB.snareDecay      - realA.snareDecay)      * e,
+    snareFilterFreq: realA.snareFilterFreq + (realB.snareFilterFreq - realA.snareFilterFreq) * e,
+    melodyWave:      e < 0.6 ? realA.melodyWave : realB.melodyWave,
+    melodyOctave:    e < 0.5 ? realA.melodyOctave : realB.melodyOctave,
+    melodyPatterns:  e < 0.5 ? realA.melodyPatterns : realB.melodyPatterns,
+    melodySkip:      realA.melodySkip      + (realB.melodySkip      - realA.melodySkip)      * e,
+    choirFormants:   realA.choirFormants.map((f, i) =>
+                       f + ((realB.choirFormants[i] ?? f) - f) * e),
+    choirVibRate:    realA.choirVibRate    + (realB.choirVibRate    - realA.choirVibRate)    * e,
+    choirVibDepth:   realA.choirVibDepth   + (realB.choirVibDepth   - realA.choirVibDepth)  * e,
     scale:           blendedScale,
-    vizR:            Math.round(zA.vizR + (zB.vizR - zA.vizR) * e),
-    vizG:            Math.round(zA.vizG + (zB.vizG - zA.vizG) * e),
-    vizB:            Math.round(zA.vizB + (zB.vizB - zA.vizB) * e),
+    vizR:            Math.round(realA.vizR + (realB.vizR - realA.vizR) * e),
+    vizG:            Math.round(realA.vizG + (realB.vizG - realA.vizG) * e),
+    vizB:            Math.round(realA.vizB + (realB.vizB - realA.vizB) * e),
   };
 }
 
@@ -3785,187 +3857,128 @@ let _xfadeTo   = null;
 let _xfadeStep = 0;
 let _xfadeSteps = 60;
 
-function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
-  if (crossfadeTimer) {
-    clearInterval(crossfadeTimer);
-    crossfadeTimer = null;
-  }
-
-  // If a crossfade was in progress, start the new one from wherever
-  // the blend currently sits — prevents the snap-back on fast slider moves
-  const effectiveFrom = (_xfadeFrom && _xfadeStep > 0 && _xfadeStep < _xfadeSteps)
-    ? lerpZone(_xfadeFrom, _xfadeTo, _xfadeStep / _xfadeSteps)
-    : fromZone;
-
-  // Store stable refs to the real zone objects — never blended objects
-  _xfadeFrom  = ZONES.find(z => z.name === fromZone.name) ?? fromZone;
-  _xfadeTo    = ZONES.find(z => z.name === toZone.name)   ?? toZone;
-  _xfadeStep  = 0;
-  _xfadeSteps = 60;
-
-  const STEP_MS = 100;
-  const restarted = new Set();
-  let percScheduled  = false;
-  let bassScheduled  = false;
-  let zoneNameFlipped = false;
-
-  // Capture BPM at crossfade start so we can nudge from there
-  let bpmNow = effectiveFrom.bpm ?? fromZone.bpm;
-
-  function morphDroneNodes(blended) {
-    if (!layerOn['drone'] || !nodes['drone'].length) return;
-    nodes['drone'].forEach(n => {
-      try {
-        if (n instanceof BiquadFilterNode) {
-          const fv = n.frequency.value;
-          if (fv > 50 && fv < 8000) {
-            n.frequency.setTargetAtTime(
-              blended.droneFilterFreq + intensity * 600,
-              ctx.currentTime, 0.6
-            );
-            n.Q.setTargetAtTime(blended.droneFilterQ, ctx.currentTime, 0.6);
-          }
-        }
-        if (n instanceof OscillatorNode) {
-          const f = n.frequency.value;
-          if (f > 0.02 && f < 1.2) {
-            n.frequency.setTargetAtTime(blended.droneLfoRate, ctx.currentTime, 0.8);
-          }
-        }
-      } catch(e) {}
-    });
-  }
-
-  crossfadeTimer = setInterval(() => {
-    _xfadeStep++;
-    const t       = _xfadeStep / _xfadeSteps;
-    const blended = lerpZone(_xfadeFrom, _xfadeTo, t);
-
-    // BPM — nudge max 0.4 per tick, only apply between bars
-    const bpmTarget = blended.bpm;
-    const bpmDelta  = bpmTarget - bpmNow;
-    bpmNow += Math.sign(bpmDelta) * Math.min(Math.abs(bpmDelta), 0.4);
-    // Guard: only update barLength if audio is running
-    if (ctx && ctx.state === 'running') {
-      const nowTime    = ctx.currentTime;
-      const barPhase   = nowTime % barLength;
-      const tol        = (STEP_MS / 1000) * 1.5;
-      if (barPhase < tol || barPhase > barLength - tol || Math.abs(bpmDelta) < 0.5) {
-        barLength = (60 / bpmNow) * 4;
-      }
-    }
-
-    // Drone live morph
-    morphDroneNodes(blended);
-
-    // Color — crossfade owns this while running
-    const fn = document.getElementById('floorNum');
-    fn.style.color      = `rgb(${blended.vizR},${blended.vizG},${blended.vizB})`;
-    fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${blended.vizR},${blended.vizG},${blended.vizB},0.6)`;
-
-    // Zone name flips at midpoint
-    if (!zoneNameFlipped && t >= 0.5) {
-      zoneNameFlipped = true;
-      const zEl = document.getElementById('zoneName');
-      zEl.classList.add('changing');
-      setTimeout(() => {
-        zEl.textContent = toZone.name;
-        zEl.classList.remove('changing');
-      }, 150);
-      document.getElementById('ciZone').textContent = toZone.name;
-      setStatus(toZone.desc);
-      logTimeline(`Zone: ${toZone.name}`);
-    }
-
-    // Perc — schedule restart on next bar boundary at 40%
-    if (!percScheduled && t >= 0.4) {
-      percScheduled = true;
-      if (ctx && ctx.state === 'running') {
-        const wait = Math.max(50, (barLength - (ctx.currentTime % barLength)) * 1000);
-        setTimeout(() => {
-          ['perc','wardrums','march','stomp','chains'].forEach(n => {
-            if (layerOn[n] && !restarted.has(n)) {
-              restarted.add(n);
-              startLayer(n, toZone, intensity, percBufs);
-            }
-          });
-        }, wait);
-      }
-    }
-
-    // Bass — bar boundary at 55%
-    if (!bassScheduled && t >= 0.55) {
-      bassScheduled = true;
-      if (ctx && ctx.state === 'running') {
-        const wait = Math.max(50, (barLength - (ctx.currentTime % barLength)) * 1000);
-        setTimeout(() => {
-          if (layerOn['bass'] && !restarted.has('bass')) {
-            restarted.add('bass');
-            startLayer('bass', toZone, intensity, null);
-          }
-        }, wait);
-      }
-    }
-
-    // Melodic — staggered from 65% onward, one per bar
-    const melodicOrder = ['choir','melody','lute','horn','bells','organ'];
-    melodicOrder.forEach((n, i) => {
-      const threshold = 0.65 + i * (0.25 / melodicOrder.length);
-      if (t >= threshold && !restarted.has(n) && layerOn[n]) {
-        restarted.add(n);
-        if (ctx && ctx.state === 'running') {
-          const wait = Math.max(50, (barLength - (ctx.currentTime % barLength) + i * barLength) * 1000);
-          setTimeout(() => {
-            if (layerOn[n]) startLayer(n, toZone, intensity, null);
-          }, wait);
+function morphDroneNodes(blended, intensity) {
+  if (!layerOn['drone'] || !nodes['drone'].length) return;
+  // Only touch nodes that belong to the drone bus chain.
+  // We identify them by walking from bus['drone'] — anything connected
+  // to it is fair game. Since we can't walk backwards in WebAudio,
+  // we use conservative frequency ranges that don't overlap with
+  // the master bus nodes (HPF at 30Hz, mood filter at 600–12000Hz).
+  nodes['drone'].forEach(n => {
+    try {
+      if (n instanceof BiquadFilterNode) {
+        const fv = n.frequency.value;
+        // Drone filter sits between 100–2000Hz. Master HPF is 30Hz,
+        // mood filter starts at 600Hz — so we narrow the window.
+        if (fv >= 100 && fv <= 2000) {
+          n.frequency.setTargetAtTime(
+            blended.droneFilterFreq + intensity * 600,
+            ctx.currentTime, 0.8
+          );
+          n.Q.setTargetAtTime(blended.droneFilterQ, ctx.currentTime, 0.8);
         }
       }
-    });
-
-    // End of crossfade
-    if (_xfadeStep >= _xfadeSteps) {
-      clearInterval(crossfadeTimer);
-      crossfadeTimer = null;
-
-      // Lock BPM exactly
-      barLength = (60 / toZone.bpm) * 4;
-
-      // Drone: only restart if root moved more than a minor third
-      if (layerOn['drone'] && !restarted.has('drone')) {
-        const semitones = Math.abs(12 * Math.log2(toZone.root / fromZone.root));
-        if (semitones > 1.5) {
-          restarted.add('drone');
-          const wait = Math.max(50, (barLength - (ctx.currentTime % barLength)) * 1000);
-          setTimeout(() => {
-            if (layerOn['drone']) startLayer('drone', toZone, intensity, null);
-          }, wait);
+      if (n instanceof OscillatorNode) {
+        const f = n.frequency.value;
+        // Filter LFO: 0.03–0.7Hz range in zone data
+        if (f >= 0.02 && f <= 0.8) {
+          n.frequency.setTargetAtTime(blended.droneLfoRate, ctx.currentTime, 1.2);
         }
+        // Amp LFO: droneAmpLfo is 0.03–0.3 in zone data — overlaps filter LFO range
+        // so we target both; setTargetAtTime on the same node twice is harmless,
+        // second call wins
       }
-
-      // Atmosphere — restart everything not yet handled
-      ['wind','riser','firecrackle','chaos','whispers',
-       'ritualchant','glitch','heartbeat','boss'].forEach(n => {
-        if (layerOn[n] && !restarted.has(n)) {
-          restarted.add(n);
-          startLayer(n, toZone, intensity, null);
-        }
-      });
-    }
-  }, STEP_MS);
+    } catch(e) {}
+  });
 }
+  
+function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
+  // Resolve to canonical zones immediately — never store blended objects
+  const realFrom = ZONES.find(z => z.name === fromZone.name) ?? fromZone;
+  const realTo   = ZONES.find(z => z.name === toZone.name)   ?? toZone;
 
+  // If a crossfade is already running, start the new one from the current
+  // blend position so there's no snap
+  const currentT = xfade.active
+    ? Math.min(1, (totalBar - xfade.startBar) / xfade.totalBars)
+    : 0;
+  const effectiveBpmStart = xfade.active
+    ? xfade.bpmStart + (xfade.bpmEnd - xfade.bpmStart) * (1 - Math.pow(1 - currentT, 3))
+    : realFrom.bpm;
+
+  // Clear any pending layer changes from a previous crossfade
+  // Leave manually-scheduled events (type === 'event') alone
+  pendingLayerChanges
+    .filter(c => c.source === 'crossfade')
+    .forEach(c => {
+      const idx = pendingLayerChanges.indexOf(c);
+      if (idx !== -1) pendingLayerChanges.splice(idx, 1);
+    });
+
+  // Arm xfade state — tickBar drives everything from here
+  xfade.active    = true;
+  xfade.fromZone  = realFrom;
+  xfade.toZone    = realTo;
+  xfade.startBar  = totalBar;
+  xfade.totalBars = 12;
+  xfade.bpmStart  = effectiveBpmStart;
+  xfade.bpmEnd    = realTo.bpm;
+  xfade.intensity = intensity;
+
+  // ── Queue layer restarts ─────────────────────────────────────────
+  // All times are in bars from now so they're immune to BPM changes.
+  // Every entry tagged source:'crossfade' so an interrupted crossfade
+  // can safely clear them.
+
+  const q = (name, barsFromNow, type = 'start') => {
+    // Don't queue a start for a layer that's toggled off
+    if (type === 'start' && !layerOn[name]) return;
+    pendingLayerChanges.push({
+      name,
+      toZone:    realTo,
+      intensity,
+      percBufs,
+      targetBar: totalBar + barsFromNow,
+      type,
+      source:    'crossfade',
+    });
+  };
+
+  // Perc — bar 4 (earliest, rhythm needs to lock to new zone)
+  ['perc','wardrums','march','stomp','chains'].forEach(n => q(n, 4));
+
+  // Bass — bar 6
+  q('bass', 6);
+
+  // Melodic — staggered one per bar from bar 7
+  ['choir','melody','lute','horn','bells','organ'].forEach((n, i) => q(n, 7 + i));
+
+  // Drone — bar 10, only if root pitch moves more than a minor third
+  const semitones = Math.abs(12 * Math.log2(realTo.root / realFrom.root));
+  if (semitones > 1.5) q('drone', 10);
+
+  // Atmosphere — bar 11 onward
+  ['wind','riser','firecrackle','heartbeat',
+   'chaos','whispers','ritualchant','glitch'].forEach((n, i) => q(n, 11 + i * 0.5 | 0));
+
+  // Zone name flip at bar 6 (midpoint of 12)
+  pendingLayerChanges.push({
+    name:      '__zoneName__',
+    targetBar: totalBar + 6,
+    type:      'morph',
+    source:    'crossfade',
+    toZone:    realTo,
+  });
+
+  logTimeline(`Crossfade → ${realTo.name}`);
+}
+  
 function updateFloorUI() {
   const floor     = parseInt(slider.value);
   const zone      = getZone(floor);
   const intensity = getIntensity(floor);
 
   document.getElementById('floorNum').textContent = floor;
-
-  // Zone name: crossfade owns timing while playing
-  if (!isPlaying) {
-    document.getElementById('zoneName').textContent = zone.name;
-  }
-
   slider.style.setProperty('--pct', ((floor - 1) / 98 * 100).toFixed(1) + '%');
 
   const segs    = document.getElementById('zoneBar').querySelectorAll('.zone-seg');
@@ -3975,62 +3988,48 @@ function updateFloorUI() {
     s.style.setProperty('--zone-color', zone.color);
   });
 
-  // Color: crossfade owns this while playing
-  if (!isPlaying) {
-    const fn = document.getElementById('floorNum');
-    fn.style.color      = `rgb(${zone.vizR},${zone.vizG},${zone.vizB})`;
-    fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.6)`;
-  }
-
   document.getElementById('ciZone').textContent  = zone.name;
   document.getElementById('ciFloor').textContent = `Void Floor ${floor}`;
 
-  updateDebug();
-
+  // Color and name: only snap when not playing — crossfade owns them while playing
   if (!isPlaying) {
+    document.getElementById('zoneName').textContent = zone.name;
+    const fn = document.getElementById('floorNum');
+    fn.style.color      = `rgb(${zone.vizR},${zone.vizG},${zone.vizB})`;
+    fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.6)`;
     setStatus(zone.desc);
     lastZoneName = zone.name;
-    return;
   }
+
+  updateDebug();
+
+  if (!isPlaying) return;
 
   clearTimeout(floorDebounce);
   floorDebounce = setTimeout(() => {
     initAudio();
 
-    const f2     = parseInt(slider.value);
-    const toZone = getZone(f2);
-    const ni     = isBoss ? Math.min(1, getIntensity(f2) + 0.4) : getIntensity(f2);
-    const pb     = buildPercBufs(toZone);
+    const f2       = parseInt(slider.value);
+    const toZone   = getZone(f2);
+    const ni       = isBoss ? Math.min(1, getIntensity(f2) + 0.4) : getIntensity(f2);
+    const pb       = buildPercBufs(toZone);
 
-    // fromZone: use the real zone object for lastZoneName, not a blended snapshot
-    // This prevents the "crossfade from itself" bug on rapid slider moves
+    // Capture fromZone BEFORE updating lastZoneName
     const fromZone = ZONES.find(z => z.name === lastZoneName) ?? toZone;
     const changed  = toZone.name !== lastZoneName;
 
-    // Update lastZoneName ONLY here, after we've captured fromZone
-    // The previous version updated it before capturing fromZone
-    if (changed) {
-      lastZoneName = toZone.name;
-      startZoneCrossfade(fromZone, toZone, ni, pb);
-    } else {
-      // Same zone — gentle BPM nudge only, no layer restarts
-      if (ctx && ctx.state === 'running') {
-        const targetBarLength = (60 / toZone.bpm) * 4;
-        const delta = targetBarLength - barLength;
-        if (Math.abs(delta) > 0.01) {
-          let s = 0;
-          const steps = 8;
-          const nudge = setInterval(() => {
-            s++;
-            barLength += delta / steps;
-            if (s >= steps) { barLength = targetBarLength; clearInterval(nudge); }
-          }, (barLength * 1000) / steps);
-        }
-      }
+    if (!changed) {
+      // Same zone — nothing to do, BPM nudge handled by xfade if active
+      return;
     }
-  }, 220);
-}
 
+    // Update lastZoneName only after fromZone is safely captured
+    lastZoneName = toZone.name;
+    startZoneCrossfade(fromZone, toZone, ni, pb);
+
+  }, 200);
+}
+  
 // ── Debug ─────────────────────────────────────────────────────────
 function updateDebug() {
   if (!isPlaying) return;
