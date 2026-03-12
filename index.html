@@ -1527,7 +1527,7 @@ function startRandomJourney() {
 
     // Snap all layer changes to next bar boundary
     const now = ctx.currentTime;
-    const toNextBar = barLength - (now % barLength);
+    const toNextBar = barLength - (now % barLength) + barLength;
 
     setTimeout(() => {
       const newBpm = preset.bpm;
@@ -1552,7 +1552,7 @@ function startRandomJourney() {
         }
       });
     
-      const layerOrder = ['drone','bass','heartbeat','choir','organ','perc','wardrums','march','stomp','chains','melody','lute','horn','bells','chaos','glitch','ritualchant','whispers'];
+      const layerOrder = ['drone','bass','heartbeat','organ','choir','lute','melody','bells','whispers','riser','wind','firecrackle','perc','wardrums','march','stomp','chains','horn','chaos','glitch','ritualchant'];
       const toStartList = [...toEnable].sort((a, b) => layerOrder.indexOf(a) - layerOrder.indexOf(b)).filter(name => name in layerOn && !layerOn[name]);
       toStartList.forEach((name, i) => {
         setTimeout(() => {
