@@ -957,7 +957,18 @@ function advancePhrase() {
   const next = phraseSeq[phraseSeqIdx];
   if (next !== currentPhrase) {
     currentPhrase = next;
-    if (autoEvolution) applyPhraseLayers();
+    if (autoEvolution) {
+      applyPhraseLayers();
+      // Restart melodic layers so new patterns schedule
+      if (isPlaying) {
+        const floor = parseInt(slider.value);
+        const preset = getZone(floor);
+        const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+        ['melody','bass','choir','lute','horn'].forEach(name => {
+          if (layerOn[name]) startLayer(name, preset, intensity, null);
+        });
+      }
+    }
   }
 }
 
