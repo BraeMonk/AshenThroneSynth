@@ -1492,7 +1492,9 @@ function startRandomJourney() {
   function journeyStep() {
     if (!isPlaying) return;
     
-    const floor = Math.min(99, 1 + Math.floor((step / JOURNEY_STEPS) * 98));
+    const JOURNEY_FLOORS = [1, 10, 18, 26, 35, 50, 65, 85];
+    const floor = JOURNEY_FLOORS[step] ?? 85;
+
     slider.value = floor;
     updateFloorUI();
     
@@ -1514,6 +1516,13 @@ function startRandomJourney() {
     const toNextBar = barLength - (now % barLength);
 
     setTimeout(() => {
+      const newBpm = preset.bpm;
+      const oldFloor = JOURNEY_FLOORS[step - 1] ?? floor;
+      const oldBpm = getZone(oldFloor).bpm;
+      if (Math.abs(oldBpm - newBpm) > 4) {
+        barLength = (60 / newBpm) * 4;
+      }
+
       Object.keys(layerOn).forEach(name => {
         if (name === 'drone' || name === 'bass') return;
         if (layerOn[name] && !toEnable.has(name)) {
