@@ -2214,6 +2214,35 @@ function buildPercBufs(preset) {
 const SCHED_AHEAD = 0.12; // seconds to look ahead
 const SCHED_INTERVAL = 50; // ms between scheduler ticks
 
+let currentGroove = null;
+let grooveAge = 0;
+const GROOVE_LIFE = 4; // bars before subtle mutation
+
+function getGroove(preset, intensity) {
+  if (!currentGroove) {
+    currentGroove = {
+      kick:  [...preset.kickPattern,  ...preset.kickPattern],
+      snare: [...preset.snarePattern, ...preset.snarePattern],
+      hihat: [...preset.hihatPattern, ...preset.hihatPattern],
+    };
+  }
+  grooveAge++;
+  if (grooveAge % GROOVE_LIFE === 0) {
+    // Mutate one hit in each pattern at most
+    const mutate = (pat) => {
+      const copy = [...pat];
+      const idx = Math.floor(rng() * copy.length);
+      if (rng() < 0.5) copy[idx] = copy[idx] ? 0 : 1;
+      return copy;
+    };
+    if (rng() < 0.4) currentGroove.kick  = mutate(currentGroove.kick);
+    if (rng() < 0.3) currentGroove.snare = mutate(currentGroove.snare);
+    if (rng() < 0.2) currentGroove.hihat = mutate(currentGroove.hihat);
+  }
+  return currentGroove;
+}
+
+
 function makeSchedLoop(name, schedFn) {
   let nextBarTime = ctx.currentTime + 0.05;
   function tick() {
@@ -2235,11 +2264,7 @@ function buildPerc(preset, intensity, name, bufs) {
   const hhF = mkFilt(preset.snareFilterFreq * 4, 'highpass', 1);
   hhF.connect(b); reg(name, hhF);
 
-  const patterns = {
-    kick:  [1,0,0,0,1,0,0,0,1,0,0,1,0,0,1,0],
-    snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
-    hihat: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
-  };
+  const patterns = getGroove(preset, intensity);
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25; // 16th notes
@@ -2818,6 +2843,8 @@ function startSynth() {
   pickSessionVoices();
   sessionStartTime = Date.now();
   timelineEvents = [];
+  currentGroove = null;
+  grooveAge = 0;
   const floor = parseInt(slider.value), preset = getZone(floor);
   const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
   const percBufs = buildPercBufs(preset);
