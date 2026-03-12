@@ -1523,15 +1523,17 @@ function startRandomJourney() {
           stopLayer(name);
         }
       });
-
-      toEnable.forEach(name => {
-        if (!(name in layerOn)) return;
-        if (!layerOn[name]) {
+    
+      const layerOrder = ['drone','bass','heartbeat','choir','organ','perc','wardrums','march','stomp','chains','melody','lute','horn','bells','chaos','glitch','ritualchant','whispers'];
+      const toStartList = [...toEnable].sort((a, b) => layerOrder.indexOf(a) - layerOrder.indexOf(b)).filter(name => name in layerOn && !layerOn[name]);
+      toStartList.forEach((name, i) => {
+        setTimeout(() => {
+          if (!isPlaying) return;
           layerOn[name] = true;
           document.getElementById('btn-' + name)?.classList.add('active');
           document.getElementById('pill-' + name)?.classList.add('on');
           startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
-        }
+        }, i * barLength * 1000);
       });
     }, toNextBar * 1000);
 
