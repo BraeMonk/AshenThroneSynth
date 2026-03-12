@@ -1432,6 +1432,7 @@ function pickArchetype(floor) {
 }
 
 function randomizeCoherent(forcedArchetype) {
+  if (!isPlaying) togglePlay();
   const floor = parseInt(slider.value);
   const archetypeName = forcedArchetype || pickArchetype(floor);
   const cfg = LAYER_ARCHETYPES[archetypeName];
@@ -1493,6 +1494,7 @@ const SCALE_MOODS = {
 const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dread', 'dread'];
 
 function startRandomJourney() {
+  if (!isPlaying) togglePlay();
   
   const JOURNEY_STEPS = 8;
   const startFloor = parseInt(slider.value);
