@@ -763,6 +763,11 @@
         <button class="layer-toggle" onclick="randomizeCoherent('nightmare')">Nightmare</button>
       </div>
 
+      <button class="seed-btn" onclick="startRandomJourney()" 
+        style="width:100%;padding:10px;margin-top:8px;">
+        🌑 Journey (auto-evolving)
+      </button>
+
       <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Recording</div>
       <div class="record-section">
         <button class="record-btn" id="recBtn" onclick="toggleRecord()"><span class="rec-dot"></span>Record</button>
@@ -1474,6 +1479,34 @@ function randomizeCoherent(forcedArchetype) {
     if (!isPlaying) togglePlay();
     startPhraseEngine();
   }, FADE_OUT * 1000 + 100);
+}
+
+function startRandomJourney() {
+  if (!isPlaying) togglePlay();
+  
+  const JOURNEY_STEPS = 8;
+  const startFloor = parseInt(slider.value);
+  let step = 0;
+  
+  function journeyStep() {
+    if (!isPlaying) return;
+    
+    // Progress floor deeper each step
+    const floor = Math.min(99, startFloor + Math.floor((step / JOURNEY_STEPS) * (60 + rng() * 30)));
+    slider.value = floor;
+    updateFloorUI();
+    
+    randomizeCoherent();
+    
+    step++;
+    if (step < JOURNEY_STEPS) {
+      // Each step lasts 40-70 seconds
+      const dur = 40000 + rng() * 30000;
+      setTimeout(journeyStep, dur + FADE_OUT * 1000 + 100);
+    }
+  }
+  
+  journeyStep();
 }
 
 // ── Event system ──────────────────────────────────────────────────
