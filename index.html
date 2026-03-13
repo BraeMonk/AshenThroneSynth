@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="author" content="Ashen Throne">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
@@ -5618,29 +5618,59 @@ function exitCinematic() {
   if (cinematicRaf) { cancelAnimationFrame(cinematicRaf); cinematicRaf = null; }
 }
 
-// ── CINEMATIC SCENE STATE ────────────────────────────────────────
+// ── CINEMATIC SCENE STATE v2 ─────────────────────────────────────
 const CIN = {
-  t: 0,                    // frame counter
-  lastZone: null,          // for detecting zone change
-  // Embers
+  t: 0,
+  lastZone: null,
+  // Particles
   embers: [],
-  // Fog layers
-  fogShift: [0, 0, 0],
-  // Whisper text system
-  whispers: [],
-  whisperCooldown: 0,
-  // Silhouette terrain (generated once per zone)
+  particles: [],   // zone-specific ambient particles (ash, spores, void motes, rain)
+  // Terrain
   terrain: null,
   terrainZone: null,
-  // Moon / orb glow
+  terrainParallax: [],  // 4 depth layers
+  // Moon/orb
   moonFlicker: 1,
   // Energy smoothing
   smoothEnergy: 0,
   smoothBass:   0,
   smoothMid:    0,
   smoothHigh:   0,
+  prevBass:     0,
+  // Resting / active state
+  restLevel: 1.0,   // 1 = fully resting, 0 = fully active
+  restSmooth: 1.0,
   // Flash
   flashAlpha: 0,
+  flashR: 200, flashG: 100, flashB: 40,
+  // Fog layers
+  fogLayers: [],
+  // Whispers
+  whispers: [],
+  whisperCooldown: 60,
+  // Narrative title cards
+  titleCard: null,         // { text, subtext, alpha, phase, hold, heldFor }
+  titleCooldown: 800,      // frames until next title card can show
+  lastTitleZone: null,
+  // Story beat: "chapter entry" on zone change
+  chapterReveal: null,     // { zoneName, desc, alpha, phase, hold, heldFor }
+  // Rune overlay: etched symbols that pulse with mid energy
+  runes: [],
+  runeInitZone: null,
+  // Lightning (Void Spire / Sorcerer's Veil)
+  lightningBolts: [],
+  lightningCooldown: 0,
+  // Vignette pulse
+  vignetteFlash: 0,
+  // Beat detection
+  beatDetected: false,
+  beatFlash: 0,
+  // Zone transition wipe
+  wipeAlpha: 0,
+  wiping: false,
+  wipeDir: 1,
+  // Knight
+  knight: null,
 };
 
 // Per-zone narrative whisper lines — deep lore, fragments, voices of the dead
@@ -5788,137 +5818,650 @@ const ZONE_WHISPERS = {
   ],
 };
 
+// ── ZONE ATMOSPHERIC CONFIGS ──────────────────────────────────────
+const ZONE_ATMO = {
+  'Ashen Fields':    { particle: 'ash',      moonTint: [180,140,90],  fogDense: 0.35, hasLightning: false, hasDrip: false },
+  'Rotwood Forest':  { particle: 'spore',    moonTint: [60,120,50],   fogDense: 0.5,  hasLightning: false, hasDrip: true  },
+  'Catacombs Deep':  { particle: 'dust',     moonTint: [100,80,120],  fogDense: 0.28, hasLightning: false, hasDrip: true  },
+  'Shadowmere':      { particle: 'wisp',     moonTint: [80,80,180],   fogDense: 0.6,  hasLightning: false, hasDrip: false },
+  "Sorcerer's Veil": { particle: 'mote',     moonTint: [160,80,220],  fogDense: 0.22, hasLightning: true,  hasDrip: false },
+  'Obsidian Keep':   { particle: 'ash',      moonTint: [180,80,60],   fogDense: 0.18, hasLightning: false, hasDrip: false },
+  'Void Spire':      { particle: 'void',     moonTint: [80,40,200],   fogDense: 0.15, hasLightning: true,  hasDrip: false },
+  'Infernal Core':   { particle: 'ember',    moonTint: [220,80,30],   fogDense: 0.12, hasLightning: false, hasDrip: false },
+};
+
+function cinGetAtmo(zone) {
+  return ZONE_ATMO[zone.name] || ZONE_ATMO['Ashen Fields'];
+}
+
+// ── NARRATIVE TITLE CARDS PER ZONE ────────────────────────────────
+const ZONE_TITLES = {
+  'Ashen Fields':    ['THE LAST BATTLE', 'WHERE KINGDOMS BURNED', 'ASH AND SILENCE', 'THE HOLLOW VICTORY'],
+  'Rotwood Forest':  ['THE LIVING DARK', 'ROOTS REMEMBER', 'SOMETHING LISTENS', 'THE FOREST BREATHES'],
+  'Catacombs Deep':  ['THE DEAD DO NOT REST', 'SEALED FROM WITHIN', 'MILES OF BONE', 'THE WAITING DARK'],
+  'Shadowmere':      ['THE VEIL IS THIN', 'ALWAYS MIDNIGHT', 'WRAITHS OF REGRET', 'WHERE TIME BENDS'],
+  "Sorcerer's Veil": ['THE EXPERIMENT', 'REALITY UNRAVELS', 'THREE TIMELINES', 'THE WORK CONTINUES'],
+  'Obsidian Keep':   ['THE UNBROKEN FORTRESS', 'THREE THOUSAND STRONG', 'BLOOD ON OBSIDIAN', 'THE GARRISON HOLDS'],
+  'Void Spire':      ['THE SPIRE THAT GREW', 'BROADCASTING TO NOTHING', 'BEYOND THE FOURTH LEVEL', 'GRAVITY DISAGREES'],
+  'Infernal Core':   ['THE BOTTOM OF EVERYTHING', 'ALDRIC IS BELOW', 'THE THRONE IS GONE', 'NOTHING LEAVES'],
+};
+const ZONE_SUBTITLES = {
+  'Ashen Fields':    ['Floor 1–3', 'the fields were green once', 'eleven thousand names in the ash'],
+  'Rotwood Forest':  ['Floor 4–6', 'the rot is still spreading', 'the forest knows where you are'],
+  'Catacombs Deep':  ['Floor 7–9', 'more bones than the city ever had people', 'the silence is pressure'],
+  'Shadowmere':      ['Floor 10–12', 'the veil between worlds', 'do not speak to shadows with faces'],
+  "Sorcerer's Veil": ['Floor 13–16', 'magic leaves residue', 'reality is thinner here than parchment'],
+  'Obsidian Keep':   ['Floor 17–19', 'the portcullis has not been raised in sixty years', 'blood stays wet on obsidian'],
+  'Void Spire':      ['Floor 20–22', 'those who fall do not land', 'the spire hums in a nameless key'],
+  'Infernal Core':   ['Floor 23–25', 'there was never meant to be a way out', 'the final door opens from the other side'],
+};
+
 function cinInitEmbers(zone, W, H) {
   CIN.embers = [];
-  const count = 55;
+  const atmo = cinGetAtmo(zone);
+  const count = 70;
   for (let i = 0; i < count; i++) {
     CIN.embers.push({
       x: Math.random() * W,
       y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: -(Math.random() * 0.6 + 0.15),
-      size: Math.random() * 2.2 + 0.4,
-      life: Math.random(),
-      maxLife: Math.random() * 180 + 80,
-      age: Math.floor(Math.random() * 200),
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: -(Math.random() * 0.7 + 0.1),
+      size: Math.random() * 2.4 + 0.4,
+      age: Math.floor(Math.random() * 240),
+      maxLife: Math.random() * 200 + 100,
       r: zone.vizR, g: zone.vizG, b: zone.vizB,
     });
+  }
+  // Zone-specific ambient particles
+  CIN.particles = [];
+  const pCount = 80;
+  for (let i = 0; i < pCount; i++) {
+    CIN.particles.push(cinMakeParticle(atmo.particle, zone, W, H, true));
+  }
+}
+
+function cinMakeParticle(type, zone, W, H, scattered) {
+  const R = zone.vizR, G = zone.vizG, B = zone.vizB;
+  const base = {
+    x: Math.random() * W,
+    y: scattered ? Math.random() * H : H + Math.random() * 20,
+    type,
+    age: scattered ? Math.floor(Math.random() * 300) : 0,
+    maxLife: Math.random() * 300 + 150,
+    alpha: 0,
+  };
+  switch (type) {
+    case 'ash':   return { ...base, vx:(Math.random()-0.5)*0.3, vy:-(Math.random()*0.2+0.05), size:Math.random()*2.5+0.5, r:200,g:180,b:160 };
+    case 'spore': return { ...base, vx:(Math.random()-0.5)*0.2, vy:-(Math.random()*0.15+0.02), size:Math.random()*3+1, r:80,g:160,b:80, glow:true };
+    case 'dust':  return { ...base, vx:(Math.random()-0.5)*0.15,vy:-(Math.random()*0.1+0.01), size:Math.random()*1.5+0.3, r:140,g:120,b:160 };
+    case 'wisp':  return { ...base, vx:(Math.random()-0.5)*0.5, vy:(Math.random()-0.5)*0.3,   size:Math.random()*4+2,   r:80,g:100,b:220, glow:true, phase:Math.random()*Math.PI*2 };
+    case 'mote':  return { ...base, vx:(Math.random()-0.5)*0.6, vy:(Math.random()-0.7)*0.4,   size:Math.random()*3+1,   r:160,g:80,b:220, glow:true, phase:Math.random()*Math.PI*2 };
+    case 'void':  return { ...base, vx:(Math.random()-0.5)*0.4, vy:(Math.random()-0.6)*0.5,   size:Math.random()*2+0.5, r:60,g:20,b:180, glow:true, phase:Math.random()*Math.PI*2 };
+    case 'ember': return { ...base, vx:(Math.random()-0.5)*0.6, vy:-(Math.random()*1.0+0.3),  size:Math.random()*3+0.5, r:220,g:80,b:20, glow:true };
+    default:      return { ...base, vx:(Math.random()-0.5)*0.3, vy:-(Math.random()*0.3),       size:1.5, r:R,g:G,b:B };
   }
 }
 
 function cinBuildTerrain(zone, W, H) {
-  // Build two rugged silhouette ridgelines using zone's vizR/G/B as seed-ish influence
-  const pts1 = [], pts2 = [];
-  const seg = 12;
-  const base1 = H * 0.68, base2 = H * 0.78;
-  const rng = (s) => { let x = Math.sin(s * 127.1 + zone.vizR * 0.07) * 43758.5; return x - Math.floor(x); };
-  for (let i = 0; i <= seg; i++) {
-    const t = i / seg;
-    // Far ridge — smoother, taller ruins shapes
-    const ruinBump = rng(i + 0.3) > 0.82 ? (rng(i + 1.1) * H * 0.18) : (rng(i + 0.7) * H * 0.1);
-    pts1.push({ x: t * W, y: base1 - ruinBump });
-    // Near ridge — rougher, lower, fills in foreground
-    const nearBump = rng(i + 5.5) * H * 0.07;
-    pts2.push({ x: t * W, y: base2 - nearBump });
-  }
-  CIN.terrain = { pts1, pts2 };
+  const rng = (s) => { let x = Math.sin(s * 127.1 + zone.vizR * 0.07 + zone.vizB * 0.03) * 43758.5; return x - Math.floor(x); };
+  const rng2 = (s) => { let x = Math.sin(s * 311.7 + zone.vizG * 0.05) * 91234.3; return x - Math.floor(x); };
+
+  // 4 parallax depth layers: far → near
+  const layers = [
+    { seg:10, base:H*0.58, bumpScale:H*0.22, roughness:0.7, speed:0.12, alpha:0.75, fill:'far'   },
+    { seg:14, base:H*0.65, bumpScale:H*0.14, roughness:0.6, speed:0.22, alpha:0.88, fill:'mid1'  },
+    { seg:18, base:H*0.74, bumpScale:H*0.09, roughness:0.5, speed:0.35, alpha:0.94, fill:'mid2'  },
+    { seg:24, base:H*0.82, bumpScale:H*0.05, roughness:0.4, speed:0.55, alpha:1.00, fill:'near'  },
+  ];
+
+  CIN.terrainParallax = layers.map((l, li) => {
+    const pts = [];
+    for (let i = 0; i <= l.seg; i++) {
+      const t = i / l.seg;
+      // Mix of ruin-bump spikes and smooth terrain
+      const spike = rng(i + li * 3.7 + 0.3) > (0.85 - li * 0.05) ? (rng(i + li + 1.1) * H * 0.18) : 0;
+      const smooth = rng2(i + li * 2.1 + 0.7) * l.bumpScale * l.roughness;
+      pts.push({ x: t * W, y: l.base - spike - smooth });
+    }
+    return { pts, ...l };
+  });
+
+  // Legacy terrain for fallback compatibility
+  CIN.terrain = {
+    pts1: CIN.terrainParallax[0].pts,
+    pts2: CIN.terrainParallax[3].pts,
+  };
   CIN.terrainZone = zone.name;
+}
+
+function cinBuildRunes(zone, W, H) {
+  // Place 8-14 etched rune glyphs at fixed positions that pulse with mid energy
+  const glyphs = ['ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ','ᛇ','ᛈ','ᛉ','ᛊ','ᛏ','ᛒ','ᛖ','ᛗ','ᛚ','ᛜ','ᛞ','ᛟ'];
+  const rng = (s) => { let x = Math.sin(s * 93.7 + zone.vizB * 0.11) * 54321.9; return x - Math.floor(x); };
+  const count = 10 + Math.floor(rng(zone.vizR) * 6);
+  CIN.runes = [];
+  for (let i = 0; i < count; i++) {
+    CIN.runes.push({
+      glyph: glyphs[Math.floor(rng(i * 2.3) * glyphs.length)],
+      x: W * (0.04 + rng(i * 1.1) * 0.92),
+      y: H * (0.06 + rng(i * 3.7) * 0.72),
+      size: 11 + rng(i * 5.2) * 16,
+      phase: rng(i * 7.1) * Math.PI * 2,
+      speed: 0.008 + rng(i * 2.9) * 0.012,
+      baseAlpha: 0.04 + rng(i * 4.4) * 0.08,
+    });
+  }
+  CIN.runeInitZone = zone.name;
+}
+
+function cinInitFog(zone, W, H) {
+  const atmo = cinGetAtmo(zone);
+  CIN.fogLayers = [
+    { x:0, y:H*0.5,  speed:0.18, amp:H*0.06, freq:0.0008, alpha: atmo.fogDense * 0.5, height:H*0.18, phase:0.0 },
+    { x:0, y:H*0.65, speed:0.12, amp:H*0.04, freq:0.0012, alpha: atmo.fogDense * 0.7, height:H*0.12, phase:1.2 },
+    { x:0, y:H*0.78, speed:0.22, amp:H*0.03, freq:0.0016, alpha: atmo.fogDense * 0.9, height:H*0.08, phase:2.4 },
+  ];
+}
+
+function cinInitKnight(W, H) {
+  CIN.knight = {
+    x: W * 0.18,          // current x
+    y: H * 0.80,          // current y (ground-snapped each frame)
+    targetX: W * 0.18,    // destination x during adventure
+    velX: 0,
+    // State: 'rest', 'sit', 'walk', 'run', 'look'
+    state: 'rest',
+    stateTimer: 0,        // frames in current state
+    // Accumulated animation time (separate from t so it runs at its own pace)
+    anim: 0,
+    // Direction: 1 = right, -1 = left
+    dir: 1,
+    // Campfire glow (only during rest)
+    campfireFlicker: 0,
+    // Breath for idle
+    breathPhase: 0,
+    // Trail of footstep puffs
+    puffs: [],
+    // Scale relative to screen (knight is ~2% of screen height)
+    scale: 1,
+  };
+}
+
+// ── Sample near-terrain height at a given x ────────────────────────
+function cinTerrainYAt(x, W, H) {
+  if (!CIN.terrainParallax || !CIN.terrainParallax[3]) return H * 0.82;
+  const layer = CIN.terrainParallax[3];
+  const pts = layer.pts;
+  // Find surrounding pts
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (x >= pts[i].x && x <= pts[i+1].x) {
+      const t = (x - pts[i].x) / (pts[i+1].x - pts[i].x);
+      return pts[i].y * (1 - t) + pts[i+1].y * t;
+    }
+  }
+  return H * 0.82;
+}
+
+// ── Draw the pixel-art style knight ───────────────────────────────
+function cinDrawKnight(c, W, H, zone, t, restLevel) {
+  if (!CIN.knight) cinInitKnight(W, H);
+  const k = CIN.knight;
+  const active = 1 - restLevel;
+  const R = zone.vizR, G = zone.vizG, B = zone.vizB;
+
+  // Knight size: ~2% of screen height — small but readable
+  const ks = Math.max(32, Math.floor(Math.min(W, H) * 0.072));
+  k.scale = ks;
+
+  // ── State machine ─────────────────────────────────────────────
+  k.stateTimer++;
+  k.anim += active > 0.3 ? 0.18 : 0.06;
+
+  if (restLevel > 0.75) {
+    // Music is quiet — rest/sit/look around
+    if (k.state === 'walk' || k.state === 'run') {
+      k.velX *= 0.85;
+      if (Math.abs(k.velX) < 0.5) { k.state = 'sit'; k.stateTimer = 0; }
+    } else if (k.state === 'sit' && k.stateTimer > 180 + Math.random() * 120) {
+      k.state = 'look'; k.stateTimer = 0;
+    } else if (k.state === 'look' && k.stateTimer > 80) {
+      k.state = 'sit'; k.stateTimer = 0;
+      k.dir = Math.random() > 0.5 ? 1 : -1;
+    } else if (k.state === 'rest' && k.stateTimer > 60) {
+      k.state = 'sit'; k.stateTimer = 0;
+    }
+    k.velX *= 0.9;
+  } else {
+    // Music active — adventure mode
+    if (k.state === 'sit' || k.state === 'rest' || k.state === 'look') {
+      k.state = active > 0.6 ? 'run' : 'walk';
+      k.stateTimer = 0;
+      k.targetX = W * (0.1 + Math.random() * 0.8);
+    }
+    // Pick new destination when close
+    if (Math.abs(k.x - k.targetX) < ks * 1.5) {
+      k.targetX = W * (0.08 + Math.random() * 0.84);
+      if (k.stateTimer > 120) {
+        k.state = active > 0.65 ? 'run' : 'walk';
+        k.stateTimer = 0;
+      }
+    }
+    // Move toward target
+    const speed = k.state === 'run'
+      ? ks * (0.06 + active * 0.08 + CIN.smoothBass * 0.06)
+      : ks * (0.025 + active * 0.02);
+    const dx = k.targetX - k.x;
+    k.dir = dx > 0 ? 1 : -1;
+    k.velX += (Math.sign(dx) * speed - k.velX) * 0.12;
+  }
+
+  k.x += k.velX;
+  k.x = Math.max(ks * 1.5, Math.min(W - ks * 1.5, k.x));
+
+  // Ground-snap to near terrain
+  const groundY = cinTerrainYAt(k.x, W, H);
+  k.y += (groundY - k.y) * 0.18;
+
+  // ── Footstep puffs during walk/run ────────────────────────────
+  k.breathPhase += 0.04;
+  if ((k.state === 'walk' || k.state === 'run') && Math.floor(k.anim * 2) % 3 === 0 && Math.random() < 0.25) {
+    k.puffs.push({ x: k.x, y: k.y, alpha: 0.4, size: ks * 0.3, age: 0 });
+  }
+  k.puffs = k.puffs.filter(p => p.alpha > 0.01);
+  k.puffs.forEach(p => {
+    p.age++;
+    p.y -= 0.4;
+    p.x += (Math.random() - 0.5) * 0.4;
+    p.size += 0.3;
+    p.alpha *= 0.88;
+    c.beginPath();
+    c.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${p.alpha * 0.35})`;
+    c.fill();
+  });
+
+  // ── Campfire (rest state only) ─────────────────────────────────
+  if (restLevel > 0.5) {
+    k.campfireFlicker += (Math.random() - 0.5) * 0.3;
+    k.campfireFlicker = Math.max(0.5, Math.min(1.4, k.campfireFlicker));
+    const cf = k.campfireFlicker;
+    const fireX = k.x + k.dir * ks * 1.1;
+    const fireY = k.y - ks * 0.1;
+    const fAlpha = (restLevel - 0.5) * 2;
+    // Glow pool on ground
+    const glowGrd = c.createRadialGradient(fireX, fireY, 0, fireX, fireY, ks * 2.5);
+    glowGrd.addColorStop(0, `rgba(220,120,30,${0.18 * fAlpha * cf})`);
+    glowGrd.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = glowGrd;
+    c.beginPath(); c.arc(fireX, fireY, ks * 2.5, 0, Math.PI * 2); c.fill();
+    // Flame
+    const fh = ks * 0.55 * cf;
+    const fw = ks * 0.28 * cf;
+    const flGrd = c.createRadialGradient(fireX, fireY - fh * 0.4, 0, fireX, fireY - fh, fw * 2);
+    flGrd.addColorStop(0,   `rgba(255,220,80,${0.9 * fAlpha})`);
+    flGrd.addColorStop(0.4, `rgba(220,80,20,${0.6 * fAlpha})`);
+    flGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = flGrd;
+    c.beginPath(); c.ellipse(fireX, fireY - fh * 0.4, fw, fh, 0, 0, Math.PI * 2); c.fill();
+    // Log base
+    c.fillStyle = `rgba(60,35,15,${0.7 * fAlpha})`;
+    c.fillRect(fireX - ks * 0.22, fireY - ks * 0.05, ks * 0.44, ks * 0.12);
+    // Warm light on knight from fire side
+    const warmGrd = c.createRadialGradient(fireX, fireY, 0, fireX, fireY, ks * 3);
+    warmGrd.addColorStop(0, `rgba(220,100,20,${0.12 * fAlpha * cf})`);
+    warmGrd.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = warmGrd;
+    c.beginPath(); c.arc(k.x, k.y - ks * 0.5, ks * 1.8, 0, Math.PI * 2); c.fill();
+  }
+
+  // ── Draw the knight (pixel-style silhouette) ───────────────────
+  const kx = k.x, ky = k.y;
+  const d = k.dir;
+  const s = ks;
+
+  // Animation frame
+  const walkFrame = Math.floor(k.anim) % 4;
+  const isMoving = k.state === 'walk' || k.state === 'run';
+  const isSitting = k.state === 'sit' || k.state === 'rest';
+
+  // Leg bob for walking
+  const legSwing = isMoving ? Math.sin(k.anim * 2.2) : 0;
+  const bodyBob  = isMoving ? Math.abs(Math.sin(k.anim * 2.2)) * s * 0.06 : 0;
+  const breathBob = isSitting ? Math.sin(k.breathPhase) * s * 0.025 : 0;
+  const totalBob = bodyBob + breathBob;
+
+  // Cape/cloak sway
+  const capeSway = isMoving
+    ? Math.sin(k.anim * 1.8) * s * 0.12
+    : Math.sin(k.breathPhase * 0.7) * s * 0.04;
+
+  c.save();
+  c.translate(kx, ky);
+
+  // Shadow on ground
+  c.beginPath();
+  c.ellipse(0, 0, s * 0.55, s * 0.09, 0, 0, Math.PI * 2);
+  c.fillStyle = `rgba(0,0,0,0.35)`;
+  c.fill();
+
+  if (isSitting) {
+    // ── SITTING POSE ────────────────────────────────────────
+    // Knees drawn, head slightly bowed or looking around
+    const lookDir = k.state === 'look' ? d : 0;
+    // Body torso (leaning back slightly)
+    c.save(); c.translate(0, -s * 0.42 + breathBob);
+    // Cape behind
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.lineTo(-d * s * 0.18 + capeSway, -s * 0.28);
+    c.lineTo(-d * s * 0.32 + capeSway, s * 0.1);
+    c.lineTo(-d * s * 0.12, s * 0.22);
+    c.closePath();
+    c.fillStyle = `rgba(${Math.max(0,R-60)},${Math.max(0,G-40)},${Math.max(0,B-20)},0.82)`;
+    c.fill();
+    // Legs bent (seated)
+    c.fillStyle = `rgba(30,28,36,0.9)`;
+    c.beginPath(); // left leg
+    c.roundRect(d * s * 0.04 - s * 0.1, s * 0.05, s * 0.18, s * 0.14, 2);
+    c.fill();
+    c.beginPath(); // right leg
+    c.roundRect(-d * s * 0.04 - s * 0.1, s * 0.16, s * 0.22, s * 0.12, 2);
+    c.fill();
+    // Torso / armour chest
+    c.fillStyle = `rgba(45,42,55,0.92)`;
+    c.beginPath();
+    c.roundRect(-s * 0.13, -s * 0.28, s * 0.26, s * 0.32, 3);
+    c.fill();
+    // Shoulder pauldrons
+    c.fillStyle = `rgba(${Math.floor(R*0.55+30)},${Math.floor(G*0.35+20)},${Math.floor(B*0.4+10)},0.75)`;
+    c.beginPath(); c.ellipse(-s * 0.16, -s * 0.22, s * 0.1, s * 0.07, -0.3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse( s * 0.16, -s * 0.22, s * 0.1, s * 0.07,  0.3, 0, Math.PI * 2); c.fill();
+    // Head + helmet
+    const headTilt = lookDir * 0.25;
+    c.save(); c.translate(d * s * 0.04, -s * 0.32); c.rotate(headTilt);
+    c.fillStyle = `rgba(38,36,48,0.95)`;
+    c.beginPath(); c.arc(0, 0, s * 0.13, 0, Math.PI * 2); c.fill();
+    // Visor slit
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},0.6)`;
+    c.fillRect(d * s * 0.02, -s * 0.02, s * 0.08, s * 0.025);
+    // Helm crest
+    c.fillStyle = `rgba(${Math.floor(R*0.7+20)},${Math.floor(G*0.5+10)},${Math.floor(B*0.5+10)},0.7)`;
+    c.beginPath();
+    c.moveTo(-s * 0.06, -s * 0.11);
+    c.lineTo(0, -s * 0.22);
+    c.lineTo(s * 0.06, -s * 0.11);
+    c.closePath(); c.fill();
+    c.restore();
+    c.restore();
+
+  } else {
+    // ── WALKING / RUNNING POSE ───────────────────────────────
+    const runLean = isMoving ? d * s * 0.04 * (k.state === 'run' ? 1.8 : 1.0) : 0;
+
+    c.save(); c.translate(runLean, -totalBob);
+
+    // Cape (behind, flaps with motion)
+    c.beginPath();
+    c.moveTo(0, -s * 0.3);
+    c.lineTo(-d * s * 0.14 + capeSway, -s * 0.1);
+    c.lineTo(-d * s * 0.28 + capeSway * 1.4, s * 0.15);
+    c.lineTo(-d * s * 0.08, s * 0.25);
+    c.lineTo(0, s * 0.05);
+    c.closePath();
+    c.fillStyle = `rgba(${Math.max(0,R-50)},${Math.max(0,G-30)},${Math.max(0,B-15)},0.78)`;
+    c.fill();
+
+    // Legs
+    const leg1Y = legSwing * s * 0.18;
+    const leg2Y = -legSwing * s * 0.18;
+    c.fillStyle = `rgba(30,28,38,0.92)`;
+    // Back leg
+    c.beginPath();
+    c.roundRect(-d * s * 0.06 - s * 0.07, leg2Y - s * 0.02, s * 0.14, s * 0.28, 2);
+    c.fill();
+    // Boots
+    c.fillStyle = `rgba(22,20,28,0.95)`;
+    c.beginPath();
+    c.roundRect(-d * s * 0.06 - s * 0.09, leg2Y + s * 0.22, s * 0.18, s * 0.1, 2);
+    c.fill();
+
+    // Torso / chest
+    c.fillStyle = `rgba(42,40,52,0.93)`;
+    c.beginPath();
+    c.roundRect(-s * 0.12, -s * 0.36, s * 0.24, s * 0.34, 3);
+    c.fill();
+    // Armour detail — chest highlight
+    c.fillStyle = `rgba(${Math.floor(R*0.4+20)},${Math.floor(G*0.25+15)},${Math.floor(B*0.35+10)},0.45)`;
+    c.beginPath();
+    c.roundRect(-s * 0.06, -s * 0.33, s * 0.12, s * 0.14, 2);
+    c.fill();
+
+    // Front leg
+    c.fillStyle = `rgba(36,34,46,0.93)`;
+    c.beginPath();
+    c.roundRect(d * s * 0.0 - s * 0.07, leg1Y - s * 0.02, s * 0.14, s * 0.28, 2);
+    c.fill();
+    c.fillStyle = `rgba(24,22,32,0.96)`;
+    c.beginPath();
+    c.roundRect(d * s * 0.0 - s * 0.09, leg1Y + s * 0.22, s * 0.18, s * 0.1, 2);
+    c.fill();
+
+    // Sword arm (front, swings)
+    const armSwing = legSwing * 0.5;
+    c.save(); c.translate(d * s * 0.13, -s * 0.22 + armSwing * s * 0.08);
+    c.fillStyle = `rgba(38,36,50,0.9)`;
+    c.beginPath(); c.roundRect(-s * 0.055, -s * 0.04, s * 0.11, s * 0.22, 2); c.fill();
+    if (k.state === 'run') {
+      // Sword drawn while running — glints with zone color
+      c.save(); c.translate(s * 0.04 * d, -s * 0.14); c.rotate(d * -0.55);
+      c.fillStyle = `rgba(200,210,220,0.85)`;
+      c.fillRect(-s * 0.03, -s * 0.32, s * 0.055, s * 0.32);
+      // Crossguard
+      c.fillStyle = `rgba(${Math.floor(R*0.6+40)},${Math.floor(G*0.5+30)},${Math.floor(B*0.4+20)},0.8)`;
+      c.fillRect(-s * 0.1, -s * 0.02, s * 0.2, s * 0.04);
+      // Gleam on blade
+      c.fillStyle = `rgba(${R},${G},${B},${0.4 + CIN.smoothEnergy * 0.4})`;
+      c.fillRect(-s * 0.01, -s * 0.28, s * 0.02, s * 0.18);
+      c.restore();
+    }
+    c.restore();
+
+    // Shield arm (back)
+    c.save(); c.translate(-d * s * 0.12, -s * 0.2 - armSwing * s * 0.08);
+    c.fillStyle = `rgba(35,33,45,0.88)`;
+    c.beginPath(); c.roundRect(-s * 0.05, -s * 0.04, s * 0.1, s * 0.2, 2); c.fill();
+    if (k.state === 'walk') {
+      // Shield visible while walking
+      c.save(); c.translate(-d * s * 0.06, 0); c.rotate(d * 0.15);
+      c.fillStyle = `rgba(50,45,62,0.85)`;
+      c.beginPath();
+      c.moveTo(0, -s * 0.14);
+      c.lineTo(s * 0.1, -s * 0.06);
+      c.lineTo(s * 0.1, s * 0.1);
+      c.lineTo(0, s * 0.16);
+      c.lineTo(-s * 0.1, s * 0.1);
+      c.lineTo(-s * 0.1, -s * 0.06);
+      c.closePath(); c.fill();
+      // Shield emblem — zone color dot
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},0.5)`;
+      c.beginPath(); c.arc(0, s * 0.02, s * 0.04, 0, Math.PI * 2); c.fill();
+      c.restore();
+    }
+    c.restore();
+
+    // Shoulder pauldrons
+    c.fillStyle = `rgba(${Math.floor(R*0.5+25)},${Math.floor(G*0.32+18)},${Math.floor(B*0.38+10)},0.72)`;
+    c.beginPath(); c.ellipse(-s * 0.14, -s * 0.3, s * 0.1, s * 0.065, -0.25, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse( s * 0.14, -s * 0.3, s * 0.1, s * 0.065,  0.25, 0, Math.PI * 2); c.fill();
+
+    // Head + helmet
+    c.save(); c.translate(d * s * 0.03, -s * 0.44);
+    c.fillStyle = `rgba(36,34,48,0.96)`;
+    c.beginPath(); c.arc(0, 0, s * 0.125, 0, Math.PI * 2); c.fill();
+    // Visor slit — glows with zone color during run
+    const visorAlpha = k.state === 'run' ? 0.75 + CIN.smoothBass * 0.25 : 0.45;
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.75)},${B},${visorAlpha})`;
+    c.fillRect(d * s * 0.01, -s * 0.02, s * 0.1, s * 0.03);
+    // Helm crest / plume
+    c.fillStyle = `rgba(${Math.floor(R*0.65+25)},${Math.floor(G*0.45+15)},${Math.floor(B*0.45+12)},0.72)`;
+    c.beginPath();
+    c.moveTo(-s * 0.055, -s * 0.115);
+    c.lineTo(0, -s * 0.225);
+    c.lineTo(s * 0.055, -s * 0.115);
+    c.closePath(); c.fill();
+    // Plume tip glow on run
+    if (k.state === 'run') {
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${0.4 + CIN.smoothBass * 0.3})`;
+      c.beginPath(); c.arc(0, -s * 0.22, s * 0.035, 0, Math.PI * 2); c.fill();
+    }
+    c.restore();
+
+    c.restore(); // runLean + totalBob
+  }
+
+  c.restore(); // translate to kx, ky
 }
 
 function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   const R = zone.vizR, G = zone.vizG, B = zone.vizB;
+  const atmo = cinGetAtmo(zone);
+  const rest = CIN.restLevel;       // 1=resting, 0=active
+  const active = 1 - rest;
 
-  // ── 1. SKY — persist with motion blur via low-alpha fill
-  c.fillStyle = `rgba(0,0,0,0.14)`;
+  // ── 1. SKY FILL — motion blur persistence
+  // Resting: slower decay = dreamier trails. Active: faster = sharper
+  c.fillStyle = `rgba(0,0,0,${0.10 + active * 0.07})`;
   c.fillRect(0, 0, W, H);
 
-  // ── 2. HORIZON ATMOSPHERIC GLOW
-  const horizonY = H * 0.62;
-  const skyGrd = c.createLinearGradient(0, 0, 0, horizonY);
-  skyGrd.addColorStop(0,   `rgba(0,0,0,1)`);
-  skyGrd.addColorStop(0.5, `rgba(${Math.floor(R*0.15)},${Math.floor(G*0.08)},${Math.floor(B*0.18)},0.85)`);
-  skyGrd.addColorStop(1,   `rgba(${Math.floor(R*0.35)},${Math.floor(G*0.2)},${Math.floor(B*0.28)},0.5)`);
+  // ── 2. SKY GRADIENT — horizon atmospheric glow
+  const horizonY = H * (0.58 + rest * 0.04);
+  const skyGrd = c.createLinearGradient(0, 0, 0, horizonY + 60);
+  // Resting: deeper black sky, barely any color. Active: vibrant.
+  const skyMul = 0.05 + active * 0.30;
+  skyGrd.addColorStop(0,   `rgba(2,1,6,1)`);
+  skyGrd.addColorStop(0.45,`rgba(${Math.floor(R*skyMul*0.6)},${Math.floor(G*skyMul*0.4)},${Math.floor(B*skyMul*0.7)},0.9)`);
+  skyGrd.addColorStop(1,   `rgba(${Math.floor(R*skyMul)},${Math.floor(G*skyMul*0.7)},${Math.floor(B*skyMul*0.8)},0.55)`);
   c.fillStyle = skyGrd;
-  c.fillRect(0, 0, W, horizonY + 40);
+  c.fillRect(0, 0, W, horizonY + 80);
 
-  // Horizon bloom — pulses with bass
-  const bassBloom = CIN.smoothBass;
-  const bloomGrd = c.createRadialGradient(W/2, horizonY, 0, W/2, horizonY, W * 0.55);
-  bloomGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.6)},${Math.floor(B*0.5)},${0.08 + bassBloom * 0.18})`);
-  bloomGrd.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = bloomGrd;
-  c.fillRect(0, horizonY - H*0.35, W, H*0.5);
-
-  // ── 3. DISTANT MOON / ORB
-  CIN.moonFlicker += (Math.random() - 0.5) * 0.04;
-  CIN.moonFlicker = Math.max(0.7, Math.min(1.0, CIN.moonFlicker));
-  const moonX = W * 0.72, moonY = H * 0.18;
-  const moonR = Math.min(W, H) * 0.045 * CIN.moonFlicker;
-  const moonGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 3.5);
-  moonGrd.addColorStop(0,   `rgba(${R},${Math.floor(G*0.9)},${B},${0.55 * CIN.moonFlicker})`);
-  moonGrd.addColorStop(0.3, `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.5)},${Math.floor(B*0.7)},${0.18 * CIN.moonFlicker})`);
-  moonGrd.addColorStop(1,   'rgba(0,0,0,0)');
-  c.fillStyle = moonGrd;
-  c.fillRect(0, 0, W, H * 0.5);
-  // Core disc
-  c.beginPath();
-  c.arc(moonX, moonY, moonR, 0, Math.PI * 2);
-  c.fillStyle = `rgba(${R},${G},${B},${0.45 * CIN.moonFlicker})`;
-  c.fill();
-
-  // ── 4. FOG BANDS (3 layers drifting at different speeds)
-  const fogSpeeds = [0.18, 0.28, 0.38];
-  const fogYs     = [H * 0.55, H * 0.63, H * 0.70];
-  const fogAlphas = [0.06, 0.10, 0.14];
-  const fogHeights= [H * 0.22, H * 0.18, H * 0.15];
-  for (let fi = 0; fi < 3; fi++) {
-    CIN.fogShift[fi] = (CIN.fogShift[fi] + fogSpeeds[fi]) % (W * 2);
-    const fy = fogYs[fi];
-    const fa = fogAlphas[fi] + CIN.smoothEnergy * 0.06;
-    // Draw two copies offset by W for seamless scroll
-    for (let copy = -1; copy <= 1; copy++) {
-      const grd = c.createLinearGradient(0, fy - fogHeights[fi]/2, 0, fy + fogHeights[fi]);
-      grd.addColorStop(0, 'rgba(0,0,0,0)');
-      grd.addColorStop(0.4, `rgba(${Math.floor(R*0.4)},${Math.floor(G*0.3)},${Math.floor(B*0.5)},${fa})`);
-      grd.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = grd;
-      c.fillRect(copy * W - CIN.fogShift[fi], fy - fogHeights[fi]/2, W * 2, fogHeights[fi] * 1.5);
+  // ── 3. STARS — visible only at rest; dissolve when active
+  const starAlpha = rest * 0.55;
+  if (starAlpha > 0.01) {
+    // Use rune positions as star seeds for consistency
+    const starCount = 120;
+    for (let i = 0; i < starCount; i++) {
+      const sx = Math.sin(i * 137.508 * Math.PI / 180 + 0.1) * 0.5 + 0.5;
+      const sy = Math.sin(i * 97.31 * Math.PI / 180 + 0.7) * 0.5 + 0.5;
+      const twinkle = 0.4 + 0.6 * Math.sin(t * 0.012 + i * 2.1);
+      const starX = sx * W, starY = sy * horizonY * 0.95;
+      const sz = 0.4 + Math.sin(i * 43.7) * 0.3;
+      c.beginPath();
+      c.arc(starX, starY, sz, 0, Math.PI * 2);
+      const [mr, mg, mb] = atmo.moonTint;
+      const col = i % 7 === 0 ? `rgba(${mr},${mg},${mb},${starAlpha * twinkle * 0.8})` : `rgba(200,190,220,${starAlpha * twinkle * 0.6})`;
+      c.fillStyle = col;
+      c.fill();
     }
   }
 
-  // ── 5. TERRAIN SILHOUETTES
-  if (CIN.terrain) {
-    const { pts1, pts2 } = CIN.terrain;
-    // Far ridge (darker, slightly translucent)
-    c.beginPath();
-    c.moveTo(0, H);
-    pts1.forEach(p => c.lineTo(p.x, p.y));
-    c.lineTo(W, H);
-    c.closePath();
-    c.fillStyle = `rgba(${Math.floor(R*0.12)},${Math.floor(G*0.08)},${Math.floor(B*0.16)},0.92)`;
-    c.fill();
-    // Rim light on far ridge
-    c.beginPath();
-    pts1.forEach((p, i) => i === 0 ? c.moveTo(p.x, p.y) : c.lineTo(p.x, p.y));
-    c.strokeStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${0.06 + CIN.smoothBass * 0.12})`;
-    c.lineWidth = 1.2;
-    c.stroke();
+  // ── 4. HORIZON BLOOM — bass pulse
+  const bassBloom = CIN.smoothBass;
+  const bloomR = W * (0.4 + active * 0.2);
+  const bloomGrd = c.createRadialGradient(W/2, horizonY, 0, W/2, horizonY, bloomR);
+  bloomGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.55)},${Math.floor(B*0.45)},${0.04 + bassBloom * 0.22 + active * 0.06})`);
+  bloomGrd.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = bloomGrd;
+  c.fillRect(0, horizonY - H*0.4, W, H*0.55);
 
-    // Near ridge (solid dark foreground)
-    c.beginPath();
-    c.moveTo(0, H);
-    pts2.forEach(p => c.lineTo(p.x, p.y));
-    c.lineTo(W, H);
-    c.closePath();
-    c.fillStyle = `rgba(4,3,6,0.97)`;
-    c.fill();
+  // ── 5. MOON / ORB — resting: gentle breathing. Active: blazing.
+  CIN.moonFlicker += (Math.random() - 0.5) * (0.02 + active * 0.05);
+  CIN.moonFlicker = Math.max(0.7, Math.min(1.0, CIN.moonFlicker));
+  const breathe = 1 + rest * 0.06 * Math.sin(t * 0.018);
+  const moonX = W * 0.72, moonY = H * 0.15;
+  const moonR = Math.min(W, H) * (0.038 + active * 0.018) * CIN.moonFlicker * breathe;
+  const [mr, mg, mb] = atmo.moonTint;
+  const moonGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 4);
+  moonGrd.addColorStop(0,   `rgba(${mr},${mg},${mb},${(0.5 + active * 0.35) * CIN.moonFlicker})`);
+  moonGrd.addColorStop(0.25,`rgba(${Math.floor(mr*0.6)},${Math.floor(mg*0.4)},${Math.floor(mb*0.8)},${(0.2 + active * 0.15) * CIN.moonFlicker})`);
+  moonGrd.addColorStop(1,   'rgba(0,0,0,0)');
+  c.fillStyle = moonGrd;
+  c.fillRect(0, 0, W, H * 0.5);
+  // Hard orb core
+  c.beginPath();
+  c.arc(moonX, moonY, moonR * 0.45, 0, Math.PI * 2);
+  c.fillStyle = `rgba(${mr},${mg},${mb},${(0.35 + active * 0.4) * CIN.moonFlicker})`;
+  c.fill();
+
+  // ── 6. PARALLAX TERRAIN LAYERS ──────────────────────────────────
+  if (CIN.terrainParallax && CIN.terrainParallax.length) {
+    CIN.terrainParallax.forEach((layer, li) => {
+      // Parallax scroll based on bass energy + depth
+      const scrollX = Math.sin(t * 0.0003 * layer.speed) * W * 0.012 * (li + 1);
+      const bassLift = CIN.smoothBass * H * 0.025 * (li * 0.5 + 0.3);
+
+      // Sky-to-terrain fill color: far = sky tinted, near = near black
+      const depthDark = li / 3.5;
+      const fillR = Math.floor(R * (0.12 - depthDark * 0.12));
+      const fillG = Math.floor(G * (0.07 - depthDark * 0.07));
+      const fillB = Math.floor(B * (0.15 - depthDark * 0.15));
+
+      c.beginPath();
+      c.moveTo(0, H);
+      layer.pts.forEach((p, i) => {
+        const px = p.x + scrollX;
+        const py = p.y - bassLift;
+        i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+      });
+      // Close shape to bottom
+      c.lineTo(W + scrollX, H);
+      c.lineTo(0, H);
+      c.closePath();
+      c.fillStyle = `rgba(${fillR},${fillG},${fillB},${layer.alpha})`;
+      c.fill();
+
+      // Rim light on ridges — brighter when active
+      if (li <= 1) {
+        c.beginPath();
+        layer.pts.forEach((p, i) => {
+          const px = p.x + scrollX;
+          const py = p.y - bassLift;
+          i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+        });
+        c.strokeStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${0.04 + CIN.smoothBass * 0.14 + active * 0.06})`;
+        c.lineWidth = 1;
+        c.stroke();
+      }
+    });
   }
 
-  // ── 6. WAVEFORM as ground mist / energy at base
+  // ── 6.5. KNIGHT CHARACTER ────────────────────────────────────────
+  cinDrawKnight(c, W, H, zone, t, rest);
+
+  // ── 7. FOG LAYERS — resting: heavy & slow. Active: faster, thinner.
+  if (CIN.fogLayers.length) {
+    CIN.fogLayers.forEach(fog => {
+      fog.x += fog.speed * (0.3 + active * 0.7);
+      const y = fog.y + Math.sin(t * fog.freq + fog.phase) * fog.amp * (0.5 + rest * 0.5);
+      const fAlpha = (fog.alpha * (0.6 + rest * 0.4)) + CIN.smoothEnergy * 0.04;
+      const fogW = W * 1.4;
+      const fogX = (fog.x % fogW) - fogW * 0.2;
+
+      const fGrd = c.createLinearGradient(0, y - fog.height, 0, y + fog.height * 0.6);
+      fGrd.addColorStop(0, 'rgba(0,0,0,0)');
+      fGrd.addColorStop(0.4, `rgba(${Math.floor(R*0.15)},${Math.floor(G*0.12)},${Math.floor(B*0.2)},${fAlpha})`);
+      fGrd.addColorStop(0.7, `rgba(${Math.floor(R*0.08)},${Math.floor(G*0.06)},${Math.floor(B*0.1)},${fAlpha * 0.5})`);
+      fGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = fGrd;
+      c.fillRect(fogX, y - fog.height, fogW, fog.height * 1.6);
+    });
+  }
+
+  // ── 8. WAVEFORM as ground energy / mist ─────────────────────────
   const waveSlice = Math.min(waveData.length, 512);
-  const waveFloor = H * 0.88;
-  const waveAmp   = H * 0.10;
-  // Glow fill under waveform
+  const waveFloor = H * (0.86 + rest * 0.02);
+  // Resting: small gentle wave. Active: large energy wave.
+  const waveAmpMul = 0.04 + active * 0.09;
+  const waveAmp = H * waveAmpMul;
   c.beginPath();
   c.moveTo(0, H);
   for (let i = 0; i < waveSlice; i++) {
@@ -5928,11 +6471,10 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
   }
   c.lineTo(W, H); c.lineTo(0, H); c.closePath();
-  const waveGrd = c.createLinearGradient(0, waveFloor - waveAmp, 0, H);
-  waveGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.6)},${B},${0.22 + CIN.smoothEnergy * 0.2})`);
-  waveGrd.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = waveGrd;
-  c.fill();
+  const wGrd = c.createLinearGradient(0, waveFloor - waveAmp, 0, H);
+  wGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.5)},${B},${0.12 + active * 0.18 + CIN.smoothEnergy * 0.12})`);
+  wGrd.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = wGrd; c.fill();
   // Waveform line
   c.beginPath();
   for (let i = 0; i < waveSlice; i++) {
@@ -5940,20 +6482,23 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     const y = waveFloor + ((waveData[i] / 128.0) - 1.0) * waveAmp;
     i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
   }
-  c.strokeStyle = `rgba(${R},${G},${B},${0.45 + CIN.smoothHigh * 0.3})`;
-  c.lineWidth = 1;
+  c.strokeStyle = `rgba(${R},${G},${B},${0.25 + active * 0.45 + CIN.smoothHigh * 0.2})`;
+  c.lineWidth = active > 0.3 ? 1.5 : 0.8;
   c.stroke();
 
-  // ── 7. TORCH FLAMES — spaced along near-ridge horizon
-  const torchXs = [W*0.12, W*0.28, W*0.51, W*0.74, W*0.88];
-  const torchY  = H * 0.75;
+  // ── 9. TORCH FLAMES — resting: low and slow. Active: roaring.
+  const torchXs = [W*0.11, W*0.27, W*0.50, W*0.73, W*0.89];
+  const torchY  = H * 0.76;
   torchXs.forEach((tx, ti) => {
-    const flicker = 0.6 + 0.4 * Math.sin(t * 0.09 + ti * 1.7) + CIN.smoothBass * 0.4;
-    const fh = (12 + CIN.smoothBass * 18) * flicker;
-    const fw = (6 + CIN.smoothBass * 6) * flicker;
+    const flicker = 0.5 + 0.5 * Math.sin(t * (0.06 + rest * 0.04) + ti * 1.9) + CIN.smoothBass * 0.35;
+    // Resting: tiny flame, low energy. Active: blazing.
+    const baseH = 8 + rest * 4;
+    const fh = (baseH + active * 22 + CIN.smoothBass * 16) * flicker;
+    const fw = (5 + active * 6 + CIN.smoothBass * 4) * flicker;
     const tGrd = c.createRadialGradient(tx, torchY, 0, tx, torchY - fh, fw * 2.5);
-    tGrd.addColorStop(0,   `rgba(255,200,80,${0.7 * flicker})`);
-    tGrd.addColorStop(0.3, `rgba(${R},${Math.floor(G*0.4)},0,${0.4 * flicker})`);
+    const fBright = 0.4 + active * 0.5;
+    tGrd.addColorStop(0,   `rgba(255,${Math.floor(180 + active * 60)},80,${0.5 * fBright * flicker})`);
+    tGrd.addColorStop(0.35,`rgba(${R},${Math.floor(G*0.35)},0,${0.35 * fBright * flicker})`);
     tGrd.addColorStop(1,   'rgba(0,0,0,0)');
     c.fillStyle = tGrd;
     c.beginPath();
@@ -5961,23 +6506,25 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     c.fill();
   });
 
-  // ── 8. EMBERS
+  // ── 10. EMBERS
   CIN.embers.forEach(p => {
     p.age++;
-    p.x += p.vx * (1 + CIN.smoothEnergy * 1.5);
-    p.y += p.vy * (1 + CIN.smoothBass * 0.8);
-    p.vx += (Math.random() - 0.5) * 0.06;
+    // Resting: slow drift. Active: frenzied.
+    const drift = 0.3 + active * 1.4 + CIN.smoothEnergy * 1.2;
+    p.x += p.vx * drift;
+    p.y += p.vy * (0.4 + CIN.smoothBass * 0.6 + active * 0.6);
+    p.vx += (Math.random() - 0.5) * 0.05;
     if (p.y < -10 || p.age > p.maxLife) {
       p.x = Math.random() * W;
-      p.y = H * (0.7 + Math.random() * 0.3);
+      p.y = H * (0.7 + Math.random() * 0.28);
       p.vx = (Math.random() - 0.5) * 0.4;
       p.vy = -(Math.random() * 0.6 + 0.15);
       p.age = 0;
-      p.maxLife = Math.random() * 180 + 80;
+      p.maxLife = Math.random() * 200 + 100;
       p.r = R; p.g = G; p.b = B;
     }
     const prog = p.age / p.maxLife;
-    const alpha = Math.sin(prog * Math.PI) * 0.65;
+    const alpha = Math.sin(prog * Math.PI) * (0.3 + active * 0.45);
     c.beginPath();
     c.arc(p.x, p.y, p.size * (1 - prog * 0.5), 0, Math.PI * 2);
     c.fillStyle = prog < 0.3
@@ -5986,76 +6533,276 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     c.fill();
   });
 
-  // ── 9. FLASH on transient / high energy
-  if (CIN.smoothBass > 0.75 && Math.random() < 0.04) CIN.flashAlpha = 0.06 + Math.random() * 0.06;
+  // ── 11. ZONE-SPECIFIC AMBIENT PARTICLES
+  const particleAtmo = cinGetAtmo(zone);
+  CIN.particles.forEach((p, pi) => {
+    p.age++;
+    const prog = p.age / p.maxLife;
+    if (p.age > p.maxLife) {
+      CIN.particles[pi] = cinMakeParticle(particleAtmo.particle, zone, W, H, false);
+      return;
+    }
+    // Wisps and motes: sine drift
+    if (p.type === 'wisp' || p.type === 'mote' || p.type === 'void') {
+      p.x += p.vx + Math.sin(t * 0.008 + p.phase) * 0.3;
+      p.y += p.vy + Math.cos(t * 0.006 + p.phase) * 0.2;
+    } else {
+      p.x += p.vx * (0.5 + active * 1.2);
+      p.y += p.vy * (0.6 + active * 1.0);
+    }
+    // Wrap
+    if (p.x < -10) p.x = W + 5;
+    if (p.x > W + 10) p.x = -5;
+    if (p.y < -10) p.y = H + 5;
+
+    const fadeAlpha = Math.sin(prog * Math.PI) * (rest * 0.6 + active * 0.4);
+    if (p.glow) {
+      const gGrd = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3.5);
+      gGrd.addColorStop(0, `rgba(${p.r},${p.g},${p.b},${fadeAlpha * 0.7})`);
+      gGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = gGrd;
+      c.beginPath(); c.arc(p.x, p.y, p.size * 3.5, 0, Math.PI * 2); c.fill();
+    }
+    c.beginPath();
+    c.arc(p.x, p.y, p.size * (1 - prog * 0.3), 0, Math.PI * 2);
+    c.fillStyle = `rgba(${p.r},${p.g},${p.b},${fadeAlpha * 0.9})`;
+    c.fill();
+  });
+
+  // ── 12. RUNE GLYPHS — pulse with mid energy + resting breathing
+  if (CIN.runes.length) {
+    const midPulse = CIN.smoothMid * 0.4;
+    const restBreathe = rest * 0.06 * Math.sin(t * 0.014);
+    CIN.runes.forEach(rn => {
+      const glow = Math.sin(t * rn.speed + rn.phase);
+      const alpha = rn.baseAlpha + midPulse * 0.12 + restBreathe + glow * 0.02;
+      if (alpha < 0.005) return;
+      c.font = `${rn.size}px serif`;
+      c.textAlign = 'center';
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${alpha})`;
+      c.fillText(rn.glyph, rn.x, rn.y);
+    });
+  }
+
+  // ── 13. LIGHTNING (Void Spire / Sorcerer's Veil)
+  if (atmo.hasLightning) {
+    CIN.lightningCooldown--;
+    // Active music = more frequent lightning
+    const triggerChance = active > 0.5 && CIN.smoothMid > 0.35 ? 0.04 : 0.008;
+    if (CIN.lightningCooldown <= 0 && Math.random() < triggerChance) {
+      const lx = W * (0.1 + Math.random() * 0.8);
+      const numBranches = 2 + Math.floor(Math.random() * 3);
+      const bolt = { x: lx, branches: [], alpha: 0.9 + Math.random() * 0.1, age: 0 };
+      for (let b = 0; b < numBranches; b++) {
+        const branch = [{ x: lx + (Math.random() - 0.5) * 30, y: H * 0.05 }];
+        let cx = branch[0].x, cy = branch[0].y;
+        while (cy < H * 0.7) {
+          cx += (Math.random() - 0.5) * 40;
+          cy += Math.random() * 35 + 10;
+          branch.push({ x: cx, y: cy });
+        }
+        bolt.branches.push(branch);
+      }
+      CIN.lightningBolts.push(bolt);
+      CIN.lightningCooldown = Math.floor(60 + Math.random() * (active > 0.5 ? 80 : 200));
+      // Screen flash
+      CIN.vignetteFlash = 0.15 + Math.random() * 0.1;
+    }
+    // Draw and age bolts
+    CIN.lightningBolts = CIN.lightningBolts.filter(bolt => bolt.alpha > 0.01);
+    CIN.lightningBolts.forEach(bolt => {
+      bolt.age++;
+      bolt.alpha *= 0.72;
+      bolt.branches.forEach(branch => {
+        c.beginPath();
+        branch.forEach((pt, i) => i === 0 ? c.moveTo(pt.x, pt.y) : c.lineTo(pt.x, pt.y));
+        c.strokeStyle = `rgba(${Math.floor(mr*0.8 + 100)},${Math.floor(mg*0.5 + 80)},255,${bolt.alpha})`;
+        c.lineWidth = 1 + bolt.alpha * 1.5;
+        c.stroke();
+        // Glow
+        c.strokeStyle = `rgba(${R},${G},${B},${bolt.alpha * 0.3})`;
+        c.lineWidth = 4 + bolt.alpha * 4;
+        c.stroke();
+      });
+    });
+  }
+
+  // ── 14. BASS BEAT FLASH
+  CIN.prevBass = CIN.prevBass || 0;
+  const bassDelta = CIN.smoothBass - CIN.prevBass;
+  if (bassDelta > 0.12 && CIN.smoothBass > 0.5) {
+    CIN.beatFlash = 0.07 + bassDelta * 0.12;
+  }
+  CIN.prevBass = CIN.smoothBass;
+  if (CIN.beatFlash > 0.001) {
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.5)},${B},${CIN.beatFlash})`;
+    c.fillRect(0, 0, W, H);
+    CIN.beatFlash *= 0.68;
+  }
+
+  // ── 15. RESTING VIGNETTE — slow breath pulse
+  if (rest > 0.15) {
+    const breathPulse = 0.5 + 0.5 * Math.sin(t * 0.016);
+    const vAlpha = rest * 0.18 * breathPulse;
+    const vGrd = c.createRadialGradient(W/2, H/2, H*0.2, W/2, H/2, H*0.85);
+    vGrd.addColorStop(0, 'rgba(0,0,0,0)');
+    vGrd.addColorStop(1, `rgba(0,0,0,${vAlpha})`);
+    c.fillStyle = vGrd;
+    c.fillRect(0, 0, W, H);
+  }
+
+  // ── 16. ACTIVE VIGNETTE FLASH
+  if (CIN.vignetteFlash > 0) {
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${CIN.vignetteFlash})`;
+    c.fillRect(0, 0, W, H);
+    CIN.vignetteFlash *= 0.8;
+  }
+
+  // ── 17. SCREEN FLASH (high energy transient)
+  if (CIN.smoothBass > 0.78 && Math.random() < 0.035 && active > 0.4) CIN.flashAlpha = 0.06 + Math.random() * 0.05;
   if (CIN.flashAlpha > 0) {
     c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${CIN.flashAlpha})`;
     c.fillRect(0, 0, W, H);
     CIN.flashAlpha *= 0.72;
   }
 
-  // ── 10. WHISPER TEXT
+  // ── 18. WHISPER TEXT SYSTEM
   if (CIN.whisperCooldown > 0) CIN.whisperCooldown--;
-  if (CIN.whisperCooldown === 0 && Math.random() < 0.018) {
+  // Resting: whispers more frequent and larger. Active: suppressed.
+  const whisperChance = 0.006 + rest * 0.016;
+  if (CIN.whisperCooldown === 0 && Math.random() < whisperChance) {
     const pool = ZONE_WHISPERS[zone.name] || ZONE_WHISPERS['Ashen Fields'];
     const line = pool[Math.floor(Math.random() * pool.length)];
-    // Longer lines get more hold time; scale font down for long lines
     const wordCount = line.split(' ').length;
-    const holdFrames = 200 + wordCount * 18 + Math.floor(Math.random() * 80);
-    const size = wordCount > 10 ? 10 : wordCount > 6 ? 12 : 13;
-    // Position: avoid clustering near edges; bias toward center-ish areas
-    const xZone = Math.random();
-    const x = W * (0.08 + xZone * 0.84);
-    const y = H * (0.10 + Math.random() * 0.58);
-    CIN.whispers.push({
-      text: line,
-      x, y,
-      alpha: 0,
-      phase: 'in',
-      holdFrames,
-      heldFor: 0,
-      size,
-      italic: Math.random() > 0.35,
-    });
-    CIN.whisperCooldown = 140 + Math.floor(Math.random() * 120);
+    const holdFrames = 180 + wordCount * 20 + Math.floor(Math.random() * 100);
+    const size = Math.floor(Math.min(W,H) * (wordCount > 10 ? 0.012 : wordCount > 6 ? 0.015 : 0.017));
+    const x = W * (0.08 + Math.random() * 0.84);
+    const y = H * (0.12 + Math.random() * 0.55);
+    CIN.whispers.push({ text: line, x, y, alpha: 0, phase: 'in', holdFrames, heldFor: 0, size, italic: Math.random() > 0.35 });
+    CIN.whisperCooldown = 120 + Math.floor(Math.random() * 100) + Math.floor(active * 80);
   }
-  CIN.whispers = CIN.whispers.filter(w => !(w.phase === 'out' && w.alpha <= 0.01));
+  CIN.whispers = CIN.whispers.filter(w => !(w.phase === 'out' && w.alpha <= 0.008));
   CIN.whispers.forEach(w => {
-    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.009); if (w.alpha >= 1) w.phase = 'hold'; }
+    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.007); if (w.alpha >= 1) w.phase = 'hold'; }
     if (w.phase === 'hold') { w.heldFor++; if (w.heldFor >= w.holdFrames) w.phase = 'out'; }
-    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.005); }
-    const fontStr = w.italic
+    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.004); }
+    c.font = w.italic
       ? `italic 400 ${w.size}px 'IM Fell English', serif`
       : `400 ${w.size}px 'Cinzel', serif`;
-    c.font = fontStr;
     c.textAlign = 'center';
-    // Faint shadow for depth
-    c.fillStyle = `rgba(0,0,0,${w.alpha * 0.5})`;
+    // Shadow
+    c.fillStyle = `rgba(0,0,0,${w.alpha * 0.6})`;
     c.fillText(w.text, w.x + 1, w.y + 1);
-    // Main text in zone color, very dim
-    c.fillStyle = `rgba(${R},${Math.floor(G*0.85)},${B},${w.alpha * 0.38})`;
+    // Text — brighter during rest
+    const wAlpha = w.alpha * (0.3 + rest * 0.18);
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.82)},${B},${wAlpha})`;
     c.fillText(w.text, w.x, w.y);
   });
 
-  // ── 11. HUD — zone name + phrase + floor + desc
-  // Zone name (top center)
-  c.font = `700 ${Math.floor(Math.min(W,H)*0.022)}px 'Cinzel', serif`;
+  // ── 19. NARRATIVE TITLE CARDS — zone entry cinematic reveal
+  if (CIN.chapterReveal) {
+    const cr = CIN.chapterReveal;
+    if (cr.phase === 'in')   { cr.alpha = Math.min(1, cr.alpha + 0.012); if (cr.alpha >= 1) cr.phase = 'hold'; }
+    if (cr.phase === 'hold') { cr.heldFor++; if (cr.heldFor > cr.holdFrames) cr.phase = 'out'; }
+    if (cr.phase === 'out')  { cr.alpha = Math.max(0, cr.alpha - 0.006); if (cr.alpha <= 0) CIN.chapterReveal = null; }
+    if (cr.alpha > 0.005) {
+      const fadeA = cr.alpha;
+      // Horizontal rule
+      const ruleY = H * 0.38;
+      const ruleW = W * 0.3 * fadeA;
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.8)},${B},${fadeA * 0.5})`;
+      c.fillRect(W/2 - ruleW/2, ruleY - 1, ruleW, 1);
+
+      // Chapter marker
+      const markerSize = Math.floor(Math.min(W,H) * 0.011);
+      c.font = `400 ${markerSize}px 'Cinzel', serif`;
+      c.textAlign = 'center';
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${fadeA * 0.55})`;
+      c.fillText('◈  ENTERING  ◈', W/2, ruleY - 14);
+
+      // Zone name — big cinematic font
+      const titleSize = Math.floor(Math.min(W,H) * 0.045);
+      c.font = `700 ${titleSize}px 'Cinzel Decorative', serif`;
+      c.textAlign = 'center';
+      // Glow layer
+      c.shadowColor = `rgba(${R},${Math.floor(G*0.7)},${B},0.8)`;
+      c.shadowBlur = 30 * fadeA;
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.9)},${B},${fadeA * 0.9})`;
+      c.fillText(cr.zoneName.toUpperCase(), W/2, ruleY + titleSize + 8);
+      c.shadowBlur = 0;
+
+      // Subtitle — italic flavor
+      const subSize = Math.floor(Math.min(W,H) * 0.016);
+      c.font = `italic 400 ${subSize}px 'IM Fell English', serif`;
+      c.fillStyle = `rgba(${Math.floor(R*0.75)},${Math.floor(G*0.65)},${Math.floor(B*0.8)},${fadeA * 0.45})`;
+      c.fillText(cr.desc, W/2, ruleY + titleSize + 8 + subSize + 14);
+
+      // Floor range
+      c.font = `400 ${markerSize}px 'Cinzel', serif`;
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${fadeA * 0.35})`;
+      c.fillText(cr.floorRange, W/2, ruleY + titleSize + 8 + subSize + 14 + markerSize + 14);
+
+      // Bottom rule
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.8)},${B},${fadeA * 0.5})`;
+      c.fillRect(W/2 - ruleW/2, ruleY + titleSize + 8 + subSize + 14 + markerSize + 28, ruleW, 1);
+    }
+  }
+
+  // ── 20. NARRATIVE TITLE FLOATING CARDS (less prominent, mid-session)
+  if (CIN.titleCard) {
+    const tc = CIN.titleCard;
+    if (tc.phase === 'in')   { tc.alpha = Math.min(1, tc.alpha + 0.009); if (tc.alpha >= 1) tc.phase = 'hold'; }
+    if (tc.phase === 'hold') { tc.heldFor++; if (tc.heldFor > tc.holdFrames) tc.phase = 'out'; }
+    if (tc.phase === 'out')  { tc.alpha = Math.max(0, tc.alpha - 0.005); if (tc.alpha <= 0) CIN.titleCard = null; }
+    if (tc.alpha > 0.005) {
+      const ta = tc.alpha * 0.7;
+      const tSize = Math.floor(Math.min(W,H) * 0.028);
+      c.font = `700 ${tSize}px 'Cinzel', serif`;
+      c.textAlign = 'center';
+      c.shadowColor = `rgba(${R},${Math.floor(G*0.6)},${B},0.6)`;
+      c.shadowBlur = 18 * tc.alpha;
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.85)},${B},${ta})`;
+      c.fillText(tc.text, W/2, H * 0.22);
+      c.shadowBlur = 0;
+      if (tc.subtext) {
+        const stSize = Math.floor(Math.min(W,H) * 0.013);
+        c.font = `italic 400 ${stSize}px 'IM Fell English', serif`;
+        c.fillStyle = `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.6)},${Math.floor(B*0.75)},${ta * 0.6})`;
+        c.fillText(tc.subtext, W/2, H * 0.22 + tSize + 10);
+      }
+    }
+  }
+
+  // ── 21. HUD — always visible, fade with active energy
+  const hudAlpha = 0.4 + rest * 0.25;
+  // Zone name top-center
+  const znSize = Math.floor(Math.min(W,H) * 0.020);
+  c.font = `700 ${znSize}px 'Cinzel', serif`;
   c.textAlign = 'center';
-  c.fillStyle = `rgba(${R},${Math.floor(G*0.85)},${B},0.75)`;
-  c.fillText(zone.name.toUpperCase(), W/2, H * 0.07);
-  // Desc (italic, below zone name)
-  c.font = `italic 400 ${Math.floor(Math.min(W,H)*0.016)}px 'IM Fell English', serif`;
-  c.fillStyle = `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.6)},${Math.floor(B*0.8)},0.38)`;
-  c.fillText(zone.desc, W/2, H * 0.07 + Math.min(W,H)*0.032);
-  // Phrase bottom-left
-  c.font = `400 ${Math.floor(Math.min(W,H)*0.014)}px 'Cinzel', serif`;
+  c.fillStyle = `rgba(${R},${Math.floor(G*0.82)},${B},${hudAlpha * 0.85})`;
+  c.fillText(zone.name.toUpperCase(), W/2, H * 0.065);
+  // Desc
+  c.font = `italic 400 ${Math.floor(znSize*0.72)}px 'IM Fell English', serif`;
+  c.fillStyle = `rgba(${Math.floor(R*0.65)},${Math.floor(G*0.55)},${Math.floor(B*0.75)},${hudAlpha * 0.35})`;
+  c.fillText(zone.desc, W/2, H * 0.065 + znSize + 6);
+  // Bottom bar: phrase left, floor right, resting dot center
+  const hbSize = Math.floor(Math.min(W,H) * 0.013);
+  c.font = `400 ${hbSize}px 'Cinzel', serif`;
   c.textAlign = 'left';
-  c.fillStyle = `rgba(${R},${G},${B},0.3)`;
-  c.fillText(currentPhrase.toUpperCase(), W * 0.04, H * 0.93);
-  // Floor bottom-right
+  c.fillStyle = `rgba(${R},${G},${B},${hudAlpha * 0.32})`;
+  c.fillText(currentPhrase ? currentPhrase.toUpperCase() : '', W * 0.04, H * 0.94);
   c.textAlign = 'right';
-  c.fillStyle = `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.6)},${Math.floor(B*0.7)},0.35)`;
-  c.fillText(`FLOOR ${slider.value}`, W * 0.96, H * 0.93);
+  c.fillStyle = `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.6)},${Math.floor(B*0.7)},${hudAlpha * 0.32})`;
+  c.fillText(`FLOOR ${typeof slider !== 'undefined' ? slider.value : '—'}`, W * 0.96, H * 0.94);
+  // Resting indicator
+  if (rest > 0.6) {
+    const dots = ['·', '· ·', '· · ·'];
+    const dotIdx = Math.floor(t / 40) % 3;
+    c.font = `400 ${hbSize}px 'Cinzel', serif`;
+    c.textAlign = 'center';
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${(rest - 0.6) / 0.4 * 0.25})`;
+    c.fillText(dots[dotIdx], W/2, H * 0.94);
+  }
 }
 
 function drawCinematic() {
@@ -6065,17 +6812,34 @@ function drawCinematic() {
   const c = canvas.getContext('2d');
   const zone = getZone(parseInt(slider.value));
 
-  // Zone change — rebuild terrain & embers
+  // ── Zone change — rebuild all systems + trigger chapter reveal ──
   if (zone.name !== CIN.lastZone) {
     CIN.lastZone = zone.name;
     cinBuildTerrain(zone, W, H);
     cinInitEmbers(zone, W, H);
+    cinBuildRunes(zone, W, H);
+    cinInitFog(zone, W, H);
     CIN.whispers = [];
-    CIN.whisperCooldown = 60;
+    CIN.whisperCooldown = 90;
+    CIN.knight = null; // re-init at new zone's ground level
+    // Chapter reveal title card
+    const subtitles = ZONE_SUBTITLES[zone.name] || [''];
+    CIN.chapterReveal = {
+      zoneName: zone.name,
+      desc: subtitles[1] || zone.desc || '',
+      floorRange: subtitles[0] || '',
+      alpha: 0, phase: 'in', holdFrames: 220, heldFor: 0,
+    };
+    CIN.titleCooldown = 500;
   }
-  if (!CIN.terrain) { cinBuildTerrain(zone, W, H); cinInitEmbers(zone, W, H); }
 
-  // Audio data
+  // Bootstrap if needed
+  if (!CIN.terrain || !CIN.terrainParallax) { cinBuildTerrain(zone, W, H); }
+  if (!CIN.embers.length) cinInitEmbers(zone, W, H);
+  if (!CIN.runes.length) cinBuildRunes(zone, W, H);
+  if (!CIN.fogLayers.length) cinInitFog(zone, W, H);
+
+  // ── Audio analysis ──────────────────────────────────────────────
   const fftSize = analyser ? analyser.frequencyBinCount : 256;
   const freqData = new Uint8Array(fftSize);
   const waveData = new Uint8Array(analyser ? analyser.fftSize : 512);
@@ -6086,19 +6850,39 @@ function drawCinematic() {
     waveData.fill(128);
   }
 
-  // Smooth energy bands
   const bassEnd  = Math.floor(fftSize * 0.08);
   const midEnd   = Math.floor(fftSize * 0.35);
   const highEnd  = Math.floor(fftSize * 0.85);
   const avg = (arr, s, e) => { let sum=0; for(let i=s;i<e;i++) sum+=arr[i]; return sum/((e-s)*255); };
-  const rawBass  = avg(freqData, 0,       bassEnd);
-  const rawMid   = avg(freqData, bassEnd,  midEnd);
-  const rawHigh  = avg(freqData, midEnd,   highEnd);
-  const rawEnergy= avg(freqData, 0,        fftSize);
+  const rawBass   = avg(freqData, 0,       bassEnd);
+  const rawMid    = avg(freqData, bassEnd,  midEnd);
+  const rawHigh   = avg(freqData, midEnd,   highEnd);
+  const rawEnergy = avg(freqData, 0,        fftSize);
   CIN.smoothBass   += (rawBass   - CIN.smoothBass)   * 0.18;
   CIN.smoothMid    += (rawMid    - CIN.smoothMid)    * 0.12;
   CIN.smoothHigh   += (rawHigh   - CIN.smoothHigh)   * 0.10;
   CIN.smoothEnergy += (rawEnergy - CIN.smoothEnergy) * 0.10;
+
+  // ── Resting state detection ──────────────────────────────────────
+  // "Quiet" = overall energy below threshold. Smooth the transition.
+  const energyThreshold = 0.08;
+  const isQuiet = CIN.smoothEnergy < energyThreshold;
+  const targetRest = isQuiet ? 1.0 : Math.max(0, 1.0 - (CIN.smoothEnergy - energyThreshold) / 0.25);
+  CIN.restSmooth += (targetRest - CIN.restSmooth) * 0.025; // very slow blend
+  CIN.restLevel = CIN.restSmooth;
+
+  // ── Narrative title cards (mid-session, tied to resting moments) ─
+  CIN.titleCooldown--;
+  if (CIN.titleCooldown <= 0 && CIN.restLevel > 0.7 && !CIN.titleCard && !CIN.chapterReveal) {
+    const pool = ZONE_TITLES[zone.name] || ZONE_TITLES['Ashen Fields'];
+    const subs = ZONE_SUBTITLES[zone.name] || [''];
+    CIN.titleCard = {
+      text: pool[Math.floor(Math.random() * pool.length)],
+      subtext: subs[1 + Math.floor(Math.random() * (subs.length - 1))] || '',
+      alpha: 0, phase: 'in', holdFrames: 160, heldFor: 0,
+    };
+    CIN.titleCooldown = 600 + Math.floor(Math.random() * 400);
+  }
 
   CIN.t++;
   cinDrawScene(c, W, H, zone, freqData, waveData, CIN.t);
