@@ -1711,7 +1711,7 @@ function startRandomJourney() {
     const intensity = Math.max(0.3, rawIntensity);
     const percBufs = buildPercBufs(preset);
 
-    const availablePool = step >= 2 && cfg.latePool ? [...cfg.pool, ...cfg.latePool] : cfg.pool;
+    const availablePool = step >= 3 && cfg.latePool ? [...cfg.pool, ...cfg.latePool] : cfg.pool;
     const shuffled = [...availablePool].sort(() => rng() - 0.5);
     const picked = shuffled.slice(0, cfg.max);
     const toEnable = new Set([...cfg.required, ...picked]);
