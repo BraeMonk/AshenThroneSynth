@@ -526,7 +526,7 @@
 <div class="container">
   <div class="header">
     <div class="crown">✦ Ashen Throne ✦</div>
-    <h1>Music Forge<span>Adaptive Dungeon Synthesizer · v5</span></h1>
+    <h1>Music Forge<span>Adaptive Dungeon Synthesizer</span></h1>
     <div class="divider"></div>
   </div>
 
@@ -900,7 +900,7 @@ function buildOSTStepList() {
     el.appendChild(row);
   });
 }
-  
+
 // ── Bar & Phrase system ───────────────────────────────────────────
 const PHRASES = ['intro', 'build', 'tension', 'climax', 'resolution'];
 const PHRASE_DURATIONS = { intro: 8, build: 8, tension: 8, climax: 8, resolution: 8 }; // bars each
@@ -1141,15 +1141,15 @@ function exportMIDI() {
 
 // ── Song generation ───────────────────────────────────────────────
 const OST_STEPS = [
-  { label: 'Opening Silence',   floor: 1,  layers: ['drone'],                                                                       duration: 40000, boss: false, phrase: 'intro'      },
-  { label: 'The Descent',       floor: 10, layers: ['drone','wind','heartbeat'],                                                     duration: 45000, boss: false, phrase: 'build'      },
-  { label: 'Bone March',        floor: 18, layers: ['drone','wind','bass','perc'],                                                   duration: 45000, boss: false, phrase: 'build'      },
-  { label: 'Tension Builds',    floor: 26, layers: ['drone','bass','perc','wardrums','riser','melody'],                              duration: 50000, boss: false, phrase: 'tension'    },
-  { label: 'Shadow Army',       floor: 35, layers: ['drone','bass','perc','wardrums','stomp','melody','choir'],                      duration: 55000, boss: false, phrase: 'climax'     },
-  { label: 'Boss Threshold',    floor: 42, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos'],              duration: 50000, boss: true,  phrase: 'climax'     },
-  { label: 'The Void Tears',    floor: 55, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 55000, boss: true, phrase: 'climax' },
-  { label: 'Infernal Core',     floor: 70, layers: ['drone','bass','perc','wardrums','march','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 60000, boss: true, phrase: 'climax' },
-  { label: 'Ashes',             floor: 70, layers: ['drone','heartbeat','bells'],                                                    duration: 40000, boss: false, phrase: 'resolution' },
+  { label: 'Opening Silence',   floor: 6,  layers: ['drone'],                                                                       duration: 40000, boss: false, phrase: 'intro'      },
+  { label: 'The Descent',       floor: 18, layers: ['drone','wind','heartbeat'],                                                     duration: 45000, boss: false, phrase: 'build'      },
+  { label: 'Bone March',        floor: 30, layers: ['drone','wind','bass','perc'],                                                   duration: 45000, boss: false, phrase: 'build'      },
+  { label: 'Tension Builds',    floor: 42, layers: ['drone','bass','perc','wardrums','riser','melody'],                              duration: 50000, boss: false, phrase: 'tension'    },
+  { label: 'Shadow Army',       floor: 54, layers: ['drone','bass','perc','wardrums','stomp','melody','choir'],                      duration: 55000, boss: false, phrase: 'climax'     },
+  { label: 'Boss Threshold',    floor: 66, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos'],              duration: 50000, boss: true,  phrase: 'climax'     },
+  { label: 'The Void Tears',    floor: 78, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 55000, boss: true, phrase: 'climax' },
+  { label: 'Infernal Core',     floor: 92, layers: ['drone','bass','perc','wardrums','march','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 60000, boss: true, phrase: 'climax' },
+  { label: 'Ashes',             floor: 92, layers: ['drone','heartbeat','bells'],                                                    duration: 40000, boss: false, phrase: 'resolution' },
 ];
 
 const OST_CROSSFADE_DUR = 8.0; // seconds — overlap between steps
@@ -1493,6 +1493,32 @@ const SCALE_MOODS = {
 
 const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dread', 'dread'];
 
+function crawlToFloor(targetFloor, durationMs, onComplete) {
+  const startFloor = parseInt(slider.value);
+  const steps = Math.abs(targetFloor - startFloor);
+  if (steps === 0) { onComplete?.(); return; }
+  const stepMs = durationMs / steps;
+  let current = startFloor;
+  const dir = targetFloor > startFloor ? 1 : -1;
+  const id = setInterval(() => {
+    current += dir;
+    slider.value = current;
+    // Visual + zone bar only — no audio restart
+    const floor = current;
+    const zone = getZone(floor);
+    document.getElementById('floorNum').textContent = floor;
+    document.getElementById('zoneName').textContent = zone.name;
+    slider.style.setProperty('--pct', ((floor - 1) / 98 * 100).toFixed(1) + '%');
+    document.getElementById('ciZone').textContent = zone.name;
+    document.getElementById('ciFloor').textContent = `Void Floor ${floor}`;
+    if (current === targetFloor) {
+      clearInterval(id);
+      updateFloorUI(); // only trigger audio crossfade once at destination
+      onComplete?.();
+    }
+  }, stepMs);
+}
+
 function startRandomJourney() {
   if (!isPlaying) togglePlay();
   
@@ -1501,19 +1527,12 @@ function startRandomJourney() {
   let step = 0;
   
   journeyActive = true;
-
-  const allJourneyScales = [...new Set(Object.values(SCALE_MOODS).flat())];
-  const journeyScale = allJourneyScales[Math.floor(Math.random() * allJourneyScales.length)];
-  selectScale(journeyScale);
   
   function journeyStep() {
     if (!isPlaying) return;
     
-    const JOURNEY_FLOORS = [1, 10, 18, 26, 35, 50, 65, 85];
+    const JOURNEY_FLOORS = [1, 13, 25, 37, 49, 61, 73, 85];
     const floor = JOURNEY_FLOORS[step] ?? 85;
-
-    slider.value = floor;
-    updateFloorUI();
     
     const archetypeName = JOURNEY_ARC[step] || 'nightmare';
     
@@ -1570,6 +1589,11 @@ function startRandomJourney() {
     autoEvolution = true;
     startPhraseEngine();
 
+    const scaleMood = JOURNEY_SCALE_ARC[step] || 'dread';
+    const moodScales = SCALE_MOODS[scaleMood];
+    const newScale = moodScales[Math.floor(rng() * moodScales.length)];
+    selectScale(newScale);
+    
     setStatus(`🌑 Journey · ${archetypeName} · Floor ${floor}`);
     logTimeline(`Journey step ${step + 1}: ${archetypeName} · Floor ${floor}`);
     document.getElementById('randArchetypeLabel').textContent = archetypeName.toUpperCase();
@@ -1577,7 +1601,9 @@ function startRandomJourney() {
     step++;
     if (step < JOURNEY_STEPS) {
       const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
+      crawlToFloor(floor, dur * 0.6, null);
       setTimeout(journeyStep, dur);
+
     } else {
       journeyActive = false;
     }
@@ -1726,7 +1752,7 @@ const particles = [];
 // ── Zone presets ──────────────────────────────────────────────────
 const ZONES = [
   {
-    name:'Ashen Fields', range:[1,5], color:'#8b3a3a', bpm:58,
+    name:'Ashen Fields', range:[1,12], color:'#8b3a3a', bpm:58,
     root:41.2, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818],
     droneWave:'sine', droneFilterFreq:220, droneFilterQ:1.2,
     droneLfoRate:0.04, droneLfoDepth:80, droneAmpLfo:0.06,
@@ -1740,7 +1766,7 @@ const ZONES = [
     desc:'Sparse. Foreboding. Distant war drums echo across ash.'
   },
   {
-    name:'Rotwood Forest', range:[6,10], color:'#5a4a2a', bpm:66,
+    name:'Rotwood Forest', range:[13,24], color:'#5a4a2a', bpm:66,
     root:46.2, scale:[1,1.0595,1.1225,1.3348,1.4983,1.5874,1.6818],
     droneWave:'sawtooth', droneFilterFreq:280, droneFilterQ:3,
     droneLfoRate:0.09, droneLfoDepth:160, droneAmpLfo:0.09,
@@ -1754,7 +1780,7 @@ const ZONES = [
     desc:'Creaking wood. Dripping. Something follows in the dark.'
   },
   {
-    name:'Catacombs Deep', range:[11,18], color:'#3a3a5a', bpm:74,
+    name:'Catacombs Deep', range:[25,36], color:'#3a3a5a', bpm:74,
     root:36.7, scale:[1,1.0595,1.2599,1.3348,1.4142,1.5874,1.7818],
     droneWave:'sawtooth', droneFilterFreq:160, droneFilterQ:4,
     droneLfoRate:0.06, droneLfoDepth:300, droneAmpLfo:0.12,
@@ -1768,7 +1794,7 @@ const ZONES = [
     desc:'Bone-hollow reverb. The dead breathe here.'
   },
   {
-    name:'Shadowmere', range:[19,26], color:'#4a2a6a', bpm:82,
+    name:'Shadowmere', range:[37,48], color:'#4a2a6a', bpm:82,
     root:55, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
     droneWave:'sawtooth', droneFilterFreq:340, droneFilterQ:5,
     droneLfoRate:0.12, droneLfoDepth:450, droneAmpLfo:0.14,
@@ -1782,7 +1808,7 @@ const ZONES = [
     desc:'Wraith-song. Dense choir. Minor 2nd dissonance cuts through fog.'
   },
   {
-    name:"Sorcerer's Veil", range:[27,34], color:'#2a4a6a', bpm:90,
+    name:"Sorcerer's Veil", range:[49,60], color:'#2a4a6a', bpm:90,
     root:61.7, scale:[1,1.0595,1.1892,1.2599,1.4983,1.6818,1.7818],
     droneWave:'triangle', droneFilterFreq:500, droneFilterQ:6,
     droneLfoRate:0.18, droneLfoDepth:600, droneAmpLfo:0.18,
@@ -1796,7 +1822,7 @@ const ZONES = [
     desc:'Arcane shimmer. Fast arpeggios. Reality unravels at the edges.'
   },
   {
-    name:'Obsidian Keep', range:[35,42], color:'#6a2a4a', bpm:100,
+    name:'Obsidian Keep', range:[61,72], color:'#6a2a4a', bpm:100,
     root:49, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
     droneWave:'sawtooth', droneFilterFreq:420, droneFilterQ:3.5,
     droneLfoRate:0.22, droneLfoDepth:700, droneAmpLfo:0.2,
@@ -1810,7 +1836,7 @@ const ZONES = [
     desc:'Iron and blood. Full orchestral dread. War drums cascade.'
   },
   {
-    name:'Void Spire', range:[43,50], color:'#5a2a8a', bpm:110,
+    name:'Void Spire', range:[73,84], color:'#5a2a8a', bpm:110,
     root:51.9, scale:[1,1.0595,1.1225,1.3348,1.4142,1.5874,1.6818],
     droneWave:'sawtooth', droneFilterFreq:550, droneFilterQ:5,
     droneLfoRate:0.28, droneLfoDepth:900, droneAmpLfo:0.22,
@@ -1824,7 +1850,7 @@ const ZONES = [
     desc:'The spire tears through reality. Dissonant. Relentless.'
   },
   {
-    name:'Infernal Core', range:[51,99], color:'#8a1a1a', bpm:120,
+    name:'Infernal Core', range:[85,99], color:'#8a1a1a', bpm:120,
     root:43.65, scale:[1,1.0595,1.1225,1.2599,1.4142,1.4983,1.7818],
     droneWave:'sawtooth', droneFilterFreq:800, droneFilterQ:7,
     droneLfoRate:0.4, droneLfoDepth:1200, droneAmpLfo:0.3,
@@ -2064,7 +2090,26 @@ function scaleFreq(preset, oct, deg) {
 
 function fadeIn(g, v, d)   { const n = ctx.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(g.gain.value, n); g.gain.linearRampToValueAtTime(v, n + d); }
 function fadeOut(g, d, cb) { const n = ctx.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(g.gain.value, n); g.gain.linearRampToValueAtTime(0, n + d); if (cb) setTimeout(cb, (d + 0.1) * 1000); }
-function killLayer(name)   { timers[name].forEach(clearTimeout); timers[name] = []; nodes[name].forEach(n => { try { if (n.stop) n.stop(ctx.currentTime + 0.04); n.disconnect(); } catch(e) {} }); nodes[name] = []; }
+function killLayer(name) {
+  timers[name].forEach(clearTimeout);
+  timers[name] = [];
+
+  const now = ctx.currentTime;
+
+  nodes[name].forEach(n => {
+    try {
+      if (n.stop) n.stop(now + 0.06);
+
+      setTimeout(() => {
+        try { n.disconnect(); } catch(e) {}
+      }, 80);
+
+    } catch(e) {}
+  });
+
+  nodes[name] = [];
+}
+
 function busTarget(n, i) {
   return {
     drone:.55+i*.2,        // was .7+i*.3
@@ -2092,15 +2137,51 @@ function busTarget(n, i) {
   }[n] ?? 0.45;
 }
 
+// ── VOICE BANKS ───────────────────────────────
+const VOICE_BANKS = {
+  drone:      ['sine', 'triangle', 'sawtooth', 'customDrone1', 'customDrone2'],
+  bass:       ['sawtooth', 'square', 'subBass', 'triangleBass'],
+  melody:     ['sawtooth', 'triangle', 'lute', 'bells', 'organ', 'customMelody'],
+  choir:      ['sawtooth', 'organ', 'choirDark', 'choirBright', 'vocalPad'],
+  horn:       ['sawtooth', 'square', 'brass', 'frenchHorn', 'customHorn'],
+  bells:      ['sine', 'bellsSoft', 'bellsBright', 'glockenspiel', 'tinkle'],
+  organ:      ['sine', 'drawbar', 'churchOrgan', 'customOrgan'],
+  chaos:      ['square', 'sawtooth', 'triangle', 'noise'],
+  whispers:   ['whiteNoise', 'vocalWhisper', 'airyPad', 'breath'],
+  ritualchant:['square', 'sine', 'choirDark', 'voicePad'],
+  glitch:     ['sine', 'square', 'noise', 'glitchy'],
+  boss:       ['sawtooth', 'square', 'customBoss', 'triangle'],
+  heartbeat:  ['sine', 'triangle', 'subSine'],
+  wind:       ['whiteNoise', 'filteredNoise', 'airyPad'],
+  riser:      ['sine', 'sawtooth', 'triangle', 'filteredNoise'],
+  firecrackle:['whiteNoise', 'fireBuf1', 'fireBuf2'],
+  perc:       ['kick1', 'kick2', 'snare1', 'hihat1', 'hihat2'],
+  wardrums:   ['lowTom', 'highTom', 'floorTom', 'snare'],
+  chains:     ['chain1', 'chain2', 'metalHit'],
+  march:      ['snare', 'bassDrum', 'rim'],
+  stomp:      ['stomp1', 'stomp2', 'stomp3'],
+  lute:       ['sawtooth', 'sine', 'lute', 'plucked']
+};
+
+// ── PICK RANDOM VOICE HELPER ─────────────────
+function pickVoice(layer) {
+  const bank = VOICE_BANKS[layer];
+  if (!bank) return 'sine';
+  return bank[Math.floor(Math.random() * bank.length)];
+}
+  
 // ── Layer builders ────────────────────────────────────────────────
 function buildDrone(preset, intensity, name) {
-  const b = bus[name], filt = mkFilt(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
+  const b = bus[name];
+  const filt = mkFilt(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
   filt.connect(b);
   [preset.root, preset.root * 1.5, preset.root * 2, preset.root * 3].forEach((f, i) => {
-    const o = mkOsc(f, i === 0 ? preset.droneWave : 'sine', (i - 1) * 9), g = mkGain([.35,.2,.12,.06][i]);
+    const o = mkOsc(f, i === 0 ? (sessionVoices['drone'] || preset.droneWave) : 'sine', (i - 1) * 9);
+    const g = mkGain(i === 0 ? 0.5 : 0.2);
     chain(o, g, filt); o.start(); reg(name, o, g);
   });
-  const dO = mkOsc(preset.root * 2, preset.droneWave, 14), dG = mkGain(.08);
+  const dO = mkOsc(preset.root * 2, sessionVoices['drone'] || preset.droneWave, 14);
+  const dG = mkGain(0.15);
   chain(dO, dG, filt); dO.start(); reg(name, dO, dG);
   const lfo = mkOsc(preset.droneLfoRate + intensity * .1, 'sine'), lfoG = mkGain(preset.droneLfoDepth + intensity * 400);
   chain(lfo, lfoG); lfoG.connect(filt.frequency); lfo.start(); reg(name, lfo, lfoG);
@@ -2146,7 +2227,9 @@ function buildBass(preset, intensity, name) {
   function schedBar() {
     for (let i = 0; i < 8; i++) {
       const bt = t + i * beat * .5, freq = scaleFreq(preset, 0, preset.bassPattern[i]);
-      const o = mkOsc(freq, preset.bassWave), env = mkGain(0), filt = mkFilt(preset.bassFilterFreq + intensity * 300, 'lowpass', 3);
+      const o = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
+      const filt = mkFilt(preset.bassFilterFreq + intensity * 300, 'lowpass', 2);
+      const env = mkGain(0);
       chain(o, filt, env, b);
       const v = .22 + intensity * .18;
       env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(v, bt + .015); env.gain.exponentialRampToValueAtTime(.001, bt + beat * .45);
@@ -2158,34 +2241,98 @@ function buildBass(preset, intensity, name) {
 }
 
 function buildMelody(preset, intensity, name) {
-  const b = bus[name], bpm = isBoss ? preset.bpm + 22 : preset.bpm, beat = 60 / bpm;
-  const motif = mutateMotif(preset);
-  let patIdx = 0, t = ctx.currentTime + .1;
+  const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+
+  const baseMotif = mutateMotif(preset);
+  let patIdx = 0;
+  let t = ctx.currentTime + 0.1;
+
   function schedBar() {
-    // Use motif every other bar for recognizable identity
     const useMotif = (patIdx % 2 === 0);
-    const pat = useMotif ? motif : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
-    patIdx++;
-    for (let i = 0; i < pat.length; i++) {
-      const bt = t + i * beat * .5;
+    let motif = useMotif ? [...baseMotif] : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
+
+    if (rng() < 0.3) motif = motif.map(d => d + [-2,0,2][Math.floor(rng()*3)]);
+    if (rng() < 0.2) motif = motif.reverse();
+    if (rng() < 0.2) motif = motif.map(d => d + (rng()<0.5 ? 12 : -12));
+
+    let counterMotif = null;
+    if (rng() < 0.5) counterMotif = motif.map(d => d + [3,5,7][Math.floor(rng()*3)]);
+
+    for (let i = 0; i < motif.length; i++) {
       if (rng() < preset.melodySkip) continue;
-      const freq = scaleFreq(preset, preset.melodyOctave, pat[i]);
-      const o1 = mkOsc(freq, preset.melodyWave), o2 = mkOsc(freq * 1.004, 'sine'), env = mkGain(0), filt = mkFilt(1200 + intensity * 1400, 'lowpass', 2), g1 = mkGain(.55), g2 = mkGain(.28);
+
+      const bt = t + i * beat * (0.45 + rng()*0.15);
+      const deg = motif[i];
+      const dur = beat * (0.25 + rng()*0.35);
+      const vel = 0.05 + intensity * 0.12 + rng()*0.02;
+
+      const freq = scaleFreq(preset, preset.melodyOctave, deg);
+      const o1 = mkOsc(freq, sessionVoices['melody'] || 'triangle');
+      const o2 = mkOsc(freq * 1.003, sessionVoices['melody'] || 'triangle');
+      const env = mkGain(0);
+      const filt = mkFilt(1200 + intensity*1500, 'lowpass', 2);
+      const g1 = mkGain(0.55), g2 = mkGain(0.28);
       chain(o1, g1, filt); chain(o2, g2, filt); chain(filt, env, b);
-      const v = .07 + intensity * .13, dur = beat * (.28 + rng() * .35);
-      env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(v, bt + .04); env.gain.setValueAtTime(v * .65, bt + dur * .65); env.gain.linearRampToValueAtTime(.001, bt + dur);
-      o1.start(bt); o1.stop(bt + dur + .1); o2.start(bt); o2.stop(bt + dur + .1);
+
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vel, bt+0.02);
+      env.gain.setValueAtTime(vel*0.6, bt+dur*0.6);
+      env.gain.linearRampToValueAtTime(0.001, bt+dur);
+
+      o1.start(bt); o1.stop(bt+dur+0.05);
+      o2.start(bt); o2.stop(bt+dur+0.05);
       reg(name, o1, o2, env, filt, g1, g2);
+
+      if (counterMotif) {
+        const cfreq = scaleFreq(preset, preset.melodyOctave, counterMotif[i]);
+        const co1 = mkOsc(cfreq, sessionVoices['choir'] || 'sawtooth');
+        const co2 = mkOsc(cfreq * 1.002, sessionVoices['choir'] || 'sawtooth');
+        const cenv = mkGain(0);
+        const cfilt = mkFilt(1200 + intensity*1500, 'lowpass', 2);
+        const cg1 = mkGain(0.25), cg2 = mkGain(0.12);
+        chain(co1, cg1, cfilt); chain(co2, cg2, cfilt); chain(cfilt, cenv, b);
+
+        cenv.gain.setValueAtTime(0, bt);
+        cenv.gain.linearRampToValueAtTime(vel*0.6, bt+0.02);
+        cenv.gain.linearRampToValueAtTime(0.001, bt+dur);
+
+        co1.start(bt); co1.stop(bt+dur); co2.start(bt); co2.stop(bt+dur);
+        reg(name, co1, co2, cenv, cfilt, cg1, cg2);
+      }
+
+      if (rng() < 0.3) {
+        const overlayDeg = deg + [7,12,19][Math.floor(rng()*3)];
+        const overlayFreq = scaleFreq(preset, preset.melodyOctave, overlayDeg);
+        const oo1 = mkOsc(overlayFreq, sessionVoices['bells'] || 'sine');
+        const oo2 = mkOsc(overlayFreq * 1.002, sessionVoices['bells'] || 'sine');
+        const ofilt = mkFilt(3000 + intensity*2000, 'lowpass', 1);
+        const oenv = mkGain(0), og1 = mkGain(0.18), og2 = mkGain(0.08);
+        chain(oo1, og1, ofilt); chain(oo2, og2, ofilt); chain(ofilt, oenv, b);
+
+        oenv.gain.setValueAtTime(0, bt);
+        oenv.gain.linearRampToValueAtTime(vel*0.35, bt+0.02);
+        oenv.gain.linearRampToValueAtTime(0.001, bt+dur);
+
+        oo1.start(bt); oo1.stop(bt+dur); oo2.start(bt); oo2.stop(bt+dur);
+        reg(name, oo1, oo2, ofilt, oenv, og1, og2);
+      }
     }
-    t += beat * 4; regT(name, setTimeout(schedBar, (beat * 3.6) * 1000));
+
+    t += beat * 4;
+    patIdx++;
+    regT(name, setTimeout(schedBar, (beat*3.6)*1000));
   }
+
   schedBar();
 }
 
 function buildChoir(preset, intensity, name) {
   const b = bus[name];
   [0, 2, 4].forEach((deg, vi) => {
-    const freq = scaleFreq(preset, 2, deg), o = mkOsc(freq, 'sawtooth', vi * 4);
+    const freq = scaleFreq(preset, 2, deg);
+    const o = mkOsc(freq, sessionVoices['choir'] || 'sawtooth', vi * 4);
     const f1 = mkFilt(preset.choirFormants[0], 'bandpass', 9), f2 = mkFilt(preset.choirFormants[1], 'bandpass', 7), f3 = mkFilt(preset.choirFormants[2], 'bandpass', 5);
     const m = mkGain(.38); chain(o, f1, m); chain(o, f2, m); chain(o, f3, m); m.connect(b);
     const vib = mkOsc(preset.choirVibRate + vi * .4, 'sine'), vibG = mkGain(preset.choirVibDepth);
@@ -2197,7 +2344,7 @@ function buildChoir(preset, intensity, name) {
 function buildChaos(preset, intensity, name) {
   const b = bus[name];
   [1.05, 1.13, .97, 1.21].forEach((mult, i) => {
-    const o = mkOsc(preset.root * 4 * mult, i % 2 === 0 ? 'square' : 'sawtooth', i * 18 - 9);
+    const o = mkOsc(preset.root * 4 * mult, sessionVoices['chaos'] || (i % 2 === 0 ? 'square' : 'sawtooth'), i * 18 - 9);
     const filt = mkFilt(500 + rng() * 600, 'bandpass', 6), env = mkGain(0);
     const trem = mkOsc(6 + i * 3, 'sine'), tG = mkGain(.25);
     chain(trem, tG); tG.connect(env.gain); chain(o, filt, env, b);
@@ -2209,7 +2356,9 @@ function buildChaos(preset, intensity, name) {
 function buildBoss(preset, intensity, name) {
   const b = bus[name];
   [preset.root * .5, preset.root * .75].forEach((freq, i) => {
-    const o = mkOsc(freq, 'sawtooth', i * 22), filt = mkFilt(120, 'lowpass', 5), env = mkGain(.12);
+    const o = mkOsc(freq, sessionVoices['boss'] || 'sawtooth', i * 22);
+    const filt = mkFilt(300 + intensity * 600, 'lowpass', 3);
+    const env = mkGain(0);
     const lfo = mkOsc(1.8 + i * .6, 'square'), lfoG = mkGain(.28);
     chain(lfo, lfoG); lfoG.connect(env.gain); chain(o, filt, env, b);
     env.gain.linearRampToValueAtTime(.28, ctx.currentTime + 1.2);
@@ -2256,7 +2405,6 @@ function buildWind(preset, intensity, name) {
 }
 
 function buildRiser(preset, intensity, name) {
-  reg(name, mkGain(0));
   const b = bus[name]; const duration = 16;
   const bufLen = ctx.sampleRate * 3;
   const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
@@ -2391,7 +2539,8 @@ function buildLute(preset, intensity, name) {
     for (let i = 0; i < pat.length; i++) {
       if (rng() < 0.3) continue;
       const bt = t + i * beat * 0.5, freq = scaleFreq(preset, preset.melodyOctave + 1, pat[i]);
-      const osc = mkOsc(freq, 'sawtooth'), osc2 = mkOsc(freq * 2.003, 'sine');
+      const osc = mkOsc(freq, sessionVoices['lute'] || 'sawtooth');
+      const osc2 = mkOsc(freq * 1.004, sessionVoices['lute'] || 'sawtooth');
       const filt = mkFilt(freq * 3, 'lowpass', 0.8), env = mkGain(0), g1 = mkGain(0.6), g2 = mkGain(0.25);
       chain(osc, g1, filt); chain(osc2, g2, filt); chain(filt, env, b);
       const vol = 0.06 + intensity * 0.08, dur = beat * (0.15 + rng() * 0.2);
@@ -2413,7 +2562,7 @@ function buildHorn(preset, intensity, name) {
     const deg = pair[Math.floor(rng() * pair.length)];
     const freq = scaleFreq(preset, preset.melodyOctave, deg);
     const dur = beat * (3 + rng() * 2);
-    const o1 = mkOsc(freq, 'sawtooth'), o2 = mkOsc(freq * 1.002, 'sawtooth');
+    const o1 = mkOsc(freq, sessionVoices['horn'] || 'sawtooth'), o2 = mkOsc(freq * 1.002, sessionVoices['horn'] || 'sawtooth');
     const formant = mkFilt(800 + intensity * 400, 'bandpass', 3), bright = mkFilt(1800, 'lowpass', 1), env = mkGain(0);
     const g1 = mkGain(0.5), g2 = mkGain(0.3);
     chain(o1, g1, formant); chain(o2, g2, formant); chain(formant, bright, env, b);
@@ -2494,7 +2643,9 @@ function buildRitualChant(preset, intensity, name) {
   let idx = 0, t = ctx.currentTime + 0.1;
   function schedHit() {
     const bt = t, freq = scaleFreq(preset, 1, chantDegs[idx++ % chantDegs.length]);
-    const o = mkOsc(freq, 'square'), filt = mkFilt(400 + intensity * 300, 'lowpass', 2), env = mkGain(0);
+    const o = mkOsc(freq, sessionVoices['ritualchant'] || 'square');
+    const filt = mkFilt(600 + intensity * 400, 'lowpass', 2);
+    const env = mkGain(0);
     chain(o, filt, env, b);
     const vol = 0.06 + intensity * 0.07, dur = beat * 0.8;
     env.gain.setValueAtTime(0, bt); env.gain.linearRampToValueAtTime(vol, bt + 0.02); env.gain.setValueAtTime(vol * 0.6, bt + dur * 0.4); env.gain.linearRampToValueAtTime(0.001, bt + dur);
@@ -2506,7 +2657,6 @@ function buildRitualChant(preset, intensity, name) {
 }
 
 function buildGlitch(preset, intensity, name) {
-  reg(name, mkGain(0));
   const b = bus[name], sr = ctx.sampleRate;
   function schedGlitch() {
     if (!layerOn[name]) return;
@@ -2537,15 +2687,32 @@ const PERC_BUF_LAYERS = new Set(['perc','wardrums','chains','march','stomp']);
 
 function startLayer(name, preset, intensity, percBufs) {
   killLayer(name);
-  if (PERC_BUF_LAYERS.has(name)) BUILDERS[name](preset, intensity, name, percBufs || buildPercBufs(preset));
-  else BUILDERS[name](preset, intensity, name);
+  if (journeyActive) {
+    preset.journeyVoice = pickVoice(name);
+  }
+  if (PERC_BUF_LAYERS.has(name)) {
+    BUILDERS[name](preset, intensity, name, percBufs || buildPercBufs(preset));
+  } else {
+    BUILDERS[name](preset, intensity, name);
+  }
   fadeIn(bus[name], busTarget(name, intensity), FADE_IN);
 }
 
 function stopLayer(name) { fadeOut(bus[name], FADE_OUT, () => killLayer(name)); }
 
+let sessionVoices = {};
+
+function pickSessionVoices() {
+  sessionVoices = {};
+  LAYER_NAMES.forEach(name => {
+    const bank = VOICE_BANKS[name];
+    if (bank) sessionVoices[name] = bank[Math.floor(rng() * bank.length)];
+  });
+}
+  
 function startSynth() {
   initAudio();
+  pickSessionVoices();
   sessionStartTime = Date.now();
   timelineEvents = [];
   const floor = parseInt(slider.value), preset = getZone(floor);
@@ -2660,6 +2827,95 @@ function selectScale(id) {
 const slider = document.getElementById('floorSlider');
 let floorDebounce = null, lastZoneName = '';
 
+// ── Zone crossfade state ──────────────────────────────────────────
+let crossfadeTimer = null;
+
+function lerpZone(zA, zB, t) {
+  const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+  return {
+    ...zB,
+    bpm:             zA.bpm             + (zB.bpm             - zA.bpm)             * e,
+    droneFilterFreq: zA.droneFilterFreq + (zB.droneFilterFreq - zA.droneFilterFreq) * e,
+    droneFilterQ:    zA.droneFilterQ    + (zB.droneFilterQ    - zA.droneFilterQ)    * e,
+    droneLfoRate:    zA.droneLfoRate    + (zB.droneLfoRate    - zA.droneLfoRate)    * e,
+    droneLfoDepth:   zA.droneLfoDepth   + (zB.droneLfoDepth   - zA.droneLfoDepth)  * e,
+    droneAmpLfo:     zA.droneAmpLfo     + (zB.droneAmpLfo     - zA.droneAmpLfo)    * e,
+    root:            zA.root            + (zB.root            - zA.root)            * e,
+    bassFilterFreq:  zA.bassFilterFreq  + (zB.bassFilterFreq  - zA.bassFilterFreq)  * e,
+    vizR:            Math.round(zA.vizR + (zB.vizR - zA.vizR) * e),
+    vizG:            Math.round(zA.vizG + (zB.vizG - zA.vizG) * e),
+    vizB:            Math.round(zA.vizB + (zB.vizB - zA.vizB) * e),
+  };
+}
+
+function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
+  if (crossfadeTimer) { clearInterval(crossfadeTimer); crossfadeTimer = null; }
+
+  const STEPS     = 40;
+  const STEP_MS   = 150; // 40 × 150ms = 6 seconds total
+  let   step      = 0;
+
+  crossfadeTimer = setInterval(() => {
+    step++;
+    const t      = step / STEPS;
+    const blended = lerpZone(fromZone, toZone, t);
+
+    // BPM
+    barLength = (60 / blended.bpm) * 4;
+
+    // Drone — morph filter + LFO params live without restarting
+    if (layerOn['drone'] && nodes['drone'].length) {
+      nodes['drone'].forEach(n => {
+        if (n instanceof BiquadFilterNode) {
+          n.frequency.setTargetAtTime(
+            blended.droneFilterFreq + intensity * 600,
+            ctx.currentTime, 0.4
+          );
+          n.Q.setTargetAtTime(blended.droneFilterQ, ctx.currentTime, 0.4);
+        }
+        if (n instanceof OscillatorNode && n.frequency.value < 5) {
+          // LFO — identified by very low frequency
+          n.frequency.setTargetAtTime(blended.droneLfoRate, ctx.currentTime, 0.4);
+        }
+      });
+    }
+
+    // Visualizer color blend — update floor num display
+    const fn = document.getElementById('floorNum');
+    fn.style.color      = `rgb(${blended.vizR},${blended.vizG},${blended.vizB})`;
+    fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${blended.vizR},${blended.vizG},${blended.vizB},0.6)`;
+
+    // At halfway: restart melodic + perc layers with new zone params
+    // so they land on the new root/scale/patterns smoothly
+    if (step === Math.floor(STEPS * 0.5)) {
+      ['perc','wardrums','march','stomp','chains'].forEach(name => {
+        if (layerOn[name]) startLayer(name, toZone, intensity, percBufs);
+      });
+    }
+
+    // At 75%: swap melodic layers to new zone
+    if (step === Math.floor(STEPS * 0.75)) {
+      ['bass','melody','choir','lute','horn','bells','organ'].forEach(name => {
+        if (layerOn[name]) startLayer(name, toZone, intensity, null);
+      });
+    }
+
+    if (step >= STEPS) {
+      clearInterval(crossfadeTimer);
+      crossfadeTimer = null;
+      // Drone is already morphed close enough — only restart if root pitch
+      // drifted more than a semitone from destination
+      if (layerOn['drone']) {
+        const currentRoot = toZone.root;
+        const driftedRoot = lerpZone(fromZone, toZone, 1).root;
+        if (Math.abs(currentRoot - driftedRoot) > 1) {
+          startLayer('drone', toZone, intensity, null);
+        }
+      }
+    }
+  }, STEP_MS);
+}
+
 function updateFloorUI() {
   const floor = parseInt(slider.value), zone = getZone(floor), intensity = getIntensity(floor);
   document.getElementById('floorNum').textContent = floor;
@@ -2682,17 +2938,28 @@ function updateFloorUI() {
   clearTimeout(floorDebounce);
   floorDebounce = setTimeout(() => {
     initAudio();
-    const f2 = parseInt(slider.value), np = getZone(f2), ni = isBoss ? Math.min(1, getIntensity(f2) + .4) : getIntensity(f2);
-    const pb = buildPercBufs(np), changed = (np.name !== lastZoneName);
-    lastZoneName = np.name;
-    barLength = (60 / np.bpm) * 4;
-    LAYER_NAMES.forEach(name => {
-      if (name === 'boss') { if (isBoss) startLayer(name, np, ni, null); return; }
-      if (journeyActive && (name === 'drone' || name === 'bass')) return;
-      if (layerOn[name]) startLayer(name, np, ni, PERC_BUF_LAYERS.has(name) ? pb : null);
-    });
-    if (changed) logTimeline(`Zone: ${np.name} · Floor ${f2}`);
-    setStatus(changed ? np.desc : `Floor ${f2} · ${np.name}`);
+    const f2   = parseInt(slider.value);
+    const np   = getZone(f2);
+    const ni   = isBoss ? Math.min(1, getIntensity(f2) + .4) : getIntensity(f2);
+    const pb   = buildPercBufs(np);
+    const fromZone = ZONES.find(z => z.name === lastZoneName) || np;
+    const changed  = (np.name !== lastZoneName);
+    lastZoneName   = np.name;
+
+    if (changed) {
+      startZoneCrossfade(fromZone, np, ni, pb);
+      logTimeline(`Zone: ${np.name} · Floor ${f2}`);
+      setStatus(np.desc);
+    } else {
+      // Same zone — just update BPM and restart layers normally
+      barLength = (60 / np.bpm) * 4;
+      LAYER_NAMES.forEach(name => {
+        if (name === 'boss') { if (isBoss) startLayer(name, np, ni, null); return; }
+        if (journeyActive && (name === 'drone' || name === 'bass')) return;
+        if (layerOn[name]) startLayer(name, np, ni, PERC_BUF_LAYERS.has(name) ? pb : null);
+      });
+      setStatus(`Floor ${f2} · ${np.name}`);
+    }
   }, 250);
 }
 
