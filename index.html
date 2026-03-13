@@ -1721,9 +1721,9 @@ function startRandomJourney() {
     const picked = shuffled.slice(0, cfg.max);
     const toEnable = new Set([...cfg.required, ...picked]);
 
-    // Snap all layer changes to next bar boundary
+    // Step 0 starts immediately, subsequent steps snap to bar boundary
     const now = ctx.currentTime;
-    const toNextBar = barLength - (now % barLength) + barLength;
+    const toNextBar = step === 0 ? 0.05 : barLength - (now % barLength) + barLength;
 
     setTimeout(() => {
       const newBpm = preset.bpm;
@@ -1752,7 +1752,7 @@ function startRandomJourney() {
           document.getElementById('btn-' + name)?.classList.add('active');
           document.getElementById('pill-' + name)?.classList.add('on');
           startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
-        }, i * barLength * 1000);
+        }, i * (barLength / 2) * 1000); // stagger by half a bar, not a full bar
       });
     }, toNextBar * 1000);
 
@@ -3216,7 +3216,8 @@ function buildChoir(preset, intensity, name) {
   ];
 
   voices.forEach(({ octMult, det, gv, formF }, vi) => {
-    const freq = CE.chordTone('choir', 1, vi % 3) * octMult;
+    const raw  = CE.chordTone('choir', 1, vi % 3);
+    const freq = (raw && raw > 10 ? raw : preset.root * 2) * octMult;
     const o = mkOsc(freq, 'sawtooth', det);
 
     // Formant stack — 3 bandpass filters shape the vowel
@@ -3268,7 +3269,8 @@ function buildChoir(preset, intensity, name) {
   reg(name, breathSrc, bFilt1, bFilt2, bG);
 
   // Sub warmth — octave below, pure sine, fills the chest register
-  const subFreq = CE.chordTone('choir', 0, 0);
+  const subRaw  = CE.chordTone('choir', 0, 0);
+  const subFreq = (subRaw && subRaw > 10) ? subRaw : preset.root;
   const subO    = mkOsc(subFreq, 'sine');
   const subFilt = mkFilt(350, 'lowpass', 0.7);
   const subG    = mkGain(0.08 + intensity * 0.05);
@@ -4049,9 +4051,10 @@ function buildBells(preset, intensity, name) {
 function buildOrgan(preset, intensity, name) {
   const b = bus[name];
 
-  const root  = CE.chordTone('organ', 1, 0);
-  const fifth = CE.chordTone('organ', 1, 2);
-  const third = CE.chordTone('organ', 1, 1);
+  const safe = (v, oct) => { const f = CE.chordTone('organ', oct, v); return (f && f > 10) ? f : preset.root * Math.pow(2, oct); };
+  const root  = safe(0, 1);
+  const fifth = safe(2, 1);
+  const third = safe(1, 1);
 
   // Drawbar configuration — each bar is a separate oscillator
   // Gains tuned to a dark cathedral registration, not a bright theatre organ
