@@ -6313,6 +6313,79 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
 
   // ── Per-mode tick ─────────────────────────────────────────────────
 
+  // ── Combat tick — runs regardless of narrativeMode ───────────────
+  // Enemy aggro can trigger combat from any mode, so this must not be
+  // gated behind narrativeMode === 'fight'.
+  const inCombatNow = k.state === 'combat' || k.state === 'strike';
+  if (inCombatNow) {
+    k.guardRaised += (0.75 + leg.aggression * 0.2 - k.guardRaised) * 0.06;
+
+    if (k.staggerTimer > 0) {
+      k.staggerTimer--;
+      k.velX += -k.dir * s * (0.03 + leg.grief * 0.025);
+      k.strikeSwing *= 0.85;
+      if (k.staggerTimer === 0) { k.state = 'combat'; k.stateTimer = 0; }
+
+    } else if (k.state === 'combat') {
+      if (k.combatTarget === null)
+        k.combatTarget = k.dir > 0 ? W * 0.58 : W * 0.42;
+      const dx = k.combatTarget - k.x;
+      k.dir = dx > 0 ? 1 : -1;
+      const woundSlow  = k.wounds * 0.004;
+      const engageDist = s * (bossNow ? 1.8 : 2.6 - leg.aggression * 0.8 - depthT * 0.4);
+      if (Math.abs(dx) > engageDist) {
+        const spd = s * (0.028 + leg.aggression * 0.022 + depthT * 0.012
+                       + CIN.smoothBass * 0.016 - woundSlow);
+        k.velX += (Math.sign(dx) * spd - k.velX) * 0.12;
+      } else {
+        k.velX *= 0.80;
+        k.strikeTimer--;
+        if (k.strikeTimer <= 0) {
+          k.state = 'strike'; k.stateTimer = 0; k.strikeCooldown = 0;
+        }
+      }
+
+    } else if (k.state === 'strike') {
+      k.velX *= 0.75;
+      k.strikeCooldown++;
+      const windupEnd  = Math.floor(15 - leg.aggression * 6);
+      const releaseEnd = windupEnd + 10;
+      const recoverEnd = releaseEnd + Math.floor(22 + (1 - leg.aggression) * 18);
+
+      if (k.strikeCooldown < windupEnd) {
+        k.strikeSwing += (1.0 - k.strikeSwing) * 0.30;
+      } else if (k.strikeCooldown < releaseEnd) {
+        k.strikeSwing += (-0.4 - k.strikeSwing) * 0.48;
+        if (k.strikeCooldown === windupEnd + 1) {
+          k.bloodPuffs.push({
+            x: k.x + k.dir * s * 1.1, y: k.y - s * 0.7,
+            alpha: 0.55 + leg.glory * 0.3,
+            size:  s * (0.18 + leg.glory * 0.12),
+            vx: k.dir * (1.6 + leg.aggression * 0.8 + CIN.smoothBass * 0.8),
+            vy: -0.8 - CIN.smoothEnergy * 0.5,
+            r: R, g: G, b: B,
+          });
+        }
+      } else {
+        k.strikeSwing += (0.2 - k.strikeSwing) * 0.13;
+        if (k.strikeCooldown > recoverEnd) {
+          k.state = 'combat'; k.stateTimer = 0;
+          const pressForward = leg.aggression * 0.6 + leg.glory * 0.3;
+          const spread = (bossNow ? W*0.08 : W*0.14) * (1 + depthT * 0.5);
+          k.combatTarget = Math.max(s*2, Math.min(W-s*2,
+            k.combatTarget + k.dir * pressForward * s * 1.2
+            + (Math.random()-0.5) * spread));
+          const baseDelay = bossNow
+            ? Math.floor(12 + (1-leg.aggression) * 16)
+            : Math.floor(28 - leg.aggression * 14 - depthT * 8);
+          k.strikeTimer = Math.max(6,
+            baseDelay + Math.floor(Math.random() * 14)
+            + Math.floor(CIN.smoothBass * (bossNow ? 8 : 14)));
+        }
+      }
+    }
+  }
+
   if (narrativeMode === 'rest') {
     k.velX *= 0.88;
     const moving = k.state === 'walk' || k.state === 'run';
@@ -6357,6 +6430,7 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     if (k.state === 'rest' && k.stateTimer > 75) { k.state = 'sit'; k.stateTimer = 0; }
 
   } else if (narrativeMode === 'witness') {
+    if (!inCombatNow) {
     k.guardRaised *= 0.90; k.strikeSwing *= 0.90;
     if (!['patrol','look','pray'].includes(k.state)) {
       k.state = 'patrol'; k.stateTimer = 0;
@@ -6376,8 +6450,10 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     const dx  = k.targetX - k.x;
     k.dir = dx > 0 ? 1 : -1;
     k.velX += (Math.sign(dx) * spd - k.velX) * 0.05;
+    }
 
   } else if (narrativeMode === 'drift') {
+    if (!inCombatNow) {
     k.guardRaised += (0.2 - k.guardRaised) * 0.03; k.strikeSwing *= 0.92;
     if (!['patrol','pray','look'].includes(k.state)) {
       k.state = 'patrol'; k.stateTimer = 0;
@@ -6398,8 +6474,10 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     const dx  = k.targetX - k.x;
     k.dir = dx > 0 ? 1 : -1;
     k.velX += (Math.sign(dx) * spd - k.velX) * 0.06;
+    }
 
   } else if (narrativeMode === 'prowl') {
+    if (!inCombatNow) {
     // Boss buildup: tighten patrol range and speed as bossStep approaches
     const buildupFactor = k.bossBuildupT;
     k.guardRaised += (0.35 + leg.aggression * 0.35 + buildupFactor * 0.25 - k.guardRaised) * 0.04;
@@ -6430,73 +6508,12 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     const dx  = k.targetX - k.x;
     k.dir = dx > 0 ? 1 : -1;
     k.velX += (Math.sign(dx) * spd - k.velX) * 0.08;
+    } // end !inCombatNow
 
   } else if (narrativeMode === 'fight') {
-    k.guardRaised += (0.75 + leg.aggression * 0.2 - k.guardRaised) * 0.06;
-
-    if (k.staggerTimer > 0) {
-      k.staggerTimer--;
-      k.velX += -k.dir * s * (0.03 + leg.grief * 0.025);
-      k.strikeSwing *= 0.85;
-      if (k.staggerTimer === 0) { k.state = 'combat'; k.stateTimer = 0; }
-
-    } else if (k.state === 'combat') {
-      if (k.combatTarget === null)
-        k.combatTarget = k.dir > 0 ? W * 0.58 : W * 0.42;
-      const dx = k.combatTarget - k.x;
-      k.dir = dx > 0 ? 1 : -1;
-      const woundSlow    = k.wounds * 0.004;
-      const engageDist   = s * (bossNow ? 1.8 : 2.6 - leg.aggression * 0.8 - depthT * 0.4);
-      if (Math.abs(dx) > engageDist) {
-        const spd = s * (0.028 + leg.aggression * 0.022 + depthT * 0.012
-                       + CIN.smoothBass * 0.016 - woundSlow);
-        k.velX += (Math.sign(dx) * spd - k.velX) * 0.12;
-      } else {
-        k.velX *= 0.80;
-        k.strikeTimer--;
-        if (k.strikeTimer <= 0) {
-          k.state = 'strike'; k.stateTimer = 0; k.strikeCooldown = 0;
-        }
-      }
-
-    } else if (k.state === 'strike') {
-      k.velX *= 0.75;
-      k.strikeCooldown++;
-      const windupEnd  = Math.floor(15 - leg.aggression * 6);
-      const releaseEnd = windupEnd + 10;
-      const recoverEnd = releaseEnd + Math.floor(22 + (1-leg.aggression) * 18);
-
-      if (k.strikeCooldown < windupEnd) {
-        k.strikeSwing += (1.0 - k.strikeSwing) * 0.30;
-      } else if (k.strikeCooldown < releaseEnd) {
-        k.strikeSwing += (-0.4 - k.strikeSwing) * 0.48;
-        if (k.strikeCooldown === windupEnd + 1) {
-          k.bloodPuffs.push({
-            x: k.x + k.dir * s * 1.1, y: k.y - s * 0.7,
-            alpha: 0.55 + leg.glory * 0.3,
-            size:  s * (0.18 + leg.glory * 0.12),
-            vx: k.dir * (1.6 + leg.aggression * 0.8 + CIN.smoothBass * 0.8),
-            vy: -0.8 - CIN.smoothEnergy * 0.5,
-            r: R, g: G, b: B,
-          });
-        }
-      } else {
-        k.strikeSwing += (0.2 - k.strikeSwing) * 0.13;
-        if (k.strikeCooldown > recoverEnd) {
-          k.state = 'combat'; k.stateTimer = 0;
-          const pressForward = leg.aggression * 0.6 + leg.glory * 0.3;
-          const spread = (bossNow ? W*0.08 : W*0.14) * (1 + depthT * 0.5);
-          k.combatTarget = Math.max(s*2, Math.min(W-s*2,
-            k.combatTarget + k.dir * pressForward * s * 1.2
-            + (Math.random()-0.5) * spread));
-          const baseDelay = bossNow
-            ? Math.floor(12 + (1-leg.aggression) * 16)
-            : Math.floor(28 - leg.aggression * 14 - depthT * 8);
-          k.strikeTimer = Math.max(6,
-            baseDelay + Math.floor(Math.random() * 14)
-            + Math.floor(CIN.smoothBass * (bossNow ? 8 : 14)));
-        }
-      }
+    // Guard ramp handled here; combat movement is in the mode-independent block above
+    if (!inCombatNow) {
+      k.guardRaised += (0.75 + leg.aggression * 0.2 - k.guardRaised) * 0.06;
     }
 
   } else if (narrativeMode === 'broken') {
