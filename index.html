@@ -9,7 +9,6 @@
 
 <link rel="icon" sizes="192x192" href="icon.png">
 <link rel="icon" sizes="512x512" href="icon.png">
-
 <title>Ashen Throne — Music Forge</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet"/>
 <style>
@@ -1110,13 +1109,12 @@ let motifAge = 0;
 function mutateMotif(preset) {
   motifAge++;
   if (motifAge % 4 === 0) {
-    // Slight mutation every 4 phrases
     const scale = getScale(preset);
     baseMotif = baseMotif.map(deg => {
-      return Math.random() < 0.3 ? Math.floor(rng() * scale.length) : deg;
+      return rng() < 0.3 ? Math.floor(rng() * scale.length) : deg;
     });
   }
-  return baseMotif;
+  return [...baseMotif]; // return copy — never mutate the shared reference
 }
 
 // ── Timeline logging ──────────────────────────────────────────────
@@ -1501,34 +1499,34 @@ const LAYER_ARCHETYPES = {
   // Sparse opening — drone and strings as atmosphere, nothing rhythmic
   desolate:  { required: ['drone','strings'],
                pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ'],
-               max: 2, floors: [1,20] },
+               max: 2, floors: [1,99] },
 
   // Rhythm-led — bass and march define the section, strings are support not lead
   marching:  { required: ['bass','march','wardrums'],
                pool: ['drone','strings','perc','stomp','chains','horn','cello','ritualchant'],
-               max: 4, floors: [15,60] },
+               max: 4, floors: [1,99] },
 
   // Choir-led — choir and organ define the section, strings/drone fill in later
   choral:    { required: ['choir','organ'],
                pool: ['bells','heartbeat','ritualchant','lute','cello','whispers','riser'],
                latePool: ['drone','strings'],
-               max: 4, floors: [10,50] },
+               max: 4, floors: [1,99] },
 
   // Full combat — perc and bass anchor, strings and choir build on top
   combat:    { required: ['bass','perc','wardrums'],
                pool: ['drone','strings','stomp','march','chaos','melody','cello','choir','horn','chains','ritualchant'],
-               max: 6, floors: [25,80] },
+               max: 6, floors: [1,99] },
 
   // Melody-led — melody and harmonic colour define the section, drone/strings fill in later
   arcane:    { required: ['melody','organ'],
                pool: ['cello','lute','bells','riser','glitch','choir','whispers','heartbeat'],
                latePool: ['drone','strings'],
-               max: 4, floors: [20,70] },
+               max: 4, floors: [1,99] },
 
   // Maximum density — everything, chaotic
   nightmare: { required: ['drone','bass','chaos','wardrums'],
                pool: ['strings','stomp','glitch','ritualchant','riser','perc','march','choir','bells','horn'],
-               max: 7, floors: [40,99] },
+               max: 7, floors: [1,99] },
 };
 
 function getEligibleArchetypes(floor) {
@@ -1718,7 +1716,7 @@ function startRandomJourney() {
     const intensity = Math.max(0.3, rawIntensity);
     const percBufs = buildPercBufs(preset);
 
-    const availablePool = step >= 3 && cfg.latePool ? [...cfg.pool, ...cfg.latePool] : cfg.pool;
+    const availablePool = step >= 4 && cfg.latePool ? [...cfg.pool, ...cfg.latePool] : cfg.pool;
     const shuffled = [...availablePool].sort(() => rng() - 0.5);
     const picked = shuffled.slice(0, cfg.max);
     const toEnable = new Set([...cfg.required, ...picked]);
@@ -3094,6 +3092,7 @@ function buildMelody(preset, intensity, name) {
   let patIdx = 0;
   let t = ctx.currentTime + 0.1;
 
+  // Soft waveshaper — warmth without smearing
   const melodyShaper = ctx.createWaveShaper();
   melodyShaper.curve = makeSatCurve(0.08);
   melodyShaper.connect(b);
@@ -3105,17 +3104,18 @@ function buildMelody(preset, intensity, name) {
       ? [...motif]
       : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
 
-    // Only one variation per bar — never stack reverse + transpose
-    const varRoll = rng();
-    if (varRoll < 0.25) motifPat = [...motifPat].reverse();
-    else if (varRoll < 0.45) motifPat = motifPat.map(d => d + 7);
+    // Occasional variation — reverse or transpose up an octave, never both
+    if (rng() < 0.25) motifPat = [...motifPat].reverse();
+    else if (rng() < 0.2) motifPat = motifPat.map(d => d + 7);
 
-    const subdivisions = [0.25, 0.5, 0.75, 1.0];
+    // Rhythmic grid — 16th note slots, each note picks a duration subdivision
+    const subdivisions = [0.25, 0.5, 0.75, 1.0]; // in beats
     let cursor = t;
 
     for (let i = 0; i < motifPat.length; i++) {
-      const restChance = currentPhrase === 'climax'     ? 0.18
-                       : currentPhrase === 'intro'      ? 0.55
+      // Rest probability — generous rests create musical breathing room
+      const restChance = currentPhrase === 'climax' ? 0.18
+                       : currentPhrase === 'intro'   ? 0.55
                        : currentPhrase === 'resolution' ? 0.50
                        : preset.melodySkip + 0.15;
       if (rng() < restChance) {
@@ -3127,22 +3127,28 @@ function buildMelody(preset, intensity, name) {
       const deg  = motifPat[i];
       const freq = CE.scaleStep(preset, preset.melodyOctave, deg);
 
+      // Duration — strong bias toward long/held notes for cinematic weight
+      // Short notes are grace notes, not the default
       const durChoice = rng();
-      const noteDur = durChoice < 0.22 ? beat * 0.18
-                    : durChoice < 0.55 ? beat * 0.65
-                    :                    beat * 1.4;
+      const noteDur = durChoice < 0.22 ? beat * 0.18        // short — grace note
+                    : durChoice < 0.55 ? beat * 0.65        // medium — standard
+                    :                    beat * 1.4;         // long — HELD, cinematic swell
 
-      // Advance AFTER placing note — melody stays on the grid
-      // Combat/tension bias toward short subdivisions to lock with perc
+      // Advance cursor AFTER placing note — keeps melody on the rhythmic grid
+      // Combat biases toward short subdivisions to lock with perc/march
       const isCombat = currentPhrase === 'climax' || currentPhrase === 'tension';
-      const subPool  = isCombat ? [0.25, 0.25, 0.5] : subdivisions;
+      const subPool = isCombat ? [0.25, 0.25, 0.5] : subdivisions;
       cursor += beat * subPool[Math.floor(rng() * subPool.length)];
 
+      // Voice — single oscillator pair, tightly detuned, with character
+      // Use zone's wave type for identity — saw for dark zones, triangle for lighter
       const waveA = preset.melodyWave === 'sine' ? 'triangle' : preset.melodyWave;
       const o1  = mkOsc(freq,         waveA,      -4);
-      const o2  = mkOsc(freq * 1.003, 'triangle',  4);
+      const o2  = mkOsc(freq * 1.003, 'triangle',  4); // triangle second voice — softens saw harshness
       const g1  = mkGain(0.55), g2 = mkGain(0.28);
 
+      // Brightness filter — sweeps based on note length, not static
+      // Short notes stay bright; long notes bloom then darken
       const filterStart = 800  + intensity * 1800;
       const filterPeak  = 2400 + intensity * 3000;
       const filterEnd   = 500  + intensity * 800;
@@ -3156,11 +3162,13 @@ function buildMelody(preset, intensity, name) {
 
       const vol = 0.06 + intensity * 0.07;
 
+      // Amplitude envelope — fast attack, natural decay shape
       env.gain.setValueAtTime(0, bt);
       env.gain.linearRampToValueAtTime(vol, bt + 0.018);
       env.gain.setValueAtTime(vol * 0.72, bt + noteDur * 0.35);
       env.gain.linearRampToValueAtTime(0.001, bt + noteDur);
 
+      // Filter envelope — blooms open then closes, adds movement to each note
       filt.frequency.setValueAtTime(filterStart, bt);
       filt.frequency.linearRampToValueAtTime(filterPeak, bt + noteDur * 0.25);
       filt.frequency.exponentialRampToValueAtTime(filterEnd, bt + noteDur * 0.9);
@@ -3169,12 +3177,14 @@ function buildMelody(preset, intensity, name) {
       o2.start(bt); o2.stop(bt + noteDur + 0.06);
       reg(name, o1, o2, g1, g2, filt, env);
 
+      // Counter-melody — only on long notes, different octave, quieter
+      // Keeps it out of the way of the main voice
       if (noteDur > beat * 0.6 && rng() < 0.35) {
         const counterDeg  = motifPat[(i + 2) % motifPat.length];
         const counterFreq = scaleFreq(preset, preset.melodyOctave + 1, counterDeg);
-        const co    = mkOsc(counterFreq, 'sine');
+        const co   = mkOsc(counterFreq, 'sine'); // always sine — stays transparent
         const cFilt = mkFilt(1200 + intensity * 1000, 'lowpass', 0.9);
-        const cEnv  = mkGain(0);
+        const cEnv = mkGain(0);
         chain(co, cFilt, cEnv, melodyShaper);
         const cVol = vol * 0.28;
         cEnv.gain.setValueAtTime(0, bt + 0.04);
@@ -3185,7 +3195,7 @@ function buildMelody(preset, intensity, name) {
       }
     }
 
-    t = cursor + beat * (rng() < 0.2 ? beat * 0.5 : 0);
+    t = cursor + beat * (rng() < 0.2 ? beat * 0.5 : 0); // occasional bar-end breath
     patIdx++;
     regT(name, setTimeout(schedBar, (beat * 3.7) * 1000));
   }
