@@ -1916,7 +1916,6 @@ function startRandomJourney() {
 
     } else {
       journeyActive = false;
-      // Hold ~6 bars then fade to silence over 12 seconds
       const holdMs = barLength * 6 * 1000;
       const fadeDur = 12;
       setTimeout(() => {
@@ -4584,12 +4583,12 @@ function buildOrgan(preset, intensity, name) {
 
   function playChord(t, holdBars) {
     const voices = [
-      { voiceIdx: 0, oct: 0 }, // sub root
-      { voiceIdx: 0, oct: 1 }, // root
-      { voiceIdx: 1, oct: 1 }, // third
-      { voiceIdx: 2, oct: 1 }, // fifth
+      { voiceIdx: 0, oct: 0 },
+      { voiceIdx: 0, oct: 1 },
+      { voiceIdx: 1, oct: 1 },
+      { voiceIdx: 2, oct: 1 },
     ];
-    if (intensity > 0.6) voices.push({ voiceIdx: 3, oct: 1 }); // 7th at high intensity
+    if (intensity > 0.6) voices.push({ voiceIdx: 3, oct: 1 });
 
     const attackT  = beat * 1.5;
     const holdT    = beat * 4 * holdBars;
@@ -4629,13 +4628,13 @@ function buildOrgan(preset, intensity, name) {
   }
 
   function schedPhrase() {
-    const dense     = currentPhrase === 'climax' || isBoss;
-    const playBars  = dense ? 3 : 2;
-    const restBars  = dense ? 1 : 2;
-    const cycleBars = playBars + restBars;
+    const dense      = currentPhrase === 'climax' || isBoss;
+    const playBars   = dense ? 3 : 2;
+    const restBars   = dense ? 1 : 2;
+    const cycleBars  = playBars + restBars;
     const phraseBars = PHRASE_DURATIONS[currentPhrase] || 8;
-    const cycles    = Math.floor(phraseBars / cycleBars);
-    const phraseDur = phraseBars * beat * 4;
+    const cycles     = Math.floor(phraseBars / cycleBars);
+    const phraseDur  = phraseBars * beat * 4;
 
     let t = ctx.currentTime + beat * 0.5;
     for (let c = 0; c < cycles; c++) {
@@ -4647,7 +4646,6 @@ function buildOrgan(preset, intensity, name) {
 
   schedPhrase();
 }
-
 
 function buildWhispers(preset, intensity, name) {
   const b  = bus[name];
@@ -5423,7 +5421,7 @@ function morphDroneNodes(blended, intensity) {
   });
 }
   
-function startZoneCrossfade(fromZone, toZone, intensity, percBufs, skipLayers = false) {
+function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
   // Resolve to canonical zones immediately — never store blended objects
   const realFrom = ZONES.find(z => z.name === fromZone.name) ?? fromZone;
   const realTo   = ZONES.find(z => z.name === toZone.name)   ?? toZone;
@@ -5455,8 +5453,6 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs, skipLayers = 
   xfade.bpmStart  = effectiveBpmStart;
   xfade.bpmEnd    = realTo.bpm;
   xfade.intensity = intensity;
-
-  if (skipLayers) { CE.onZoneChange(realTo); logTimeline(`Crossfade → ${realTo.name}`); return; }
 
   // ── Queue layer restarts ─────────────────────────────────────────
   // All times are in bars from now so they're immune to BPM changes.
@@ -5560,8 +5556,10 @@ function updateFloorUI() {
     // Update lastZoneName only after fromZone is safely captured
     lastZoneName = toZone.name;
 
-    // Journey owns layer state — run BPM/drone crossfade but skip layer queuing
-    startZoneCrossfade(fromZone, toZone, ni, pb, journeyActive);
+    // Journey owns layer state during a run — skip crossfade layer queuing
+    if (journeyActive) return;
+
+    startZoneCrossfade(fromZone, toZone, ni, pb);
 
   }, 200);
 }
