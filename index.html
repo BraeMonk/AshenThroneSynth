@@ -618,7 +618,7 @@
       <div class="layer-cat">Foundation</div>
       <div class="layer-grid">
         <button class="layer-toggle active" id="btn-drone"     onclick="toggleLayer('drone')">Void Drone</button>
-        <button class="layer-toggle"        id="btn-strings"   onclick="toggleLayer('strings')">Strings</button>
+        <button class="layer-toggle"        id="btn-strings"   onclick="toggleLayer('strings')" oncontextmenu="cycleVoice('strings',event)">Strings <span id="voice-strings" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">arco</span></button>
         <button class="layer-toggle"        id="btn-bass"      onclick="toggleLayer('bass')">Deep Bass</button>
         <button class="layer-toggle"        id="btn-heartbeat" onclick="toggleLayer('heartbeat')">Heartbeat</button>
       </div>
@@ -632,7 +632,7 @@
 
       <div class="layer-cat">Rhythm</div>
       <div class="layer-grid">
-        <button class="layer-toggle" id="btn-perc"     onclick="toggleLayer('perc')">Percussion</button>
+        <button class="layer-toggle" id="btn-perc"     onclick="toggleLayer('perc')" oncontextmenu="cycleVoice('perc',event)">Percussion <span id="voice-perc" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">cinematic</span></button>
         <button class="layer-toggle" id="btn-wardrums" onclick="toggleLayer('wardrums')">War Drums</button>
         <button class="layer-toggle" id="btn-chains"   onclick="toggleLayer('chains')">Chains</button>
         <button class="layer-toggle" id="btn-march"    onclick="toggleLayer('march')">March Snare</button>
@@ -669,14 +669,14 @@
     <div class="tab-pane" id="tab-fx" style="padding:24px 0 24px;">
       <div class="fx-grid">
         <div class="fx-item">
-          <div class="fx-label-row"><span class="fx-label">Reverb Size</span><span class="fx-value" id="reverbSizeVal">40%</span></div>
+          <div class="fx-label-row"><span class="fx-label">Reverb Size</span><span class="fx-value" id="reverbSizeVal">55%</span></div>
           <div class="fx-desc">Crypt to cathedral</div>
-          <input type="range" class="fx-slider" id="reverbSize" min="0" max="100" value="40" style="--pct:40%" oninput="onReverbSize(this)"/>
+          <input type="range" class="fx-slider" id="reverbSize" min="0" max="100" value="55" style="--pct:55%" oninput="onReverbSize(this)"/>
         </div>
         <div class="fx-item">
-          <div class="fx-label-row"><span class="fx-label">Reverb Mix</span><span class="fx-value" id="reverbMixVal">18%</span></div>
+          <div class="fx-label-row"><span class="fx-label">Reverb Mix</span><span class="fx-value" id="reverbMixVal">28%</span></div>
           <div class="fx-desc">Dry / wet blend</div>
-          <input type="range" class="fx-slider" id="reverbMix" min="0" max="100" value="18" style="--pct:18%" oninput="onReverbMix(this)"/>
+          <input type="range" class="fx-slider" id="reverbMix" min="0" max="100" value="28" style="--pct:28%" oninput="onReverbMix(this)"/>
         </div>
         <div class="fx-item">
           <div class="fx-label-row"><span class="fx-label">Echo Time</span><span class="fx-value" id="delayTimeVal">0.00s</span></div>
@@ -846,7 +846,7 @@ let reverbNode = null, reverbDryGain = null, reverbWetGain = null;
 let delayNode = null, delayFbGain = null, delayWetGain = null;
 let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF = null;
 
-let _reverbSize = 0.4, _reverbMix = 0.18, _delayTime = 0.0, _delayFb = 0.0;
+let _reverbSize = 0.55, _reverbMix = 0.28, _delayTime = 0.0, _delayFb = 0.0;
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
 let _saturation = 0.08;
 
@@ -1075,7 +1075,7 @@ function applyPhraseLayers() {
       document.getElementById('pill-' + name)?.classList.add('on');
       const preset = getZone(parseInt(slider.value));
       const intensity = getIntensity(parseInt(slider.value));
-      startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? buildPercBufs(preset) : null);
+      startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? buildPercBufs(preset, sessionVoices['perc']) : null);
     }
   });
   // Optionally fade non-targets (only in auto mode)
@@ -1294,7 +1294,7 @@ function ostRunStep() {
   initAudio();
   const preset    = getZone(step.floor);
   const intensity = isBoss ? Math.min(1, getIntensity(step.floor) + 0.4) : getIntensity(step.floor);
-  const percBufs  = buildPercBufs(preset);
+  const percBufs  = buildPercBufs(preset, sessionVoices['perc']);
   if (!bpmLocked) barLength = (60 / preset.bpm) * 4;
 
   const incoming   = step.layers;
@@ -1567,7 +1567,7 @@ function randomizeCoherent(forcedArchetype) {
     CE.onPhrase(currentPhrase, getZone(floor));
     const preset = getZone(floor);
     const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
-    const percBufs = buildPercBufs(preset);
+    const percBufs = buildPercBufs(preset, sessionVoices['perc']);
 
     toEnable.forEach(name => {
       if (!(name in layerOn)) return;
@@ -1714,7 +1714,7 @@ function startRandomJourney() {
     const preset = getZone(floor);
     const rawIntensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
     const intensity = Math.max(0.3, rawIntensity);
-    const percBufs = buildPercBufs(preset);
+    const percBufs = buildPercBufs(preset, sessionVoices['perc']);
 
     const availablePool = step >= 4 && cfg.latePool ? [...cfg.pool, ...cfg.latePool] : cfg.pool;
     const shuffled = [...availablePool].sort(() => rng() - 0.5);
@@ -2072,7 +2072,7 @@ function soloLayer(name) {
     if (isPlaying) {
       initAudio();
       const floor = parseInt(slider.value), preset = getZone(floor), intensity = getIntensity(floor);
-      startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? buildPercBufs(preset) : null);
+      startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? buildPercBufs(preset, sessionVoices['perc']) : null);
     }
     setStatus('Solo: ' + name);
   }, FADE_OUT * 1000 + 100);
@@ -2136,7 +2136,7 @@ function initAudio() {
   const REVERB_SENDS = {
     drone: 0.55, strings: 0.70, bass: 0.08, heartbeat: 0.05,
     wind: 0.60, riser: 0.45, firecrackle: 0.35,
-    perc: 0.18, wardrums: 0.22, chains: 0.28, march: 0.15, stomp: 0.12,
+    perc: 0.38, wardrums: 0.42, chains: 0.28, march: 0.25, stomp: 0.22,
     melody: 0.50, cello: 0.55, choir: 0.65, lute: 0.40, horn: 0.50,
     bells: 0.70, organ: 0.60,
     chaos: 0.30, whispers: 0.55, ritualchant: 0.60, glitch: 0.20,
@@ -2429,7 +2429,10 @@ const VOICE_BANKS = {
   wind:       ['whiteNoise', 'filteredNoise', 'airyPad'],
   riser:      ['sine', 'sawtooth', 'triangle', 'filteredNoise'],
   firecrackle:['whiteNoise', 'fireBuf1', 'fireBuf2'],
-  perc:       ['kick1', 'kick2', 'snare1', 'hihat1', 'hihat2'],
+  // Strings — each voice changes bowing technique and timbre
+  strings:    ['arco', 'sul_ponticello', 'sul_tasto', 'tremolo', 'pizzicato'],
+  // Perc — each voice is a distinct drum character
+  perc:       ['cinematic', 'taiko', 'tribal', 'ghost'],
   wardrums:   ['lowTom', 'highTom', 'floorTom', 'snare'],
   chains:     ['chain1', 'chain2', 'metalHit'],
   march:      ['snare', 'bassDrum', 'rim'],
@@ -2886,62 +2889,342 @@ function buildDrone(preset, intensity, name) {
   chain(lfo, lfoG); lfoG.connect(warmFilt.frequency); lfo.start(); reg(name, lfo, lfoG, warmFilt);
 }
 
-function buildPercBufs(preset) {
+function buildPercBufs(preset, voice) {
   const sr = ctx.sampleRate;
+  const mode = voice || sessionVoices['perc'] || 'cinematic';
 
-  // Kick — deeper sub, softer click, more weight
-  const kickLen = Math.floor(sr * 0.8);
+  // ── VOICE: GHOST — soft brushed drums, tension/stealth ─────────────
+  if (mode === 'ghost') {
+    // Ghost kick — barely audible, almost subsonic rumble
+    const kickLen = Math.floor(sr * 0.7);
+    const kick = ctx.createBuffer(1, kickLen, sr);
+    const kd = kick.getChannelData(0);
+    for (let i = 0; i < kickLen; i++) {
+      const t = i / sr;
+      const freq = preset.kickFreq * 0.9 * Math.exp(-t * 8) + preset.kickFreq * 0.5;
+      kd[i] = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.6) * 0.5
+            + Math.sin(2 * Math.PI * 30 * t)    * Math.exp(-t / 0.9) * 0.3
+            + (Math.random() * 2 - 1) * Math.exp(-t / 0.04) * 0.06; // faint brush
+    }
+
+    // Ghost snare — brushed, almost pure noise, very soft
+    const snareLen = Math.floor(sr * 0.22);
+    const snare = ctx.createBuffer(1, snareLen, sr);
+    const sd = snare.getChannelData(0);
+    for (let i = 0; i < snareLen; i++) {
+      const t = i / sr;
+      sd[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.055) * 0.55
+             + Math.sin(2 * Math.PI * 210 * t) * Math.exp(-t / 0.022) * 0.12;
+    }
+
+    // Ghost hihat — whisper-quiet metallic shimmer
+    const hhLen = Math.floor(sr * 0.08);
+    const hihat = ctx.createBuffer(1, hhLen, sr);
+    const hd = hihat.getChannelData(0);
+    for (let i = 0; i < hhLen; i++) {
+      const t = i / sr;
+      hd[i] = (Math.sin(2 * Math.PI * 9000 * t) * 0.2 + (Math.random() * 2 - 1) * 0.15)
+             * Math.exp(-t / 0.032);
+    }
+
+    // Ghost timpani — soft mallet, barely blooms
+    const timpLen = Math.floor(sr * 1.2);
+    const timpani = ctx.createBuffer(1, timpLen, sr);
+    const td = timpani.getChannelData(0);
+    for (let i = 0; i < timpLen; i++) {
+      const t = i / sr;
+      td[i] = Math.sin(2 * Math.PI * preset.kickFreq * 0.7 * t) * Math.exp(-t / 1.2) * 0.35
+             + Math.sin(2 * Math.PI * preset.kickFreq * 0.7 * 2.76 * t) * Math.exp(-t / 0.5) * 0.08;
+    }
+
+    const impact = kick; // ghost mode reuses kick for impact — no booms
+    return { kick, snare, hihat, timpani, impact };
+  }
+
+  // ── VOICE: TAIKO — Japanese war drum, massive resonance ────────────
+  if (mode === 'taiko') {
+    // Taiko kick — extremely deep, very long resonance, slow pitch drop
+    const kickLen = Math.floor(sr * 2.2);
+    const kick = ctx.createBuffer(1, kickLen, sr);
+    const kd = kick.getChannelData(0);
+    for (let i = 0; i < kickLen; i++) {
+      const t = i / sr;
+      // Very slow pitch drop — taiko stays resonant for a long time
+      const freq = preset.kickFreq * 0.55 * Math.exp(-t * 2.2) + preset.kickFreq * 0.38;
+      const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 1.4);
+      // Second partial — inharmonic characteristic of taiko skin
+      const partial2 = Math.sin(2 * Math.PI * freq * 1.49 * t) * Math.exp(-t / 0.7) * 0.22;
+      // Sub drone — deep supporting frequency
+      const sub = Math.sin(2 * Math.PI * 28 * t) * Math.exp(-t / 1.8) * 0.55;
+      // Mallet impact — broader/softer than cinematic, felt not heard
+      const mallet = t < 0.012 ? (Math.random() * 2 - 1) * (1 - t / 0.012) * 0.6 : 0;
+      // Rim ring — the wooden rim vibrates after impact (very characteristic)
+      const rim = Math.sin(2 * Math.PI * 280 * t) * Math.exp(-t / 0.15) * 0.08;
+      kd[i] = body * 0.45 + partial2 + sub + mallet + rim;
+    }
+
+    // Taiko snare (o-daiko accent hit) — no wires, just skin resonance + air
+    const snareLen = Math.floor(sr * 0.9);
+    const snare = ctx.createBuffer(1, snareLen, sr);
+    const sd = snare.getChannelData(0);
+    for (let i = 0; i < snareLen; i++) {
+      const t = i / sr;
+      const tone = Math.sin(2 * Math.PI * 140 * t) * Math.exp(-t / 0.28);
+      const body = Math.sin(2 * Math.PI * 220 * t) * Math.exp(-t / 0.14);
+      const air  = (Math.random() * 2 - 1) * Math.exp(-t / 0.35) * 0.4;
+      const transient = t < 0.005 ? (Math.random() * 2 - 1) * (1 - t / 0.005) : 0;
+      sd[i] = tone * 0.42 + body * 0.28 + air + transient * 0.75;
+    }
+
+    // Taiko hihat — no hihats, use a wooden clapper / hyoshigi sound
+    const hhLen = Math.floor(sr * 0.12);
+    const hihat = ctx.createBuffer(1, hhLen, sr);
+    const hd = hihat.getChannelData(0);
+    for (let i = 0; i < hhLen; i++) {
+      const t = i / sr;
+      // Wooden click — clack of sticks, bandpassed noise + tone
+      hd[i] = (Math.sin(2 * Math.PI * 1800 * t) * 0.4
+             + Math.sin(2 * Math.PI * 2600 * t) * 0.2
+             + (Math.random() * 2 - 1) * 0.4) * Math.exp(-t / 0.025);
+    }
+
+    // Taiko timpani — the o-daiko big hit
+    const timpLen = Math.floor(sr * 2.8);
+    const timpani = ctx.createBuffer(1, timpLen, sr);
+    const td = timpani.getChannelData(0);
+    const tFreq = preset.kickFreq * 0.45;
+    for (let i = 0; i < timpLen; i++) {
+      const t = i / sr;
+      const attackEnv = t < 0.04 ? t / 0.04 : 1.0;
+      const main  = Math.sin(2 * Math.PI * tFreq * t) * Math.exp(-t / 1.6);
+      const deep  = Math.sin(2 * Math.PI * tFreq * 0.5 * t) * Math.exp(-t / 2.2) * 0.45;
+      const ring  = Math.sin(2 * Math.PI * tFreq * 1.49 * t) * Math.exp(-t / 0.8) * 0.18;
+      const mallet = t < 0.02 ? (Math.random() * 2 - 1) * (1 - t / 0.02) * 0.45 : 0;
+      td[i] = (main * 0.5 + deep + ring + mallet) * attackEnv;
+    }
+
+    // Taiko impact — the biggest hit, sub + body + shockwave
+    const impLen = Math.floor(sr * 3.0);
+    const impact = ctx.createBuffer(1, impLen, sr);
+    const id = impact.getChannelData(0);
+    for (let i = 0; i < impLen; i++) {
+      const t = i / sr;
+      const impFreq = tFreq * 0.9 * Math.exp(-t * 1.8) + 20;
+      id[i] = Math.sin(2 * Math.PI * impFreq * t) * Math.exp(-t / 2.0) * 0.6
+             + Math.sin(2 * Math.PI * 22 * t) * Math.exp(-t / 2.5) * 0.5
+             + (Math.random() * 2 - 1) * (t < 0.06 ? t / 0.06 : Math.exp(-(t - 0.06) / 0.2)) * 0.22;
+    }
+
+    return { kick, snare, hihat, timpani, impact };
+  }
+
+  // ── VOICE: TRIBAL — tom-heavy, mid-range, primal groove ────────────
+  if (mode === 'tribal') {
+    // Tribal kick — mid-weight, wooden + skin, not as deep as taiko
+    const kickLen = Math.floor(sr * 1.1);
+    const kick = ctx.createBuffer(1, kickLen, sr);
+    const kd = kick.getChannelData(0);
+    for (let i = 0; i < kickLen; i++) {
+      const t = i / sr;
+      const freq = preset.kickFreq * 1.2 * Math.exp(-t * 9) + preset.kickFreq * 0.75;
+      const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.5);
+      const mid  = Math.sin(2 * Math.PI * freq * 1.8 * t) * Math.exp(-t / 0.18) * 0.3;
+      const sub  = Math.sin(2 * Math.PI * 40 * t) * Math.exp(-t / 0.65) * 0.38;
+      const skin = t < 0.009 ? (Math.random() * 2 - 1) * (1 - t / 0.009) * 0.7 : 0;
+      kd[i] = body * 0.44 + mid + sub + skin;
+    }
+
+    // Tribal snare — tone-heavy, like a hand drum crack
+    const snareLen = Math.floor(sr * 0.45);
+    const snare = ctx.createBuffer(1, snareLen, sr);
+    const sd = snare.getChannelData(0);
+    for (let i = 0; i < snareLen; i++) {
+      const t = i / sr;
+      const tone1 = Math.sin(2 * Math.PI * 160 * t) * Math.exp(-t / 0.1);
+      const tone2 = Math.sin(2 * Math.PI * 310 * t) * Math.exp(-t / 0.045);
+      const noise = (Math.random() * 2 - 1) * Math.exp(-t / 0.12) * 0.5;
+      const crack = t < 0.004 ? (Math.random() * 2 - 1) * (1 - t / 0.004) : 0;
+      sd[i] = tone1 * 0.38 + tone2 * 0.22 + noise + crack * 0.7;
+    }
+
+    // Tribal hihat — hollowed wood slit drum sound
+    const hhLen = Math.floor(sr * 0.1);
+    const hihat = ctx.createBuffer(1, hhLen, sr);
+    const hd = hihat.getChannelData(0);
+    for (let i = 0; i < hhLen; i++) {
+      const t = i / sr;
+      hd[i] = (Math.sin(2 * Math.PI * 620 * t) * 0.5
+             + Math.sin(2 * Math.PI * 890 * t) * 0.3
+             + (Math.random() * 2 - 1) * 0.2) * Math.exp(-t / 0.04);
+    }
+
+    // Tribal timpani — mid tom, not as deep, more "thump"
+    const timpLen = Math.floor(sr * 1.5);
+    const timpani = ctx.createBuffer(1, timpLen, sr);
+    const td = timpani.getChannelData(0);
+    const tFreq = preset.kickFreq * 1.1;
+    for (let i = 0; i < timpLen; i++) {
+      const t = i / sr;
+      const env = t < 0.02 ? t / 0.02 : 1.0;
+      td[i] = (Math.sin(2 * Math.PI * tFreq * t) * Math.exp(-t / 0.8) * 0.55
+             + Math.sin(2 * Math.PI * tFreq * 1.6 * t) * Math.exp(-t / 0.35) * 0.2
+             + (Math.random() * 2 - 1) * Math.exp(-t / 0.025) * 0.15) * env;
+    }
+
+    // Tribal impact — body hit + air
+    const impLen = Math.floor(sr * 1.8);
+    const impact = ctx.createBuffer(1, impLen, sr);
+    const id = impact.getChannelData(0);
+    for (let i = 0; i < impLen; i++) {
+      const t = i / sr;
+      const impFreq = preset.kickFreq * 0.8 * Math.exp(-t * 3) + preset.kickFreq * 0.4;
+      id[i] = Math.sin(2 * Math.PI * impFreq * t) * Math.exp(-t / 1.0) * 0.58
+             + Math.sin(2 * Math.PI * 35 * t) * Math.exp(-t / 1.4) * 0.4
+             + (Math.random() * 2 - 1) * (t < 0.04 ? t / 0.04 : Math.exp(-(t-0.04)/0.14)) * 0.2;
+    }
+
+    return { kick, snare, hihat, timpani, impact };
+  }
+
+  // ── VOICE: CINEMATIC (default) — orchestral hall drums ─────────────
+  // Three-layer architecture: sub boom + body thud + impact transient
+  const kickLen = Math.floor(sr * 1.4); // longer tail for hall decay
   const kick = ctx.createBuffer(1, kickLen, sr);
   const kd = kick.getChannelData(0);
   for (let i = 0; i < kickLen; i++) {
     const t = i / sr;
-  
-    // Pitch sweep — starts lower, falls slower, lands on a deeper fundamental
-    const freq = (preset.kickFreq * 0.8) * Math.exp(-t * 12) + 32;
-  
-    // Body — the main sine, long decay
-    const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.35);
-  
-    // Sub — pure low sine, runs the full length, this is where the weight lives
-    const sub  = Math.sin(2 * Math.PI * 34 * t) * Math.exp(-t / 0.55);
-  
-    // Thud — mid-body sine adds the chest punch without a click
-    const thud = Math.sin(2 * Math.PI * 65 * t) * Math.exp(-t / 0.12);
-  
-    // Click — extremely short, extremely quiet, just enough for articulation
-    const click = t < 0.002 ? (Math.random() * 2 - 1) * 0.06 * (1 - t / 0.002) : 0;
-  
-    // No outer envelope multiplier — let each component decay naturally
-    kd[i] = body * 0.4 + sub * 0.55 + thud * 0.28 + click;
+
+    // Sub boom — very deep, very slow pitch sweep (timpani characteristic)
+    // Starts at ~2× kickFreq and glides down to the fundamental
+    const subFreq = (preset.kickFreq * 1.6) * Math.exp(-t * 5) + preset.kickFreq * 0.6;
+    const subBoom = Math.sin(2 * Math.PI * subFreq * t) * Math.exp(-t / 0.75);
+
+    // Body resonance — the large drum head membrane ring
+    // Two slightly detuned sines create the beating "bloom" of a real drum
+    const bodyFreq = preset.kickFreq * 1.05;
+    const bodyA = Math.sin(2 * Math.PI * bodyFreq * t) * Math.exp(-t / 0.45);
+    const bodyB = Math.sin(2 * Math.PI * bodyFreq * 1.018 * t) * Math.exp(-t / 0.38);
+
+    // Mid punch — adds the chest-hit around 80–120 Hz
+    const punchFreq = 90 + (preset.kickFreq - 50) * 0.8;
+    const punch = Math.sin(2 * Math.PI * punchFreq * t) * Math.exp(-t / 0.16);
+
+    // Impact transient — short noise burst with high-mid content, the "stick on skin"
+    // Very short (< 6ms) to stay out of the way of the body
+    const stick = t < 0.006
+      ? (Math.random() * 2 - 1) * Math.pow(1 - t / 0.006, 2.5) * 0.9
+      : 0;
+
+    // Cinematic air — a faint high-passed noise tail simulating air displacement
+    // This is what separates "electronic kick" from "orchestral hit"
+    const airEnv = t < 0.003 ? t / 0.003 : Math.exp(-(t - 0.003) / 0.18);
+    const air = (Math.random() * 2 - 1) * airEnv * 0.06;
+
+    kd[i] = subBoom * 0.52 + (bodyA + bodyB) * 0.22 + punch * 0.3 + stick * 0.85 + air;
   }
 
-  // Snare — much louder crack, stronger tone layer
-  const snareLen = Math.floor(sr * 0.32);
+  // ── CINEMATIC SNARE — Hall crack + long noise decay like taiko/war drum
+  const snareLen = Math.floor(sr * 0.65); // much longer for cinematic room tail
   const snare = ctx.createBuffer(1, snareLen, sr);
   const sd = snare.getChannelData(0);
   for (let i = 0; i < snareLen; i++) {
     const t = i / sr;
-    const tone  = Math.sin(2 * Math.PI * 185 * t) * Math.exp(-t / 0.055);
-    const tone2 = Math.sin(2 * Math.PI * 290 * t) * Math.exp(-t / 0.04);
-    const noise = (Math.random() * 2 - 1) * Math.exp(-t / preset.snareDecay);
-    const crack = t < 0.005 ? (Math.random() * 2 - 1) * (1 - t / 0.005) : 0;
-    sd[i] = (tone * 0.35 + tone2 * 0.3 + noise * 0.65 + crack * 0.7);
+
+    // Crack transient — the initial attack, very sharp and loud
+    // Two tones at different pitches simulate the head tension
+    const crackTone1 = Math.sin(2 * Math.PI * 195 * t) * Math.exp(-t / 0.022);
+    const crackTone2 = Math.sin(2 * Math.PI * 280 * t) * Math.exp(-t / 0.015);
+
+    // Wires — the snare wires buzz/rattle after the crack, characteristic "snap"
+    // Higher frequency, longer than the crack, this is the "snare" character
+    const wireNoise = (Math.random() * 2 - 1) * Math.exp(-t / (preset.snareDecay * 1.4));
+    const wireTone  = Math.sin(2 * Math.PI * 420 * t + Math.random()) * Math.exp(-t / 0.065);
+
+    // Body resonance — low-frequency drum shell ring
+    const bodyRing = Math.sin(2 * Math.PI * 148 * t) * Math.exp(-t / 0.11);
+
+    // Room air — long decaying noise simulating hall reverb on the snare
+    // This is the biggest differentiator — real drums have LONG room tails
+    const roomEnv = Math.exp(-t / 0.38);
+    const roomNoise = (Math.random() * 2 - 1) * roomNoise_env(t);
+
+    // Hard transient — pure noise burst at the very start (< 3ms)
+    const hardCrack = t < 0.003 ? (Math.random() * 2 - 1) * (1 - t / 0.003) : 0;
+
+    sd[i] = crackTone1 * 0.28
+          + crackTone2 * 0.22
+          + bodyRing   * 0.18
+          + wireNoise  * 0.45
+          + wireTone   * 0.20
+          + (Math.random() * 2 - 1) * Math.exp(-t / 0.3) * 0.12  // hall tail
+          + hardCrack  * 0.85;
   }
 
-  // Hihat — same, fine as-is
-  const hhLen = Math.floor(sr * 0.06);
+  // Helper used inline above
+  function roomNoise_env(t) { return Math.exp(-t / 0.30); }
+
+  // ── CINEMATIC HIHAT — Metallic shimmer, not click machine ──────────
+  const hhLen = Math.floor(sr * 0.14);
   const hihat = ctx.createBuffer(1, hhLen, sr);
   const hd = hihat.getChannelData(0);
   for (let i = 0; i < hhLen; i++) {
     const t = i / sr;
-    const metal = Math.sin(2 * Math.PI * 8000  * t) * 0.3
-                + Math.sin(2 * Math.PI * 9700  * t) * 0.2
-                + Math.sin(2 * Math.PI * 11200 * t) * 0.15
-                + (Math.random() * 2 - 1) * 0.35;
-    hd[i] = metal * Math.exp(-t / 0.018);
+    // 6-partial metallic oscillator — approximates cymbal alloy resonance
+    const metal =
+        Math.sin(2 * Math.PI * 7200  * t) * 0.22
+      + Math.sin(2 * Math.PI * 8700  * t) * 0.18
+      + Math.sin(2 * Math.PI * 10400 * t) * 0.14
+      + Math.sin(2 * Math.PI * 12100 * t) * 0.10
+      + Math.sin(2 * Math.PI * 14300 * t) * 0.07
+      + (Math.random() * 2 - 1) * 0.29;
+    // Two-stage envelope: fast decay + longer shimmer tail (like a real hat open crack)
+    const env = t < 0.004 ? 1.0 : Math.exp(-(t - 0.004) / 0.028);
+    hd[i] = metal * env;
   }
 
-  return { kick, snare, hihat };
+  // ── TIMPANI ROLL BUFFER — for accents, separate from hihat path ────
+  // Used for the "orchestra hit" feel on heavy beats
+  const timpLen = Math.floor(sr * 2.0);
+  const timpani = ctx.createBuffer(1, timpLen, sr);
+  const td = timpani.getChannelData(0);
+  const timpFreq = preset.kickFreq * 0.85; // slightly lower pitch than kick = distinct instrument
+  for (let i = 0; i < timpLen; i++) {
+    const t = i / sr;
+    // Attack swell — timpani don't start immediately, they bloom
+    const attackEnv = t < 0.03 ? t / 0.03 : 1.0;
+    // Main tone — membrane resonance with inharmonic partials
+    const main  = Math.sin(2 * Math.PI * timpFreq * t) * Math.exp(-t / 0.9);
+    const harm1 = Math.sin(2 * Math.PI * timpFreq * 2.76 * t) * Math.exp(-t / 0.45) * 0.18; // stretched partial
+    const harm2 = Math.sin(2 * Math.PI * timpFreq * 1.51 * t) * Math.exp(-t / 0.6)  * 0.12;
+    // Membrane noise — thwack of the mallet head
+    const mallet = t < 0.018 ? (Math.random() * 2 - 1) * (1 - t / 0.018) * 0.35 : 0;
+    // Subtle pitch bend down — real timpani "speak" then settle
+    const bendFreq = timpFreq * (1 + 0.08 * Math.exp(-t * 18));
+    const bendTone = Math.sin(2 * Math.PI * bendFreq * t) * Math.exp(-t / 1.1) * 0.3;
+    td[i] = (main * 0.55 + harm1 + harm2 + mallet + bendTone) * attackEnv;
+  }
+
+  // ── CINEMATIC IMPACT — Low "BOOM" used on bar 1 / boss moments ─────
+  const impLen = Math.floor(sr * 2.5);
+  const impact = ctx.createBuffer(1, impLen, sr);
+  const id = impact.getChannelData(0);
+  for (let i = 0; i < impLen; i++) {
+    const t = i / sr;
+    // Very low frequency sweep — the "braaam" / "hit the floor" impact
+    const impFreq = 38 * Math.exp(-t * 2.5) + 22;
+    const impBody = Math.sin(2 * Math.PI * impFreq * t) * Math.exp(-t / 1.2);
+    // Sub below 30Hz — felt more than heard, gives visceral weight
+    const impSub = Math.sin(2 * Math.PI * 25 * t) * Math.exp(-t / 1.8) * 0.7;
+    // Air rush — whooshing noise on the attack
+    const airRush = (Math.random() * 2 - 1)
+      * (t < 0.05 ? t / 0.05 : Math.exp(-(t - 0.05) / 0.15))
+      * 0.25;
+    // Upper crack — sticks/mallets against the frame
+    const upperCrack = t < 0.01 ? (Math.random() * 2 - 1) * (1 - t / 0.01) * 0.5 : 0;
+    id[i] = impBody * 0.6 + impSub * 0.5 + airRush + upperCrack;
+  }
+
+  return { kick, snare, hihat, timpani, impact };
 }
 
 const SCHED_AHEAD = 0.12; // seconds to look ahead
@@ -2994,31 +3277,116 @@ function makeSchedLoop(name, schedFn) {
 
 function buildPerc(preset, intensity, name, bufs) {
   const b = bus[name];
-  const hhF = mkFilt(preset.snareFilterFreq * 4, 'highpass', 1);
-  hhF.connect(b); reg(name, hhF);
+
+  // ── Cinematic signal chain ──────────────────────────────────────────
+  // Kick bus — low-shelf to reinforce sub, then to master
+  const kickBus = ctx.createGain(); kickBus.gain.value = 0.92;
+  const kickLowShelf = ctx.createBiquadFilter();
+  kickLowShelf.type = 'lowshelf'; kickLowShelf.frequency.value = 120; kickLowShelf.gain.value = 4.5;
+  kickBus.connect(kickLowShelf); kickLowShelf.connect(b);
+  reg(name, kickBus, kickLowShelf);
+
+  // Snare bus — preserve crack frequencies
+  const snareBus = ctx.createGain(); snareBus.gain.value = 0.88;
+  const snareHPF = mkFilt(160, 'highpass', 0.7);
+  snareBus.connect(snareHPF); snareHPF.connect(b);
+  reg(name, snareBus, snareHPF);
+
+  // Hat bus — bright and controlled
+  const hatBus = ctx.createGain(); hatBus.gain.value = 0.55;
+  const hatHPF = mkFilt(preset.snareFilterFreq * 3.5, 'highpass', 1.2);
+  hatBus.connect(hatHPF); hatHPF.connect(b);
+  reg(name, hatBus, hatHPF);
+
+  // Timpani / impact bus — dry, sub-heavy
+  const timpBus = ctx.createGain(); timpBus.gain.value = 0.72 + intensity * 0.22;
+  const timpLPF = mkFilt(900, 'lowpass', 0.6);
+  timpBus.connect(timpLPF); timpLPF.connect(b);
+  reg(name, timpBus, timpLPF);
 
   const patterns = getGroove(preset, intensity);
+  let barCount = 0;
 
   makeSchedLoop(name, (barStart, beat) => {
+    barCount++;
     const step = beat * 0.25; // 16th notes
+    const isBar1 = (barCount % 4 === 1); // first bar of every 4-bar phrase
+    const isBossBar = isBoss;
+
+    // ── Bar 1 / Boss: orchestral impact hit ──────────────────────────
+    // On every 4th bar (phrase start), drop a timpani or impact for weight
+    if (isBar1 && bufs.timpani && rng() > (isBossBar ? 0.0 : 0.3)) {
+      const s = ctx.createBufferSource();
+      s.buffer = isBossBar && bufs.impact ? bufs.impact : bufs.timpani;
+      const g = mkGain(isBossBar ? 0.85 + intensity * 0.15 : 0.45 + intensity * 0.25);
+      chain(s, g, timpBus);
+      s.start(barStart);
+      reg(name, s, g);
+    }
+
     for (let i = 0; i < 16; i++) {
       const t = barStart + i * step;
-      if (patterns.kick[i] && rng() > 0.05) {
+
+      // ── Kick ────────────────────────────────────────────────────────
+      if (patterns.kick[i] && rng() > 0.04) {
+        // Cinematic velocity: beat 1 (i=0) is loudest, off-beats are ghost hits
+        const isDownbeat = (i === 0);
+        const isOnbeat   = (i % 4 === 0);
+        const vel = isDownbeat ? 0.95 + intensity * 0.05
+                  : isOnbeat   ? 0.72 + intensity * 0.18
+                  :              0.38 + intensity * 0.22 + rng() * 0.12; // ghost/ghost
+
         const s = ctx.createBufferSource(); s.buffer = bufs.kick;
-        const g = mkGain(0.8 + intensity * 0.2);
-        chain(s, g, b); s.start(t); reg(name, s, g);
+        const g = mkGain(vel);
+        chain(s, g, kickBus);
+        s.start(t);
+        reg(name, s, g);
+
+        // Double kick with timpani on beat 1 of boss mode — the "stomp" feel
+        if (isBossBar && isDownbeat && bufs.timpani && rng() > 0.5) {
+          const ts = ctx.createBufferSource(); ts.buffer = bufs.timpani;
+          const tg = mkGain(0.38 + intensity * 0.2);
+          chain(ts, tg, timpBus);
+          ts.start(t + 0.018); // slightly offset — layered not unison
+          reg(name, ts, tg);
+        }
       }
-      if (patterns.snare[i] && intensity > 0.1 && rng() > 0.08) {
+
+      // ── Snare ───────────────────────────────────────────────────────
+      if (patterns.snare[i] && intensity > 0.08 && rng() > 0.07) {
+        // Velocity: main snares at i=4/12 (beats 2&4) are full; ghosting elsewhere
+        const isMainSnare = (i === 4 || i === 12);
+        const vel = isMainSnare ? 0.82 + intensity * 0.18
+                                : 0.28 + intensity * 0.22 + rng() * 0.1;
         const s = ctx.createBufferSource(); s.buffer = bufs.snare;
-        const g = mkGain(0.45 + intensity * 0.4);
-        const f = mkFilt(preset.snareFilterFreq, 'bandpass', 2.5);
-        chain(s, f, g, b); s.start(t); reg(name, s, f, g);
+        const g = mkGain(vel);
+        // Cinematic snare doesn't need bandpass — let the full crack through
+        chain(s, g, snareBus);
+        s.start(t);
+        reg(name, s, g);
       }
-      if (patterns.hihat[i] && intensity > 0.3) {
-        const vel = (i % 4 === 0) ? 0.18 : 0.08;
+
+      // ── Hihat — sparse, not mechanical ──────────────────────────────
+      if (patterns.hihat[i] && intensity > 0.25 && rng() > 0.15) {
+        // Accent pattern: 8th note downbeats louder, 16th upbeats whisper-quiet
+        const isAccented = (i % 2 === 0);
+        const vel = isAccented ? 0.18 + rng() * 0.06 : 0.05 + rng() * 0.04;
         const s = ctx.createBufferSource(); s.buffer = bufs.hihat;
-        const g = mkGain(vel + rng() * 0.04);
-        chain(s, g, hhF); s.start(t); reg(name, s, g);
+        const g = mkGain(vel);
+        chain(s, g, hatBus);
+        s.start(t);
+        reg(name, s, g);
+      }
+
+      // ── Rim/accent hits — cinematic micro-transients on off-16ths ───
+      // A very quiet rim shot on the 16th note between beats 2 and 3
+      // This is what gives cinematic tracks their human feel
+      if (i === 6 && intensity > 0.4 && rng() > 0.55) {
+        const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+        const g = mkGain(0.10 + rng() * 0.06); // very quiet — ghost note
+        chain(s, g, snareBus);
+        s.start(t);
+        reg(name, s, g);
       }
     }
   });
@@ -4246,15 +4614,32 @@ function buildGlitch(preset, intensity, name) {
 function buildStrings(preset, intensity, name) {
   const b = bus[name];
   const now = ctx.currentTime;
+  const stringsVoice = sessionVoices[name] || 'arco';
+
+  // ── Voice characteristics per mode ──────────────────────────────────
+  // arco         — standard bowing, sawtooth rich harmonics (default)
+  // sul_ponticello — bow near bridge: bright, tense, edgy — more high-pass, harsh saws
+  // sul_tasto    — bow over fingerboard: dark, breathy, hollow — triangle + heavy LPF
+  // tremolo      — fast bow tremolo: shimmering tension layer — amplitude modulated
+  // pizzicato    — plucked strings: no sustain, percussive — envelope-only, no bow LFO
+
+  const VOICE_CFG = {
+    arco:            { wave: 'sawtooth', lpfMult: 1.0, attackMult: 1.0,  bowDepth: 1.0,  vol: 1.0,  detMult: 1.0 },
+    sul_ponticello:  { wave: 'sawtooth', lpfMult: 2.2, attackMult: 0.7,  bowDepth: 0.6,  vol: 0.85, detMult: 1.5 }, // brighter, faster attack
+    sul_tasto:       { wave: 'triangle', lpfMult: 0.4, attackMult: 1.6,  bowDepth: 0.4,  vol: 0.90, detMult: 0.6 }, // darker, slower attack
+    tremolo:         { wave: 'sawtooth', lpfMult: 1.3, attackMult: 0.5,  bowDepth: 2.5,  vol: 0.75, detMult: 0.8, tremRate: 14 }, // fast tremolo
+    pizzicato:       { wave: 'sawtooth', lpfMult: 1.8, attackMult: 0.04, bowDepth: 0.0,  vol: 1.1,  detMult: 1.0, pluck: true },  // plucked — short decay
+  };
+  const vcfg = VOICE_CFG[stringsVoice] || VOICE_CFG.arco;
 
   // ── Section definitions ─────────────────────────────────────────
   // 3 string registers. Each is independently toggled by phrase density.
   // sectionGain node: fade system never touches it (that's b.gain's job).
   // We use sectionGain to drive phrase-based muting.
   const SECTIONS = [
-    { id: 'bass',   octMult: 0.5,  spread: 7,  lpf: 550,  attack: 0.60, baseGv: 0.30, phases: ['intro','build','tension','climax','resolution'] },
-    { id: 'mid',    octMult: 1.0,  spread: 4,  lpf: 1400, attack: 0.38, baseGv: 0.32, phases: ['build','tension','climax','resolution'] },
-    { id: 'violin', octMult: 2.0,  spread: 3,  lpf: 3000, attack: 0.22, baseGv: 0.20, phases: ['climax'] },
+    { id: 'bass',   octMult: 0.5,  spread: 7,  lpf: 550,  attack: 0.60 * vcfg.attackMult, baseGv: 0.30 * vcfg.vol, phases: ['intro','build','tension','climax','resolution'] },
+    { id: 'mid',    octMult: 1.0,  spread: 4,  lpf: 1400, attack: 0.38 * vcfg.attackMult, baseGv: 0.32 * vcfg.vol, phases: ['build','tension','climax','resolution'] },
+    { id: 'violin', octMult: 2.0,  spread: 3,  lpf: 3000, attack: 0.22 * vcfg.attackMult, baseGv: 0.20 * vcfg.vol, phases: ['climax'] },
   ];
 
   // Master internal gain — swell cycle modulates this, NOT b.gain
@@ -4272,32 +4657,67 @@ function buildStrings(preset, intensity, name) {
     reg(name, sectionGain);
 
     // Bow pressure LFO — per section, subtly different rates
-    const bowLfo  = mkOsc(0.07 + Math.random() * 0.05, 'sine');
-    const bowLfoG = mkGain(0.018 + intensity * 0.008);
+    // Pizzicato: no bow LFO (plucked strings don't bow)
+    // Tremolo: much faster LFO to create the tremolo effect
+    const bowRate  = vcfg.tremRate ? vcfg.tremRate + Math.random() * 2 : (0.07 + Math.random() * 0.05);
+    const bowLfo  = mkOsc(bowRate, 'sine');
+    const bowDepth = vcfg.pluck ? 0 : (0.018 + intensity * 0.008) * vcfg.bowDepth;
+    const bowLfoG = mkGain(bowDepth);
     chain(bowLfo, bowLfoG); bowLfoG.connect(sectionGain.gain);
     bowLfo.start();
     reg(name, bowLfo, bowLfoG);
 
-    // Shared LPF for this section
-    const lpfNode = mkFilt(lpf + intensity * 300, 'lowpass', 0.8);
+    // Shared LPF for this section — sul_tasto: much darker; sul_ponticello: brighter
+    const lpfNode = mkFilt((lpf + intensity * 300) * vcfg.lpfMult, 'lowpass', vcfg.wave === 'triangle' ? 0.5 : 0.8);
     lpfNode.connect(sectionGain);
     reg(name, lpfNode);
 
     // 4 voices per section: root×2 (detuned), 3rd, 5th
-    // voiceIdx maps to chord tone: 0=root, 1=3rd, 2=5th
     const voiceDefs = [
-      { voiceIdx: 0, det: -spread },
-      { voiceIdx: 0, det:  spread },
-      { voiceIdx: 1, det: -spread * 0.4 },
-      { voiceIdx: 2, det:  spread * 0.4 },
+      { voiceIdx: 0, det: -spread * vcfg.detMult },
+      { voiceIdx: 0, det:  spread * vcfg.detMult },
+      { voiceIdx: 1, det: -spread * vcfg.detMult * 0.4 },
+      { voiceIdx: 2, det:  spread * vcfg.detMult * 0.4 },
     ];
     const voiceGains = [baseGv, baseGv * 0.82, baseGv * 0.52, baseGv * 0.38];
 
     const oscs = voiceDefs.map(({ voiceIdx, det }, vi) => {
       const freq = CE.chordTone('strings', 1, voiceIdx) * octMult;
-      const o    = mkOsc(freq, 'sawtooth', det);
+      const o    = mkOsc(freq, vcfg.wave, det);
       const g    = mkGain(voiceGains[vi]);
-      chain(o, g, lpfNode);
+
+      if (vcfg.pluck) {
+        // Pizzicato — pluck envelope: very fast attack, exponential decay, no sustain
+        const pluckEnv = mkGain(0);
+        chain(o, g, pluckEnv, lpfNode);
+        const pluckDur = 0.18 + intensity * 0.1;
+        pluckEnv.gain.setValueAtTime(0, now);
+        pluckEnv.gain.linearRampToValueAtTime(1.0, now + 0.006);
+        pluckEnv.gain.exponentialRampToValueAtTime(0.001, now + pluckDur);
+        reg(name, pluckEnv);
+        // Reschedule plucks rhythmically
+        const pluckInterval = (barLength || 2) / 4;
+        let nextPluck = now + pluckInterval;
+        function schedulePluck() {
+          if (!layerOn[name]) return;
+          const pe = mkGain(0);
+          const pFreq = CE.chordTone('strings', 1, voiceIdx) * octMult;
+          o.frequency.cancelScheduledValues(ctx.currentTime);
+          o.frequency.setValueAtTime(pFreq, ctx.currentTime);
+          pe.gain.setValueAtTime(0, nextPluck);
+          pe.gain.linearRampToValueAtTime(voiceGains[vi], nextPluck + 0.005);
+          pe.gain.exponentialRampToValueAtTime(0.001, nextPluck + 0.20 + intensity * 0.08);
+          // Connect pe in parallel — let it fire then go silent
+          chain(o, g, pe, lpfNode);
+          reg(name, pe);
+          nextPluck += pluckInterval * (0.9 + rng() * 0.4); // slight timing variation
+          regT(name, setTimeout(schedulePluck, (nextPluck - ctx.currentTime) * 1000 - 50));
+        }
+        regT(name, setTimeout(schedulePluck, (pluckInterval - 0.05) * 1000));
+      } else {
+        chain(o, g, lpfNode);
+      }
+
       o.start();
       reg(name, o, g);
       return { osc: o, det, voiceIdx, octMult };
@@ -4519,7 +4939,7 @@ function startLayer(name, preset, intensity, percBufs) {
     preset.journeyVoice = pickVoice(name);
   }
   if (PERC_BUF_LAYERS.has(name)) {
-    BUILDERS[name](preset, intensity, name, percBufs || buildPercBufs(preset));
+    BUILDERS[name](preset, intensity, name, percBufs || buildPercBufs(preset, sessionVoices['perc']));
   } else {
     BUILDERS[name](preset, intensity, name);
   }
@@ -4536,6 +4956,33 @@ function pickSessionVoices() {
     const bank = VOICE_BANKS[name];
     if (bank) sessionVoices[name] = bank[Math.floor(rng() * bank.length)];
   });
+  updateVoiceLabels();
+}
+
+function updateVoiceLabels() {
+  ['strings', 'perc'].forEach(name => {
+    const el = document.getElementById('voice-' + name);
+    if (el) el.textContent = sessionVoices[name] || VOICE_BANKS[name]?.[0] || '';
+  });
+}
+
+// Right-click a layer button to cycle through its voices without stopping
+function cycleVoice(name, e) {
+  e.preventDefault();
+  const bank = VOICE_BANKS[name];
+  if (!bank) return;
+  const cur = sessionVoices[name] || bank[0];
+  const idx = bank.indexOf(cur);
+  sessionVoices[name] = bank[(idx + 1) % bank.length];
+  updateVoiceLabels();
+  // If the layer is currently playing, restart it with the new voice
+  if (isPlaying && layerOn[name]) {
+    initAudio();
+    const floor = parseInt(slider.value), preset = getZone(floor);
+    const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+    startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? buildPercBufs(preset, sessionVoices[name]) : null);
+  }
+  setStatus(`${name}: ${sessionVoices[name]}`);
 }
   
 function startSynth() {
@@ -4547,7 +4994,7 @@ function startSynth() {
   grooveAge = 0;
   const floor = parseInt(slider.value), preset = getZone(floor);
   const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
-  const percBufs = buildPercBufs(preset);
+  const percBufs = buildPercBufs(preset, sessionVoices['perc']);
   LAYER_NAMES.forEach(name => {
     if (name === 'boss') { if (isBoss) startLayer(name, preset, intensity, null); return; }
     if (layerOn[name]) startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
@@ -4594,7 +5041,7 @@ function toggleLayer(name) {
   const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
   if (layerOn[name]) {
     if (delayWetGain) { delayWetGain.gain.setValueAtTime(0, ctx.currentTime); delayWetGain.gain.linearRampToValueAtTime(_delayTime > 0 ? 0.35 : 0, ctx.currentTime + 0.3); }
-    startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? buildPercBufs(preset) : null);
+    startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? buildPercBufs(preset, sessionVoices['perc']) : null);
     logTimeline(`+ ${name}`);
     setStatus('+ ' + name);
   } else {
@@ -5211,6 +5658,10 @@ function setStatus(msg) { document.getElementById('status').textContent = msg; }
   Object.keys(layerOn).forEach(k => { if (layerOn[k]) document.getElementById('pill-' + k)?.classList.add('on'); });
   document.getElementById('dbg-scale').textContent = 'Zone Default';
   document.getElementById('dbg-mood').textContent = 'tense';
+  // Set default voices and show labels
+  sessionVoices['strings'] = 'arco';
+  sessionVoices['perc']    = 'cinematic';
+  updateVoiceLabels();
 })();
 
 slider.addEventListener('input', updateFloorUI);
