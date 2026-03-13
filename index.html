@@ -1585,33 +1585,33 @@ const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dr
 const JOURNEY_MOODS = {
   descent: {
     label: 'Descent',
-    desc: 'Dungeon crawl — the default arc',
+    desc: 'Dungeon crawl — darkness builds to nightmare',
     layerArc:  ['desolate','desolate','choral','marching','marching','combat','combat','nightmare'],
     scaleArc:  ['dark','dark','eerie','epic','epic','dread','dread','dread'],
   },
   tragic: {
     label: 'Tragic',
-    desc: 'Grief and collapse — sparse then devastating',
-    layerArc:  ['desolate','choral','choral','desolate','choral','choral','desolate','desolate'],
-    scaleArc:  ['dark','dark','epic','dark','eerie','dark','dark','dark'],
+    desc: 'Build to devastation then fall to silence',
+    layerArc:  ['choral','choral','marching','combat','combat','choral','desolate','desolate'],
+    scaleArc:  ['dark','epic','epic','dark','dread','dark','dark','eerie'],
   },
   triumphant: {
     label: 'Triumphant',
-    desc: 'Rising heroism — march to catharsis',
-    layerArc:  ['desolate','marching','marching','combat','combat','marching','choral','desolate'],
-    scaleArc:  ['epic','epic','epic','epic','arcane','epic','epic','dark'],
+    desc: 'March to glory — heroism earned through struggle',
+    layerArc:  ['marching','marching','combat','combat','nightmare','combat','marching','choral'],
+    scaleArc:  ['epic','epic','epic','dread','dread','epic','epic','epic'],
   },
   arcane: {
     label: 'Arcane',
-    desc: 'Ethereal and unstable — mystery over menace',
-    layerArc:  ['desolate','choral','arcane','arcane','choral','arcane','choral','desolate'],
-    scaleArc:  ['arcane','arcane','arcane','eerie','arcane','arcane','eerie','arcane'],
+    desc: 'Ethereal and unstable — no drums, no march',
+    layerArc:  ['arcane','choral','arcane','arcane','choral','arcane','arcane','choral'],
+    scaleArc:  ['arcane','eerie','arcane','arcane','eerie','arcane','dread','arcane'],
   },
   meditative: {
     label: 'Meditative',
-    desc: 'Still and slow — minimal layers, wide space',
-    layerArc:  ['desolate','desolate','desolate','choral','desolate','choral','desolate','desolate'],
-    scaleArc:  ['dark','arcane','arcane','arcane','eerie','arcane','dark','dark'],
+    desc: 'Wide and still — choir and space, no combat',
+    layerArc:  ['choral','desolate','choral','arcane','choral','desolate','choral','choral'],
+    scaleArc:  ['arcane','dark','arcane','arcane','eerie','arcane','arcane','dark'],
   },
 };
 
