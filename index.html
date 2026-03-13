@@ -1981,7 +1981,7 @@ function initAudio() {
   ctx.resume();
 
   masterGain = ctx.createGain();
-  masterGain.gain.value = 0.55;
+  masterGain.gain.value = 0.38; // was 0.55 — headroom for multiple layers
 
   // Subsonic HPF
   masterHPF = ctx.createBiquadFilter();
@@ -1994,7 +1994,7 @@ function initAudio() {
   saturationNode.oversample = '4x';
 
   const satMakeup = ctx.createGain();
-  satMakeup.gain.value = 1.4;
+  satMakeup.gain.value = 1.0; // was 1.4 — no makeup boost needed
   saturationNode.connect(satMakeup);
   
   // Mood filter (master lowpass modulated by mood)
@@ -2003,13 +2003,13 @@ function initAudio() {
   moodFilter.frequency.value = 4000 + _mood * 8000;
   moodFilter.Q.value = 0.5 + _mood * 2;
 
-  // Master compressor / limiter
+  // Master compressor — gentle glue, not a limiter
   masterCompressor = ctx.createDynamicsCompressor();
-  masterCompressor.threshold.value = -12;
-  masterCompressor.knee.value = 6;
-  masterCompressor.ratio.value = 6;
-  masterCompressor.attack.value = 0.003;
-  masterCompressor.release.value = 0.25;
+  masterCompressor.threshold.value = -18;
+  masterCompressor.knee.value = 10;
+  masterCompressor.ratio.value = 3.5;   // was 6 — much more gentle
+  masterCompressor.attack.value = 0.008;
+  masterCompressor.release.value = 0.35;
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
@@ -2204,30 +2204,41 @@ function killLayer(name) {
 }
 
 function busTarget(n, i) {
+  // Orchestral hierarchy: foundation layers carry weight, melodic layers sing above,
+  // atmosphere sits behind everything. Nothing competes. Silence is preserved.
   return {
-    drone:.55+i*.2,        // was .7+i*.3
-    bass:.75,              // was 1.0
-    heartbeat:.5+i*.2,     // was .7+i*.3
-    wind:.4+i*.25,         // was .55+i*.35
-    riser:.45+i*.3,        // was .6+i*.4
-    firecrackle:.35+i*.2,  // was .5+i*.3
-    perc:.85,              // was 1.2
-    wardrums:.8+i*.15,     // was 1.1+i*.2
-    chains:.55+i*.2,       // was .75+i*.3
-    march:.65+i*.2,        // was .85+i*.3
-    stomp:.75+i*.15,       // was 1.0+i*.2
-    melody:.75,            // was 1.0
-    choir:.55+i*.18,       // was .75+i*.25
-    lute:.6+i*.18,         // was .8+i*.25
-    horn:.65+i*.18,        // was .85+i*.25
-    bells:.5+i*.25,        // was .7+i*.35
-    organ:.55+i*.18,       // was .75+i*.25
-    chaos:.4*i,            // was .6*i
-    whispers:.4+i*.18,     // was .55+i*.25
-    ritualchant:.5+i*.18,  // was .7+i*.25
-    glitch:.35*i,          // was .5*i
-    boss:.65               // was .9
-  }[n] ?? 0.45;
+    // Foundation — felt more than heard
+    drone:       0.38 + i * 0.12,   // slow-breathing pad, anchors everything
+    bass:        0.42,              // punchy but controlled, sits under strings
+    heartbeat:   0.28 + i * 0.10,  // subliminal pulse
+
+    // Rhythm — punctuation, not wall-to-wall
+    perc:        0.52,              // crisp, not crushing
+    wardrums:    0.48 + i * 0.10,  // taiko-style, spaced hits
+    chains:      0.30 + i * 0.10,
+    march:       0.38 + i * 0.10,
+    stomp:       0.42 + i * 0.08,
+
+    // Atmosphere — pushed behind everything, presence not loudness
+    wind:        0.22 + i * 0.12,
+    riser:       0.28 + i * 0.14,
+    firecrackle: 0.18 + i * 0.10,
+    whispers:    0.20 + i * 0.08,
+    ritualchant: 0.28 + i * 0.10,
+    glitch:      0.18 * i,
+
+    // Melodic — the story, clear space above foundation
+    melody:      0.42,              // lead, sits on top, not buried
+    choir:       0.32 + i * 0.10,  // ensemble behind melody
+    lute:        0.28 + i * 0.08,  // delicate plucks
+    horn:        0.30 + i * 0.10,  // punctuation calls, not constant
+    bells:       0.24 + i * 0.10,  // shimmer on top
+    organ:       0.26 + i * 0.08,
+
+    // Special — extreme
+    chaos:       0.22 * i,
+    boss:        0.45,
+  }[n] ?? 0.32;
 }
 
 // ── VOICE BANKS ───────────────────────────────
@@ -2655,47 +2666,52 @@ const CE = (() => {
 // ── Layer builders ────────────────────────────────────────────────
 function buildDrone(preset, intensity, name) {
   const b = bus[name];
-  const filt = mkFilt(preset.droneFilterFreq + intensity * 600, 'lowpass', preset.droneFilterQ);
-  filt.connect(b);
 
-  // Core cluster — one primary wave, rest are sine to avoid wall-of-saw
+  // Warm lowpass — removes harshness, lets it breathe
+  const warmFilt = mkFilt(preset.droneFilterFreq + intensity * 400, 'lowpass', 0.85);
+  warmFilt.connect(b);
+
+  // Breathing gain node — slow swell, not constant pressure
+  const breathGain = mkGain(1.0);
+  warmFilt.connect(breathGain);
+  breathGain.connect(b);
+  warmFilt.disconnect(b); // reroute: voices → warmFilt → breathGain → b
+
+  // Amplitude breath LFO — very slow, subtle, like lungs expanding
+  const aLfo  = mkOsc(0.03 + preset.droneAmpLfo * 0.3, 'sine');
+  const aLfoG = mkGain(0.055 + intensity * 0.025);
+  chain(aLfo, aLfoG); aLfoG.connect(breathGain.gain);
+  aLfo.start(); reg(name, aLfo, aLfoG, breathGain);
+
+  // Chord-aware stacked voices — root / 5th / octave (not wall-of-detune)
+  const rootFreq  = preset.root;
+  const fifthFreq = preset.root * 1.5;        // perfect fifth
+  const octFreq   = preset.root * 2.0;        // octave up
+
   const voices = [
-    { det: -12, wave: preset.droneWave, gain: 0.32 },
-    { det:   0, wave: preset.droneWave, gain: 0.42 },
-    { det:  12, wave: preset.droneWave, gain: 0.32 },
-    { det:  -5, wave: 'sine',           gain: 0.18 }, // perfect fourth — adds depth not harshness
-    { det:   5, wave: 'sine',           gain: 0.18 },
+    { freq: rootFreq,  wave: 'sine',            det: 0,   gv: 0.38 }, // fundamental — sine stays clean
+    { freq: rootFreq,  wave: preset.droneWave,  det: -8,  gv: 0.18 }, // color layer — slightly flat
+    { freq: rootFreq,  wave: preset.droneWave,  det:  8,  gv: 0.18 }, // color layer — slightly sharp
+    { freq: fifthFreq, wave: 'sine',            det: 0,   gv: 0.14 }, // fifth — always sine, stays transparent
+    { freq: octFreq,   wave: 'triangle',        det: 0,   gv: 0.10 }, // octave — triangle, soft
   ];
-  voices.forEach(({ det, wave, gain: gv }) => {
-    const o = mkOsc(preset.root, wave, det);
+
+  voices.forEach(({ freq, wave, det, gv }) => {
+    const o = mkOsc(freq, wave, det);
     const g = mkGain(gv);
-    chain(o, g, filt); o.start(); reg(name, o, g);
+    chain(o, g, warmFilt); o.start(); reg(name, o, g);
   });
 
-  // Fifth — sine only, low gain, warmth not clutter
-  const fifth  = mkOsc(preset.root * 1.5, 'sine', 2);
-  const fifthG = mkGain(0.1);
-  chain(fifth, fifthG, filt); fifth.start(); reg(name, fifth, fifthG);
+  // Sub — separate path, very low, felt not heard
+  const subO    = mkOsc(rootFreq * 0.5, 'sine');
+  const subFilt = mkFilt(90, 'lowpass', 0.7);
+  const subG    = mkGain(0.18);
+  chain(subO, subFilt, subG, b); subO.start(); reg(name, subO, subFilt, subG);
 
-  // Sub — separate gain node so fade system never touches it via b.gain
-  const subO    = mkOsc(preset.root * 0.5, 'sine');
-  const subG    = mkGain(0.22);
-  const subFilt = mkFilt(110, 'lowpass', 0.7);
-  chain(subO, subG, subFilt, b); subO.start(); reg(name, subO, subG, subFilt);
-
-  // Filter LFO
-  const lfo  = mkOsc(preset.droneLfoRate + intensity * 0.08, 'sine');
-  const lfoG = mkGain(preset.droneLfoDepth + intensity * 350);
-  chain(lfo, lfoG); lfoG.connect(filt.frequency); lfo.start(); reg(name, lfo, lfoG);
-
-  // Amp breathe — targets filt input gain, NOT b.gain, so fade system is undisturbed
-  const breathGain = mkGain(1.0);
-  // reconnect: voices already go to filt, filt goes to b — insert breathGain between filt and b
-  filt.disconnect(); chain(filt, breathGain, b); reg(name, breathGain);
-  const aLfo  = mkOsc(0.05 + preset.droneAmpLfo * 0.5, 'sine');
-  const aLfoG = mkGain(0.06 + intensity * 0.04);
-  chain(aLfo, aLfoG); aLfoG.connect(breathGain.gain);
-  aLfo.start(); reg(name, aLfo, aLfoG, filt);
+  // Filter breathe LFO — very slow, low depth
+  const lfo  = mkOsc(preset.droneLfoRate * 0.6 + intensity * 0.04, 'sine');
+  const lfoG = mkGain(preset.droneLfoDepth * 0.5 + intensity * 120);
+  chain(lfo, lfoG); lfoG.connect(warmFilt.frequency); lfo.start(); reg(name, lfo, lfoG, warmFilt);
 }
 
 function buildPercBufs(preset) {
@@ -2852,27 +2868,27 @@ function buildBass(preset, intensity, name) {
 
       for (let i = 0; i < 8; i++) {
         const deg = preset.bassPattern[i];
-        if (deg === 0 && i !== 0 && rng() < 0.18) continue;
+        if (deg === 0 && i !== 0 && rng() < 0.32) continue; // more rests = less cluttered
 
         const t    = barStart + i * step;
         const freq = CE.chordTone('bass', 0, i % Math.max(1, CE.currentChord.ratios.length));
-        const dur  = beat * 0.38;
+        const dur  = beat * 0.32; // slightly shorter = tighter, less mud
 
         // Main tone — gentle saturation, not hard clip
         const o      = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
-        const filt   = mkFilt(preset.bassFilterFreq + intensity * 250, 'lowpass', 1.4);
+        const filt   = mkFilt(preset.bassFilterFreq + intensity * 180, 'lowpass', 1.2);
         const shaper = ctx.createWaveShaper();
-        shaper.curve = makeSatCurve(0.12); // was 0.35 — much cleaner
+        shaper.curve = makeSatCurve(0.08); // very subtle warmth
         const env    = mkGain(0);
         chain(o, filt, shaper, env, b);
 
         // Sub — shorter stop time so it doesn't blur into next note
         const sub     = mkOsc(freq * 0.5, 'sine');
-        const subFilt = mkFilt(100, 'lowpass', 0.7);
+        const subFilt = mkFilt(90, 'lowpass', 0.7);
         const subEnv  = mkGain(0);
         chain(sub, subFilt, subEnv, b);
 
-        const v = 0.28 + intensity * 0.16;
+        const v = 0.20 + intensity * 0.10; // was 0.28 — noticeably lower
 
         env.gain.setValueAtTime(0, t);
         env.gain.linearRampToValueAtTime(v, t + 0.014);
@@ -2925,10 +2941,11 @@ function buildMelody(preset, intensity, name) {
     let cursor = t;
 
     for (let i = 0; i < motifPat.length; i++) {
-      // Rest probability — higher at phrase start, lower at climax
-      const restChance = currentPhrase === 'climax' ? 0.08
-                       : currentPhrase === 'intro'   ? 0.35
-                       : preset.melodySkip;
+      // Rest probability — generous rests create musical breathing room
+      const restChance = currentPhrase === 'climax' ? 0.18
+                       : currentPhrase === 'intro'   ? 0.55
+                       : currentPhrase === 'resolution' ? 0.50
+                       : preset.melodySkip + 0.15;
       if (rng() < restChance) {
         cursor += beat * subdivisions[Math.floor(rng() * 2)];
         continue;
@@ -2938,11 +2955,12 @@ function buildMelody(preset, intensity, name) {
       const deg  = motifPat[i];
       const freq = CE.scaleStep(preset, preset.melodyOctave, deg);
 
-      // Duration — mix of short and long notes for rhythmic interest
+      // Duration — strong bias toward long/held notes for cinematic weight
+      // Short notes are grace notes, not the default
       const durChoice = rng();
-      const noteDur = durChoice < 0.4 ? beat * 0.22        // short — punchy
-                    : durChoice < 0.7 ? beat * 0.48        // medium
-                    :                   beat * 0.85;        // long — sustained
+      const noteDur = durChoice < 0.22 ? beat * 0.18        // short — grace note
+                    : durChoice < 0.55 ? beat * 0.65        // medium — standard
+                    :                    beat * 1.4;         // long — HELD, cinematic swell
 
       cursor += beat * subdivisions[Math.floor(rng() * subdivisions.length)];
 
@@ -2966,7 +2984,7 @@ function buildMelody(preset, intensity, name) {
       chain(o2, g2, filt);
       chain(filt, env, melodyShaper);
 
-      const vol = 0.1 + intensity * 0.11;
+      const vol = 0.06 + intensity * 0.07;
 
       // Amplitude envelope — fast attack, natural decay shape
       env.gain.setValueAtTime(0, bt);
@@ -3012,59 +3030,68 @@ function buildMelody(preset, intensity, name) {
 function buildChoir(preset, intensity, name) {
   const b = bus[name];
 
-  // Three voices on scale degrees 0, 2, 4
-  [0, 2, 4].forEach((deg, vi) => {
-    const freq = CE.chordTone('choir', 2, vi);
-    const detune = (vi - 1) * 6;
-    const o = mkOsc(freq, 'sawtooth', detune);
+  // 5 voices: 2 bass, 2 tenor/alto, 1 soprano — like a real choir section
+  const voices = [
+    { octMult: 0.5,  det: -4,  gv: 0.22, formF: [280, 550, 1100] }, // bass 1
+    { octMult: 0.5,  det:  5,  gv: 0.18, formF: [280, 550, 1100] }, // bass 2
+    { octMult: 1.0,  det: -3,  gv: 0.20, formF: [350, 900, 1800] }, // tenor/alto 1
+    { octMult: 1.0,  det:  4,  gv: 0.18, formF: [350, 900, 1800] }, // tenor/alto 2
+    { octMult: 2.0,  det:  0,  gv: 0.12, formF: [450, 1200, 2400] }, // soprano
+  ];
 
-    // Richer formant stack — 4 formants instead of 3
-    const f1 = mkFilt(preset.choirFormants[0],       'bandpass', 11);
-    const f2 = mkFilt(preset.choirFormants[1],       'bandpass',  8);
-    const f3 = mkFilt(preset.choirFormants[2],       'bandpass',  5);
-    const f4 = mkFilt(preset.choirFormants[2] * 1.6, 'bandpass',  3);
+  voices.forEach(({ octMult, det, gv, formF }, vi) => {
+    const freq = CE.chordTone('choir', 1, vi % 3) * octMult;
+    const o = mkOsc(freq, 'sawtooth', det);
 
-    const m = mkGain(0.32);
-    o.connect(f1); o.connect(f2); o.connect(f3); o.connect(f4);
-    f1.connect(m); f2.connect(m); f3.connect(m); f4.connect(m);
-    m.connect(b);
+    // Formant stack — 3 bandpass filters shape the vowel
+    const f1 = mkFilt(formF[0], 'bandpass', 8);
+    const f2 = mkFilt(formF[1], 'bandpass', 5);
+    const f3 = mkFilt(formF[2], 'bandpass', 3);
 
-    // Vibrato
-    const vib  = mkOsc(preset.choirVibRate + vi * 0.5, 'sine');
-    const vibG = mkGain(preset.choirVibDepth + intensity * 2);
-    chain(vib, vibG); vibG.connect(o.frequency);
-    vib.start(); o.start();
+    const mixG = mkGain(gv);
+    o.connect(f1); o.connect(f2); o.connect(f3);
+    f1.connect(mixG); f2.connect(mixG); f3.connect(mixG);
+    mixG.connect(b);
 
-    // Slow formant LFO — vowel morph feel
-    const fLfo  = mkOsc(0.07 + vi * 0.03, 'sine');
-    const fLfoG = mkGain(preset.choirFormants[0] * 0.18);
+    // Vowel morph LFO — slow wander between /a/ and /o/ formant positions
+    const fLfo  = mkOsc(0.04 + vi * 0.015, 'sine');
+    const fLfoG = mkGain(formF[0] * 0.12);
     chain(fLfo, fLfoG); fLfoG.connect(f1.frequency);
     fLfo.start();
 
-    reg(name, o, f1, f2, f3, f4, m, vib, vibG, fLfo, fLfoG);
+    // Vibrato — enters LATE (after 2.5s), like a real singer settling in
+    const vib  = mkOsc(4.8 + vi * 0.2, 'sine');
+    const vibG = mkGain(0);
+    chain(vib, vibG); vibG.connect(o.frequency);
+    vibG.gain.setValueAtTime(0, ctx.currentTime);
+    vibG.gain.linearRampToValueAtTime(2.5 + intensity * 2, ctx.currentTime + 2.5);
+    vib.start();
+
+    o.start();
+    reg(name, o, f1, f2, f3, mixG, fLfo, fLfoG, vib, vibG);
   });
 
-  // Breath noise layer underneath — gives it air and life
-  const breathBuf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+  // Breath noise — essential. Without this it sounds like a synth, not a choir.
+  const breathBuf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
   const bd = breathBuf.getChannelData(0);
   for (let i = 0; i < bd.length; i++) bd[i] = Math.random() * 2 - 1;
-  const breathSrc = ctx.createBufferSource();
-  breathSrc.buffer = breathBuf; breathSrc.loop = true;
-  const breathFilt = mkFilt(2800, 'bandpass', 0.6);
-  const breathFilt2 = mkFilt(800, 'highpass', 0.5);
-  const breathG = mkGain(0.018 + intensity * 0.012);
-  chain(breathSrc, breathFilt, breathFilt2, breathG, b);
+  const breathSrc   = ctx.createBufferSource();
+  breathSrc.buffer  = breathBuf; breathSrc.loop = true;
+  const bFilt1 = mkFilt(2000, 'bandpass', 0.8); // breath sibilance
+  const bFilt2 = mkFilt(600,  'highpass', 0.5); // remove mud
+  const bG     = mkGain(0.012 + intensity * 0.008); // very quiet — just air
+  chain(breathSrc, bFilt1, bFilt2, bG, b);
   breathSrc.start();
-  reg(name, breathSrc, breathFilt, breathFilt2, breathG);
+  reg(name, breathSrc, bFilt1, bFilt2, bG);
 
-  // Sub octave pad — fills out the low end
-  const subFreq = CE.chordTone('choir', 1, 0);
-  const subO  = mkOsc(subFreq, 'sine');
-  const subG  = mkGain(0.12 + intensity * 0.08);
-  const subF  = mkFilt(400, 'lowpass', 0.7);
-  chain(subO, subF, subG, b);
+  // Sub warmth — octave below, pure sine, fills the chest register
+  const subFreq = CE.chordTone('choir', 0, 0);
+  const subO    = mkOsc(subFreq, 'sine');
+  const subFilt = mkFilt(350, 'lowpass', 0.7);
+  const subG    = mkGain(0.08 + intensity * 0.05);
+  chain(subO, subFilt, subG, b);
   subO.start();
-  reg(name, subO, subF, subG);
+  reg(name, subO, subFilt, subG);
 }
 
 function buildChaos(preset, intensity, name) {
@@ -3077,7 +3104,7 @@ function buildChaos(preset, intensity, name) {
     const o    = mkOsc(freq, i % 2 === 0 ? 'square' : 'sawtooth', i * 20 - 10);
 
     const filt    = mkFilt(400 + rng() * 800, 'bandpass', 5);
-    const preGain = mkGain(0.04 * intensity); // static gain — no LFO on this node
+    const preGain = mkGain(0.025 * intensity); // was 0.04 — chaos was way too loud
     const env     = mkGain(1.0);              // env sits at 1.0, trem modulates preGain
 
     // Trem — targets preGain, never b.gain
@@ -3722,7 +3749,7 @@ function buildHorn(preset, intensity, name) {
     const o1   = mkOsc(freq,         'sawtooth',  0);
     const o2   = mkOsc(freq,         'square',    2);  // adds odd harmonics
     const o3   = mkOsc(freq * 0.5,   'sawtooth',  0);  // sub octave warmth
-    const g1   = mkGain(0.55), g2 = mkGain(0.2), g3 = mkGain(0.18);
+    const g1   = mkGain(0.40), g2 = mkGain(0.15), g3 = mkGain(0.12);
 
     // Formant stack — brass resonance body
     const formant1 = mkFilt(700  + intensity * 300, 'bandpass', 4);
@@ -3735,7 +3762,7 @@ function buildHorn(preset, intensity, name) {
     formant1.connect(bright); formant2.connect(bright);
     chain(bright, env, b);
 
-    const vol = 0.12 + intensity * 0.12;
+    const vol = 0.08 + intensity * 0.08; // was 0.12+0.12 — horn punches above its weight
 
     // Brass attack — slow swell in, slight overshoot, then sustain
     env.gain.setValueAtTime(0, t);
@@ -3762,8 +3789,8 @@ function buildHorn(preset, intensity, name) {
     o3.start(t); o3.stop(t + dur + 0.2);
     reg(name, o1, o2, o3, g1, g2, g3, formant1, formant2, bright, env, vib, vibG);
 
-    t += beat * (4 + rng() * 2);
-    regT(name, setTimeout(schedNote, beat * 3.5 * 1000));
+    t += beat * (6 + rng() * 4); // was 4+2 — more silence between calls
+    regT(name, setTimeout(schedNote, beat * (5 + rng() * 2) * 1000));
   }
 
   schedNote();
