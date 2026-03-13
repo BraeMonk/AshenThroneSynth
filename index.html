@@ -699,6 +699,11 @@
     <div class="tab-pane" id="tab-scale" style="padding:24px 0 16px;">
       <div class="scale-grid" id="scaleGrid"></div>
       <div class="status" id="scaleStatus" style="text-align:left;margin-top:8px;font-size:12px;min-height:16px;">Zone default active</div>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid #1e1e30;">
+        <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Journey Mood</div>
+        <div id="journeyMoodGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
+        <div style="font-size:10px;color:var(--text-dim);font-style:italic;font-family:'Crimson Text',serif;margin-top:8px;min-height:14px;" id="journeyMoodDesc">Dungeon crawl — the default arc</div>
+      </div>
     </div>
 
     <!-- EVENTS TAB -->
@@ -999,7 +1004,7 @@ function tickBar() {
     const t       = Math.min(1, elapsed / xfade.totalBars);
     const e       = 1 - Math.pow(1 - t, 3); // ease-out cubic
     const newBpm  = xfade.bpmStart + (xfade.bpmEnd - xfade.bpmStart) * e;
-    if (!bpmLocked) barLength = (60 / newBpm) * 4;
+    barLength     = (60 / newBpm) * 4;
 
     // Update drone nodes live
     if (xfade.fromZone && xfade.toZone) {
@@ -1015,7 +1020,7 @@ function tickBar() {
 
     if (t >= 1) {
       xfade.active  = false;
-      if (!bpmLocked) barLength = (60 / xfade.bpmEnd) * 4;
+      barLength     = (60 / xfade.bpmEnd) * 4;
     }
   }
 
@@ -1576,6 +1581,42 @@ const SCALE_MOODS = {
 
 const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dread', 'dread'];
 
+// ── Journey Mood Presets ──────────────────────────────────────────
+const JOURNEY_MOODS = {
+  descent: {
+    label: 'Descent',
+    desc: 'Dungeon crawl — the default arc',
+    layerArc:  ['desolate','desolate','choral','marching','marching','combat','combat','nightmare'],
+    scaleArc:  ['dark','dark','eerie','epic','epic','dread','dread','dread'],
+  },
+  tragic: {
+    label: 'Tragic',
+    desc: 'Grief and collapse — sparse then devastating',
+    layerArc:  ['desolate','choral','choral','desolate','choral','choral','desolate','desolate'],
+    scaleArc:  ['dark','dark','epic','dark','eerie','dark','dark','dark'],
+  },
+  triumphant: {
+    label: 'Triumphant',
+    desc: 'Rising heroism — march to catharsis',
+    layerArc:  ['desolate','marching','marching','combat','combat','marching','choral','desolate'],
+    scaleArc:  ['epic','epic','epic','epic','arcane','epic','epic','dark'],
+  },
+  arcane: {
+    label: 'Arcane',
+    desc: 'Ethereal and unstable — mystery over menace',
+    layerArc:  ['desolate','choral','arcane','arcane','choral','arcane','choral','desolate'],
+    scaleArc:  ['arcane','arcane','arcane','eerie','arcane','arcane','eerie','arcane'],
+  },
+  meditative: {
+    label: 'Meditative',
+    desc: 'Still and slow — minimal layers, wide space',
+    layerArc:  ['desolate','desolate','desolate','choral','desolate','choral','desolate','desolate'],
+    scaleArc:  ['dark','arcane','arcane','arcane','eerie','arcane','dark','dark'],
+  },
+};
+
+let activeJourneyMood = 'descent';
+
 function crawlToFloor(targetFloor, durationMs, onComplete) {
   const startFloor = parseInt(slider.value);
   const steps = Math.abs(targetFloor - startFloor);
@@ -1605,11 +1646,16 @@ function crawlToFloor(targetFloor, durationMs, onComplete) {
 
 function startRandomJourney() {
   if (!isPlaying) togglePlay();
-  
+
+  // Pick a random mood for this journey run
+  const moodKeys = Object.keys(JOURNEY_MOODS);
+  activeJourneyMood = moodKeys[Math.floor(Math.random() * moodKeys.length)];
+  selectJourneyMood(activeJourneyMood);
+
   const JOURNEY_STEPS = 8;
   const startFloor = parseInt(slider.value);
   let step = 0;
-  
+
   journeyActive = true;
   
   function journeyStep() {
@@ -1618,7 +1664,8 @@ function startRandomJourney() {
     const JOURNEY_FLOORS = [1, 13, 25, 37, 49, 61, 73, 85];
     const floor = JOURNEY_FLOORS[step] ?? 85;
     
-    const archetypeName = JOURNEY_ARC[step] || 'nightmare';
+    const mood = JOURNEY_MOODS[activeJourneyMood] || JOURNEY_MOODS.descent;
+    const archetypeName = mood.layerArc[step] || 'nightmare';
     
     const cfg = LAYER_ARCHETYPES[archetypeName];
     if (!cfg) return;
@@ -1674,7 +1721,7 @@ function startRandomJourney() {
     autoEvolution = true;
     startPhraseEngine();
 
-    const scaleMood = JOURNEY_SCALE_ARC[step] || 'dread';
+    const scaleMood = mood.scaleArc[step] || 'dread';
     const moodScales = SCALE_MOODS[scaleMood];
     const newScale = moodScales[Math.floor(rng() * moodScales.length)];
     selectScale(newScale);
@@ -1953,7 +2000,7 @@ const ZONES = [
 ];
 
 function getZone(f)      { return ZONES.find(z => f >= z.range[0] && f <= z.range[1]) || ZONES[ZONES.length-1]; }
-function getIntensity(f) { return Math.min(1, (f - 1) / 98); }
+function getIntensity(f) { return Math.min(1, (f - 1) / 50); }
 function getScale(preset) {
   if (activeScaleId === 'zone') return preset.scale;
   const s = SCALES.find(s => s.id === activeScaleId);
@@ -4546,6 +4593,29 @@ function buildScaleUI() {
   });
 }
 
+function buildJourneyMoodUI() {
+  const grid = document.getElementById('journeyMoodGrid');
+  if (!grid) return;
+  Object.entries(JOURNEY_MOODS).forEach(([id, mood]) => {
+    const btn = document.createElement('button');
+    btn.className = 'scale-btn' + (id === 'descent' ? ' active' : '');
+    btn.id = 'jmood-' + id;
+    btn.onclick = () => selectJourneyMood(id);
+    btn.innerHTML = `<span class="scale-name">${mood.label}</span>`;
+    grid.appendChild(btn);
+  });
+}
+
+function selectJourneyMood(id) {
+  activeJourneyMood = id;
+  document.querySelectorAll('#journeyMoodGrid .scale-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('jmood-' + id);
+  if (btn) btn.classList.add('active');
+  const mood = JOURNEY_MOODS[id];
+  const desc = document.getElementById('journeyMoodDesc');
+  if (desc) desc.textContent = mood.desc;
+}
+
 function selectScale(id) {
   activeScaleId = id;
   document.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('active'));
@@ -5083,6 +5153,7 @@ function setStatus(msg) { document.getElementById('status').textContent = msg; }
   lastZoneName = getZone(1).name;
   updateFloorUI();
   buildScaleUI();
+  buildJourneyMoodUI();
   buildPresetUI();
   buildOSTStepList();
   Object.keys(layerOn).forEach(k => { if (layerOn[k]) document.getElementById('pill-' + k)?.classList.add('on'); });
