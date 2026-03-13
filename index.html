@@ -3087,7 +3087,6 @@ function buildMelody(preset, intensity, name) {
   let patIdx = 0;
   let t = ctx.currentTime + 0.1;
 
-  // Soft waveshaper — warmth without smearing
   const melodyShaper = ctx.createWaveShaper();
   melodyShaper.curve = makeSatCurve(0.08);
   melodyShaper.connect(b);
@@ -3099,18 +3098,17 @@ function buildMelody(preset, intensity, name) {
       ? [...motif]
       : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
 
-    // Occasional variation — reverse or transpose up an octave, never both
-    if (rng() < 0.25) motifPat = [...motifPat].reverse();
-    else if (rng() < 0.2) motifPat = motifPat.map(d => d + 7);
+    // Only one variation per bar — never stack reverse + transpose
+    const varRoll = rng();
+    if (varRoll < 0.25) motifPat = [...motifPat].reverse();
+    else if (varRoll < 0.45) motifPat = motifPat.map(d => d + 7);
 
-    // Rhythmic grid — 16th note slots, each note picks a duration subdivision
-    const subdivisions = [0.25, 0.5, 0.75, 1.0]; // in beats
+    const subdivisions = [0.25, 0.5, 0.75, 1.0];
     let cursor = t;
 
     for (let i = 0; i < motifPat.length; i++) {
-      // Rest probability — generous rests create musical breathing room
-      const restChance = currentPhrase === 'climax' ? 0.18
-                       : currentPhrase === 'intro'   ? 0.55
+      const restChance = currentPhrase === 'climax'     ? 0.18
+                       : currentPhrase === 'intro'      ? 0.55
                        : currentPhrase === 'resolution' ? 0.50
                        : preset.melodySkip + 0.15;
       if (rng() < restChance) {
@@ -3122,24 +3120,22 @@ function buildMelody(preset, intensity, name) {
       const deg  = motifPat[i];
       const freq = CE.scaleStep(preset, preset.melodyOctave, deg);
 
-      // Duration — strong bias toward long/held notes for cinematic weight
-      // Short notes are grace notes, not the default
       const durChoice = rng();
-      const noteDur = durChoice < 0.22 ? beat * 0.18        // short — grace note
-                    : durChoice < 0.55 ? beat * 0.65        // medium — standard
-                    :                    beat * 1.4;         // long — HELD, cinematic swell
+      const noteDur = durChoice < 0.22 ? beat * 0.18
+                    : durChoice < 0.55 ? beat * 0.65
+                    :                    beat * 1.4;
 
-      cursor += beat * subdivisions[Math.floor(rng() * subdivisions.length)];
+      // Advance AFTER placing note — melody stays on the grid
+      // Combat/tension bias toward short subdivisions to lock with perc
+      const isCombat = currentPhrase === 'climax' || currentPhrase === 'tension';
+      const subPool  = isCombat ? [0.25, 0.25, 0.5] : subdivisions;
+      cursor += beat * subPool[Math.floor(rng() * subPool.length)];
 
-      // Voice — single oscillator pair, tightly detuned, with character
-      // Use zone's wave type for identity — saw for dark zones, triangle for lighter
       const waveA = preset.melodyWave === 'sine' ? 'triangle' : preset.melodyWave;
       const o1  = mkOsc(freq,         waveA,      -4);
-      const o2  = mkOsc(freq * 1.003, 'triangle',  4); // triangle second voice — softens saw harshness
+      const o2  = mkOsc(freq * 1.003, 'triangle',  4);
       const g1  = mkGain(0.55), g2 = mkGain(0.28);
 
-      // Brightness filter — sweeps based on note length, not static
-      // Short notes stay bright; long notes bloom then darken
       const filterStart = 800  + intensity * 1800;
       const filterPeak  = 2400 + intensity * 3000;
       const filterEnd   = 500  + intensity * 800;
@@ -3153,13 +3149,11 @@ function buildMelody(preset, intensity, name) {
 
       const vol = 0.06 + intensity * 0.07;
 
-      // Amplitude envelope — fast attack, natural decay shape
       env.gain.setValueAtTime(0, bt);
       env.gain.linearRampToValueAtTime(vol, bt + 0.018);
       env.gain.setValueAtTime(vol * 0.72, bt + noteDur * 0.35);
       env.gain.linearRampToValueAtTime(0.001, bt + noteDur);
 
-      // Filter envelope — blooms open then closes, adds movement to each note
       filt.frequency.setValueAtTime(filterStart, bt);
       filt.frequency.linearRampToValueAtTime(filterPeak, bt + noteDur * 0.25);
       filt.frequency.exponentialRampToValueAtTime(filterEnd, bt + noteDur * 0.9);
@@ -3168,14 +3162,12 @@ function buildMelody(preset, intensity, name) {
       o2.start(bt); o2.stop(bt + noteDur + 0.06);
       reg(name, o1, o2, g1, g2, filt, env);
 
-      // Counter-melody — only on long notes, different octave, quieter
-      // Keeps it out of the way of the main voice
       if (noteDur > beat * 0.6 && rng() < 0.35) {
         const counterDeg  = motifPat[(i + 2) % motifPat.length];
         const counterFreq = scaleFreq(preset, preset.melodyOctave + 1, counterDeg);
-        const co   = mkOsc(counterFreq, 'sine'); // always sine — stays transparent
+        const co    = mkOsc(counterFreq, 'sine');
         const cFilt = mkFilt(1200 + intensity * 1000, 'lowpass', 0.9);
-        const cEnv = mkGain(0);
+        const cEnv  = mkGain(0);
         chain(co, cFilt, cEnv, melodyShaper);
         const cVol = vol * 0.28;
         cEnv.gain.setValueAtTime(0, bt + 0.04);
@@ -3186,7 +3178,7 @@ function buildMelody(preset, intensity, name) {
       }
     }
 
-    t = cursor + beat * (rng() < 0.2 ? beat * 0.5 : 0); // occasional bar-end breath
+    t = cursor + beat * (rng() < 0.2 ? beat * 0.5 : 0);
     patIdx++;
     regT(name, setTimeout(schedBar, (beat * 3.7) * 1000));
   }
