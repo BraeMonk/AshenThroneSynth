@@ -5604,7 +5604,6 @@ function toggleCinematic() {
   document.getElementById('cinematicOverlay').classList.toggle('active', cinematicActive);
   document.getElementById('cinematicBtn').classList.toggle('active', cinematicActive);
   if (cinematicActive) {
-    if (!isPlaying) togglePlay();
     drawCinematic();
   } else {
     if (cinematicRaf) { cancelAnimationFrame(cinematicRaf); cinematicRaf = null; }
@@ -5965,362 +5964,355 @@ function cinInitFog(zone, W, H) {
 
 function cinInitKnight(W, H) {
   CIN.knight = {
-    x: W * 0.18,          // current x
-    y: H * 0.80,          // current y (ground-snapped each frame)
-    targetX: W * 0.18,    // destination x during adventure
+    x: W * 0.22,
+    y: H * 0.86,
+    campfireX: W * 0.38,
+    campfireY: H * 0.86,
+    targetX: W * 0.22,
     velX: 0,
-    // State: 'rest', 'sit', 'walk', 'run', 'look'
     state: 'rest',
-    stateTimer: 0,        // frames in current state
-    // Accumulated animation time (separate from t so it runs at its own pace)
+    stateTimer: 0,
     anim: 0,
-    // Direction: 1 = right, -1 = left
     dir: 1,
-    // Campfire glow (only during rest)
-    campfireFlicker: 0,
-    // Breath for idle
+    campfireFlicker: 1.0,
     breathPhase: 0,
-    // Trail of footstep puffs
     puffs: [],
-    // Scale relative to screen (knight is ~2% of screen height)
     scale: 1,
+    swordAngle: 0,
+    capeWave: 0,
   };
 }
 
-// ── Sample near-terrain height at a given x ────────────────────────
-function cinTerrainYAt(x, W, H) {
-  if (!CIN.terrainParallax || !CIN.terrainParallax[3]) return H * 0.82;
-  const layer = CIN.terrainParallax[3];
-  const pts = layer.pts;
-  // Find surrounding pts
-  for (let i = 0; i < pts.length - 1; i++) {
-    if (x >= pts[i].x && x <= pts[i+1].x) {
-      const t = (x - pts[i].x) / (pts[i+1].x - pts[i].x);
-      return pts[i].y * (1 - t) + pts[i+1].y * t;
-    }
-  }
-  return H * 0.82;
+function cinWaveYAt(x, W, waveData, waveFloor, waveAmp) {
+  // Stand ON the waveform, not ride it — use waveFloor as the true ground
+  // with only a very gentle, averaged nudge from the actual wave shape
+  if (!waveData || !waveData.length) return waveFloor;
+  const slice = Math.min(waveData.length, 512);
+  const ci = Math.max(2, Math.min(slice - 3, Math.floor((x / W) * slice)));
+  // Average 5 neighbouring samples to kill per-sample jitter
+  let sum = 0;
+  for (let di = -2; di <= 2; di++) sum += waveData[ci + di];
+  const avg = (sum / 5) / 128.0 - 1.0;
+  // Only use 15% of the amplitude so the wave is visual ground, not a rollercoaster
+  return waveFloor + avg * waveAmp * 0.15;
 }
 
-// ── Draw the pixel-art style knight ───────────────────────────────
-function cinDrawKnight(c, W, H, zone, t, restLevel) {
+function cinDrawCampfire(c, k, zone, t, restLevel, waveData, waveFloor, waveAmp, W) {
+  const fAlpha = Math.min(1, restLevel * 1.5);
+  if (fAlpha < 0.02) return;
+  const R = zone.vizR, G = zone.vizG, B = zone.vizB;
+  const ks = k.scale;
+
+  k.campfireY = cinWaveYAt(k.campfireX, W, waveData, waveFloor, waveAmp);
+  const fx = k.campfireX, fy = k.campfireY;
+
+  k.campfireFlicker += (Math.random() - 0.5) * 0.18;
+  k.campfireFlicker = Math.max(0.72, Math.min(1.32, k.campfireFlicker));
+  const cf = k.campfireFlicker;
+
+  // Ground glow
+  const og = c.createRadialGradient(fx, fy, 0, fx, fy, ks * 5);
+  og.addColorStop(0, `rgba(200,90,20,${0.14 * fAlpha * cf})`);
+  og.addColorStop(0.5, `rgba(150,55,10,${0.06 * fAlpha})`);
+  og.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = og; c.beginPath(); c.arc(fx, fy, ks * 5, 0, Math.PI*2); c.fill();
+
+  // Crossed logs
+  c.save(); c.translate(fx, fy - ks * 0.04);
+  [[0.42, 0.38], [0.42, -0.38]].forEach(([len, angle], li) => {
+    c.save(); c.rotate(angle);
+    c.fillStyle = li===0 ? 'rgba(45,28,12,0.92)' : 'rgba(38,22,9,0.92)';
+    c.beginPath(); c.roundRect(-ks*len, -ks*0.07, ks*len*2, ks*0.14, ks*0.05); c.fill();
+    c.restore();
+  });
+  c.restore();
+
+  // Coal bed
+  const coal = c.createRadialGradient(fx, fy-ks*0.06, 0, fx, fy-ks*0.06, ks*0.52);
+  coal.addColorStop(0, `rgba(255,145,25,${0.6*fAlpha*cf})`);
+  coal.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = coal; c.beginPath(); c.ellipse(fx, fy-ks*0.06, ks*0.4, ks*0.13, 0, 0, Math.PI*2); c.fill();
+
+  // Flame layers
+  const sway = Math.sin(t * 0.068) * ks * 0.09 * cf;
+  [[1.15,0.42,255,200,55,0.5],[0.78,0.27,255,230,115,0.72],[0.44,0.15,255,255,195,0.92]].forEach(([h,w,r,g,b,a]) => {
+    const fh=ks*h*cf, fw=ks*w*cf, sx=sway*(h*0.3);
+    const fl=c.createRadialGradient(fx+sx,fy-fh*0.5,0,fx+sx,fy-fh,fw*2.2);
+    fl.addColorStop(0,`rgba(${r},${g},${b},${a*fAlpha})`);
+    fl.addColorStop(0.45,`rgba(${Math.floor(r*0.85)},${Math.floor(g*0.5)},${Math.floor(b*0.2)},${a*0.5*fAlpha})`);
+    fl.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=fl; c.beginPath(); c.ellipse(fx+sx,fy-fh*0.52,fw,fh,sx*0.045,0,Math.PI*2); c.fill();
+  });
+
+  // Sparks
+  for (let i=0;i<5;i++) {
+    const age=(t*0.032+i*0.2)%1.0;
+    const sx2=fx+Math.sin(t*0.06+i*1.4)*ks*0.28;
+    const sy2=fy-ks*0.25-age*ks*2.0;
+    const sa=(1-age)*0.75*fAlpha;
+    if(sa>0.04){c.beginPath();c.arc(sx2,sy2,ks*0.048*(1-age*0.4),0,Math.PI*2);c.fillStyle=`rgba(255,${175+Math.floor(age*65)},35,${sa})`;c.fill();}
+  }
+}
+
+function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp) {
   if (!CIN.knight) cinInitKnight(W, H);
   const k = CIN.knight;
   const active = 1 - restLevel;
   const R = zone.vizR, G = zone.vizG, B = zone.vizB;
+  const s = Math.max(32, Math.floor(Math.min(W, H) * 0.072));
+  k.scale = s;
 
-  // Knight size: ~2% of screen height — small but readable
-  const ks = Math.max(32, Math.floor(Math.min(W, H) * 0.072));
-  k.scale = ks;
+  // Campfire only when resting
+  if (restLevel > 0.1) cinDrawCampfire(c, k, zone, t, restLevel, waveData, waveFloor, waveAmp, W);
 
-  // ── State machine ─────────────────────────────────────────────
+  // State machine
   k.stateTimer++;
-  k.anim += active > 0.3 ? 0.18 : 0.06;
+  k.anim       += active > 0.3 ? 0.17 : 0.05;
+  k.breathPhase += 0.038;
+  k.capeWave    += 0.065 + active * 0.14;
 
-  if (restLevel > 0.75) {
-    // Music is quiet — rest/sit/look around
-    if (k.state === 'walk' || k.state === 'run') {
-      k.velX *= 0.85;
-      if (Math.abs(k.velX) < 0.5) { k.state = 'sit'; k.stateTimer = 0; }
-    } else if (k.state === 'sit' && k.stateTimer > 180 + Math.random() * 120) {
-      k.state = 'look'; k.stateTimer = 0;
-    } else if (k.state === 'look' && k.stateTimer > 80) {
-      k.state = 'sit'; k.stateTimer = 0;
-      k.dir = Math.random() > 0.5 ? 1 : -1;
-    } else if (k.state === 'rest' && k.stateTimer > 60) {
-      k.state = 'sit'; k.stateTimer = 0;
-    }
-    k.velX *= 0.9;
+  const isMoving  = k.state === 'walk' || k.state === 'run';
+  const isSitting = !isMoving;
+
+  if (restLevel > 0.72) {
+    if (isMoving) { k.velX *= 0.80; if (Math.abs(k.velX) < 0.9) { k.state='sit'; k.stateTimer=0; } }
+    else if (k.state==='sit'  && k.stateTimer>190) { k.state=Math.random()<0.5?'look':'sit'; k.stateTimer=0; }
+    else if (k.state==='look' && k.stateTimer>85)  { k.state='sit'; k.stateTimer=0; k.dir=Math.random()>0.5?1:-1; }
+    else if (k.state==='rest' && k.stateTimer>75)  { k.state='sit'; k.stateTimer=0; }
+    k.velX *= 0.88;
   } else {
-    // Music active — adventure mode
-    if (k.state === 'sit' || k.state === 'rest' || k.state === 'look') {
-      k.state = active > 0.6 ? 'run' : 'walk';
-      k.stateTimer = 0;
-      k.targetX = W * (0.1 + Math.random() * 0.8);
-    }
-    // Pick new destination when close
-    if (Math.abs(k.x - k.targetX) < ks * 1.5) {
-      k.targetX = W * (0.08 + Math.random() * 0.84);
-      if (k.stateTimer > 120) {
-        k.state = active > 0.65 ? 'run' : 'walk';
-        k.stateTimer = 0;
-      }
-    }
-    // Move toward target
-    const speed = k.state === 'run'
-      ? ks * (0.06 + active * 0.08 + CIN.smoothBass * 0.06)
-      : ks * (0.025 + active * 0.02);
-    const dx = k.targetX - k.x;
-    k.dir = dx > 0 ? 1 : -1;
-    k.velX += (Math.sign(dx) * speed - k.velX) * 0.12;
+    if (isSitting) { k.state=active>0.55?'run':'walk'; k.stateTimer=0; k.targetX=W*(0.08+Math.random()*0.84); }
+    if (Math.abs(k.x-k.targetX)<s*2) { k.targetX=W*(0.08+Math.random()*0.84); k.state=active>0.6?'run':'walk'; }
+    const spd=k.state==='run'?s*(0.055+active*0.075+CIN.smoothBass*0.05):s*(0.022+active*0.018);
+    const dx=k.targetX-k.x; k.dir=dx>0?1:-1;
+    k.velX+=(Math.sign(dx)*spd-k.velX)*0.10;
   }
 
-  k.x += k.velX;
-  k.x = Math.max(ks * 1.5, Math.min(W - ks * 1.5, k.x));
+  k.x+=k.velX; k.x=Math.max(s*1.8,Math.min(W-s*1.8,k.x));
+  const groundY=cinWaveYAt(k.x,W,waveData,waveFloor,waveAmp);
+  k.y+=(groundY-k.y)*0.04;
 
-  // Ground-snap to near terrain
-  const groundY = cinTerrainYAt(k.x, W, H);
-  k.y += (groundY - k.y) * 0.18;
+  // Footstep puffs
+  if (isMoving && Math.random()<0.2) k.puffs.push({x:k.x-k.dir*s*0.15,y:k.y,alpha:0.5,size:s*0.18,vy:-0.5});
+  k.puffs=k.puffs.filter(p=>p.alpha>0.01);
+  k.puffs.forEach(p=>{p.y+=p.vy;p.vy*=0.95;p.size+=0.6;p.alpha*=0.87;c.beginPath();c.arc(p.x,p.y,p.size,0,Math.PI*2);c.fillStyle=`rgba(${R},${Math.floor(G*0.5)},${B},${p.alpha*0.28})`;c.fill();});
 
-  // ── Footstep puffs during walk/run ────────────────────────────
-  k.breathPhase += 0.04;
-  if ((k.state === 'walk' || k.state === 'run') && Math.floor(k.anim * 2) % 3 === 0 && Math.random() < 0.25) {
-    k.puffs.push({ x: k.x, y: k.y, alpha: 0.4, size: ks * 0.3, age: 0 });
-  }
-  k.puffs = k.puffs.filter(p => p.alpha > 0.01);
-  k.puffs.forEach(p => {
-    p.age++;
-    p.y -= 0.4;
-    p.x += (Math.random() - 0.5) * 0.4;
-    p.size += 0.3;
-    p.alpha *= 0.88;
-    c.beginPath();
-    c.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${p.alpha * 0.35})`;
-    c.fill();
-  });
+  const swordTarget = k.state==='run' ? 0.9 : (isMoving ? 0.45 : 0.2);
+  k.swordAngle += (swordTarget - k.swordAngle) * 0.11;
 
-  // ── Campfire (rest state only) ─────────────────────────────────
-  if (restLevel > 0.5) {
-    k.campfireFlicker += (Math.random() - 0.5) * 0.3;
-    k.campfireFlicker = Math.max(0.5, Math.min(1.4, k.campfireFlicker));
-    const cf = k.campfireFlicker;
-    const fireX = k.x + k.dir * ks * 1.1;
-    const fireY = k.y - ks * 0.1;
-    const fAlpha = (restLevel - 0.5) * 2;
-    // Glow pool on ground
-    const glowGrd = c.createRadialGradient(fireX, fireY, 0, fireX, fireY, ks * 2.5);
-    glowGrd.addColorStop(0, `rgba(220,120,30,${0.18 * fAlpha * cf})`);
-    glowGrd.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = glowGrd;
-    c.beginPath(); c.arc(fireX, fireY, ks * 2.5, 0, Math.PI * 2); c.fill();
-    // Flame
-    const fh = ks * 0.55 * cf;
-    const fw = ks * 0.28 * cf;
-    const flGrd = c.createRadialGradient(fireX, fireY - fh * 0.4, 0, fireX, fireY - fh, fw * 2);
-    flGrd.addColorStop(0,   `rgba(255,220,80,${0.9 * fAlpha})`);
-    flGrd.addColorStop(0.4, `rgba(220,80,20,${0.6 * fAlpha})`);
-    flGrd.addColorStop(1,   'rgba(0,0,0,0)');
-    c.fillStyle = flGrd;
-    c.beginPath(); c.ellipse(fireX, fireY - fh * 0.4, fw, fh, 0, 0, Math.PI * 2); c.fill();
-    // Log base
-    c.fillStyle = `rgba(60,35,15,${0.7 * fAlpha})`;
-    c.fillRect(fireX - ks * 0.22, fireY - ks * 0.05, ks * 0.44, ks * 0.12);
-    // Warm light on knight from fire side
-    const warmGrd = c.createRadialGradient(fireX, fireY, 0, fireX, fireY, ks * 3);
-    warmGrd.addColorStop(0, `rgba(220,100,20,${0.12 * fAlpha * cf})`);
-    warmGrd.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = warmGrd;
-    c.beginPath(); c.arc(k.x, k.y - ks * 0.5, ks * 1.8, 0, Math.PI * 2); c.fill();
-  }
+  // All coordinates relative to kx, ky (feet position)
+  const kx=k.x, ky=k.y, d=k.dir;
+  const legSwing   = isMoving ? Math.sin(k.anim*2.4) : 0;
+  const bob        = isMoving ? Math.abs(Math.sin(k.anim*2.4))*s*0.04 : Math.sin(k.breathPhase)*s*0.012;
+  const runLean    = isMoving ? d*s*0.035*(k.state==='run'?1.4:0.7) : 0;
+  const capeSin    = Math.sin(k.capeWave);
+  const capeSpd    = isMoving ? (k.state==='run'?1.0:0.55) : 0.12;
 
-  // ── Draw the knight (pixel-style silhouette) ───────────────────
-  const kx = k.x, ky = k.y;
-  const d = k.dir;
-  const s = ks;
+  // Helper: draw filled shape
+  const fill = (col) => { c.fillStyle=col; c.fill(); };
+  const stroke = (col,lw) => { c.strokeStyle=col; c.lineWidth=lw; c.stroke(); };
 
-  // Animation frame
-  const walkFrame = Math.floor(k.anim) % 4;
-  const isMoving = k.state === 'walk' || k.state === 'run';
-  const isSitting = k.state === 'sit' || k.state === 'rest';
-
-  // Leg bob for walking
-  const legSwing = isMoving ? Math.sin(k.anim * 2.2) : 0;
-  const bodyBob  = isMoving ? Math.abs(Math.sin(k.anim * 2.2)) * s * 0.06 : 0;
-  const breathBob = isSitting ? Math.sin(k.breathPhase) * s * 0.025 : 0;
-  const totalBob = bodyBob + breathBob;
-
-  // Cape/cloak sway
-  const capeSway = isMoving
-    ? Math.sin(k.anim * 1.8) * s * 0.12
-    : Math.sin(k.breathPhase * 0.7) * s * 0.04;
-
-  c.save();
-  c.translate(kx, ky);
-
-  // Shadow on ground
-  c.beginPath();
-  c.ellipse(0, 0, s * 0.55, s * 0.09, 0, 0, Math.PI * 2);
-  c.fillStyle = `rgba(0,0,0,0.35)`;
-  c.fill();
+  // ── shadow
+  c.beginPath(); c.ellipse(kx, ky, s*0.55, s*0.08, 0, 0, Math.PI*2); fill('rgba(0,0,0,0.4)');
 
   if (isSitting) {
-    // ── SITTING POSE ────────────────────────────────────────
-    // Knees drawn, head slightly bowed or looking around
-    const lookDir = k.state === 'look' ? d : 0;
-    // Body torso (leaning back slightly)
-    c.save(); c.translate(0, -s * 0.42 + breathBob);
-    // Cape behind
+    // ─── SEATED ───────────────────────────────────────────────────────
+    const bx=kx+runLean, by=ky-s*0.3+bob; // body origin
+
+    // Cape
     c.beginPath();
-    c.moveTo(0, 0);
-    c.lineTo(-d * s * 0.18 + capeSway, -s * 0.28);
-    c.lineTo(-d * s * 0.32 + capeSway, s * 0.1);
-    c.lineTo(-d * s * 0.12, s * 0.22);
+    c.moveTo(bx+d*s*0.1, by-s*0.22);
+    c.bezierCurveTo(bx-d*s*0.16, by-s*0.18, bx-d*s*0.32+capeSin*s*0.05, by+s*0.1, bx-d*s*0.08, by+s*0.3);
+    c.lineTo(bx+d*s*0.05, by+s*0.1);
     c.closePath();
-    c.fillStyle = `rgba(${Math.max(0,R-60)},${Math.max(0,G-40)},${Math.max(0,B-20)},0.82)`;
-    c.fill();
-    // Legs bent (seated)
-    c.fillStyle = `rgba(30,28,36,0.9)`;
-    c.beginPath(); // left leg
-    c.roundRect(d * s * 0.04 - s * 0.1, s * 0.05, s * 0.18, s * 0.14, 2);
-    c.fill();
-    c.beginPath(); // right leg
-    c.roundRect(-d * s * 0.04 - s * 0.1, s * 0.16, s * 0.22, s * 0.12, 2);
-    c.fill();
-    // Torso / armour chest
-    c.fillStyle = `rgba(45,42,55,0.92)`;
-    c.beginPath();
-    c.roundRect(-s * 0.13, -s * 0.28, s * 0.26, s * 0.32, 3);
-    c.fill();
-    // Shoulder pauldrons
-    c.fillStyle = `rgba(${Math.floor(R*0.55+30)},${Math.floor(G*0.35+20)},${Math.floor(B*0.4+10)},0.75)`;
-    c.beginPath(); c.ellipse(-s * 0.16, -s * 0.22, s * 0.1, s * 0.07, -0.3, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.ellipse( s * 0.16, -s * 0.22, s * 0.1, s * 0.07,  0.3, 0, Math.PI * 2); c.fill();
-    // Head + helmet
-    const headTilt = lookDir * 0.25;
-    c.save(); c.translate(d * s * 0.04, -s * 0.32); c.rotate(headTilt);
-    c.fillStyle = `rgba(38,36,48,0.95)`;
-    c.beginPath(); c.arc(0, 0, s * 0.13, 0, Math.PI * 2); c.fill();
-    // Visor slit
-    c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},0.6)`;
-    c.fillRect(d * s * 0.02, -s * 0.02, s * 0.08, s * 0.025);
-    // Helm crest
-    c.fillStyle = `rgba(${Math.floor(R*0.7+20)},${Math.floor(G*0.5+10)},${Math.floor(B*0.5+10)},0.7)`;
-    c.beginPath();
-    c.moveTo(-s * 0.06, -s * 0.11);
-    c.lineTo(0, -s * 0.22);
-    c.lineTo(s * 0.06, -s * 0.11);
-    c.closePath(); c.fill();
-    c.restore();
-    c.restore();
+    fill(`rgba(${Math.max(0,R-38)},${Math.max(0,G-28)},${Math.max(0,B-14)},0.88)`);
+
+    // Thigh
+    c.beginPath(); c.roundRect(bx+d*s*0.04-s*0.12, by+s*0.02, s*0.22, s*0.16, 3); fill('rgba(36,33,48,0.95)');
+    // Shin
+    c.beginPath(); c.roundRect(bx+d*s*0.12, by+s*0.04, s*0.15, s*0.22, 3); fill('rgba(42,38,56,0.9)');
+    // Boot
+    c.beginPath(); c.roundRect(bx+d*s*0.1, by+s*0.22, s*0.2, s*0.1, 3); fill('rgba(22,20,30,0.98)');
+
+    // Torso
+    c.beginPath(); c.roundRect(bx-s*0.12, by-s*0.3, s*0.24, s*0.32, 4); fill('rgba(28,26,40,0.94)');
+    // Chest plate
+    const cp=c.createLinearGradient(bx-s*0.09,by-s*0.28,bx+s*0.09,by-s*0.04);
+    cp.addColorStop(0,`rgba(${Math.floor(R*0.38+30)},${Math.floor(G*0.24+20)},${Math.floor(B*0.32+18)},0.9)`);
+    cp.addColorStop(1,'rgba(28,26,40,0.88)');
+    c.beginPath(); c.roundRect(bx-s*0.09, by-s*0.27, s*0.18, s*0.26, 4); fill(''); c.fillStyle=cp; c.fill();
+    // Chest line
+    c.beginPath(); c.moveTo(bx,by-s*0.24); c.lineTo(bx,by-s*0.03); stroke(`rgba(${R},${Math.floor(G*0.5)},${B},0.2)`,0.9);
+
+    // Pauldrons
+    for(let sd=-1;sd<=1;sd+=2){
+      c.beginPath(); c.ellipse(bx+sd*s*0.15, by-s*0.22, s*0.11, s*0.07, sd*0.3, 0, Math.PI*2);
+      fill(`rgba(${Math.floor(R*0.5+36)},${Math.floor(G*0.32+22)},${Math.floor(B*0.4+16)},0.92)`);
+    }
+
+    // Arm resting
+    c.beginPath(); c.roundRect(bx+d*s*0.05, by-s*0.04, s*0.11, s*0.16, 3); fill('rgba(36,33,50,0.9)');
+
+    // HEAD
+    const hx=bx+d*s*0.05, hy=by-s*0.36+bob*0.4;
+    // Neck
+    c.beginPath(); c.roundRect(hx-s*0.05, hy+s*0.1, s*0.1, s*0.09, 2); fill('rgba(26,24,36,0.94)');
+    // Helm
+    c.beginPath(); c.arc(hx, hy, s*0.155, 0, Math.PI*2);
+    const hg=c.createRadialGradient(hx+d*s*0.03,hy-s*0.04,0,hx,hy,s*0.155);
+    hg.addColorStop(0,'rgba(54,50,68,0.98)'); hg.addColorStop(1,'rgba(22,20,34,0.96)');
+    c.fillStyle=hg; c.fill();
+    // Cheeks
+    for(let sd=-1;sd<=1;sd+=2){c.beginPath();c.roundRect(hx+sd*s*0.09,hy-s*0.075,s*0.07,s*0.11,2);fill('rgba(32,30,46,0.88)');}
+    // Bevor
+    c.beginPath(); c.roundRect(hx-s*0.14, hy+s*0.04, s*0.28, s*0.09, 3); fill('rgba(26,24,40,0.96)');
+    // Visor — warm from fire
+    const vw=restLevel*k.campfireFlicker*0.7;
+    c.beginPath(); c.roundRect(hx+d*s*0.02, hy-s*0.025, s*0.11, s*0.036, 1);
+    fill(`rgba(${180+Math.floor(vw*65)},${78+Math.floor(vw*52)},${18+Math.floor(vw*12)},${0.32+vw*0.42})`);
+    // Crest
+    const crg=c.createLinearGradient(hx,hy-s*0.14,hx,hy-s*0.32);
+    crg.addColorStop(0,`rgba(${Math.floor(R*0.6+26)},${Math.floor(G*0.4+15)},${Math.floor(B*0.5+13)},0.72)`);
+    crg.addColorStop(1,`rgba(${R},${Math.floor(G*0.7)},${B},0.78)`);
+    c.beginPath(); c.moveTo(hx-s*0.06,hy-s*0.14); c.bezierCurveTo(hx-s*0.05,hy-s*0.3,hx+s*0.05,hy-s*0.3,hx+s*0.06,hy-s*0.14); c.closePath();
+    c.fillStyle=crg; c.fill();
 
   } else {
-    // ── WALKING / RUNNING POSE ───────────────────────────────
-    const runLean = isMoving ? d * s * 0.04 * (k.state === 'run' ? 1.8 : 1.0) : 0;
+    // ─── WALKING / RUNNING ────────────────────────────────────────────
+    const bx=kx+runLean, by=ky-bob; // body origin at feet level
 
-    c.save(); c.translate(runLean, -totalBob);
+    // ── Cape
+    const cLen=s*(0.5+capeSpd*0.35), cBulge=capeSin*s*capeSpd*0.22;
+    c.beginPath();
+    c.moveTo(bx-d*s*0.04, by-s*0.34);
+    c.bezierCurveTo(bx-d*s*0.12+cBulge*0.3, by-s*0.18, bx-d*s*0.28+cBulge, by+s*0.05, bx-d*s*0.2+cBulge*0.8, by-s*0.5+cLen);
+    c.lineTo(bx-d*s*0.04, by+s*0.04); c.closePath();
+    const cg=c.createLinearGradient(bx-d*s*0.3,by,bx,by);
+    cg.addColorStop(0,`rgba(${Math.max(0,R-34)},${Math.max(0,G-24)},${Math.max(0,B-11)},0.87)`);
+    cg.addColorStop(1,'rgba(18,14,24,0.7)');
+    c.fillStyle=cg; c.fill();
 
-    // Cape (behind, flaps with motion)
-    c.beginPath();
-    c.moveTo(0, -s * 0.3);
-    c.lineTo(-d * s * 0.14 + capeSway, -s * 0.1);
-    c.lineTo(-d * s * 0.28 + capeSway * 1.4, s * 0.15);
-    c.lineTo(-d * s * 0.08, s * 0.25);
-    c.lineTo(0, s * 0.05);
-    c.closePath();
-    c.fillStyle = `rgba(${Math.max(0,R-50)},${Math.max(0,G-30)},${Math.max(0,B-15)},0.78)`;
-    c.fill();
+    // ── Back leg (opposite swing)
+    const l2a=bx-d*s*0.07, l2by=by; // back leg origin x
+    const l2swing=-legSwing;
+    // thigh back leg
+    c.save(); c.translate(l2a, l2by); c.rotate(l2swing*0.28);
+    c.beginPath(); c.roundRect(-s*0.062,0,s*0.124,s*0.26,3); fill('rgba(30,28,42,0.9)');
+    // knee guard
+    c.beginPath(); c.ellipse(0,s*0.22,s*0.072,s*0.052,0,0,Math.PI*2); fill(`rgba(${Math.floor(R*0.4+26)},${Math.floor(G*0.26+17)},${Math.floor(B*0.32+13)},0.72)`);
+    // shin back leg
+    c.save(); c.translate(0,s*0.25); c.rotate(-l2swing*0.18);
+    c.beginPath(); c.roundRect(-s*0.052,0,s*0.104,s*0.23,2); fill('rgba(26,24,38,0.92)');
+    // boot
+    c.beginPath(); c.roundRect(-s*0.065,s*0.19,s*0.16,s*0.09,3); fill('rgba(18,16,26,0.98)');
+    c.beginPath(); c.ellipse(d*s*0.07,s*0.23,s*0.06,s*0.048,0,0,Math.PI*2); fill('rgba(18,16,26,0.98)');
+    c.restore(); c.restore();
 
-    // Legs
-    const leg1Y = legSwing * s * 0.18;
-    const leg2Y = -legSwing * s * 0.18;
-    c.fillStyle = `rgba(30,28,38,0.92)`;
-    // Back leg
-    c.beginPath();
-    c.roundRect(-d * s * 0.06 - s * 0.07, leg2Y - s * 0.02, s * 0.14, s * 0.28, 2);
-    c.fill();
-    // Boots
-    c.fillStyle = `rgba(22,20,28,0.95)`;
-    c.beginPath();
-    c.roundRect(-d * s * 0.06 - s * 0.09, leg2Y + s * 0.22, s * 0.18, s * 0.1, 2);
-    c.fill();
+    // ── Torso
+    c.beginPath(); c.roundRect(bx-s*0.12,by-s*0.4,s*0.24,s*0.38,4); fill('rgba(28,26,40,0.95)');
+    const cp2=c.createLinearGradient(bx-s*0.09,by-s*0.38,bx+s*0.09,by-s*0.06);
+    cp2.addColorStop(0,`rgba(${Math.floor(R*0.4+28)},${Math.floor(G*0.25+19)},${Math.floor(B*0.34+17)},0.9)`);
+    cp2.addColorStop(1,'rgba(30,27,44,0.87)');
+    c.beginPath(); c.roundRect(bx-s*0.09,by-s*0.37,s*0.18,s*0.3,4); c.fillStyle=cp2; c.fill();
+    c.beginPath(); c.moveTo(bx,by-s*0.34); c.lineTo(bx,by-s*0.09); stroke(`rgba(${R},${Math.floor(G*0.5)},${B},0.2)`,0.9);
+    // Tasset
+    c.beginPath(); c.roundRect(bx-s*0.11,by-s*0.09,s*0.22,s*0.1,2); fill('rgba(34,31,48,0.9)');
 
-    // Torso / chest
-    c.fillStyle = `rgba(42,40,52,0.93)`;
-    c.beginPath();
-    c.roundRect(-s * 0.12, -s * 0.36, s * 0.24, s * 0.34, 3);
-    c.fill();
-    // Armour detail — chest highlight
-    c.fillStyle = `rgba(${Math.floor(R*0.4+20)},${Math.floor(G*0.25+15)},${Math.floor(B*0.35+10)},0.45)`;
-    c.beginPath();
-    c.roundRect(-s * 0.06, -s * 0.33, s * 0.12, s * 0.14, 2);
-    c.fill();
-
-    // Front leg
-    c.fillStyle = `rgba(36,34,46,0.93)`;
-    c.beginPath();
-    c.roundRect(d * s * 0.0 - s * 0.07, leg1Y - s * 0.02, s * 0.14, s * 0.28, 2);
-    c.fill();
-    c.fillStyle = `rgba(24,22,32,0.96)`;
-    c.beginPath();
-    c.roundRect(d * s * 0.0 - s * 0.09, leg1Y + s * 0.22, s * 0.18, s * 0.1, 2);
-    c.fill();
-
-    // Sword arm (front, swings)
-    const armSwing = legSwing * 0.5;
-    c.save(); c.translate(d * s * 0.13, -s * 0.22 + armSwing * s * 0.08);
-    c.fillStyle = `rgba(38,36,50,0.9)`;
-    c.beginPath(); c.roundRect(-s * 0.055, -s * 0.04, s * 0.11, s * 0.22, 2); c.fill();
-    if (k.state === 'run') {
-      // Sword drawn while running — glints with zone color
-      c.save(); c.translate(s * 0.04 * d, -s * 0.14); c.rotate(d * -0.55);
-      c.fillStyle = `rgba(200,210,220,0.85)`;
-      c.fillRect(-s * 0.03, -s * 0.32, s * 0.055, s * 0.32);
-      // Crossguard
-      c.fillStyle = `rgba(${Math.floor(R*0.6+40)},${Math.floor(G*0.5+30)},${Math.floor(B*0.4+20)},0.8)`;
-      c.fillRect(-s * 0.1, -s * 0.02, s * 0.2, s * 0.04);
-      // Gleam on blade
-      c.fillStyle = `rgba(${R},${G},${B},${0.4 + CIN.smoothEnergy * 0.4})`;
-      c.fillRect(-s * 0.01, -s * 0.28, s * 0.02, s * 0.18);
+    // ── Pauldrons
+    for(let sd=-1;sd<=1;sd+=2){
+      const pr=sd===d?legSwing*0.06:-legSwing*0.06;
+      c.save(); c.translate(bx+sd*s*0.14,by-s*0.32); c.rotate(pr);
+      c.beginPath(); c.ellipse(0,0,s*0.12,s*0.076,sd*0.28,0,Math.PI*2);
+      fill(`rgba(${Math.floor(R*0.52+34)},${Math.floor(G*0.34+21)},${Math.floor(B*0.42+15)},0.94)`);
       c.restore();
     }
-    c.restore();
 
-    // Shield arm (back)
-    c.save(); c.translate(-d * s * 0.12, -s * 0.2 - armSwing * s * 0.08);
-    c.fillStyle = `rgba(35,33,45,0.88)`;
-    c.beginPath(); c.roundRect(-s * 0.05, -s * 0.04, s * 0.1, s * 0.2, 2); c.fill();
-    if (k.state === 'walk') {
-      // Shield visible while walking
-      c.save(); c.translate(-d * s * 0.06, 0); c.rotate(d * 0.15);
-      c.fillStyle = `rgba(50,45,62,0.85)`;
-      c.beginPath();
-      c.moveTo(0, -s * 0.14);
-      c.lineTo(s * 0.1, -s * 0.06);
-      c.lineTo(s * 0.1, s * 0.1);
-      c.lineTo(0, s * 0.16);
-      c.lineTo(-s * 0.1, s * 0.1);
-      c.lineTo(-s * 0.1, -s * 0.06);
-      c.closePath(); c.fill();
-      // Shield emblem — zone color dot
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},0.5)`;
-      c.beginPath(); c.arc(0, s * 0.02, s * 0.04, 0, Math.PI * 2); c.fill();
-      c.restore();
-    }
-    c.restore();
+    // ── Shield arm (back)
+    const sax=bx-d*s*0.12, say=by-s*0.26+legSwing*s*0.06;
+    c.save(); c.translate(sax,say); c.rotate(-d*legSwing*0.16);
+    c.beginPath(); c.roundRect(-s*0.05,-s*0.04,s*0.1,s*0.19,2); fill('rgba(32,29,44,0.9)');
+    c.save(); c.translate(0,s*0.17); c.rotate(d*legSwing*0.08);
+    c.beginPath(); c.roundRect(-s*0.044,0,s*0.088,s*0.16,2); fill('rgba(28,26,40,0.88)');
+    // Shield
+    c.save(); c.translate(-d*s*0.04,s*0.05); c.rotate(-d*0.12+legSwing*0.04);
+    const sg=c.createLinearGradient(-s*0.1,-s*0.14,s*0.1,s*0.18);
+    sg.addColorStop(0,`rgba(${Math.floor(R*0.42+26)},${Math.floor(G*0.27+17)},${Math.floor(B*0.34+13)},0.9)`);
+    sg.addColorStop(1,'rgba(26,24,38,0.88)');
+    c.beginPath(); c.moveTo(0,-s*0.16); c.bezierCurveTo(s*0.11,-s*0.16,s*0.12,s*0.04,s*0.12,s*0.04); c.bezierCurveTo(s*0.12,s*0.12,s*0.06,s*0.18,0,s*0.2); c.bezierCurveTo(-s*0.06,s*0.18,-s*0.12,s*0.12,-s*0.12,s*0.04); c.bezierCurveTo(-s*0.12,-s*0.06,-s*0.11,-s*0.16,0,-s*0.16); c.closePath();
+    c.fillStyle=sg; c.fill();
+    c.strokeStyle=`rgba(${Math.floor(R*0.55+28)},${Math.floor(G*0.37+18)},${Math.floor(B*0.46+14)},0.55)`; c.lineWidth=s*0.022; c.stroke();
+    c.beginPath(); c.arc(0,s*0.02,s*0.05,0,Math.PI*2); fill(`rgba(${R},${Math.floor(G*0.72)},${B},0.55)`);
+    c.restore(); c.restore(); c.restore();
 
-    // Shoulder pauldrons
-    c.fillStyle = `rgba(${Math.floor(R*0.5+25)},${Math.floor(G*0.32+18)},${Math.floor(B*0.38+10)},0.72)`;
-    c.beginPath(); c.ellipse(-s * 0.14, -s * 0.3, s * 0.1, s * 0.065, -0.25, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.ellipse( s * 0.14, -s * 0.3, s * 0.1, s * 0.065,  0.25, 0, Math.PI * 2); c.fill();
+    // ── Sword arm (front)
+    const wax=bx+d*s*0.12, way=by-s*0.27-legSwing*s*0.06;
+    c.save(); c.translate(wax,way); c.rotate(d*legSwing*0.18);
+    c.beginPath(); c.roundRect(-s*0.052,-s*0.04,s*0.104,s*0.2,2); fill('rgba(34,31,48,0.93)');
+    c.save(); c.translate(0,s*0.18); c.rotate(-d*legSwing*0.12);
+    c.beginPath(); c.roundRect(-s*0.046,0,s*0.092,s*0.18,2); fill('rgba(30,28,44,0.9)');
+    // Gauntlet
+    c.beginPath(); c.roundRect(-s*0.054,s*0.14,s*0.108,s*0.09,2); fill(`rgba(${Math.floor(R*0.35+22)},${Math.floor(G*0.23+15)},${Math.floor(B*0.3+13)},0.88)`);
+    // Sword
+    c.save(); c.translate(d*s*0.02,s*0.14); c.rotate(d*k.swordAngle);
+    // Grip
+    c.beginPath(); c.roundRect(-s*0.024,-s*0.02,s*0.048,s*0.22,2); fill('rgba(48,34,18,0.94)');
+    // Crossguard
+    const cgg=c.createLinearGradient(-s*0.15,0,s*0.15,0);
+    cgg.addColorStop(0,`rgba(${Math.floor(R*0.52+38)},${Math.floor(G*0.36+24)},${Math.floor(B*0.44+17)},0.9)`);
+    cgg.addColorStop(0.5,`rgba(${Math.floor(R*0.62+38)},${Math.floor(G*0.42+26)},${Math.floor(B*0.52+19)},0.96)`);
+    cgg.addColorStop(1,`rgba(${Math.floor(R*0.52+38)},${Math.floor(G*0.36+24)},${Math.floor(B*0.44+17)},0.9)`);
+    c.beginPath(); c.roundRect(-s*0.14,-s*0.026,s*0.28,s*0.052,4); c.fillStyle=cgg; c.fill();
+    // Blade
+    const bl=s*0.6;
+    const blg=c.createLinearGradient(-s*0.022,-bl,s*0.022,0);
+    blg.addColorStop(0,`rgba(215,225,240,${0.55+CIN.smoothEnergy*0.38})`);
+    blg.addColorStop(1,'rgba(152,158,182,0.72)');
+    c.beginPath(); c.moveTo(-s*0.022,0); c.lineTo(s*0.022,0); c.lineTo(s*0.008,-bl); c.lineTo(-s*0.008,-bl); c.closePath(); c.fillStyle=blg; c.fill();
+    // Gleam
+    c.beginPath(); c.moveTo(-s*0.014,0); c.lineTo(-s*0.006,0); c.lineTo(-s*0.002,-bl); c.lineTo(-s*0.01,-bl); c.closePath(); fill(`rgba(255,255,255,${0.22+CIN.smoothEnergy*0.32})`);
+    // Zone glow on run
+    if(k.state==='run'){const bg=c.createLinearGradient(0,0,0,-bl);bg.addColorStop(0,`rgba(${R},${G},${B},0)`);bg.addColorStop(1,`rgba(${R},${G},${B},${0.48+CIN.smoothBass*0.38})`);c.beginPath();c.roundRect(-s*0.018,-bl,s*0.036,bl,2);c.fillStyle=bg;c.fill();}
+    c.restore(); c.restore(); c.restore();
 
-    // Head + helmet
-    c.save(); c.translate(d * s * 0.03, -s * 0.44);
-    c.fillStyle = `rgba(36,34,48,0.96)`;
-    c.beginPath(); c.arc(0, 0, s * 0.125, 0, Math.PI * 2); c.fill();
-    // Visor slit — glows with zone color during run
-    const visorAlpha = k.state === 'run' ? 0.75 + CIN.smoothBass * 0.25 : 0.45;
-    c.fillStyle = `rgba(${R},${Math.floor(G*0.75)},${B},${visorAlpha})`;
-    c.fillRect(d * s * 0.01, -s * 0.02, s * 0.1, s * 0.03);
-    // Helm crest / plume
-    c.fillStyle = `rgba(${Math.floor(R*0.65+25)},${Math.floor(G*0.45+15)},${Math.floor(B*0.45+12)},0.72)`;
-    c.beginPath();
-    c.moveTo(-s * 0.055, -s * 0.115);
-    c.lineTo(0, -s * 0.225);
-    c.lineTo(s * 0.055, -s * 0.115);
-    c.closePath(); c.fill();
-    // Plume tip glow on run
-    if (k.state === 'run') {
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${0.4 + CIN.smoothBass * 0.3})`;
-      c.beginPath(); c.arc(0, -s * 0.22, s * 0.035, 0, Math.PI * 2); c.fill();
-    }
-    c.restore();
+    // ── Front leg
+    const l1a=bx+d*s*0.07, l1by=by;
+    c.save(); c.translate(l1a,l1by); c.rotate(legSwing*0.3);
+    c.beginPath(); c.roundRect(-s*0.062,0,s*0.124,s*0.26,3); fill('rgba(34,31,48,0.96)');
+    c.beginPath(); c.ellipse(0,s*0.22,s*0.072,s*0.052,0,0,Math.PI*2); fill(`rgba(${Math.floor(R*0.42+28)},${Math.floor(G*0.27+18)},${Math.floor(B*0.34+14)},0.72)`);
+    c.save(); c.translate(0,s*0.25); c.rotate(-legSwing*0.22);
+    c.beginPath(); c.roundRect(-s*0.052,0,s*0.104,s*0.23,2); fill('rgba(28,26,42,0.95)');
+    c.beginPath(); c.roundRect(-s*0.065,s*0.19,s*0.16,s*0.09,3); fill('rgba(20,18,30,0.98)');
+    c.beginPath(); c.ellipse(d*s*0.07,s*0.23,s*0.06,s*0.048,0,0,Math.PI*2); fill('rgba(20,18,30,0.98)');
+    c.restore(); c.restore();
 
-    c.restore(); // runLean + totalBob
+    // ── Head
+    const hx=bx+d*s*0.04, hy=by-s*0.47;
+    // Neck gorget
+    c.beginPath(); c.roundRect(hx-s*0.056,hy+s*0.1,s*0.112,s*0.1,2); fill('rgba(24,22,36,0.96)');
+    // Helm
+    const hg2=c.createRadialGradient(hx+d*s*0.04,hy-s*0.05,0,hx,hy,s*0.168);
+    hg2.addColorStop(0,'rgba(56,52,72,0.98)'); hg2.addColorStop(1,'rgba(22,20,36,0.96)');
+    c.beginPath(); c.arc(hx,hy,s*0.168,0,Math.PI*2); c.fillStyle=hg2; c.fill();
+    // Cheeks
+    for(let sd=-1;sd<=1;sd+=2){c.beginPath();c.roundRect(hx+sd*s*0.1,hy-s*0.08,s*0.072,s*0.12,2);fill('rgba(30,28,44,0.9)');}
+    // Bevor
+    c.beginPath(); c.roundRect(hx-s*0.155,hy+s*0.04,s*0.31,s*0.1,3); fill('rgba(24,22,38,0.96)');
+    // Visor
+    const vi=k.state==='run'?0.72+CIN.smoothBass*0.34:0.46;
+    const vR=k.state==='run'?R:R*0.7+55, vG=k.state==='run'?Math.floor(G*0.78):Math.floor(G*0.52+28), vB=k.state==='run'?B:B*0.72+18;
+    c.beginPath(); c.roundRect(hx+d*s*0.02,hy-s*0.026,s*0.124,s*0.04,1); fill(`rgba(${Math.floor(vR)},${Math.floor(vG)},${Math.floor(vB)},${vi})`);
+    if(k.state==='run'){const vbg=c.createRadialGradient(hx+d*s*0.08,hy,0,hx+d*s*0.08,hy,s*0.22);vbg.addColorStop(0,`rgba(${R},${G},${B},${0.28+CIN.smoothBass*0.28})`);vbg.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=vbg;c.beginPath();c.arc(hx+d*s*0.08,hy,s*0.22,0,Math.PI*2);c.fill();}
+    // Crest
+    const cH=s*(0.22+(k.state==='run'?CIN.smoothBass*0.05:0));
+    const cWave=isMoving?Math.sin(k.anim*1.6)*s*0.04:0;
+    const crg2=c.createLinearGradient(hx,hy-s*0.14,hx+cWave,hy-s*0.14-cH);
+    crg2.addColorStop(0,`rgba(${Math.floor(R*0.62+25)},${Math.floor(G*0.42+14)},${Math.floor(B*0.52+12)},0.76)`);
+    crg2.addColorStop(1,`rgba(${R},${G},${B},${0.58+(k.state==='run'?CIN.smoothBass*0.34:0)})`);
+    c.beginPath(); c.moveTo(hx-s*0.07,hy-s*0.14); c.bezierCurveTo(hx-s*0.06,hy-s*0.14-cH*0.5,hx+cWave+s*0.04,hy-s*0.14-cH*0.9,hx+cWave,hy-s*0.14-cH); c.bezierCurveTo(hx+cWave-s*0.03,hy-s*0.14-cH*0.85,hx+s*0.02,hy-s*0.14-cH*0.5,hx+s*0.07,hy-s*0.14); c.closePath(); c.fillStyle=crg2; c.fill();
   }
-
-  c.restore(); // translate to kx, ky
 }
+
+
 
 function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   const R = zone.vizR, G = zone.vizG, B = zone.vizB;
@@ -6434,9 +6426,6 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     });
   }
 
-  // ── 6.5. KNIGHT CHARACTER ────────────────────────────────────────
-  cinDrawKnight(c, W, H, zone, t, rest);
-
   // ── 7. FOG LAYERS — resting: heavy & slow. Active: faster, thinner.
   if (CIN.fogLayers.length) {
     CIN.fogLayers.forEach(fog => {
@@ -6485,6 +6474,9 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   c.strokeStyle = `rgba(${R},${G},${B},${0.25 + active * 0.45 + CIN.smoothHigh * 0.2})`;
   c.lineWidth = active > 0.3 ? 1.5 : 0.8;
   c.stroke();
+
+  // ── 8.5. KNIGHT — stands on waveform ─────────────────────────────
+  cinDrawKnight(c, W, H, zone, t, rest, waveData, waveFloor, waveAmp);
 
   // ── 9. TORCH FLAMES — resting: low and slow. Active: roaring.
   const torchXs = [W*0.11, W*0.27, W*0.50, W*0.73, W*0.89];
@@ -6863,12 +6855,9 @@ function drawCinematic() {
   CIN.smoothHigh   += (rawHigh   - CIN.smoothHigh)   * 0.10;
   CIN.smoothEnergy += (rawEnergy - CIN.smoothEnergy) * 0.10;
 
-  // ── Resting state detection ──────────────────────────────────────
-  // "Quiet" = overall energy below threshold. Smooth the transition.
-  const energyThreshold = 0.08;
-  const isQuiet = CIN.smoothEnergy < energyThreshold;
-  const targetRest = isQuiet ? 1.0 : Math.max(0, 1.0 - (CIN.smoothEnergy - energyThreshold) / 0.25);
-  CIN.restSmooth += (targetRest - CIN.restSmooth) * 0.025; // very slow blend
+  // ── Resting state: only when music is fully stopped ─────────────
+  const targetRest = isPlaying ? 0.0 : 1.0;
+  CIN.restSmooth += (targetRest - CIN.restSmooth) * 0.035;
   CIN.restLevel = CIN.restSmooth;
 
   // ── Narrative title cards (mid-session, tied to resting moments) ─
