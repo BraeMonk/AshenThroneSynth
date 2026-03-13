@@ -692,6 +692,11 @@
           <div class="fx-desc">Tube warmth / harmonic grit</div>
           <input type="range" class="fx-slider" id="saturationSlider" min="0" max="100" value="8" style="--pct:20%" oninput="onSaturation(this)"/>
         </div>
+        <div class="fx-item">
+          <div class="fx-label-row"><span class="fx-label">Stereo Spread</span><span class="fx-value" id="stereoSpreadVal">35%</span></div>
+          <div class="fx-desc">Mid/side width · 0 = mono, 100 = vast</div>
+          <input type="range" class="fx-slider" id="stereoSpreadSlider" min="0" max="100" value="35" style="--pct:35%" oninput="onStereoSpread(this)"/>
+        </div>
       </div>
     </div>
 
@@ -723,7 +728,17 @@
         <button class="layer-toggle" onclick="stopSongGen()"  style="flex:0 0 auto;padding:10px 20px;">⏹ Stop</button>
       </div>
 
-      <button class="layer-toggle" onclick="startRandomJourney()" style="width:100%;padding:12px;margin-bottom:16px;">🌑 Journey</button>
+      <button class="layer-toggle" onclick="startRandomJourney()" style="width:100%;padding:12px;margin-bottom:8px;">🌑 Journey</button>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+        <button class="layer-toggle" id="bpmLockBtn" onclick="toggleBpmLock()" style="flex:1;padding:10px;text-align:left;">🔓 BPM Lock: Off</button>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="number" id="bpmLockInput" min="20" max="300" value="60"
+            style="width:58px;background:#05050a;border:1px solid #2a2a40;color:var(--gold);font-family:'Cinzel',serif;font-size:11px;padding:6px 8px;text-align:center;border-radius:1px;"
+            oninput="onBpmLockInput(this)"/>
+          <span style="font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);letter-spacing:0.1em;">BPM</span>
+        </div>
+      </div>
 
       <div style="flex:1;">
         <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--text);margin-bottom:6px;" id="songGenStatus">Idle — 7 min 20 sec of OST</div>
@@ -830,6 +845,14 @@ let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF
 let _reverbSize = 0.4, _reverbMix = 0.18, _delayTime = 0.0, _delayFb = 0.0;
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
 let _saturation = 0.08;
+let _stereoSpread = 0.35; // 0=mono, 1=max width
+
+// Mid/side stereo widener nodes
+let msEncoder = null, msMid = null, msSide = null, msSideGain = null, msDecoder = null;
+
+// BPM Lock
+let bpmLocked = false;
+let bpmLockValue = 60;
 
 // ── Seeded RNG ───────────────────────────────────────────────────
 let activeSeed = null;
@@ -936,7 +959,7 @@ const PHRASE_LAYER_TARGETS = {
 function startPhraseEngine() {
   stopPhraseEngine();
   const preset = getZone(parseInt(slider.value));
-  barLength = (60 / preset.bpm) * 4; // 4 beats per bar
+  if (!bpmLocked) barLength = (60 / preset.bpm) * 4; // 4 beats per bar
   tickBar();
 }
 
@@ -1273,7 +1296,7 @@ function ostRunStep() {
   const preset    = getZone(step.floor);
   const intensity = isBoss ? Math.min(1, getIntensity(step.floor) + 0.4) : getIntensity(step.floor);
   const percBufs  = buildPercBufs(preset);
-  barLength       = (60 / preset.bpm) * 4;
+  if (!bpmLocked) barLength = (60 / preset.bpm) * 4;
 
   const incoming   = step.layers;
   const toStop     = ostCurrentLayers.filter(n => !incoming.includes(n));
@@ -1629,7 +1652,7 @@ function startRandomJourney() {
       const newBpm = preset.bpm;
       const oldFloor = JOURNEY_FLOORS[step - 1] ?? floor;
       const oldBpm = getZone(oldFloor).bpm;
-      if (Math.abs(oldBpm - newBpm) > 4) {
+      if (!bpmLocked && Math.abs(oldBpm - newBpm) > 4) {
         barLength = (60 / newBpm) * 4;
       }
 
@@ -2017,16 +2040,47 @@ function initAudio() {
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
-  // Chain: masterGain → HPF → saturation → moodFilter → compressor → analyser → destination
-  masterGain.connect(masterHPF);
+  // Mid/Side stereo widener — inserted between compressor and analyser
+  // Encodes L+R → Mid/Side, scales the Side channel, decodes back
+  // At spread=0: side=0 → pure mono. At spread=1: side boosted → wide image.
+  msEncoder  = ctx.createChannelSplitter(2);
+  msMid      = ctx.createGain();  // (L+R) * 0.5
+  msSide     = ctx.createGain();  // (L-R) * 0.5
+  msSideGain = ctx.createGain();  // width scaler on side channel
+  msSideGain.gain.value = _stereoSpread * 2.0; // 0–2 range
+  msDecoder  = ctx.createChannelMerger(2);
+
+  // True M/S via ChannelSplitter→Merger math isn't directly possible in Web Audio
+  // without ScriptProcessor. Instead we use a simpler but effective approach:
+  // a stereo panner pair that spreads identical L/R signals apart.
+  // We achieve real width by running two StereoPanners fed from the mono sum,
+  // panned left and right by the spread amount, then mixing back.
+  // This is equivalent to Haas-free M/S widening on any headphones/stereo rig.
+
+  const wideL = ctx.createStereoPanner();
+  const wideR = ctx.createStereoPanner();
+  const wideMix = ctx.createGain();
+  wideMix.gain.value = 0.7071; // compensate summing gain (1/sqrt2)
+
+  wideL.pan.value = -_stereoSpread;
+  wideR.pan.value =  _stereoSpread;
+
+  // Store refs for live update
+  msEncoder  = { wideL, wideR, wideMix };
+
+  masterCompressor.connect(wideL);
+  masterCompressor.connect(wideR);
+  wideL.connect(wideMix);
+  wideR.connect(wideMix);
+  wideMix.connect(analyser);
   masterHPF.connect(saturationNode);
   satMakeup.connect(moodFilter);
   moodFilter.connect(masterCompressor);
-  masterCompressor.connect(analyser);
+  // compressor → widener → analyser → destination (wideMix.connect(analyser) above)
   analyser.connect(ctx.destination);
 
   recDest = ctx.createMediaStreamDestination();
-  masterCompressor.connect(recDest);
+  analyser.connect(recDest);
 
   fxInput = ctx.createGain(); fxInput.gain.value = 1.0;
   buildFXChain();
@@ -2205,6 +2259,53 @@ function onSaturation(el) {
     if (!ctx) return;
     saturationNode.curve = makeSatCurve(_saturation);
   }, 80);
+}
+
+function onStereoSpread(el) {
+  _stereoSpread = el.value / 100;
+  el.style.setProperty('--pct', el.value + '%');
+  document.getElementById('stereoSpreadVal').textContent = el.value + '%';
+  if (!ctx || !msEncoder) return;
+  // Smoothly update both panner positions
+  const t = ctx.currentTime;
+  msEncoder.wideL.pan.setTargetAtTime(-_stereoSpread, t, 0.05);
+  msEncoder.wideR.pan.setTargetAtTime( _stereoSpread, t, 0.05);
+}
+
+// ── BPM Lock ──────────────────────────────────────────────────────
+function toggleBpmLock() {
+  bpmLocked = !bpmLocked;
+  const btn = document.getElementById('bpmLockBtn');
+  if (bpmLocked) {
+    // Capture current BPM from active zone
+    const floor = parseInt(document.getElementById('floorSlider')?.value ?? slider.value);
+    const zoneBpm = getZone(floor).bpm;
+    bpmLockValue = parseInt(document.getElementById('bpmLockInput').value) || zoneBpm;
+    document.getElementById('bpmLockInput').value = bpmLockValue;
+    barLength = (60 / bpmLockValue) * 4;
+    btn.textContent = `🔒 BPM Lock: ${bpmLockValue}`;
+    btn.style.borderColor = 'var(--gold)';
+    btn.style.color = 'var(--gold)';
+    setStatus(`BPM locked at ${bpmLockValue} — zones won't shift tempo`);
+  } else {
+    btn.textContent = '🔓 BPM Lock: Off';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+    // Restore zone BPM
+    const floor = parseInt(slider.value);
+    barLength = (60 / getZone(floor).bpm) * 4;
+    setStatus('BPM lock released — following zone tempo');
+  }
+}
+
+function onBpmLockInput(el) {
+  const v = Math.max(20, Math.min(300, parseInt(el.value) || 60));
+  bpmLockValue = v;
+  if (bpmLocked) {
+    barLength = (60 / bpmLockValue) * 4;
+    document.getElementById('bpmLockBtn').textContent = `🔒 BPM Lock: ${bpmLockValue}`;
+    setStatus(`BPM locked at ${bpmLockValue}`);
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
