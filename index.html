@@ -1506,8 +1506,11 @@ function stopSongGen() {
   journeyTimers.forEach(clearTimeout);
   journeyTimers = [];
   journeyActive = false;
+  if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
+  slider.value = 1;
+  updateFloorUI();
 }
-  
+
 // ── Scales ───────────────────────────────────────────────────────
 const SCALES = [
   { id:'zone',       name:'Zone Default',  feel:'Follows floor depth',           ratios:null,
@@ -4589,14 +4592,17 @@ function buildOrgan(preset, intensity, name) {
     ];
     if (intensity > 0.6) voices.push({ voiceIdx: 3, oct: 1 });
 
-    const attackT  = beat * 1.5;
+    const attackT  = beat * 3.5;
     const holdT    = beat * 4 * holdBars;
-    const releaseT = beat * 2.5;
+    const releaseT = beat * 4;
     const vel      = (0.55 + intensity * 0.35) * (0.82 + rng() * 0.18);
 
     voices.forEach(({ voiceIdx, oct }) => {
       const freq = CE.chordTone('organ', oct, voiceIdx);
       if (!freq || freq < 10) return;
+
+      // Slight pitch drift per voice — simulates pipe tuning variance
+      const drift = 1 + (rng() - 0.5) * 0.003;
 
       const bars = [
         { ratio: 0.5, gv: 0.26 },
@@ -4606,17 +4612,20 @@ function buildOrgan(preset, intensity, name) {
         { ratio: 4,   gv: 0.06 },
       ];
       bars.forEach(({ ratio, gv }) => {
-        const o    = mkOsc(freq * ratio, 'sine');
+        const o    = mkOsc(freq * ratio * drift, 'sine');
         const env  = mkGain(0);
         const lfoA = mkOsc(0.85 + rng() * 0.3, 'sine');
-        const lfoG = mkGain(gv * 0.06);
+        const lfoG = mkGain(gv * 0.04);
         chain(lfoA, lfoG); lfoG.connect(env.gain);
         chain(o, env, orgSat);
 
         const peak = gv * vel;
+        // Slow swell in, hold with slight breath swell, release
         env.gain.setValueAtTime(0, t);
+        env.gain.linearRampToValueAtTime(peak * 0.6, t + attackT * 0.5);
         env.gain.linearRampToValueAtTime(peak, t + attackT);
-        env.gain.setValueAtTime(peak, t + attackT + holdT);
+        env.gain.setValueAtTime(peak, t + attackT + holdT * 0.7);
+        env.gain.linearRampToValueAtTime(peak * 1.05, t + attackT + holdT * 0.85); // subtle swell
         env.gain.linearRampToValueAtTime(0.0001, t + attackT + holdT + releaseT);
 
         lfoA.start(t); o.start(t);
@@ -5195,9 +5204,9 @@ function stopSynth() {
   journeyTimers.forEach(clearTimeout);
   journeyTimers = [];
   journeyActive = false;
+  if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
+  slider.value = 1;
 }
-
-// ── Controls ──────────────────────────────────────────────────────
 function togglePlay() {
   if (!isPlaying) {
     isPlaying = true;
