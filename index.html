@@ -1916,6 +1916,22 @@ function startRandomJourney() {
 
     } else {
       journeyActive = false;
+      // Let the last step breathe for ~6 bars before fading
+      const holdMs = barLength * 6 * 1000;
+      const fadeDur = 12;
+      setTimeout(() => {
+        if (!isPlaying) return;
+        const now = ctx.currentTime;
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime(0, now + fadeDur);
+        setStatus('🌑 The void reclaims all...');
+        setTimeout(() => {
+          if (!isPlaying) return;
+          togglePlay();
+          masterGain.gain.value = 0.38;
+        }, (fadeDur + 0.2) * 1000);
+      }, holdMs);
     }
   }
   
