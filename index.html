@@ -1916,7 +1916,7 @@ function startRandomJourney() {
 
     } else {
       journeyActive = false;
-      // Let the last step breathe for ~6 bars before fading
+      // Hold ~6 bars then fade to silence over 12 seconds
       const holdMs = barLength * 6 * 1000;
       const fadeDur = 12;
       setTimeout(() => {
