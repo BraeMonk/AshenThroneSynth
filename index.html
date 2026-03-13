@@ -1237,6 +1237,7 @@ function updatePhraseUI() {
 
 let autoEvolution = false;
 let journeyActive = false;
+let journeyDepth  = 0;   // 0-7, current step index — read by knight
 
 // ── Motif memory ─────────────────────────────────────────────────
 let baseMotif = [0, 2, 4, 2]; // reused across phrases
@@ -1506,6 +1507,8 @@ function stopSongGen() {
   journeyTimers.forEach(clearTimeout);
   journeyTimers = [];
   journeyActive = false;
+  journeyDepth = 0;
+  if (CIN.knight?.legend) CIN.knight.legend = null;
   if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
   slider.value = 1;
   updateFloorUI();
@@ -1835,6 +1838,34 @@ function startRandomJourney() {
   const startFloor = parseInt(slider.value);
   let step = 0;
 
+  // Build the knight's legend for this run — personality + secret boss step
+  if (CIN.knight) {
+    const bossStep = 4 + Math.floor(Math.random() * 3); // step 4, 5, or 6
+    const moodTraits = {
+      descent:    { aggression: 0.5, patience: 0.6, grief: 0.3, glory: 0.2 },
+      tragic:     { aggression: 0.2, patience: 0.8, grief: 0.9, glory: 0.1 },
+      triumphant: { aggression: 0.85, patience: 0.3, grief: 0.1, glory: 0.95 },
+      arcane:     { aggression: 0.15, patience: 0.9, grief: 0.4, glory: 0.3 },
+      meditative: { aggression: 0.05, patience: 1.0, grief: 0.5, glory: 0.1 },
+    };
+    const baseTraits = moodTraits[activeJourneyMood] || moodTraits.descent;
+    // Sprinkle per-run variance so same mood still feels different each time
+    CIN.knight.legend = {
+      mood:       activeJourneyMood,
+      step:       0,
+      bossStep,
+      aggression: Math.max(0, Math.min(1, baseTraits.aggression + (Math.random()-0.5)*0.22)),
+      patience:   Math.max(0, Math.min(1, baseTraits.patience   + (Math.random()-0.5)*0.18)),
+      grief:      Math.max(0, Math.min(1, baseTraits.grief       + (Math.random()-0.5)*0.20)),
+      glory:      Math.max(0, Math.min(1, baseTraits.glory       + (Math.random()-0.5)*0.22)),
+    };
+    CIN.knight.wounds          = 0;
+    CIN.knight.woundFlash      = 0;
+    CIN.knight.journeyEndFired = false;
+    CIN.knight.bossBuildupT    = 0;
+    CIN.knight.bossAftermathT  = 0;
+  }
+
   journeyActive = true;
   
   function journeyStep() {
@@ -1911,6 +1942,8 @@ function startRandomJourney() {
     document.getElementById('randArchetypeLabel').textContent = archetypeName.toUpperCase();
 
     step++;
+    journeyDepth = step;
+    if (CIN.knight?.legend) CIN.knight.legend.step = step;
     if (step < JOURNEY_STEPS) {
       const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
       crawlToFloor(floor, dur * 0.6, null);
@@ -1918,6 +1951,8 @@ function startRandomJourney() {
 
     } else {
       journeyActive = false;
+      // Signal knight to play his journey-end moment
+      if (CIN.knight) CIN.knight.journeyEndFired = false; // will trigger once in draw loop
       const holdMs = barLength * 6 * 1000;
       const fadeDur = 12;
       setTimeout(() => {
@@ -5977,10 +6012,55 @@ function cinInitKnight(W, H) {
     campfireFlicker: 1.0,
     breathPhase: 0,
     puffs: [],
+    breathPuffs: [],    // cold-zone visible breath
     scale: 1,
     swordAngle: 0,
     capeWave: 0,
+    // phrase / boss tracking
+    prevPhrase: '',
+    prevBoss: false,
+    // zone tracking
+    prevZone: '',
+    zoneReactTimer: 0,  // frames of zone-entry reaction
+    zoneReacting: false,
+    // energy tracking for silence/density reaction
+    prevEnergy: 0,
+    energyShock: 0,     // 0→1, spikes on sudden energy change
+    // combat
+    combatTarget: null,
+    strikeTimer: 0,
+    strikeCooldown: 0,
+    staggerTimer: 0,
+    guardRaised: 0,
+    strikeSwing: 0,
+    bloodPuffs: [],
+    wounds: 0,          // 0–3, accumulates on stagger
+    woundFlash: 0,      // brief visual flash on new wound
+    // rest poses
+    kneelTimer: 0,
+    prayTimer: 0,
+    // idle micro-animations
+    idleAction: null,   // null | 'weightshift' | 'swordtap' | 'horizoncheck' | 'kneeadjust'
+    idleActionTimer: 0,
+    idleCooldown: 0,    // frames until next idle action can fire
+    // patrol
+    patrolDir: 1,
+    patrolTimer: 0,
+    // boss step buildup/aftermath
+    bossBuildupT: 0,    // 0→1 ramps up in the step before bossStep
+    bossAftermathT: 0,  // 1→0 decays after bossStep ends
+    // journey end
+    journeyEndFired: false,
+    // legend — set by startRandomJourney, null outside of journey
+    legend: null,
+    // active enemy
+    enemy: null,
   };
+  // Restore pending legend (preserved across zone reset)
+  if (CIN._pendingLegend) {
+    CIN.knight.legend = CIN._pendingLegend;
+    CIN._pendingLegend = null;
+  }
 }
 
 function cinWaveYAt(x, W, waveData, waveFloor, waveAmp) {
@@ -6065,48 +6145,942 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
   // Campfire only when resting
   if (restLevel > 0.1) cinDrawCampfire(c, k, zone, t, restLevel, waveData, waveFloor, waveAmp, W);
 
-  // State machine
+  // ── Legend ────────────────────────────────────────────────────────
+  const leg = k.legend || {
+    mood: 'descent', step: 0, bossStep: -1,
+    aggression: 0.5, patience: 0.6, grief: 0.3, glory: 0.3,
+  };
+  const depth      = leg.step;
+  const depthT     = depth / 7;
+  const isKnightBoss = journeyActive && depth === leg.bossStep;
+
+  // ── Timers ────────────────────────────────────────────────────────
   k.stateTimer++;
-  k.anim       += active > 0.3 ? 0.17 : 0.05;
+  k.anim        += active > 0.3 ? 0.17 : 0.05;
   k.breathPhase += 0.038;
   k.capeWave    += 0.065 + active * 0.14;
+  if (k.idleCooldown > 0) k.idleCooldown--;
+  if (k.woundFlash > 0)   k.woundFlash   -= 0.06;
+  if (k.bossAftermathT > 0) k.bossAftermathT -= 0.004;
 
-  const isMoving  = k.state === 'walk' || k.state === 'run';
-  const isSitting = !isMoving;
+  // ── Zone change reaction ──────────────────────────────────────────
+  const zoneChanged = zone.name !== k.prevZone;
+  if (zoneChanged) {
+    k.prevZone    = zone.name;
+    k.zoneReacting = true;
+    // Patience + grief dictate how long they stop to absorb the new zone
+    k.zoneReactTimer = Math.floor(40 + leg.patience * 80 + leg.grief * 40);
+    k.velX *= 0.2;
+    if (!['combat','strike'].includes(k.state)) {
+      k.state = 'look'; k.stateTimer = 0;
+    }
+  }
+  if (k.zoneReacting) {
+    k.zoneReactTimer--;
+    if (k.zoneReactTimer <= 0) k.zoneReacting = false;
+  }
 
-  if (restLevel > 0.72) {
-    if (isMoving) { k.velX *= 0.80; if (Math.abs(k.velX) < 0.9) { k.state='sit'; k.stateTimer=0; } }
-    else if (k.state==='sit'  && k.stateTimer>190) { k.state=Math.random()<0.5?'look':'sit'; k.stateTimer=0; }
-    else if (k.state==='look' && k.stateTimer>85)  { k.state='sit'; k.stateTimer=0; k.dir=Math.random()>0.5?1:-1; }
-    else if (k.state==='rest' && k.stateTimer>75)  { k.state='sit'; k.stateTimer=0; }
-    k.velX *= 0.88;
+  // ── Energy shock — react to sudden silence or density spike ──────
+  const energyDelta = CIN.smoothEnergy - k.prevEnergy;
+  k.prevEnergy      = CIN.smoothEnergy;
+  if (Math.abs(energyDelta) > 0.18) {
+    k.energyShock = Math.min(1, Math.abs(energyDelta) * 3.5);
+    // Big energy drop (silence) → knight slows and looks
+    if (energyDelta < -0.18 && !['combat','strike','kneel'].includes(k.state)) {
+      k.state = 'look'; k.stateTimer = 0; k.velX *= 0.3;
+    }
+  }
+  k.energyShock *= 0.94;
+
+  // ── Beat stagger ─────────────────────────────────────────────────
+  const bassDelta = CIN.smoothBass - (CIN._prevBassK || 0);
+  CIN._prevBassK  = CIN.smoothBass;
+  if (bassDelta > 0.18 && CIN.smoothBass > 0.55 &&
+      ['combat','strike'].includes(k.state) && k.staggerTimer <= 0) {
+    const staggerChance = 0.4 + leg.grief * 0.4 - leg.glory * 0.3;
+    if (Math.random() < staggerChance) {
+      k.staggerTimer = Math.floor(10 + leg.grief * 12 + Math.random() * 8);
+      // Accumulate wounds — deep steps + grief = more likely to wound
+      const woundChance = 0.22 + depthT * 0.28 + leg.grief * 0.2 - leg.glory * 0.15;
+      if (Math.random() < woundChance && k.wounds < 3) {
+        k.wounds++;
+        k.woundFlash = 1.0;
+      }
+    }
+  }
+
+  // ── Boss step buildup — ramp tension one step before bossStep ────
+  const prevStepIsBoss = journeyActive && depth === leg.bossStep - 1;
+  if (prevStepIsBoss) {
+    k.bossBuildupT = Math.min(1, k.bossBuildupT + 0.0008);
+  } else if (!isKnightBoss) {
+    k.bossBuildupT *= 0.97;
+  }
+  // After boss step ends, decay aftermath
+  const bossJustEnded = !isKnightBoss && k.prevBoss && journeyActive;
+  if (bossJustEnded) {
+    k.bossAftermathT = 1.0;
+    k.state = 'rise'; k.stateTimer = 0; k.velX = 0;
+  }
+
+  // ── Journey end ───────────────────────────────────────────────────
+  if (!journeyActive && !k.journeyEndFired && leg.step > 0) {
+    k.journeyEndFired = true;
+    k.state = 'walk'; k.stateTimer = 0;
+    k.targetX = W * 0.42; // walk toward center
+    k.velX = k.dir > 0 ? s * 0.02 : -s * 0.02;
+    // After walking, collapse to kneel
+    setTimeout(() => {
+      if (CIN.knight) {
+        CIN.knight.state = 'kneel';
+        CIN.knight.stateTimer = 0;
+        CIN.knight.velX = 0;
+      }
+    }, 2800);
+  }
+
+  // ── Phrase / boss transition detection ───────────────────────────
+  const phraseChanged = currentPhrase !== k.prevPhrase;
+  const bossNow       = isBoss || isKnightBoss;
+  const bossChanged   = bossNow !== k.prevBoss;
+  if (phraseChanged) k.prevPhrase = currentPhrase;
+  if (bossChanged)   k.prevBoss   = bossNow;
+
+  // ── Narrative mode → mood + phrase + depth ───────────────────────
+  let narrativeMode;
+  if (bossNow) {
+    narrativeMode = 'fight';
+  } else if (k.bossAftermathT > 0.4) {
+    narrativeMode = 'broken'; // recovering from boss
+  } else if (!journeyActive && k.journeyEndFired) {
+    narrativeMode = 'broken'; // journey over
+  } else if (leg.mood === 'meditative') {
+    narrativeMode = (currentPhrase === 'climax' && depthT > 0.7) ? 'witness'
+                  : (currentPhrase === 'resolution' || currentPhrase === 'intro') ? 'rest'
+                  : depthT > 0.5 ? 'witness' : 'rest';
+  } else if (leg.mood === 'arcane') {
+    narrativeMode = (currentPhrase === 'climax' && depthT > 0.6 && leg.aggression > 0.12) ? 'fight'
+                  : (currentPhrase === 'build' || currentPhrase === 'tension') ? 'drift'
+                  : 'rest';
+  } else if (leg.mood === 'tragic') {
+    if (currentPhrase === 'resolution' || currentPhrase === 'intro') narrativeMode = 'broken';
+    else if (currentPhrase === 'climax') narrativeMode = depthT < 0.45 ? 'fight' : 'broken';
+    else if (currentPhrase === 'tension') narrativeMode = depthT < 0.6 ? 'prowl' : 'broken';
+    else narrativeMode = 'rest';
+  } else if (leg.mood === 'triumphant') {
+    if (currentPhrase === 'resolution') narrativeMode = depthT > 0.85 ? 'broken' : 'rest';
+    else if (currentPhrase === 'climax') narrativeMode = 'fight';
+    else narrativeMode = 'prowl'; // never just sits
   } else {
-    if (isSitting) { k.state=active>0.55?'run':'walk'; k.stateTimer=0; k.targetX=W*(0.08+Math.random()*0.84); }
-    if (Math.abs(k.x-k.targetX)<s*2) { k.targetX=W*(0.08+Math.random()*0.84); k.state=active>0.6?'run':'walk'; }
-    const spd=k.state==='run'?s*(0.055+active*0.075+CIN.smoothBass*0.05):s*(0.022+active*0.018);
-    const dx=k.targetX-k.x; k.dir=dx>0?1:-1;
-    k.velX+=(Math.sign(dx)*spd-k.velX)*0.10;
+    // descent + default
+    if (currentPhrase === 'intro') narrativeMode = 'rest';
+    else if (currentPhrase === 'resolution') narrativeMode = depthT > 0.5 ? 'broken' : 'rest';
+    else if (currentPhrase === 'build') narrativeMode = 'prowl';
+    else if (currentPhrase === 'tension') narrativeMode = depthT > 0.65 ? 'fight' : 'prowl';
+    else if (currentPhrase === 'climax') narrativeMode = 'fight';
+    else narrativeMode = restLevel > 0.72 ? 'rest' : 'prowl';
+  }
+
+  // ── Transition on phrase/boss change ─────────────────────────────
+  if ((phraseChanged || bossChanged) && !k.zoneReacting) {
+    if (narrativeMode === 'rest' || narrativeMode === 'witness') {
+      k.state = 'sit'; k.stateTimer = 0; k.velX = 0;
+    }
+    if (narrativeMode === 'prowl' || narrativeMode === 'drift') {
+      k.state = 'patrol'; k.stateTimer = 0; k.patrolDir = k.dir;
+    }
+    if (narrativeMode === 'fight') {
+      k.state = 'combat'; k.stateTimer = 0;
+      const side = leg.glory > 0.5 ? 1 : -1;
+      k.combatTarget = W * (0.38 + side * 0.14 * leg.aggression);
+      k.strikeTimer  = Math.floor(28 - leg.aggression * 16 + (1-leg.aggression) * Math.random() * 20);
+      k.guardRaised  = 0;
+    }
+    if (narrativeMode === 'broken') {
+      k.state = 'kneel'; k.stateTimer = 0; k.velX = 0;
+    }
+  }
+
+  // ── Per-mode tick ─────────────────────────────────────────────────
+
+  if (narrativeMode === 'rest') {
+    k.velX *= 0.88;
+    const moving = k.state === 'walk' || k.state === 'run';
+    if (moving) {
+      k.velX *= 0.80;
+      if (Math.abs(k.velX) < 0.9) { k.state = 'sit'; k.stateTimer = 0; }
+    }
+    // Zone-aware idle variety
+    const sitDur = Math.floor(160 + leg.patience * 80);
+    if (k.state === 'sit' && k.stateTimer > sitDur && k.idleCooldown <= 0) {
+      const roll = Math.random();
+      const prayChance  = 0.15 + leg.grief * 0.28;
+      const lookChance  = 0.22 + leg.glory * 0.22;
+      const idleChance  = 0.30; // micro idle actions
+      if (roll < prayChance) {
+        k.state = 'pray'; k.stateTimer = 0;
+      } else if (roll < prayChance + lookChance) {
+        k.state = 'look'; k.stateTimer = 0; k.dir = Math.random() > 0.5 ? 1 : -1;
+      } else if (roll < prayChance + lookChance + idleChance) {
+        // Micro idle action — doesn't change state, just sets idleAction
+        const actions = ['weightshift','swordtap','horizoncheck','kneeadjust'];
+        // Zone personality weights
+        const zoneActions = zone.name === 'Infernal Core' ? ['weightshift','weightshift','swordtap']
+                          : zone.name === 'Rotwood Forest'  ? ['horizoncheck','horizoncheck','kneeadjust']
+                          : actions;
+        k.idleAction      = zoneActions[Math.floor(Math.random() * zoneActions.length)];
+        k.idleActionTimer = 0;
+        k.idleCooldown    = Math.floor(180 + Math.random() * 120);
+        k.stateTimer      = 0; // reset so we don't re-roll immediately
+      } else {
+        k.stateTimer = 0;
+      }
+    }
+    if (k.idleAction) {
+      k.idleActionTimer++;
+      if (k.idleActionTimer > 90) { k.idleAction = null; k.idleActionTimer = 0; }
+    }
+    if (k.state === 'look' && k.stateTimer > Math.floor(60 + leg.patience * 50))
+      { k.state = 'sit'; k.stateTimer = 0; k.idleCooldown = 80; }
+    if (k.state === 'pray' && k.stateTimer > Math.floor(120 + leg.grief * 80))
+      { k.state = 'sit'; k.stateTimer = 0; k.idleCooldown = 100; }
+    if (k.state === 'rest' && k.stateTimer > 75) { k.state = 'sit'; k.stateTimer = 0; }
+
+  } else if (narrativeMode === 'witness') {
+    k.guardRaised *= 0.90; k.strikeSwing *= 0.90;
+    if (!['patrol','look','pray'].includes(k.state)) {
+      k.state = 'patrol'; k.stateTimer = 0;
+      k.targetX = k.dir > 0 ? W * 0.72 : W * 0.18;
+    }
+    if (Math.abs(k.x - k.targetX) < s * 1.2) {
+      if (Math.random() < 0.6) {
+        k.state = Math.random() < 0.5 ? 'look' : 'pray'; k.stateTimer = 0;
+      } else {
+        k.patrolDir *= -1;
+        k.targetX = k.patrolDir > 0 ? W * 0.72 : W * 0.18;
+      }
+    }
+    if (['look','pray'].includes(k.state) && k.stateTimer > Math.floor(130 + leg.patience * 90))
+      { k.state = 'patrol'; k.stateTimer = 0; }
+    const spd = s * 0.011;
+    const dx  = k.targetX - k.x;
+    k.dir = dx > 0 ? 1 : -1;
+    k.velX += (Math.sign(dx) * spd - k.velX) * 0.05;
+
+  } else if (narrativeMode === 'drift') {
+    k.guardRaised += (0.2 - k.guardRaised) * 0.03; k.strikeSwing *= 0.92;
+    if (!['patrol','pray','look'].includes(k.state)) {
+      k.state = 'patrol'; k.stateTimer = 0;
+      k.targetX = W * (0.15 + Math.random() * 0.65);
+    }
+    if (Math.abs(k.x - k.targetX) < s * 1.5) {
+      if (Math.random() < 0.55) {
+        k.state = Math.random() < 0.6 ? 'pray' : 'look'; k.stateTimer = 0;
+      } else {
+        k.targetX = W * (0.15 + Math.random() * 0.65);
+      }
+    }
+    if (k.state === 'pray' && k.stateTimer > Math.floor(100 + leg.patience * 120))
+      { k.state = 'patrol'; k.stateTimer = 0; }
+    if (k.state === 'look' && k.stateTimer > 70)
+      { k.state = 'patrol'; k.stateTimer = 0; }
+    const spd = s * (0.013 + CIN.smoothMid * 0.008);
+    const dx  = k.targetX - k.x;
+    k.dir = dx > 0 ? 1 : -1;
+    k.velX += (Math.sign(dx) * spd - k.velX) * 0.06;
+
+  } else if (narrativeMode === 'prowl') {
+    // Boss buildup: tighten patrol range and speed as bossStep approaches
+    const buildupFactor = k.bossBuildupT;
+    k.guardRaised += (0.35 + leg.aggression * 0.35 + buildupFactor * 0.25 - k.guardRaised) * 0.04;
+    k.strikeSwing *= 0.88;
+
+    const patrolMin = W * (0.08 + (1-leg.glory) * 0.06);
+    const patrolMax = W * (0.52 + depthT * 0.2 + leg.glory * 0.14 - buildupFactor * 0.1);
+
+    if (!['patrol','look'].includes(k.state)) {
+      k.state = 'patrol'; k.stateTimer = 0;
+      k.targetX = k.patrolDir > 0 ? patrolMax : patrolMin;
+    }
+    if (Math.abs(k.x - k.targetX) < s * 1.5) {
+      k.patrolDir *= -1;
+      k.targetX = k.patrolDir > 0 ? patrolMax : patrolMin;
+      // During buildup: don't stop — keep pacing
+      const stopChance = (0.55 - leg.aggression * 0.3) * (1 - buildupFactor * 0.8);
+      if (Math.random() < stopChance) { k.state = 'look'; k.stateTimer = 0; }
+    }
+    const lookDur = Math.floor((50 + leg.patience * 60 - leg.aggression * 30) * (1 - buildupFactor * 0.6));
+    if (k.state === 'look' && k.stateTimer > Math.max(15, lookDur))
+      { k.state = 'patrol'; k.stateTimer = 0; }
+
+    // Wound fatigue: injured knights walk slower
+    const woundSlow = k.wounds * 0.003;
+    const spd = s * (0.015 + leg.aggression * 0.014 + depthT * 0.008
+                   + CIN.smoothEnergy * 0.010 + buildupFactor * 0.012 - woundSlow);
+    const dx  = k.targetX - k.x;
+    k.dir = dx > 0 ? 1 : -1;
+    k.velX += (Math.sign(dx) * spd - k.velX) * 0.08;
+
+  } else if (narrativeMode === 'fight') {
+    k.guardRaised += (0.75 + leg.aggression * 0.2 - k.guardRaised) * 0.06;
+
+    if (k.staggerTimer > 0) {
+      k.staggerTimer--;
+      k.velX += -k.dir * s * (0.03 + leg.grief * 0.025);
+      k.strikeSwing *= 0.85;
+      if (k.staggerTimer === 0) { k.state = 'combat'; k.stateTimer = 0; }
+
+    } else if (k.state === 'combat') {
+      if (k.combatTarget === null)
+        k.combatTarget = k.dir > 0 ? W * 0.58 : W * 0.42;
+      const dx = k.combatTarget - k.x;
+      k.dir = dx > 0 ? 1 : -1;
+      const woundSlow    = k.wounds * 0.004;
+      const engageDist   = s * (bossNow ? 1.8 : 2.6 - leg.aggression * 0.8 - depthT * 0.4);
+      if (Math.abs(dx) > engageDist) {
+        const spd = s * (0.028 + leg.aggression * 0.022 + depthT * 0.012
+                       + CIN.smoothBass * 0.016 - woundSlow);
+        k.velX += (Math.sign(dx) * spd - k.velX) * 0.12;
+      } else {
+        k.velX *= 0.80;
+        k.strikeTimer--;
+        if (k.strikeTimer <= 0) {
+          k.state = 'strike'; k.stateTimer = 0; k.strikeCooldown = 0;
+        }
+      }
+
+    } else if (k.state === 'strike') {
+      k.velX *= 0.75;
+      k.strikeCooldown++;
+      const windupEnd  = Math.floor(15 - leg.aggression * 6);
+      const releaseEnd = windupEnd + 10;
+      const recoverEnd = releaseEnd + Math.floor(22 + (1-leg.aggression) * 18);
+
+      if (k.strikeCooldown < windupEnd) {
+        k.strikeSwing += (1.0 - k.strikeSwing) * 0.30;
+      } else if (k.strikeCooldown < releaseEnd) {
+        k.strikeSwing += (-0.4 - k.strikeSwing) * 0.48;
+        if (k.strikeCooldown === windupEnd + 1) {
+          k.bloodPuffs.push({
+            x: k.x + k.dir * s * 1.1, y: k.y - s * 0.7,
+            alpha: 0.55 + leg.glory * 0.3,
+            size:  s * (0.18 + leg.glory * 0.12),
+            vx: k.dir * (1.6 + leg.aggression * 0.8 + CIN.smoothBass * 0.8),
+            vy: -0.8 - CIN.smoothEnergy * 0.5,
+            r: R, g: G, b: B,
+          });
+        }
+      } else {
+        k.strikeSwing += (0.2 - k.strikeSwing) * 0.13;
+        if (k.strikeCooldown > recoverEnd) {
+          k.state = 'combat'; k.stateTimer = 0;
+          const pressForward = leg.aggression * 0.6 + leg.glory * 0.3;
+          const spread = (bossNow ? W*0.08 : W*0.14) * (1 + depthT * 0.5);
+          k.combatTarget = Math.max(s*2, Math.min(W-s*2,
+            k.combatTarget + k.dir * pressForward * s * 1.2
+            + (Math.random()-0.5) * spread));
+          const baseDelay = bossNow
+            ? Math.floor(12 + (1-leg.aggression) * 16)
+            : Math.floor(28 - leg.aggression * 14 - depthT * 8);
+          k.strikeTimer = Math.max(6,
+            baseDelay + Math.floor(Math.random() * 14)
+            + Math.floor(CIN.smoothBass * (bossNow ? 8 : 14)));
+        }
+      }
+    }
+
+  } else if (narrativeMode === 'broken') {
+    k.velX *= 0.90; k.guardRaised *= 0.92; k.strikeSwing *= 0.90;
+    if (!['kneel','rise','sit'].includes(k.state)) {
+      k.state = 'kneel'; k.stateTimer = 0;
+    }
+    const kneelDur = Math.floor(160 + leg.grief * 140 + k.wounds * 30);
+    const riseDur  = Math.floor(90  + leg.grief * 60);
+    if (k.state === 'kneel' && k.stateTimer > kneelDur)
+      { k.state = 'rise'; k.stateTimer = 0; }
+    if (k.state === 'rise' && k.stateTimer > riseDur)
+      { k.state = 'sit'; k.stateTimer = 0; }
+  }
+
+  // ── Blood/impact puffs ────────────────────────────────────────────
+  k.bloodPuffs = k.bloodPuffs.filter(p => p.alpha > 0.01);
+  k.bloodPuffs.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.size += 0.9; p.alpha *= 0.84;
+    c.beginPath(); c.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    c.fillStyle = `rgba(${p.r},${Math.floor(p.g*0.3)},${p.b},${p.alpha*0.55})`;
+    c.fill();
+  });
+
+  // ── Cold-zone breath puffs ────────────────────────────────────────
+  const coldZones = new Set(['Catacombs Deep','Void Spire','Shadowmere']);
+  const isColdZone = coldZones.has(zone.name);
+  if (isColdZone && !['combat','strike'].includes(k.state)) {
+    // Emit a breath puff every ~60 frames during idle/walk
+    if (Math.floor(k.stateTimer) % 62 === 0) {
+      k.breathPuffs.push({
+        x: k.x + k.dir * s * 0.18, y: k.y - s * 0.52,
+        alpha: 0.28, size: s * 0.09,
+        vx: k.dir * (0.4 + Math.random() * 0.3),
+        vy: -(0.3 + Math.random() * 0.2),
+      });
+    }
+  }
+  k.breathPuffs = k.breathPuffs.filter(p => p.alpha > 0.005);
+  k.breathPuffs.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vx *= 0.96; p.vy *= 0.97;
+    p.size += 0.5; p.alpha *= 0.91;
+    c.beginPath(); c.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    c.fillStyle = `rgba(200,210,225,${p.alpha})`;
+    c.fill();
+  });
+
+  // ── ENEMY SYSTEM ─────────────────────────────────────────────────
+  // Enemies spawn when narrativeMode === 'fight', despawn otherwise.
+  // Each zone has a distinct enemy type drawn as a silhouette figure.
+  // The enemy lives at k.combatTarget (where the knight advances to).
+
+  const ENEMY_TYPES = {
+    'Ashen Fields':    'soldier',
+    'Rotwood Forest':  'stalker',
+    'Catacombs Deep':  'revenant',
+    'Shadowmere':      'wraith',
+    "Sorcerer's Veil": 'construct',
+    'Obsidian Keep':   'darkknight',
+    'Void Spire':      'voidwalker',
+    'Infernal Core':   'daemon',
+  };
+  const enemyType = ENEMY_TYPES[zone.name] || 'soldier';
+
+  // Spawn / despawn
+  if (narrativeMode === 'fight') {
+    if (!k.enemy) {
+      const ex = k.combatTarget !== null ? k.combatTarget
+               : k.dir > 0 ? W * 0.62 : W * 0.38;
+      k.enemy = {
+        x: ex, targetX: ex,
+        y: k.y,
+        velX: 0,
+        hp: bossNow ? 6 : 3,       // hits to kill
+        maxHp: bossNow ? 6 : 3,
+        hitFlash: 0,                // 1→0 on hit
+        deathT: -1,                 // ≥0 = dying, counts to 1 then null
+        spawnT: 0,                  // 0→1 fade in
+        anim: Math.random() * Math.PI * 2,
+        staggerT: 0,
+        counterTimer: bossNow ? 60 + Math.floor(Math.random()*40) : -1,
+        scale: bossNow ? 1.28 : 1.0,
+      };
+    }
+  } else {
+    // Fade out enemy when not fighting
+    if (k.enemy && k.enemy.deathT < 0) k.enemy.deathT = 0;
+  }
+
+  if (k.enemy) {
+    const e = k.enemy;
+    e.anim += 0.08 + CIN.smoothBass * 0.06;
+    if (e.hitFlash  > 0) e.hitFlash  -= 0.08;
+    if (e.staggerT  > 0) e.staggerT  -= 0.06;
+
+    // Spawn fade-in
+    if (e.spawnT < 1) e.spawnT = Math.min(1, e.spawnT + 0.04);
+
+    // Death animation
+    if (e.deathT >= 0) {
+      e.deathT += 0.028;
+      if (e.deathT >= 1) {
+        k.enemy = null;
+        // Respawn after a beat if still fighting
+        if (narrativeMode === 'fight') {
+          setTimeout(() => {
+            if (CIN.knight && narrativeMode === 'fight') CIN.knight.enemy = null;
+          }, 800 + Math.random() * 600);
+        }
+      }
+    }
+
+    // Boss enemy moves — advances on knight or retreats to drive repositioning
+    if (e.deathT < 0 && bossNow && e.counterTimer > 0) {
+      e.counterTimer--;
+      if (e.counterTimer === 0) {
+        // Counter-attack: lunge toward knight, push him back
+        e.targetX = k.x + (k.dir > 0 ? -s * 3 : s * 3);
+        e.targetX = Math.max(s*2, Math.min(W-s*2, e.targetX));
+        e.counterTimer = 55 + Math.floor(Math.random() * 45);
+        // Drive the knight's combat target away
+        if (k.combatTarget !== null) {
+          k.combatTarget += k.dir * s * 2.5;
+          k.combatTarget = Math.max(s*2, Math.min(W-s*2, k.combatTarget));
+        }
+      }
+      // Drift toward targetX
+      const edx = e.targetX - e.x;
+      e.velX += (Math.sign(edx) * s * 0.018 - e.velX) * 0.08;
+    } else {
+      // Non-boss: stay near combatTarget
+      const exTarget = k.combatTarget !== null ? k.combatTarget : e.x;
+      const edx = exTarget - e.x;
+      e.velX += (Math.sign(edx) * s * 0.008 - e.velX) * 0.06;
+    }
+    e.x += e.velX;
+    e.x = Math.max(s*2, Math.min(W-s*2, e.x));
+    e.y += (cinWaveYAt(e.x, W, waveData, waveFloor, waveAmp) - e.y) * 0.04;
+
+    // Detect knight hit — strikeCooldown hits windupEnd+1 = impact frame
+    const windupEnd = Math.floor(15 - leg.aggression * 6);
+    if (k.state === 'strike' && k.strikeCooldown === windupEnd + 1) {
+      const hitDist = Math.abs(k.x - e.x);
+      if (hitDist < s * 2.8 && e.deathT < 0) {
+        e.hp--;
+        e.hitFlash = 1.0;
+        e.staggerT = 1.0;
+        if (e.hp <= 0) e.deathT = 0; // start death
+      }
+    }
+
+    // ── Draw enemy ─────────────────────────────────────────────────
+    if (e.deathT >= 0 || e.spawnT < 1 || e.deathT < 0) {
+      const alpha = e.deathT >= 0 ? Math.max(0, 1 - e.deathT * 1.4)
+                  : Math.min(1, e.spawnT);
+      const es = s * e.scale;
+      const ex = e.x, ey = e.y;
+      // Enemy always faces the knight
+      const eDir = k.x < e.x ? -1 : 1;
+      const staggerOffset = e.staggerT > 0 ? -eDir * es * 0.06 * e.staggerT : 0;
+      const ebx = ex + staggerOffset;
+
+      // Death: dissolve upward + zone flash
+      const deathRise = e.deathT >= 0 ? e.deathT * es * 0.8 : 0;
+      const deathScale = e.deathT >= 0 ? Math.max(0.1, 1 - e.deathT * 0.6) : 1;
+
+      c.save();
+      c.globalAlpha = alpha * (e.hitFlash > 0 ? 1 : 0.88);
+      c.translate(ebx, ey - deathRise);
+      c.scale(deathScale, deathScale);
+
+      // Hit flash — zone color bloom
+      if (e.hitFlash > 0.05) {
+        const hfg = c.createRadialGradient(0, -es*0.4, 0, 0, -es*0.3, es*0.7);
+        hfg.addColorStop(0, `rgba(${R},${G},${B},${e.hitFlash * 0.7})`);
+        hfg.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = hfg; c.beginPath(); c.arc(0, -es*0.3, es*0.7, 0, Math.PI*2); c.fill();
+      }
+
+      // Shared color palette — dark zone-tinted silhouette
+      const eR = Math.floor(R * 0.22 + 8);
+      const eG = Math.floor(G * 0.14 + 5);
+      const eB = Math.floor(B * 0.28 + 10);
+      const eFill = (a=0.92) => `rgba(${eR},${eG},${eB},${a})`;
+      const eAccent = (a=0.7) => `rgba(${R},${Math.floor(G*0.6)},${B},${a})`;
+      const eAnim = e.anim;
+      const eBob  = Math.sin(eAnim) * es * 0.015;
+
+      // HP bar — tiny dots above enemy head
+      if (e.deathT < 0 && e.hp > 0) {
+        const barY = -es * 1.05;
+        for (let hi = 0; hi < e.maxHp; hi++) {
+          const filled = hi < e.hp;
+          c.beginPath();
+          c.arc((hi - (e.maxHp-1)*0.5) * es*0.12, barY, es*0.038, 0, Math.PI*2);
+          c.fillStyle = filled ? eAccent(0.9) : `rgba(40,35,50,0.6)`;
+          c.fill();
+        }
+      }
+
+      if (enemyType === 'soldier') {
+        // ── Armored soldier — heavy, grounded ─────────────────────
+        // Legs
+        for (let sd=-1;sd<=1;sd+=2) {
+          const lSwing = sd * Math.sin(eAnim*1.8) * 0.18;
+          c.save(); c.translate(sd*es*0.08, eBob);
+          c.rotate(lSwing);
+          c.beginPath(); c.roundRect(-es*0.07,0,es*0.14,es*0.28,3); c.fillStyle=eFill(); c.fill();
+          c.save(); c.translate(0,es*0.26); c.rotate(-lSwing*0.5);
+          c.beginPath(); c.roundRect(-es*0.06,0,es*0.12,es*0.22,2); c.fillStyle=eFill(); c.fill();
+          c.restore(); c.restore();
+        }
+        // Torso
+        c.beginPath(); c.roundRect(-es*0.14,-es*0.42,es*0.28,es*0.44,4); c.fillStyle=eFill(); c.fill();
+        // Pauldrons
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.ellipse(sd*es*0.17,-es*0.34,es*0.1,es*0.065,sd*0.3,0,Math.PI*2);
+          c.fillStyle=eFill(0.85); c.fill();
+        }
+        // Shield (off-hand side, raised in guard)
+        c.save(); c.translate(-eDir*es*0.2,-es*0.22);
+        c.beginPath();
+        c.moveTo(0,-es*0.18); c.bezierCurveTo(es*0.12,-es*0.18,es*0.13,es*0.08,es*0.13,es*0.08);
+        c.bezierCurveTo(es*0.13,es*0.16,0,es*0.22,0,es*0.22);
+        c.bezierCurveTo(-es*0.13,es*0.16,-es*0.13,es*0.08,-es*0.13,es*0.08);
+        c.bezierCurveTo(-es*0.13,-es*0.08,-es*0.12,-es*0.18,0,-es*0.18);
+        c.closePath(); c.fillStyle=eFill(0.88); c.fill();
+        c.strokeStyle=eAccent(0.4); c.lineWidth=1.2; c.stroke();
+        c.restore();
+        // Sword arm
+        c.save(); c.translate(eDir*es*0.15,-es*0.28);
+        c.rotate(eDir*(0.3+Math.sin(eAnim*0.9)*0.12));
+        c.beginPath(); c.roundRect(-es*0.055,0,es*0.11,es*0.35,3); c.fillStyle=eFill(); c.fill();
+        // Sword
+        c.save(); c.translate(0,es*0.32); c.rotate(eDir*0.4);
+        c.beginPath(); c.roundRect(-es*0.022,-es*0.55,es*0.044,es*0.55,1);
+        c.fillStyle=`rgba(180,190,210,0.82)`; c.fill();
+        c.beginPath(); c.roundRect(-es*0.1,-es*0.02,es*0.2,es*0.04,3); c.fillStyle=eFill(0.8); c.fill();
+        c.restore(); c.restore();
+        // Head + helm
+        c.beginPath(); c.arc(0,-es*0.55+eBob,es*0.155,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
+        c.beginPath(); c.roundRect(-es*0.14,-es*0.5+eBob,es*0.28,es*0.07,2); c.fillStyle=eAccent(0.5); c.fill();
+
+      } else if (enemyType === 'stalker') {
+        // ── Hunched stalker — long arms, uneven gait ───────────────
+        const hunch = 0.18;
+        // Long dragging arms
+        for (let sd=-1;sd<=1;sd+=2) {
+          const drag = Math.sin(eAnim*1.2+sd) * es*0.08;
+          c.beginPath();
+          c.moveTo(sd*es*0.12,-es*0.3+eBob);
+          c.bezierCurveTo(sd*es*0.28,-es*0.2+drag, sd*es*0.38,-es*0.05+drag, sd*es*0.32,es*0.18);
+          c.strokeStyle=eFill(0.9); c.lineWidth=es*0.08; c.stroke();
+          // Claw tips
+          c.beginPath(); c.arc(sd*es*0.32,es*0.18,es*0.045,0,Math.PI*2);
+          c.fillStyle=eAccent(0.7); c.fill();
+        }
+        // Legs — uneven, one drags
+        c.save(); c.translate(-es*0.07,eBob); c.rotate(Math.sin(eAnim*1.6)*0.2);
+        c.beginPath(); c.roundRect(-es*0.055,0,es*0.11,es*0.3,2); c.fillStyle=eFill(); c.fill();
+        c.restore();
+        c.save(); c.translate(es*0.07,eBob); c.rotate(Math.sin(eAnim*1.6+1)*0.25);
+        c.beginPath(); c.roundRect(-es*0.05,0,es*0.1,es*0.28,2); c.fillStyle=eFill(); c.fill();
+        c.restore();
+        // Torso — hunched forward
+        c.save(); c.translate(0,eBob); c.rotate(hunch * eDir);
+        c.beginPath(); c.roundRect(-es*0.12,-es*0.42,es*0.24,es*0.44,4); c.fillStyle=eFill(); c.fill();
+        // Head — low, between shoulders
+        c.beginPath(); c.arc(eDir*es*0.04,-es*0.42,es*0.13,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
+        // Eyes
+        c.beginPath(); c.arc(eDir*es*0.09,-es*0.45,es*0.032,0,Math.PI*2);
+        c.fillStyle=eAccent(0.9); c.fill();
+        c.restore();
+
+      } else if (enemyType === 'revenant') {
+        // ── Skeletal revenant — visible bones, jerky float ─────────
+        const jerk = Math.floor(eAnim / 0.8) % 3 === 0 ? es*0.03 : 0;
+        const floatY = Math.sin(eAnim*0.6)*es*0.04 - es*0.06; // slight float
+        c.save(); c.translate(0, floatY+jerk);
+        // Ribcage
+        for (let ri=0;ri<4;ri++) {
+          const ry = -es*(0.18+ri*0.065);
+          c.beginPath(); c.ellipse(0,ry,es*(0.14-ri*0.008),es*0.042,0,0,Math.PI*2);
+          c.strokeStyle=eFill(0.75); c.lineWidth=1.8; c.stroke();
+        }
+        // Spine
+        c.beginPath(); c.moveTo(0,-es*0.08); c.lineTo(0,-es*0.44);
+        c.strokeStyle=eFill(0.8); c.lineWidth=2.2; c.stroke();
+        // Arm bones
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.save(); c.translate(sd*es*0.15,-es*0.32);
+          c.rotate(sd*(0.3+Math.sin(eAnim)*0.15));
+          c.beginPath(); c.moveTo(0,0); c.lineTo(sd*es*0.18,es*0.22);
+          c.strokeStyle=eFill(0.82); c.lineWidth=2; c.stroke();
+          c.beginPath(); c.arc(sd*es*0.18,es*0.22,es*0.036,0,Math.PI*2);
+          c.fillStyle=eFill(0.8); c.fill();
+          c.restore();
+        }
+        // Leg bones
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.save(); c.translate(sd*es*0.07,0);
+          c.beginPath(); c.moveTo(0,0); c.lineTo(sd*es*0.03,es*0.28);
+          c.strokeStyle=eFill(0.75); c.lineWidth=1.8; c.stroke();
+          c.restore();
+        }
+        // Skull
+        c.beginPath(); c.arc(0,-es*0.52,es*0.14,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
+        // Eye sockets — glow
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.arc(sd*es*0.055,-es*0.54,es*0.038,0,Math.PI*2);
+          c.fillStyle=eAccent(0.85+Math.sin(eAnim*2)*0.1); c.fill();
+        }
+        // Jaw
+        c.beginPath(); c.roundRect(-es*0.09,-es*0.44,es*0.18,es*0.06,2);
+        c.fillStyle=eFill(0.7); c.fill();
+        c.restore();
+
+      } else if (enemyType === 'wraith') {
+        // ── Wraith — no legs, trailing mist, phases in/out ─────────
+        const phase = 0.55 + 0.35*Math.sin(eAnim*0.7);
+        c.globalAlpha = alpha * phase;
+        // Mist tail
+        const tailSegs = 6;
+        for (let ti=0;ti<tailSegs;ti++) {
+          const ty = (ti+1)*es*0.12;
+          const tw = es*(0.16-ti*0.022);
+          const ta = (1-ti/tailSegs)*0.45*phase;
+          c.beginPath(); c.ellipse(Math.sin(eAnim*0.5+ti)*es*0.04, ty, tw, es*0.045, 0, 0, Math.PI*2);
+          c.fillStyle=`rgba(${eR},${eG},${eB},${ta})`; c.fill();
+        }
+        // Body — tapering upward
+        c.globalAlpha = alpha * phase;
+        c.beginPath();
+        c.moveTo(-es*0.16, 0);
+        c.bezierCurveTo(-es*0.18,-es*0.25, -es*0.1,-es*0.55, 0,-es*0.62);
+        c.bezierCurveTo(es*0.1,-es*0.55, es*0.18,-es*0.25, es*0.16,0);
+        c.closePath(); c.fillStyle=eFill(0.7); c.fill();
+        // Arms — wispy tendrils
+        for (let sd=-1;sd<=1;sd+=2) {
+          const tw2 = Math.sin(eAnim*1.1+sd*0.8)*es*0.12;
+          c.beginPath();
+          c.moveTo(sd*es*0.14,-es*0.28);
+          c.bezierCurveTo(sd*es*0.3,-es*0.2+tw2, sd*es*0.36,-es*0.05, sd*es*0.28,es*0.1);
+          c.strokeStyle=eFill(0.55); c.lineWidth=es*0.045; c.stroke();
+        }
+        // Face — hollow sockets
+        c.beginPath(); c.arc(0,-es*0.52+eBob,es*0.13,0,Math.PI*2); c.fillStyle=eFill(0.75); c.fill();
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.arc(sd*es*0.048,-es*0.54+eBob,es*0.036,0,Math.PI*2);
+          c.fillStyle=eAccent(0.8); c.fill();
+        }
+        c.globalAlpha = alpha;
+
+      } else if (enemyType === 'construct') {
+        // ── Arcane construct — geometric, crystalline shards ───────
+        const rot = eAnim * 0.4;
+        // Orbiting shards
+        for (let si=0;si<4;si++) {
+          const sa = rot + si * Math.PI/2;
+          const sr = es*0.32;
+          c.save(); c.translate(Math.cos(sa)*sr, -es*0.3+Math.sin(sa)*sr*0.4);
+          c.rotate(sa+rot);
+          c.beginPath(); c.moveTo(0,-es*0.09); c.lineTo(es*0.06,es*0.09); c.lineTo(-es*0.06,es*0.09); c.closePath();
+          c.fillStyle=eAccent(0.65); c.fill();
+          c.restore();
+        }
+        // Body — hexagonal core
+        c.save(); c.translate(0,-es*0.3+eBob); c.rotate(rot*0.3);
+        const hexPts = 6;
+        c.beginPath();
+        for (let hi=0;hi<hexPts;hi++) {
+          const ha = (hi/hexPts)*Math.PI*2 - Math.PI/6;
+          const hx = Math.cos(ha)*es*0.16, hy2 = Math.sin(ha)*es*0.22;
+          hi===0 ? c.moveTo(hx,hy2) : c.lineTo(hx,hy2);
+        }
+        c.closePath(); c.fillStyle=eFill(); c.fill();
+        c.strokeStyle=eAccent(0.6); c.lineWidth=1.5; c.stroke();
+        c.restore();
+        // Legs — angular struts
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath();
+          c.moveTo(sd*es*0.1, 0);
+          c.lineTo(sd*es*0.18, es*0.22);
+          c.lineTo(sd*es*0.12, es*0.32);
+          c.strokeStyle=eFill(0.85); c.lineWidth=es*0.07; c.stroke();
+        }
+        // Head — floating cube
+        c.save(); c.translate(0,-es*0.58+eBob); c.rotate(rot*0.5);
+        c.beginPath(); c.roundRect(-es*0.1,-es*0.1,es*0.2,es*0.2,2);
+        c.fillStyle=eFill(); c.fill();
+        c.strokeStyle=eAccent(0.7); c.lineWidth=1.2; c.stroke();
+        // Core light
+        c.beginPath(); c.arc(0,0,es*0.042,0,Math.PI*2);
+        c.fillStyle=eAccent(0.9+Math.sin(eAnim*3)*0.08); c.fill();
+        c.restore();
+
+      } else if (enemyType === 'darkknight') {
+        // ── Dark Knight — mirror of the player, full plate ─────────
+        // Legs
+        for (let sd=-1;sd<=1;sd+=2) {
+          const lSwing = sd * Math.sin(eAnim*2.2)*0.2;
+          c.save(); c.translate(sd*es*0.07,eBob); c.rotate(lSwing);
+          c.beginPath(); c.roundRect(-es*0.065,0,es*0.13,es*0.27,3); c.fillStyle=eFill(); c.fill();
+          c.beginPath(); c.ellipse(0,es*0.22,es*0.07,es*0.05,0,0,Math.PI*2);
+          c.fillStyle=eAccent(0.5); c.fill();
+          c.save(); c.translate(0,es*0.25); c.rotate(-lSwing*0.4);
+          c.beginPath(); c.roundRect(-es*0.055,0,es*0.11,es*0.24,2); c.fillStyle=eFill(); c.fill();
+          c.beginPath(); c.roundRect(-es*0.068,es*0.2,es*0.17,es*0.09,3); c.fillStyle=eFill(0.95); c.fill();
+          c.restore(); c.restore();
+        }
+        // Torso
+        c.beginPath(); c.roundRect(-es*0.13,-es*0.42,es*0.26,es*0.44,4); c.fillStyle=eFill(); c.fill();
+        // Chest plate — darker, more angular than player
+        const dkcp=c.createLinearGradient(-es*0.1,-es*0.4,es*0.1,-es*0.04);
+        dkcp.addColorStop(0,`rgba(${eR+12},${eG+8},${eB+18},0.95)`);
+        dkcp.addColorStop(1,`rgba(${eR},${eG},${eB},0.88)`);
+        c.beginPath(); c.roundRect(-es*0.1,-es*0.39,es*0.2,es*0.32,4); c.fillStyle=dkcp; c.fill();
+        // Pauldrons — larger, more aggressive
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.ellipse(sd*es*0.16,-es*0.33,es*0.115,es*0.074,sd*0.35,0,Math.PI*2);
+          c.fillStyle=eFill(0.9); c.fill();
+          c.strokeStyle=eAccent(0.35); c.lineWidth=1; c.stroke();
+        }
+        // Sword arm — two-handed great sword
+        c.save(); c.translate(eDir*es*0.14,-es*0.28);
+        c.rotate(eDir*(0.2+Math.sin(eAnim*0.8)*0.1+k.guardRaised*0.3));
+        c.beginPath(); c.roundRect(-es*0.055,0,es*0.11,es*0.22,3); c.fillStyle=eFill(); c.fill();
+        c.save(); c.translate(0,es*0.2);
+        // Great sword — longer, heavier than player's
+        c.beginPath(); c.roundRect(-es*0.028,-es*0.72,es*0.056,es*0.72,1);
+        c.fillStyle=`rgba(160,170,195,0.85)`; c.fill();
+        c.beginPath(); c.roundRect(-es*0.14,-es*0.03,es*0.28,es*0.056,4);
+        c.fillStyle=eFill(0.85); c.fill();
+        // Sword glow — zone color pulse
+        const dkbg=c.createLinearGradient(0,0,0,-es*0.72);
+        dkbg.addColorStop(0,`rgba(${R},${G},${B},0)`);
+        dkbg.addColorStop(1,`rgba(${R},${G},${B},${0.4+CIN.smoothBass*0.3})`);
+        c.beginPath(); c.roundRect(-es*0.022,-es*0.72,es*0.044,es*0.72,1); c.fillStyle=dkbg; c.fill();
+        c.restore(); c.restore();
+        // Helm — full visor, imposing
+        c.beginPath(); c.arc(0,-es*0.56+eBob,es*0.17,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.roundRect(sd*es*0.04,-es*0.64+eBob,es*0.1,es*0.13,2); c.fillStyle=eFill(0.88); c.fill();
+        }
+        // Visor slit — glows opposing zone color
+        c.beginPath(); c.roundRect(-eDir*es*0.02,-es*0.59+eBob,es*0.13,es*0.038,1);
+        c.fillStyle=eAccent(0.75+CIN.smoothBass*0.2); c.fill();
+        // Crest — taller on boss
+        const dkCH = es*(bossNow?0.32:0.22);
+        const dkCG=c.createLinearGradient(0,-es*0.7+eBob,0,-es*0.7-dkCH+eBob);
+        dkCG.addColorStop(0,eAccent(0.6)); dkCG.addColorStop(1,eAccent(0.9));
+        c.beginPath(); c.moveTo(-es*0.07,-es*0.7+eBob);
+        c.bezierCurveTo(-es*0.06,-es*0.7-dkCH*0.5+eBob,es*0.06,-es*0.7-dkCH*0.5+eBob,es*0.07,-es*0.7+eBob);
+        c.closePath(); c.fillStyle=dkCG; c.fill();
+
+      } else if (enemyType === 'voidwalker') {
+        // ── Void Walker — tall, tendrils, tears in reality around it
+        const vRot = eAnim*0.35;
+        // Reality tears — flickering lines around the body
+        for (let ti=0;ti<5;ti++) {
+          const ta = vRot + ti*Math.PI/2.5;
+          const tLen = es*(0.18+Math.sin(eAnim*2+ti)*0.08);
+          const tx = Math.cos(ta)*es*0.28, ty2 = -es*0.35+Math.sin(ta)*es*0.2;
+          c.beginPath(); c.moveTo(tx,ty2); c.lineTo(tx+Math.cos(ta+Math.PI/2)*tLen,ty2+Math.sin(ta+Math.PI/2)*tLen);
+          c.strokeStyle=eAccent(0.35+Math.random()*0.15); c.lineWidth=1; c.stroke();
+        }
+        // Tall elongated legs
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.moveTo(sd*es*0.09,0);
+          c.bezierCurveTo(sd*es*0.14,es*0.15+Math.sin(eAnim+sd)*es*0.04, sd*es*0.08,es*0.28, sd*es*0.06,es*0.38);
+          c.strokeStyle=eFill(0.85); c.lineWidth=es*0.09; c.stroke();
+        }
+        // Torso — tall and narrow
+        c.beginPath(); c.roundRect(-es*0.1,-es*0.58,es*0.2,es*0.6,4); c.fillStyle=eFill(); c.fill();
+        // Tendrils from back
+        for (let ti=0;ti<3;ti++) {
+          const tAngle = (ti-1)*0.5 + Math.sin(eAnim*0.8+ti)*0.2;
+          c.beginPath();
+          c.moveTo(-eDir*es*0.08,-es*0.3-ti*es*0.1);
+          c.bezierCurveTo(-eDir*es*0.28,-es*0.2-ti*es*0.08, -eDir*es*0.38,-es*0.05+ti*es*0.06, -eDir*es*0.3,es*0.08);
+          c.strokeStyle=eFill(0.55+ti*0.1); c.lineWidth=es*(0.055-ti*0.01); c.stroke();
+        }
+        // Head — elongated skull
+        c.beginPath(); c.ellipse(0,-es*0.72+eBob,es*0.11,es*0.18,0,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
+        // Void eyes — three of them
+        for (let ei=0;ei<3;ei++) {
+          const exa = (ei-1)*es*0.072;
+          c.beginPath(); c.arc(exa,-es*0.73+eBob,es*0.028,0,Math.PI*2);
+          c.fillStyle=eAccent(0.85+Math.sin(eAnim*3+ei)*0.12); c.fill();
+        }
+
+      } else if (enemyType === 'daemon') {
+        // ── Daemon — massive, hunched, horned, heat distortion ─────
+        const dScale = bossNow ? 1.15 : 1.0;
+        c.scale(dScale, dScale);
+        // Heat shimmer lines
+        for (let hi=0;hi<4;hi++) {
+          const hx2 = (hi-1.5)*es*0.18;
+          const hLen = es*(0.3+Math.sin(eAnim*2+hi)*0.1);
+          c.beginPath(); c.moveTo(hx2,-es*0.75); c.lineTo(hx2+Math.sin(eAnim+hi)*es*0.04,-es*0.75-hLen);
+          c.strokeStyle=`rgba(${R},${Math.floor(G*0.4)},${B},${0.18+Math.sin(eAnim*1.5+hi)*0.08})`;
+          c.lineWidth=1.2; c.stroke();
+        }
+        // Massive hunched legs
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.save(); c.translate(sd*es*0.16, 0);
+          c.rotate(sd*0.18+Math.sin(eAnim*1.4)*0.08);
+          c.beginPath(); c.roundRect(-es*0.1,0,es*0.2,es*0.32,4); c.fillStyle=eFill(); c.fill();
+          c.save(); c.translate(0,es*0.3);
+          c.beginPath(); c.roundRect(-es*0.09,0,es*0.18,es*0.24,3); c.fillStyle=eFill(); c.fill();
+          // Clawed foot
+          for (let ci=0;ci<3;ci++) {
+            c.beginPath(); c.moveTo((ci-1)*es*0.06,es*0.22);
+            c.lineTo((ci-1)*es*0.07+sd*es*0.02,es*0.32);
+            c.strokeStyle=eFill(0.8); c.lineWidth=2.5; c.stroke();
+          }
+          c.restore(); c.restore();
+        }
+        // Massive torso — hunched
+        c.save(); c.translate(0,eBob); c.rotate(0.12*eDir);
+        c.beginPath(); c.roundRect(-es*0.22,-es*0.52,es*0.44,es*0.54,6); c.fillStyle=eFill(); c.fill();
+        // Chest cracks — glowing fissures
+        for (let ci=0;ci<3;ci++) {
+          const cx = (ci-1)*es*0.12;
+          c.beginPath(); c.moveTo(cx,-es*0.44); c.lineTo(cx+es*0.04,-es*0.22); c.lineTo(cx-es*0.02,-es*0.08);
+          c.strokeStyle=eAccent(0.45+Math.sin(eAnim*2+ci)*0.15); c.lineWidth=1.8; c.stroke();
+        }
+        // Huge arms
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.moveTo(sd*es*0.2,-es*0.4);
+          c.bezierCurveTo(sd*es*0.38,-es*0.25+Math.sin(eAnim+sd)*es*0.06, sd*es*0.42,-es*0.05, sd*es*0.34,es*0.14);
+          c.strokeStyle=eFill(0.9); c.lineWidth=es*0.13; c.stroke();
+          // Knuckles
+          c.beginPath(); c.arc(sd*es*0.34,es*0.14,es*0.068,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
+        }
+        c.restore();
+        // Head — bovine, low-slung, horns
+        c.save(); c.translate(0,-es*0.48+eBob);
+        c.beginPath(); c.ellipse(0,0,es*0.19,es*0.155,0.12*eDir,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
+        // Horns
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.moveTo(sd*es*0.14,-es*0.08);
+          c.bezierCurveTo(sd*es*0.26,-es*0.22, sd*es*0.28,-es*0.38, sd*es*0.18,-es*0.44);
+          c.strokeStyle=eFill(0.88); c.lineWidth=es*0.065; c.stroke();
+        }
+        // Eyes
+        for (let sd=-1;sd<=1;sd+=2) {
+          c.beginPath(); c.arc(sd*es*0.075,-es*0.02,es*0.04,0,Math.PI*2);
+          c.fillStyle=eAccent(0.9+Math.sin(eAnim*2.5)*0.08); c.fill();
+        }
+        c.restore();
+      }
+
+      c.restore(); // globalAlpha, translate, scale
+    }
   }
 
   k.x+=k.velX; k.x=Math.max(s*1.8,Math.min(W-s*1.8,k.x));
   const groundY=cinWaveYAt(k.x,W,waveData,waveFloor,waveAmp);
   k.y+=(groundY-k.y)*0.04;
 
+  const isMoving  = k.state==='walk'||k.state==='run'||k.state==='patrol'||k.state==='combat';
+  const isSitting = k.state==='sit'||k.state==='look'||k.state==='pray'||k.state==='kneel'||k.state==='rise'||k.state==='rest';
+
   // Footstep puffs
   if (isMoving && Math.random()<0.2) k.puffs.push({x:k.x-k.dir*s*0.15,y:k.y,alpha:0.5,size:s*0.18,vy:-0.5});
   k.puffs=k.puffs.filter(p=>p.alpha>0.01);
   k.puffs.forEach(p=>{p.y+=p.vy;p.vy*=0.95;p.size+=0.6;p.alpha*=0.87;c.beginPath();c.arc(p.x,p.y,p.size,0,Math.PI*2);c.fillStyle=`rgba(${R},${Math.floor(G*0.5)},${B},${p.alpha*0.28})`;c.fill();});
 
-  const swordTarget = k.state==='run' ? 0.9 : (isMoving ? 0.45 : 0.2);
+  // Sword angle: driven by strikeSwing in combat, guardRaised in prowl/drift, slow otherwise
+  const swordTarget = (k.state==='strike')  ? (0.3 + k.strikeSwing * 1.4)
+                    : (k.state==='combat')   ? (0.5 + k.guardRaised * 0.4)
+                    : (k.state==='patrol')   ? (0.3 + k.guardRaised * 0.35)
+                    : isMoving ? 0.35 : 0.15;
   k.swordAngle += (swordTarget - k.swordAngle) * 0.11;
 
   // All coordinates relative to kx, ky (feet position)
   const kx=k.x, ky=k.y, d=k.dir;
-  const legSwing   = isMoving ? Math.sin(k.anim*2.4) : 0;
-  const bob        = isMoving ? Math.abs(Math.sin(k.anim*2.4))*s*0.04 : Math.sin(k.breathPhase)*s*0.012;
-  const runLean    = isMoving ? d*s*0.035*(k.state==='run'?1.4:0.7) : 0;
+  // Animate speed tuned per state
+  const animRate   = k.state==='combat'||k.state==='strike' ? 2.6 + (leg.aggression||0.5)*0.4
+                   : k.state==='patrol' ? 1.5 + (leg.aggression||0.5)*0.3
+                   : k.state==='run'    ? 2.4 : 2.4;
+  const legSwing   = isMoving ? Math.sin(k.anim * animRate) : 0;
+  const bob        = isMoving ? Math.abs(Math.sin(k.anim * animRate))*s*0.04
+                              : Math.sin(k.breathPhase)*s*0.012;
+  // Stagger: jolt body opposite to dir
+  const staggerLean = k.staggerTimer > 0 ? -d * s * 0.045 * (k.staggerTimer / 14) : 0;
+  const runLean    = isMoving ? d*s*0.035*(k.state==='run'?1.4:k.state==='combat'?1.1:0.55) + staggerLean
+                              : staggerLean;
   const capeSin    = Math.sin(k.capeWave);
-  const capeSpd    = isMoving ? (k.state==='run'?1.0:0.55) : 0.12;
+  const capeSpd    = k.state==='run'   ? 1.0
+                   : k.state==='combat'||k.state==='strike' ? 0.75 + (leg.aggression||0.5)*0.15
+                   : k.state==='patrol' ? 0.38 + (leg.glory||0.3)*0.12
+                   : isMoving ? 0.45 : 0.12;
 
   // Helper: draw filled shape
   const fill = (col) => { c.fillStyle=col; c.fill(); };
@@ -6115,17 +7089,28 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
   // ── shadow
   c.beginPath(); c.ellipse(kx, ky, s*0.55, s*0.08, 0, 0, Math.PI*2); fill('rgba(0,0,0,0.4)');
 
+  // ── Wound flash — brief red bloom on taking a new wound
+  if (k.woundFlash > 0.01) {
+    const wfg = c.createRadialGradient(kx, ky-s*0.4, 0, kx, ky-s*0.3, s*0.7);
+    wfg.addColorStop(0, `rgba(220,20,20,${k.woundFlash * 0.55})`);
+    wfg.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = wfg; c.beginPath(); c.arc(kx, ky-s*0.3, s*0.7, 0, Math.PI*2); c.fill();
+  }
+
   if (isSitting) {
     // ─── SEATED ───────────────────────────────────────────────────────
     const bx=kx+runLean, by=ky-s*0.3+bob; // body origin
 
-    // Cape
+    // Cape — mood tinted to match walking cape
+    const scRMul = leg.mood==='tragic'?0.52:leg.mood==='triumphant'?0.70:leg.mood==='arcane'?0.46:0.60;
+    const scGMul = leg.mood==='tragic'?0.44:leg.mood==='triumphant'?0.58:leg.mood==='arcane'?0.36:0.52;
+    const scBMul = leg.mood==='tragic'?0.50:leg.mood==='triumphant'?0.66:leg.mood==='arcane'?0.70:0.58;
     c.beginPath();
     c.moveTo(bx+d*s*0.1, by-s*0.22);
     c.bezierCurveTo(bx-d*s*0.16, by-s*0.18, bx-d*s*0.32+capeSin*s*0.05, by+s*0.1, bx-d*s*0.08, by+s*0.3);
     c.lineTo(bx+d*s*0.05, by+s*0.1);
     c.closePath();
-    fill(`rgba(${Math.max(0,R-38)},${Math.max(0,G-28)},${Math.max(0,B-14)},0.88)`);
+    fill(`rgba(${Math.floor(Math.max(0,R*scRMul))},${Math.floor(Math.max(0,G*scGMul))},${Math.floor(Math.max(0,B*scBMul))},0.90)`);
 
     // Thigh
     c.beginPath(); c.roundRect(bx+d*s*0.04-s*0.12, by+s*0.02, s*0.22, s*0.16, 3); fill('rgba(36,33,48,0.95)');
@@ -6177,19 +7162,129 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     c.beginPath(); c.moveTo(hx-s*0.06,hy-s*0.14); c.bezierCurveTo(hx-s*0.05,hy-s*0.3,hx+s*0.05,hy-s*0.3,hx+s*0.06,hy-s*0.14); c.closePath();
     c.fillStyle=crg; c.fill();
 
+    // ── Wound dents on helm — scratches etched by accumulated damage
+    if (k.wounds > 0) {
+      c.save(); c.translate(hx, hy);
+      // Each wound adds a dent scratch line using a seeded position
+      for (let wi = 0; wi < k.wounds; wi++) {
+        const wx = (wi === 0 ? 0.06 : wi === 1 ? -0.04 : 0.09) * s * d;
+        const wy = (wi === 0 ? -0.08 : wi === 1 ? -0.04 : -0.01) * s;
+        const wlen = (0.06 + wi * 0.02) * s;
+        const wang = wi === 0 ? 0.4 : wi === 1 ? -0.6 : 0.1;
+        c.beginPath();
+        c.moveTo(wx - Math.cos(wang)*wlen*0.5, wy - Math.sin(wang)*wlen*0.5);
+        c.lineTo(wx + Math.cos(wang)*wlen*0.5, wy + Math.sin(wang)*wlen*0.5);
+        c.strokeStyle = `rgba(${R},${Math.floor(G*0.4)},${B},${0.28 + wi*0.12})`;
+        c.lineWidth = 1.2; c.stroke();
+      }
+      c.restore();
+    }
+
+    // ── Idle micro-animations (weightshift, swordtap, horizoncheck, kneeadjust)
+    if (k.idleAction && k.state === 'sit') {
+      const iT = Math.min(1, k.idleActionTimer / 45); // 0→1 ease in
+      const iOut = k.idleActionTimer > 60 ? Math.max(0, 1-(k.idleActionTimer-60)/25) : 1; // ease out
+      const iBlend = iT * iOut;
+
+      if (k.idleAction === 'weightshift') {
+        // Torso leans slightly, shoulder dips
+        c.save(); c.translate(bx, by-s*0.14);
+        c.rotate(d * iBlend * 0.08);
+        c.beginPath(); c.roundRect(-s*0.07, -s*0.16, s*0.14, s*0.16, 3);
+        fill(`rgba(${Math.floor(R*0.38+32)},${Math.floor(G*0.24+22)},${Math.floor(B*0.32+20)},${0.5*iBlend})`);
+        c.restore();
+      } else if (k.idleAction === 'swordtap') {
+        // Gauntlet taps pommel — small vertical bob
+        const tapBob = Math.sin(k.idleActionTimer * 0.35) * s * 0.04 * iBlend;
+        c.save(); c.translate(bx+d*s*0.14, by-s*0.05+tapBob);
+        c.beginPath(); c.arc(0, 0, s*0.055, 0, Math.PI*2);
+        fill(`rgba(${Math.floor(R*0.52+34)},${Math.floor(G*0.36+22)},${Math.floor(B*0.44+16)},${0.55*iBlend})`);
+        c.restore();
+      } else if (k.idleAction === 'horizoncheck') {
+        // Head turns — redraw with rotation
+        c.save(); c.translate(hx, hy);
+        c.rotate(d * iBlend * 0.22);
+        c.beginPath(); c.arc(0, 0, s*0.155, 0, Math.PI*2);
+        const hgid=c.createRadialGradient(d*s*0.04,-s*0.04,0,0,0,s*0.155);
+        hgid.addColorStop(0,'rgba(56,52,70,0.98)'); hgid.addColorStop(1,'rgba(22,20,34,0.96)');
+        c.fillStyle=hgid; c.fill();
+        c.restore();
+      } else if (k.idleAction === 'kneeadjust') {
+        // Boot taps — small shift
+        const kaBob = Math.sin(k.idleActionTimer * 0.25) * s * 0.03 * iBlend;
+        c.beginPath(); c.roundRect(bx+d*s*0.1, by+s*0.22+kaBob, s*0.2, s*0.1, 3);
+        fill('rgba(24,22,32,0.85)');
+      }
+    }
+
+    // ── PRAY pose overlay — hands pressed together, head bowed ─────────
+    if (k.state === 'pray') {
+      const bowFrac = Math.min(1, k.stateTimer / 30); // 0→1 bow-in
+      const bowAng  = bowFrac * 0.38;
+      // Redraw head bowed
+      c.save(); c.translate(bx, by - s * 0.28); c.rotate(bowAng);
+      c.beginPath(); c.arc(d*s*0.05, -s*0.36+bob*0.4, s*0.155, 0, Math.PI*2);
+      const hgp=c.createRadialGradient(d*s*0.08,-s*0.4,0,d*s*0.05,-s*0.36,s*0.155);
+      hgp.addColorStop(0,'rgba(54,50,68,0.98)'); hgp.addColorStop(1,'rgba(22,20,34,0.96)');
+      c.fillStyle=hgp; c.fill();
+      c.restore();
+      // Praying hands in front
+      c.save(); c.translate(bx + d*s*0.08, by - s*0.1 + bob);
+      const prayBob = Math.sin(k.breathPhase) * s * 0.018;
+      c.beginPath(); c.roundRect(-s*0.042, -s*0.06 + prayBob, s*0.084, s*0.14, 3);
+      fill(`rgba(${Math.floor(R*0.38+26)},${Math.floor(G*0.24+18)},${Math.floor(B*0.32+14)},0.9)`);
+      // Glow between palms
+      const pg = c.createRadialGradient(0, 0, 0, 0, 0, s*0.08);
+      pg.addColorStop(0, `rgba(${R},${Math.floor(G*0.6)},${B},${0.28 * bowFrac})`);
+      pg.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle=pg; c.beginPath(); c.arc(0, prayBob, s*0.08, 0, Math.PI*2); c.fill();
+      c.restore();
+    }
+
+    // ── KNEEL pose overlay — one knee down, head lowered ──────────────
+    if (k.state === 'kneel' || k.state === 'rise') {
+      const riseT  = k.state === 'rise' ? Math.min(1, k.stateTimer / 90) : 0;
+      const kneelT = k.state === 'kneel' ? Math.min(1, k.stateTimer / 40) : 1 - riseT;
+      // Drop the whole figure lower as they kneel
+      const dropY  = kneelT * s * 0.22;
+      // Extended front knee on ground
+      c.save(); c.translate(bx + d*s*0.12, by - dropY * 0.5);
+      c.beginPath(); c.ellipse(0, 0, s * 0.1, s * 0.072, 0, 0, Math.PI * 2);
+      fill(`rgba(${Math.floor(R*0.42+28)},${Math.floor(G*0.27+17)},${Math.floor(B*0.34+13)},0.88)`);
+      c.restore();
+      // Sword tip resting on ground — blade down
+      c.save(); c.translate(bx + d*s*0.18, by + s*0.04 - dropY);
+      c.rotate(d * (0.14 - riseT * 0.25));
+      c.beginPath(); c.roundRect(-s*0.016, -s*0.55, s*0.032, s*0.55, 1);
+      const kbg = c.createLinearGradient(0, -s*0.55, 0, 0);
+      kbg.addColorStop(0, `rgba(215,225,240,${0.35 + riseT * 0.3})`);
+      kbg.addColorStop(1, 'rgba(152,158,182,0.55)');
+      c.fillStyle = kbg; c.fill();
+      // Crossguard
+      c.beginPath(); c.roundRect(-s*0.1, -s*0.04, s*0.2, s*0.036, 3);
+      fill(`rgba(${Math.floor(R*0.52+34)},${Math.floor(G*0.36+22)},${Math.floor(B*0.44+16)},0.85)`);
+      c.restore();
+    }
+
   } else {
     // ─── WALKING / RUNNING ────────────────────────────────────────────
     const bx=kx+runLean, by=ky-bob; // body origin at feet level
 
-    // ── Cape
+    // ── Cape — color tinted by legend mood
+    // Tragic: heavy dark grey-green. Triumphant: rich zone color. Arcane: deep violet.
+    const capeRMul = leg.mood==='tragic'    ? 0.55 : leg.mood==='triumphant' ? 0.72 : leg.mood==='arcane' ? 0.48 : 0.62;
+    const capeGMul = leg.mood==='tragic'    ? 0.48 : leg.mood==='triumphant' ? 0.60 : leg.mood==='arcane' ? 0.38 : 0.54;
+    const capeBMul = leg.mood==='tragic'    ? 0.52 : leg.mood==='triumphant' ? 0.68 : leg.mood==='arcane' ? 0.72 : 0.60;
+    // Boss step: cape pulses brighter on beat
+    const capeBossPulse = isKnightBoss ? CIN.smoothBass * 0.18 : 0;
     const cLen=s*(0.5+capeSpd*0.35), cBulge=capeSin*s*capeSpd*0.22;
     c.beginPath();
     c.moveTo(bx-d*s*0.04, by-s*0.34);
     c.bezierCurveTo(bx-d*s*0.12+cBulge*0.3, by-s*0.18, bx-d*s*0.28+cBulge, by+s*0.05, bx-d*s*0.2+cBulge*0.8, by-s*0.5+cLen);
     c.lineTo(bx-d*s*0.04, by+s*0.04); c.closePath();
     const cg=c.createLinearGradient(bx-d*s*0.3,by,bx,by);
-    cg.addColorStop(0,`rgba(${Math.max(0,R-34)},${Math.max(0,G-24)},${Math.max(0,B-11)},0.87)`);
-    cg.addColorStop(1,'rgba(18,14,24,0.7)');
+    cg.addColorStop(0,`rgba(${Math.floor(Math.max(0,R*capeRMul+capeBossPulse*R))},${Math.floor(Math.max(0,G*capeGMul))},${Math.floor(Math.max(0,B*capeBMul))},0.90)`);
+    cg.addColorStop(1,'rgba(14,11,20,0.72)');
     c.fillStyle=cg; c.fill();
 
     // ── Back leg (opposite swing)
@@ -6227,9 +7322,10 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
       c.restore();
     }
 
-    // ── Shield arm (back)
-    const sax=bx-d*s*0.12, say=by-s*0.26+legSwing*s*0.06;
-    c.save(); c.translate(sax,say); c.rotate(-d*legSwing*0.16);
+    // ── Shield arm (back) — raises higher in combat guard
+    const guardLift  = k.guardRaised * s * 0.12;
+    const sax=bx-d*s*0.12, say=by-s*0.26+legSwing*s*0.06 - guardLift;
+    c.save(); c.translate(sax,say); c.rotate(-d*legSwing*0.16 - k.guardRaised*0.35);
     c.beginPath(); c.roundRect(-s*0.05,-s*0.04,s*0.1,s*0.19,2); fill('rgba(32,29,44,0.9)');
     c.save(); c.translate(0,s*0.17); c.rotate(d*legSwing*0.08);
     c.beginPath(); c.roundRect(-s*0.044,0,s*0.088,s*0.16,2); fill('rgba(28,26,40,0.88)');
@@ -6244,11 +7340,16 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     c.beginPath(); c.arc(0,s*0.02,s*0.05,0,Math.PI*2); fill(`rgba(${R},${Math.floor(G*0.72)},${B},0.55)`);
     c.restore(); c.restore(); c.restore();
 
-    // ── Sword arm (front)
-    const wax=bx+d*s*0.12, way=by-s*0.27-legSwing*s*0.06;
-    c.save(); c.translate(wax,way); c.rotate(d*legSwing*0.18);
+    // ── Sword arm (front) — strike swing overrides normal walk swing
+    const isCombatState = k.state==='combat'||k.state==='strike';
+    // In strike: arm swings up (wind-up) then slashes forward+down
+    const strikeArmAng = isCombatState ? -d * k.strikeSwing * 1.2 : d * legSwing * 0.18;
+    const strikeArmY   = isCombatState ? by - s*0.27 - k.strikeSwing * s * 0.14 : by-s*0.27-legSwing*s*0.06;
+    const wax=bx+d*s*0.12, way=strikeArmY;
+    c.save(); c.translate(wax,way); c.rotate(strikeArmAng);
     c.beginPath(); c.roundRect(-s*0.052,-s*0.04,s*0.104,s*0.2,2); fill('rgba(34,31,48,0.93)');
-    c.save(); c.translate(0,s*0.18); c.rotate(-d*legSwing*0.12);
+    const foreArmRot = isCombatState ? d * k.strikeSwing * 0.5 : -d*legSwing*0.12;
+    c.save(); c.translate(0,s*0.18); c.rotate(foreArmRot);
     c.beginPath(); c.roundRect(-s*0.046,0,s*0.092,s*0.18,2); fill('rgba(30,28,44,0.9)');
     // Gauntlet
     c.beginPath(); c.roundRect(-s*0.054,s*0.14,s*0.108,s*0.09,2); fill(`rgba(${Math.floor(R*0.35+22)},${Math.floor(G*0.23+15)},${Math.floor(B*0.3+13)},0.88)`);
@@ -6270,8 +7371,14 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     c.beginPath(); c.moveTo(-s*0.022,0); c.lineTo(s*0.022,0); c.lineTo(s*0.008,-bl); c.lineTo(-s*0.008,-bl); c.closePath(); c.fillStyle=blg; c.fill();
     // Gleam
     c.beginPath(); c.moveTo(-s*0.014,0); c.lineTo(-s*0.006,0); c.lineTo(-s*0.002,-bl); c.lineTo(-s*0.01,-bl); c.closePath(); fill(`rgba(255,255,255,${0.22+CIN.smoothEnergy*0.32})`);
-    // Zone glow on run
-    if(k.state==='run'){const bg=c.createLinearGradient(0,0,0,-bl);bg.addColorStop(0,`rgba(${R},${G},${B},0)`);bg.addColorStop(1,`rgba(${R},${G},${B},${0.48+CIN.smoothBass*0.38})`);c.beginPath();c.roundRect(-s*0.018,-bl,s*0.036,bl,2);c.fillStyle=bg;c.fill();}
+    // Zone glow on combat/strike/run — blazes on knight's personal boss step
+    if(k.state==='run'||k.state==='combat'||k.state==='strike'||isKnightBoss){
+      const glowAmt = isKnightBoss ? 0.62+CIN.smoothBass*0.28 : 0.44+CIN.smoothBass*0.28;
+      const bg=c.createLinearGradient(0,0,0,-bl);
+      bg.addColorStop(0,`rgba(${R},${G},${B},0)`);
+      bg.addColorStop(1,`rgba(${R},${G},${B},${glowAmt})`);
+      c.beginPath();c.roundRect(-s*0.018,-bl,s*0.036,bl,2);c.fillStyle=bg;c.fill();
+    }
     c.restore(); c.restore(); c.restore();
 
     // ── Front leg
@@ -6285,29 +7392,70 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     c.beginPath(); c.ellipse(d*s*0.07,s*0.23,s*0.06,s*0.048,0,0,Math.PI*2); fill('rgba(20,18,30,0.98)');
     c.restore(); c.restore();
 
-    // ── Head
-    const hx=bx+d*s*0.04, hy=by-s*0.47;
+    // ── Head — position shifted by mood: grief bows, glory raises, arcane tilts
+    const headBow    = (leg.grief||0.3)   * 0.025 * s * (k.state==='patrol' ? 1.0 : 0.4);
+    const headLift   = (leg.glory||0.3)   * 0.018 * s;
+    const headTiltX  = leg.mood==='arcane' ? d * s * 0.012 : 0;
+    const hx=bx+d*s*0.04+headTiltX, hy=by-s*0.47+headBow-headLift;
     // Neck gorget
     c.beginPath(); c.roundRect(hx-s*0.056,hy+s*0.1,s*0.112,s*0.1,2); fill('rgba(24,22,36,0.96)');
-    // Helm
+    // Helm — slightly different shade per mood
+    const helmBright = leg.mood==='triumphant' ? 62 : leg.mood==='tragic' ? 44 : 56;
     const hg2=c.createRadialGradient(hx+d*s*0.04,hy-s*0.05,0,hx,hy,s*0.168);
-    hg2.addColorStop(0,'rgba(56,52,72,0.98)'); hg2.addColorStop(1,'rgba(22,20,36,0.96)');
+    hg2.addColorStop(0,`rgba(${helmBright},${helmBright-4},${helmBright+12},0.98)`); hg2.addColorStop(1,'rgba(22,20,36,0.96)');
     c.beginPath(); c.arc(hx,hy,s*0.168,0,Math.PI*2); c.fillStyle=hg2; c.fill();
     // Cheeks
     for(let sd=-1;sd<=1;sd+=2){c.beginPath();c.roundRect(hx+sd*s*0.1,hy-s*0.08,s*0.072,s*0.12,2);fill('rgba(30,28,44,0.9)');}
+    // Wound dents — scratches accumulate on helm from stagger damage
+    if (k.wounds > 0) {
+      c.save(); c.translate(hx, hy);
+      for (let wi = 0; wi < k.wounds; wi++) {
+        const wx = (wi===0?0.07:wi===1?-0.05:0.10)*s*d;
+        const wy = (wi===0?-0.09:wi===1?-0.04:0.02)*s;
+        const wlen = (0.07+wi*0.025)*s;
+        const wang = wi===0?0.35:wi===1?-0.55:0.15;
+        c.beginPath();
+        c.moveTo(wx-Math.cos(wang)*wlen*0.5, wy-Math.sin(wang)*wlen*0.5);
+        c.lineTo(wx+Math.cos(wang)*wlen*0.5, wy+Math.sin(wang)*wlen*0.5);
+        c.strokeStyle=`rgba(${R},${Math.floor(G*0.3)},${B},${0.25+wi*0.1})`;
+        c.lineWidth=1.4; c.stroke();
+      }
+      c.restore();
+    }
     // Bevor
     c.beginPath(); c.roundRect(hx-s*0.155,hy+s*0.04,s*0.31,s*0.1,3); fill('rgba(24,22,38,0.96)');
-    // Visor
-    const vi=k.state==='run'?0.72+CIN.smoothBass*0.34:0.46;
-    const vR=k.state==='run'?R:R*0.7+55, vG=k.state==='run'?Math.floor(G*0.78):Math.floor(G*0.52+28), vB=k.state==='run'?B:B*0.72+18;
+    // Visor — glows with zone color in combat; dims with grief; blazes for knightBoss/glory
+    const inCombat = k.state==='run'||k.state==='combat'||k.state==='strike';
+    const visorBase = inCombat ? 0.68 + CIN.smoothBass*0.28 : 0.38;
+    const visorGlory = isKnightBoss ? 0.22 : (leg.glory||0.3) * 0.12;
+    const visorGrief = (leg.grief||0.3) * 0.08;
+    const vi = Math.max(0.22, visorBase + visorGlory - visorGrief);
+    // Tragic: visor dims toward amber-grey. Triumphant: stays zone-pure.
+    const moodTint = leg.mood === 'tragic'   ? 0.42
+                   : leg.mood === 'meditative'? 0.55
+                   : leg.mood === 'arcane'    ? 0.72
+                   : 1.0;
+    const vR = inCombat ? R*moodTint+(1-moodTint)*55 : R*0.7+55;
+    const vG = inCombat ? Math.floor(G*0.78*moodTint+(1-moodTint)*28) : Math.floor(G*0.52+28);
+    const vB = inCombat ? B*moodTint+(1-moodTint)*18 : B*0.72+18;
     c.beginPath(); c.roundRect(hx+d*s*0.02,hy-s*0.026,s*0.124,s*0.04,1); fill(`rgba(${Math.floor(vR)},${Math.floor(vG)},${Math.floor(vB)},${vi})`);
-    if(k.state==='run'){const vbg=c.createRadialGradient(hx+d*s*0.08,hy,0,hx+d*s*0.08,hy,s*0.22);vbg.addColorStop(0,`rgba(${R},${G},${B},${0.28+CIN.smoothBass*0.28})`);vbg.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=vbg;c.beginPath();c.arc(hx+d*s*0.08,hy,s*0.22,0,Math.PI*2);c.fill();}
-    // Crest
-    const cH=s*(0.22+(k.state==='run'?CIN.smoothBass*0.05:0));
-    const cWave=isMoving?Math.sin(k.anim*1.6)*s*0.04:0;
+    // Radial glow — knightBoss makes it blaze regardless of run state
+    if(inCombat || isKnightBoss){
+      const glowR = isKnightBoss ? s*0.32 : s*0.22;
+      const glowA = isKnightBoss ? 0.36+CIN.smoothBass*0.3 : 0.22+CIN.smoothBass*0.22;
+      const vbg=c.createRadialGradient(hx+d*s*0.08,hy,0,hx+d*s*0.08,hy,glowR);
+      vbg.addColorStop(0,`rgba(${R},${G},${B},${glowA})`);
+      vbg.addColorStop(1,'rgba(0,0,0,0)');
+      c.fillStyle=vbg;c.beginPath();c.arc(hx+d*s*0.08,hy,glowR,0,Math.PI*2);c.fill();
+    }
+    // Crest — height driven by glory + depth + boss. Tragic knights have a shorter, heavier crest.
+    const gloryH  = (leg.glory||0.3) * 0.06 + depthT * 0.04;
+    const bossH   = isKnightBoss ? CIN.smoothBass*0.09 : 0;
+    const cH = s*(0.18 + gloryH + bossH + (inCombat ? CIN.smoothBass*0.04 : 0));
+    const cWave = isMoving ? Math.sin(k.anim*1.6)*s*(0.03 + (leg.glory||0.3)*0.025) : 0;
     const crg2=c.createLinearGradient(hx,hy-s*0.14,hx+cWave,hy-s*0.14-cH);
     crg2.addColorStop(0,`rgba(${Math.floor(R*0.62+25)},${Math.floor(G*0.42+14)},${Math.floor(B*0.52+12)},0.76)`);
-    crg2.addColorStop(1,`rgba(${R},${G},${B},${0.58+(k.state==='run'?CIN.smoothBass*0.34:0)})`);
+    crg2.addColorStop(1,`rgba(${R},${G},${B},${0.52 + (leg.glory||0.3)*0.28 + (isKnightBoss?CIN.smoothBass*0.3:0)})`);
     c.beginPath(); c.moveTo(hx-s*0.07,hy-s*0.14); c.bezierCurveTo(hx-s*0.06,hy-s*0.14-cH*0.5,hx+cWave+s*0.04,hy-s*0.14-cH*0.9,hx+cWave,hy-s*0.14-cH); c.bezierCurveTo(hx+cWave-s*0.03,hy-s*0.14-cH*0.85,hx+s*0.02,hy-s*0.14-cH*0.5,hx+s*0.07,hy-s*0.14); c.closePath(); c.fillStyle=crg2; c.fill();
   }
 }
@@ -6813,7 +7961,11 @@ function drawCinematic() {
     cinInitFog(zone, W, H);
     CIN.whispers = [];
     CIN.whisperCooldown = 90;
+    // Preserve legend across zone reset — it belongs to the journey, not the zone
+    const savedLegend = CIN.knight?.legend || null;
     CIN.knight = null; // re-init at new zone's ground level
+    // Re-attach legend immediately after null so cinInitKnight can find it
+    CIN._pendingLegend = savedLegend;
     // Chapter reveal title card
     const subtitles = ZONE_SUBTITLES[zone.name] || [''];
     CIN.chapterReveal = {
