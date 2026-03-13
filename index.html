@@ -1677,6 +1677,16 @@ function startRandomJourney() {
   activeJourneyMood = moodKeys[Math.floor(Math.random() * moodKeys.length)];
   selectJourneyMood(activeJourneyMood);
 
+  // Clear all layers — archetype controls the opening, not leftover state
+  Object.keys(layerOn).forEach(name => {
+    if (layerOn[name]) {
+      layerOn[name] = false;
+      document.getElementById('btn-' + name)?.classList.remove('active');
+      document.getElementById('pill-' + name)?.classList.remove('on');
+      stopLayer(name);
+    }
+  });
+
   const JOURNEY_STEPS = 8;
   const startFloor = parseInt(slider.value);
   let step = 0;
