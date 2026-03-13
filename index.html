@@ -4571,52 +4571,83 @@ function buildBells(preset, intensity, name) {
 
 function buildOrgan(preset, intensity, name) {
   const b = bus[name];
+  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
 
-  const safe = (v, oct) => { const f = CE.chordTone('organ', oct, v); return (f && f > 10) ? f : preset.root * Math.pow(2, oct); };
-  const root  = safe(0, 1);
-  const fifth = safe(2, 1);
-  const third = safe(1, 1);
-
-  // Drawbar configuration — each bar is a separate oscillator
-  // Gains tuned to a dark cathedral registration, not a bright theatre organ
-  const drawbars = [
-    { freq: root * 0.5,  gain: 0.28 }, // 16' — sub fundamental
-    { freq: root,        gain: 0.38 }, // 8'  — unison
-    { freq: root * 2,    gain: 0.22 }, // 4'  — octave
-    { freq: root * 3,    gain: 0.14 }, // 2⅔' — quint
-    { freq: root * 4,    gain: 0.08 }, // 2'  — super octave
-    { freq: fifth,       gain: 0.16 }, // 5th
-    { freq: third,       gain: 0.10 }, // 3rd — adds some warmth
-  ];
-
-  const mix     = mkGain(0.7); mix.connect(b);
-  // Air filter — softens the harsh top end
-  const airFilt = mkFilt(2800 + intensity * 1500, 'lowpass', 0.65);
+  const mix     = mkGain(0.72); mix.connect(b);
+  const airFilt = mkFilt(2600 + intensity * 1400, 'lowpass', 0.6);
   airFilt.connect(mix);
-
-  // Slight overall saturation — gives the organ its characteristic grind
-  const orgSat = ctx.createWaveShaper();
-  orgSat.curve = makeSatCurve(0.18);
+  const orgSat  = ctx.createWaveShaper();
+  orgSat.curve  = makeSatCurve(0.22);
   orgSat.connect(airFilt);
+  reg(name, mix, airFilt, orgSat);
 
-  drawbars.forEach(({ freq, gain: gv }) => {
-    const o = mkOsc(freq, 'sine'); // pure sine drawbars — saturation adds harmonics
+  function playChord(t, holdBars) {
+    const voices = [
+      { voiceIdx: 0, oct: 0 }, // sub root
+      { voiceIdx: 0, oct: 1 }, // root
+      { voiceIdx: 1, oct: 1 }, // third
+      { voiceIdx: 2, oct: 1 }, // fifth
+    ];
+    if (intensity > 0.6) voices.push({ voiceIdx: 3, oct: 1 }); // 7th at high intensity
 
-    // Leslie simulation — two LFOs: slow rotation + faster tremolo
-    // Targets a separate gain node, NOT detune (which caused pitch wobble)
-    const leslieGain = mkGain(gv * (0.4 + intensity * 0.4));
-    const leslieRate = 0.9 + rng() * 0.3; // ~1Hz Leslie slow speed
-    const leslieAmp  = mkOsc(leslieRate, 'sine');
-    const leslieModG = mkGain(gv * 0.08); // subtle — just a shimmer
-    chain(leslieAmp, leslieModG); leslieModG.connect(leslieGain.gain);
+    const attackT  = beat * 1.5;
+    const holdT    = beat * 4 * holdBars;
+    const releaseT = beat * 2.5;
+    const vel      = (0.55 + intensity * 0.35) * (0.82 + rng() * 0.18);
 
-    chain(o, leslieGain, orgSat);
-    leslieAmp.start(); o.start();
-    reg(name, o, leslieGain, leslieAmp, leslieModG);
-  });
+    voices.forEach(({ voiceIdx, oct }) => {
+      const freq = CE.chordTone('organ', oct, voiceIdx);
+      if (!freq || freq < 10) return;
 
-  reg(name, airFilt, mix, orgSat);
+      const bars = [
+        { ratio: 0.5, gv: 0.26 },
+        { ratio: 1,   gv: 0.36 },
+        { ratio: 2,   gv: 0.18 },
+        { ratio: 3,   gv: 0.10 },
+        { ratio: 4,   gv: 0.06 },
+      ];
+      bars.forEach(({ ratio, gv }) => {
+        const o    = mkOsc(freq * ratio, 'sine');
+        const env  = mkGain(0);
+        const lfoA = mkOsc(0.85 + rng() * 0.3, 'sine');
+        const lfoG = mkGain(gv * 0.06);
+        chain(lfoA, lfoG); lfoG.connect(env.gain);
+        chain(o, env, orgSat);
+
+        const peak = gv * vel;
+        env.gain.setValueAtTime(0, t);
+        env.gain.linearRampToValueAtTime(peak, t + attackT);
+        env.gain.setValueAtTime(peak, t + attackT + holdT);
+        env.gain.linearRampToValueAtTime(0.0001, t + attackT + holdT + releaseT);
+
+        lfoA.start(t); o.start(t);
+        o.stop(t + attackT + holdT + releaseT + 0.1);
+        reg(name, o, env, lfoA, lfoG);
+      });
+    });
+  }
+
+  function schedPhrase() {
+    const dense     = currentPhrase === 'climax' || isBoss;
+    const playBars  = dense ? 3 : 2;
+    const restBars  = dense ? 1 : 2;
+    const cycleBars = playBars + restBars;
+    const phraseBars = PHRASE_DURATIONS[currentPhrase] || 8;
+    const cycles    = Math.floor(phraseBars / cycleBars);
+    const phraseDur = phraseBars * beat * 4;
+
+    let t = ctx.currentTime + beat * 0.5;
+    for (let c = 0; c < cycles; c++) {
+      playChord(t + c * cycleBars * beat * 4, playBars);
+    }
+
+    regT(name, setTimeout(schedPhrase, (phraseDur - beat * 0.2) * 1000));
+  }
+
+  schedPhrase();
 }
+
 
 function buildWhispers(preset, intensity, name) {
   const b  = bus[name];
