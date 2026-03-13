@@ -1207,9 +1207,9 @@ const OST_STEPS = [
   { label: 'Bone March',        floor: 30, layers: ['drone','wind','bass','perc'],                                                   duration: 45000, boss: false, phrase: 'build'      },
   { label: 'Tension Builds',    floor: 42, layers: ['drone','bass','perc','wardrums','riser','melody'],                              duration: 50000, boss: false, phrase: 'tension'    },
   { label: 'Shadow Army',       floor: 54, layers: ['drone','bass','perc','wardrums','stomp','melody','choir'],                      duration: 55000, boss: false, phrase: 'climax'     },
-  { label: 'Boss Threshold',    floor: 66, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos'],              duration: 50000, boss: true,  phrase: 'climax'     },
-  { label: 'The Void Tears',    floor: 78, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 55000, boss: true, phrase: 'climax' },
-  { label: 'Infernal Core',     floor: 92, layers: ['drone','bass','perc','wardrums','march','stomp','melody','choir','chaos','glitch','ritualchant'], duration: 60000, boss: true, phrase: 'climax' },
+  { label: 'Boss Threshold',    floor: 66, layers: ['drone','bass','perc','wardrums','stomp','melody','choir'],              duration: 50000, boss: true,  phrase: 'climax'     },
+  { label: 'The Void Tears',    floor: 78, layers: ['drone','bass','perc','wardrums','stomp','melody','choir','ritualchant'], duration: 55000, boss: true, phrase: 'climax' },
+  { label: 'Infernal Core',     floor: 92, layers: ['drone','bass','perc','wardrums','march','stomp','melody','choir','ritualchant'], duration: 60000, boss: true, phrase: 'climax' },
   { label: 'Ashes',             floor: 92, layers: ['drone','heartbeat','bells'],                                                    duration: 40000, boss: false, phrase: 'resolution' },
 ];
 
@@ -1639,7 +1639,7 @@ function startRandomJourney() {
         }
       });
     
-      const layerOrder = ['drone','bass','heartbeat','organ','choir','lute','melody','bells','whispers','riser','wind','firecrackle','perc','wardrums','march','stomp','chains','horn','chaos','glitch','ritualchant'];
+      const layerOrder = ['drone','bass','heartbeat','organ','choir','lute','melody','bells','whispers','riser','wind','firecrackle','perc','wardrums','march','stomp','chains','horn','ritualchant'];
       const toStartList = [...toEnable].sort((a, b) => layerOrder.indexOf(a) - layerOrder.indexOf(b)).filter(name => name in layerOn && !layerOn[name]);
       toStartList.forEach((name, i) => {
         setTimeout(() => {
