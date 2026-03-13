@@ -999,7 +999,7 @@ function tickBar() {
     const t       = Math.min(1, elapsed / xfade.totalBars);
     const e       = 1 - Math.pow(1 - t, 3); // ease-out cubic
     const newBpm  = xfade.bpmStart + (xfade.bpmEnd - xfade.bpmStart) * e;
-    barLength     = (60 / newBpm) * 4;
+    if (!bpmLocked) barLength = (60 / newBpm) * 4;
 
     // Update drone nodes live
     if (xfade.fromZone && xfade.toZone) {
@@ -1015,7 +1015,7 @@ function tickBar() {
 
     if (t >= 1) {
       xfade.active  = false;
-      barLength     = (60 / xfade.bpmEnd) * 4;
+      if (!bpmLocked) barLength = (60 / xfade.bpmEnd) * 4;
     }
   }
 
@@ -1953,7 +1953,7 @@ const ZONES = [
 ];
 
 function getZone(f)      { return ZONES.find(z => f >= z.range[0] && f <= z.range[1]) || ZONES[ZONES.length-1]; }
-function getIntensity(f) { return Math.min(1, (f - 1) / 50); }
+function getIntensity(f) { return Math.min(1, (f - 1) / 98); }
 function getScale(preset) {
   if (activeScaleId === 'zone') return preset.scale;
   const s = SCALES.find(s => s.id === activeScaleId);
