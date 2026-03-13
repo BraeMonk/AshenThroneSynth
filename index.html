@@ -5581,16 +5581,149 @@ const CIN = {
   flashAlpha: 0,
 };
 
-// Per-zone narrative whisper lines
+// Per-zone narrative whisper lines — deep lore, fragments, voices of the dead
 const ZONE_WHISPERS = {
-  'Ashen Fields':    ['the war is over', 'nothing grows here', 'ash and silence', 'they all fell here', 'do not look back', 'the drums have stopped', 'walk quickly'],
-  'Rotwood Forest':  ['it knows you are here', 'the trees remember', 'eyes between the bark', 'do not stray from the path', 'something breathes', 'old roots drink deep', 'turn around'],
-  'Catacombs Deep':  ['they never left', 'bone remembers flesh', 'the dark is listening', 'hundreds of names, forgotten', 'the walls close slowly', 'breathe shallow', 'you are not alone'],
-  'Shadowmere':      ['the veil thins here', 'wraiths walk beside you', 'cold to the marrow', 'they were once like you', 'do not speak their names', 'light cannot hold'],
-  "Sorcerer's Veil": ['the spell unravels', 'reality bends', 'arcane residue burns', 'what you see is not real', 'the formula is incomplete', 'the old tongue whispers back'],
-  'Obsidian Keep':   ['iron rusts in blood', 'the keep will not fall', 'war does not end here', 'stone remembers the siege', 'the garrison still marches', 'dread holds the walls'],
-  'Void Spire':      ['the spire goes up forever', 'do not look down', 'you are very small', 'the void looks back', 'gravity falters', 'the stars are wrong here'],
-  'Infernal Core':   ['it is too late', 'the heat is a living thing', 'everything burns eventually', 'you should not be here', 'the core remembers nothing', 'turn back', 'there is no turning back'],
+  'Ashen Fields': [
+    'the battle lasted nine days. on the tenth, silence.',
+    'General Varek ordered the burning. no one questioned him.',
+    'they said the ash would settle. it never did.',
+    'I buried my brother here. I cannot remember where.',
+    'the crows stopped coming on the third year',
+    'we won. and yet.',
+    'Valdren was born in a city that no longer exists',
+    'the fields were green once. children played here.',
+    'the last soldier to leave was the first to return as something else',
+    'do not breathe the gray dust',
+    'there was a village called Emrath. the maps no longer show it.',
+    'the drums you hear are not drums',
+    'eleven thousand names are carved beneath the ash. no one knows whose hands carved them.',
+    'they marched east and did not return. that was the army. the kingdom followed.',
+    'something was buried here intentionally. something was buried here by accident.',
+    'the war ended when Aldric stopped caring who won',
+  ],
+  'Rotwood Forest': [
+    'the forest grew over the road in a single season',
+    'woodcutters came here. their axes came back without them.',
+    'the rot began at the heart of the oldest tree and spread outward. it is still spreading.',
+    'Sister Mara followed the sound of a child crying for three days. she did not find a child.',
+    'these are not trees. they were trees once.',
+    'the soil here is too dark. it should not be this dark.',
+    'a ranger named Oswin mapped these woods. his map leads in circles.',
+    'the birds do not sing. they mimic the sounds of things that used to sing.',
+    'something learned to walk upright in these woods. it is still practicing.',
+    'roots grow toward heat. toward breath. toward the living.',
+    'you are not lost. the forest knows exactly where you are.',
+    'they say the woodcutter\'s guild abandoned this territory after the Hushing. no one explains what the Hushing was.',
+    'the smell of rot here is not decay. it is digestion.',
+    'my father came here hunting. he came back speaking a language no one recognized.',
+    'the canopy blocks the stars. something about that feels deliberate.',
+  ],
+  'Catacombs Deep': [
+    'there are more bones here than the city ever had people',
+    'the builders were entombed with their work. this was considered an honor.',
+    'Priest-Warden Heloise sealed the lower gates from the inside',
+    'some of the inscriptions are not in any known language. some of them are in yours.',
+    'the dead here do not decompose. they wait.',
+    'seventeen expeditions mapped these tunnels. no two maps agree.',
+    'the silence is not absence. it is pressure.',
+    'someone has been maintaining the torches. they have been doing so for over a century.',
+    'the bones have been arranged. not scattered. arranged.',
+    'a child\'s shoe was found in the deepest chamber. the chamber was sealed in the third age.',
+    'you are breathing the exhalations of the dead',
+    'the catacomb extends further than the city above it. much further.',
+    'one of the bodies here is still warm. it has been still warm for forty years.',
+    'the stone hums at a frequency that makes the teeth ache',
+    'Count Aldric had three hundred prisoners sealed in the lower vaults. he said it was mercy.',
+    'the inscriptions on the lowest level are written from the inside of the wall',
+  ],
+  'Shadowmere': [
+    'the veil between worlds is thinnest at midnight. it is always midnight here.',
+    'wraiths do not haunt places. they haunt regrets.',
+    'Lady Serevane refused to die. she is still refusing.',
+    'the cold you feel is not temperature. it is absence.',
+    'do not speak to the shadows that have faces. do not ignore the ones that do not.',
+    'time moves differently here. you will not notice until you leave.',
+    'the wraiths were human once. some of them remember.',
+    'a philosopher named Durn spent seven years studying the veil. his notes describe things that cannot exist. his final note is a single word repeated: yes.',
+    'the fog carries voices. the voices are asking for something. they have forgotten what.',
+    'something here watches without eyes',
+    'the wraith at the eastern gate was a cartographer in life. it still tries to draw maps.',
+    'those who die here do not leave',
+    'the boundary between Shadowmere and the living world was not always here. it was moved.',
+    'you are already colder than you were a moment ago',
+    'Valdren passed through here once and did not speak of it afterward',
+    'the silver in your pocket will turn black before you reach the other side',
+  ],
+  "Sorcerer's Veil": [
+    'the experiment was not a failure. it was not a success. it was something that does not have a name yet.',
+    'Archmage Lorethian tore a hole in the world and spent thirty years trying to sew it shut',
+    'the formulae on the walls are still active. do not read them aloud.',
+    'magic leaves residue. this place is nothing but residue.',
+    'the apprentices who worked here are gone. the work continues without them.',
+    'reality is thinner here than parchment',
+    'the shimmer you see is not light. it is the boundary of what is real.',
+    'three separate timelines intersect in this chamber. you are standing in all of them.',
+    'someone solved the unsolvable equation in this room. it did not go well for them.',
+    'the books here rewrite themselves. the spells rewrite the reader.',
+    'every surface in this place is a mirror of something that does not exist yet',
+    'Aldric commissioned this research. he received the findings and burned them. the knowledge remained.',
+    'the symbols carved here predate the civilization that built this keep by two thousand years',
+    'a mage named Caelix tried to unravel the veil. the veil unraveled him instead.',
+    'you can hear two conversations happening simultaneously. one of them is yours, from the past. one is yours from the future.',
+  ],
+  'Obsidian Keep': [
+    'the keep has never been taken by siege. it has been taken from within. twice.',
+    'the garrison was three thousand strong. the garrison is still three thousand strong.',
+    'every stone in this keep was quarried by prisoners. the prisoners are still here in a sense.',
+    'Iron-Lord Cassel held this keep for forty years without reinforcement',
+    'the war that built this fortress has no official end date',
+    'the black stone bleeds when carved. the builders learned to work quickly.',
+    'Aldric visited this keep once and left the same day. the commander was replaced the next morning.',
+    'the portcullis has not been raised in sixty years. something sealed it from above.',
+    'the barracks still smell of fires that have not burned in decades',
+    'the soldiers who died defending this keep were interred in the walls. you can sometimes hear them shift.',
+    'this is not a fortress designed to keep enemies out. the outer walls face inward.',
+    'blood does not dry on obsidian. it stays wet. indefinitely.',
+    'the garrison follows orders from a commander who died seven years ago. no one has told them.',
+    'a flag still flies from the eastern tower. no living hand has touched it in a generation.',
+  ],
+  'Void Spire': [
+    'the spire was not built. it grew.',
+    'the architects who designed this place went mad at the same moment, in separate cities, three hundred miles apart',
+    'gravity is a suggestion here. the spire does not accept suggestions.',
+    'something at the top of the spire is broadcasting. no one knows to whom.',
+    'the void does not look at you. the void is you looking at yourself from outside.',
+    'those who fall from the spire do not land',
+    'the stars visible from the upper levels are not in the sky. they are below the horizon.',
+    'a scholar counted the steps to the top. each time she counted, the number was different.',
+    'the spire hums in a key that has no name in music theory',
+    'Valdren climbed to the seventh level and saw something that changed the direction of the entire war',
+    'matter behaves differently above the fourth level. so does thought.',
+    'the void is not empty. the void is full of something that has not happened yet.',
+    'there are rooms in this spire that do not appear on any floor',
+    'the window on the eastern face looks out onto a landscape that does not match the surrounding territory',
+    'Aldric built this. or summoned it. the distinction may not matter.',
+    'those who reach the top do not come back. those who come back did not reach the top.',
+  ],
+  'Infernal Core': [
+    'the heat here is alive. it knows you are burning.',
+    'Aldric is below. he has always been below.',
+    'the core was not always fire. it was once a heart.',
+    'everything that has ever burned in this dungeon ends up here eventually',
+    'the ash you breathe contains the remains of languages that no longer exist',
+    'there is no way out from this level. there was never meant to be.',
+    'the final inscription reads: I made this place. I am proud of nothing.',
+    'the heat does not come from below. it comes from within.',
+    'Valdren reached this level on the night of the eclipse. what happened next is not recorded.',
+    'the screaming you hear is structural. the stone itself is in pain.',
+    'Aldric did not fall into darkness. he invited it in.',
+    'the core remembers every soul that passed through it. it will remember yours.',
+    'you are at the bottom of everything. everything that ever fell is here with you.',
+    'the final door has no lock. it has no handle. it opens from the other side.',
+    'this was the throne room. the throne is gone. something else sits here now.',
+    'there is one survivor from the last expedition. they will not speak. they draw the same symbol over and over.',
+    'you should not be here. you were always going to be here.',
+  ],
 };
 
 function cinInitEmbers(zone, W, H) {
@@ -5801,27 +5934,34 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
   // ── 10. WHISPER TEXT
   if (CIN.whisperCooldown > 0) CIN.whisperCooldown--;
-  if (CIN.whisperCooldown === 0 && Math.random() < 0.008) {
+  if (CIN.whisperCooldown === 0 && Math.random() < 0.018) {
     const pool = ZONE_WHISPERS[zone.name] || ZONE_WHISPERS['Ashen Fields'];
     const line = pool[Math.floor(Math.random() * pool.length)];
+    // Longer lines get more hold time; scale font down for long lines
+    const wordCount = line.split(' ').length;
+    const holdFrames = 200 + wordCount * 18 + Math.floor(Math.random() * 80);
+    const size = wordCount > 10 ? 10 : wordCount > 6 ? 12 : 13;
+    // Position: avoid clustering near edges; bias toward center-ish areas
+    const xZone = Math.random();
+    const x = W * (0.08 + xZone * 0.84);
+    const y = H * (0.10 + Math.random() * 0.58);
     CIN.whispers.push({
       text: line,
-      x: W * (0.15 + Math.random() * 0.7),
-      y: H * (0.12 + Math.random() * 0.55),
+      x, y,
       alpha: 0,
-      phase: 'in',  // 'in' → 'hold' → 'out'
-      holdFrames: 160 + Math.floor(Math.random() * 120),
+      phase: 'in',
+      holdFrames,
       heldFor: 0,
-      size: 11 + Math.floor(Math.random() * 6),
-      italic: Math.random() > 0.4,
+      size,
+      italic: Math.random() > 0.35,
     });
-    CIN.whisperCooldown = 220 + Math.floor(Math.random() * 180);
+    CIN.whisperCooldown = 140 + Math.floor(Math.random() * 120);
   }
   CIN.whispers = CIN.whispers.filter(w => !(w.phase === 'out' && w.alpha <= 0.01));
   CIN.whispers.forEach(w => {
-    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.012); if (w.alpha >= 1) w.phase = 'hold'; }
+    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.009); if (w.alpha >= 1) w.phase = 'hold'; }
     if (w.phase === 'hold') { w.heldFor++; if (w.heldFor >= w.holdFrames) w.phase = 'out'; }
-    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.008); }
+    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.005); }
     const fontStr = w.italic
       ? `italic 400 ${w.size}px 'IM Fell English', serif`
       : `400 ${w.size}px 'Cinzel', serif`;
