@@ -1752,7 +1752,7 @@ function startRandomJourney() {
           document.getElementById('btn-' + name)?.classList.add('active');
           document.getElementById('pill-' + name)?.classList.add('on');
           startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
-        }, i * (barLength / 2) * 1000); // stagger by half a bar, not a full bar
+        }, i * barLength * 1000);
       });
     }, toNextBar * 1000);
 
