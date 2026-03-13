@@ -1501,9 +1501,10 @@ const LAYER_ARCHETYPES = {
                pool: ['drone','strings','perc','stomp','chains','horn','cello','ritualchant'],
                max: 4, floors: [15,60] },
 
-  // Choir-led — choir and organ define the section, strings are optional colour
+  // Choir-led — choir and organ define the section, strings/drone fill in later
   choral:    { required: ['choir','organ'],
-               pool: ['drone','strings','bells','heartbeat','ritualchant','lute','cello','whispers','riser'],
+               pool: ['bells','heartbeat','ritualchant','lute','cello','whispers','riser'],
+               latePool: ['drone','strings'],
                max: 4, floors: [10,50] },
 
   // Full combat — perc and bass anchor, strings and choir build on top
@@ -1511,9 +1512,10 @@ const LAYER_ARCHETYPES = {
                pool: ['drone','strings','stomp','march','chaos','melody','cello','choir','horn','chains','ritualchant'],
                max: 6, floors: [25,80] },
 
-  // Melody-led — melody and harmonic colour define the section, no rhythm
+  // Melody-led — melody and harmonic colour define the section, drone/strings fill in later
   arcane:    { required: ['melody','organ'],
-               pool: ['drone','strings','cello','lute','bells','riser','glitch','choir','whispers','heartbeat'],
+               pool: ['cello','lute','bells','riser','glitch','choir','whispers','heartbeat'],
+               latePool: ['drone','strings'],
                max: 4, floors: [20,70] },
 
   // Maximum density — everything, chaotic
@@ -1699,10 +1701,10 @@ function startRandomJourney() {
     const intensity = Math.max(0.3, rawIntensity);
     const percBufs = buildPercBufs(preset);
 
-    const shuffled = [...cfg.pool].sort(() => rng() - 0.5);
+    const availablePool = step >= 2 && cfg.latePool ? [...cfg.pool, ...cfg.latePool] : cfg.pool;
+    const shuffled = [...availablePool].sort(() => rng() - 0.5);
     const picked = shuffled.slice(0, cfg.max);
     const toEnable = new Set([...cfg.required, ...picked]);
-    toEnable.add('drone');
 
     // Snap all layer changes to next bar boundary
     const now = ctx.currentTime;
