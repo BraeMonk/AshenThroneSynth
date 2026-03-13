@@ -6645,6 +6645,9 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
       e.deathT += 0.028;
       if (e.deathT >= 1) {
         k.enemy = null;
+        if (['combat','strike'].includes(k.state)) {
+           k.state = 'patrol'; k.stateTimer = 0; k.combatTarget = null;
+        }
         setTimeout(() => {
           if (!CIN.knight) return;
           const kk = CIN.knight;
