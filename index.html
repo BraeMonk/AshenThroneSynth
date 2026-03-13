@@ -6590,13 +6590,16 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
   // Spawn when permitted and no enemy present
   if (!k.enemy && encounterAllowed) {
     const side = k.dir > 0 ? 1 : -1;
-    const ex = side > 0 ? W - s * 2.5 : s * 2.5;
-    const patrolCentre = side > 0 ? W * (0.72 - depthT * 0.18) : W * (0.28 + depthT * 0.18);
-    const patrolRadius = W * (0.12 + depthT * 0.08);
+    // Start fully offscreen so it walks into view naturally
+    const ex = side > 0 ? W + s * 3 : -s * 3;
+    const patrolRadius = W * (0.14 + depthT * 0.10);
+    const patrolCentre = side > 0
+      ? Math.min(W - s*2 - patrolRadius, W * (0.72 - depthT * 0.12))
+      : Math.max(s*2 + patrolRadius,     W * (0.28 + depthT * 0.12));
     k.enemy = {
       x: ex, y: k.y, velX: 0,
       hp: bossNow ? 6 : 3, maxHp: bossNow ? 6 : 3,
-      hitFlash: 0, deathT: -1, spawnT: 0,
+      hitFlash: 0, deathT: -1, spawnT: 1, // no fade-in — it's just offscreen
       anim: Math.random() * Math.PI * 2,
       staggerT: 0, idleTimer: 0,
       counterTimer: bossNow ? 60 + Math.floor(Math.random() * 40) : -1,
@@ -6605,9 +6608,10 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
       alertTimer: 0,
       alertHold: Math.floor(25 + (1 - leg.aggression) * 35),
       patrolDir: side > 0 ? -1 : 1,
-      patrolMin: Math.max(s * 2, patrolCentre - patrolRadius),
-      patrolMax: Math.min(W - s * 2, patrolCentre + patrolRadius),
-      retreatX: ex,
+      patrolMin: patrolCentre - patrolRadius,
+      patrolMax: patrolCentre + patrolRadius,
+      retreatX: ex, // retreat back the way it came
+      enteredCanvas: false, // track when it first crosses into view
     };
   }
 
@@ -6636,13 +6640,15 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
                     : nm === 'drift' ? 0.5 : 1.0;
           if (dt2 < ef2) return;
           const side2 = kk.dir > 0 ? 1 : -1;
-          const ex2   = side2 > 0 ? W - s * 2.5 : s * 2.5;
-          const pc2   = side2 > 0 ? W * (0.72 - dt2 * 0.18) : W * (0.28 + dt2 * 0.18);
-          const pr2   = W * (0.12 + dt2 * 0.08);
+          const ex2   = side2 > 0 ? W + s * 3 : -s * 3;
+          const pr2   = W * (0.14 + dt2 * 0.10);
+          const pc2   = side2 > 0
+            ? Math.min(W - s*2 - pr2, W * (0.72 - dt2 * 0.12))
+            : Math.max(s*2 + pr2,     W * (0.28 + dt2 * 0.12));
           kk.enemy = {
             x: ex2, y: kk.y, velX: 0,
             hp: ib2 ? 6 : 3, maxHp: ib2 ? 6 : 3,
-            hitFlash: 0, deathT: -1, spawnT: 0,
+            hitFlash: 0, deathT: -1, spawnT: 1,
             anim: Math.random() * Math.PI * 2,
             staggerT: 0, idleTimer: 0,
             counterTimer: ib2 ? 60 + Math.floor(Math.random() * 40) : -1,
@@ -6651,9 +6657,10 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
             alertTimer: 0,
             alertHold: Math.floor(25 + (1 - (kk.legend||{aggression:0.5}).aggression) * 35),
             patrolDir: side2 > 0 ? -1 : 1,
-            patrolMin: Math.max(s * 2, pc2 - pr2),
-            patrolMax: Math.min(W - s * 2, pc2 + pr2),
+            patrolMin: pc2 - pr2,
+            patrolMax: pc2 + pr2,
             retreatX: ex2,
+            enteredCanvas: false,
           };
         }, 1200 + Math.random() * 900);
       }
@@ -6677,19 +6684,34 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         e.eState = 'retreat';
         e.retreatX = e.x < W * 0.5 ? s * 1.5 : W - s * 1.5;
       }
-      // alert hold expires
+      // alert hold expires → aggro if any escalation mode, else back to patrol
       if (e.eState === 'alert') {
         e.alertTimer++;
         e.velX *= 0.88;
         if (e.alertTimer >= e.alertHold) {
-          e.eState = (narrativeMode === 'fight' || bossNow) ? 'aggro' : 'patrol';
+          if (canEscalate) {
+            e.eState = 'aggro';
+            // Force knight into combat — the enemy committed, so does the knight
+            if (!['combat','strike'].includes(k.state)) {
+              k.state = 'combat'; k.stateTimer = 0;
+              k.combatTarget = e.x;
+              k.strikeTimer  = Math.floor(28 - leg.aggression * 16 + (1 - leg.aggression) * Math.random() * 20);
+              k.guardRaised  = 0;
+            }
+          } else {
+            e.eState = 'patrol';
+          }
           e.alertTimer = 0;
         }
       }
       // mode dropped while in aggro → retreat
       if (e.eState === 'aggro' && !encounterAllowed) {
         e.eState = 'retreat';
-        e.retreatX = e.x < W * 0.5 ? s * 1.5 : W - s * 1.5;
+        e.retreatX = e.x < W * 0.5 ? -s * 3 : W + s * 3;
+        // Knight disengages
+        if (['combat','strike'].includes(k.state)) {
+          k.state = 'patrol'; k.stateTimer = 0; k.combatTarget = null;
+        }
       }
 
       // Movement per state
@@ -6700,6 +6722,10 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         e.velX += (e.patrolDir * patrolSpd - e.velX) * 0.05;
 
       } else if (e.eState === 'aggro') {
+        // Keep knight's combatTarget locked onto enemy position
+        if (['combat','strike'].includes(k.state)) {
+          k.combatTarget = e.x;
+        }
         if (bossNow && e.counterTimer > 0) {
           e.counterTimer--;
           if (e.counterTimer === 0) {
@@ -6722,11 +6748,21 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
       } else if (e.eState === 'retreat') {
         const rdx = e.retreatX - e.x;
         e.velX += (Math.sign(rdx) * s * 0.016 - e.velX) * 0.06;
-        if (Math.abs(rdx) < s * 1.2) e.deathT = 0;
+        // Dissolve once fully offscreen
+        if (e.x < -s * 2 || e.x > W + s * 2) e.deathT = 0;
       }
 
       e.x += e.velX;
-      e.x  = Math.max(s * 2, Math.min(W - s * 2, e.x));
+      // Only clamp once inside canvas — let it walk in from offscreen freely
+      if (!e.enteredCanvas) {
+        if (e.x > s * 2 && e.x < W - s * 2) {
+          e.enteredCanvas = true;
+          // Retreat goes back off the same edge it entered from
+          e.retreatX = e.velX > 0 ? -s * 3 : W + s * 3;
+        }
+      } else {
+        e.x = Math.max(-s * 4, Math.min(W + s * 4, e.x)); // loose clamp, allows retreat offscreen
+      }
       e.y += (cinWaveYAt(e.x, W, waveData, waveFloor, waveAmp) - e.y) * 0.04;
     }
     // Detect knight hit
