@@ -6682,7 +6682,7 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
       // mode dropped while alert → retreat
       if (e.eState === 'alert' && !canEscalate) {
         e.eState = 'retreat';
-        e.retreatX = e.x < W * 0.5 ? s * 1.5 : W - s * 1.5;
+        e.retreatX = e.x < W * 0.5 ? -s * 3 : W + s * 3;
       }
       // alert hold expires → aggro if any escalation mode, else back to patrol
       if (e.eState === 'alert') {
