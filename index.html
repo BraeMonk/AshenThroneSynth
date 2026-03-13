@@ -5703,6 +5703,9 @@ const CIN = {
   wipeAlpha: 0,
   wiping: false,
   wipeDir: 1,
+  // World scroll camera
+  camX: 0,          // accumulated world offset (pixels, grows rightward = scrolling left)
+  camVel: 0,        // current camera velocity
   // Knight
   knight: null,
 };
@@ -6281,23 +6284,30 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     else narrativeMode = restLevel > 0.72 ? 'rest' : 'prowl';
   }
 
-  // ── Transition on phrase/boss change ─────────────────────────────
-  if ((phraseChanged || bossChanged) && !k.zoneReacting) {
+  // ── Transition on phrase/boss change — also force-correct stale states ──
+  const inFightState  = ['combat','strike'].includes(k.state);
+  const inRestState   = ['sit','look','pray','rest'].includes(k.state);
+  const inPatrolState = ['patrol','walk'].includes(k.state);
+  const inBrokenState = ['kneel','rise'].includes(k.state);
+
+  if ((phraseChanged || bossChanged || (!inFightState && narrativeMode==='fight') || (!inRestState && !inBrokenState && (narrativeMode==='rest'||narrativeMode==='witness'))) && !k.zoneReacting) {
     if (narrativeMode === 'rest' || narrativeMode === 'witness') {
-      k.state = 'sit'; k.stateTimer = 0; k.velX = 0;
+      if (!inRestState) { k.state = 'sit'; k.stateTimer = 0; k.velX = 0; }
     }
     if (narrativeMode === 'prowl' || narrativeMode === 'drift') {
-      k.state = 'patrol'; k.stateTimer = 0; k.patrolDir = k.dir;
+      if (!inPatrolState && !inFightState) { k.state = 'patrol'; k.stateTimer = 0; k.patrolDir = k.dir; }
     }
     if (narrativeMode === 'fight') {
-      k.state = 'combat'; k.stateTimer = 0;
-      const side = leg.glory > 0.5 ? 1 : -1;
-      k.combatTarget = W * (0.38 + side * 0.14 * leg.aggression);
-      k.strikeTimer  = Math.floor(28 - leg.aggression * 16 + (1-leg.aggression) * Math.random() * 20);
-      k.guardRaised  = 0;
+      if (!inFightState) {
+        k.state = 'combat'; k.stateTimer = 0;
+        const side = leg.glory > 0.5 ? 1 : -1;
+        k.combatTarget = W * (0.38 + side * 0.14 * leg.aggression);
+        k.strikeTimer  = Math.floor(28 - leg.aggression * 16 + (1-leg.aggression) * Math.random() * 20);
+        k.guardRaised  = 0;
+      }
     }
     if (narrativeMode === 'broken') {
-      k.state = 'kneel'; k.stateTimer = 0; k.velX = 0;
+      if (!inBrokenState) { k.state = 'kneel'; k.stateTimer = 0; k.velX = 0; }
     }
   }
 
@@ -6551,82 +6561,175 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
   };
   const enemyType = ENEMY_TYPES[zone.name] || 'soldier';
 
-  // Spawn / despawn
-  if (narrativeMode === 'fight') {
-    if (!k.enemy) {
-      const ex = k.combatTarget !== null ? k.combatTarget
-               : k.dir > 0 ? W * 0.62 : W * 0.38;
-      k.enemy = {
-        x: ex, targetX: ex,
-        y: k.y,
-        velX: 0,
-        hp: bossNow ? 6 : 3,       // hits to kill
-        maxHp: bossNow ? 6 : 3,
-        hitFlash: 0,                // 1→0 on hit
-        deathT: -1,                 // ≥0 = dying, counts to 1 then null
-        spawnT: 0,                  // 0→1 fade in
-        anim: Math.random() * Math.PI * 2,
-        staggerT: 0,
-        counterTimer: bossNow ? 60 + Math.floor(Math.random()*40) : -1,
-        scale: bossNow ? 1.28 : 1.0,
-      };
-    }
-  } else {
-    // Fade out enemy when not fighting
-    if (k.enemy && k.enemy.deathT < 0) k.enemy.deathT = 0;
+  k._lastNarrativeMode = narrativeMode;
+
+  // ── ENCOUNTER SYSTEM — RPG dungeon model ─────────────────────────
+  // Enemies have their own state machine: patrol → alert → aggro → retreat.
+  // narrativeMode sets the permission ceiling. depthT controls density:
+  // shallow floors are sparse, deep floors have earlier/closer encounters.
+  //
+  // patrol  — enemy walks its own route, unaware of the knight
+  // alert   — enemy stopped, orienting toward knight before committing
+  // aggro   — enemy closes for combat (fight/boss only)
+  // retreat — mode dropped; enemy backs to canvas edge then dissolves
+
+  const encounterFloor = bossNow ? 0
+    : narrativeMode === 'fight'   ? 0
+    : narrativeMode === 'prowl'   ? 0.25
+    : narrativeMode === 'drift'   ? 0.5
+    : (narrativeMode === 'witness' && depthT > 0.72) ? 0.65
+    : 1.0;
+  const encounterAllowed = depthT >= encounterFloor;
+
+  // Trigger retreat when encounter no longer permitted
+  if (k.enemy && !encounterAllowed && k.enemy.eState !== 'retreat' && k.enemy.deathT < 0) {
+    k.enemy.eState = 'retreat';
+    k.enemy.retreatX = k.enemy.x < W * 0.5 ? s * 1.5 : W - s * 1.5;
+  }
+
+  // Spawn when permitted and no enemy present
+  if (!k.enemy && encounterAllowed) {
+    const side = k.dir > 0 ? 1 : -1;
+    const ex = side > 0 ? W - s * 2.5 : s * 2.5;
+    const patrolCentre = side > 0 ? W * (0.72 - depthT * 0.18) : W * (0.28 + depthT * 0.18);
+    const patrolRadius = W * (0.12 + depthT * 0.08);
+    k.enemy = {
+      x: ex, y: k.y, velX: 0,
+      hp: bossNow ? 6 : 3, maxHp: bossNow ? 6 : 3,
+      hitFlash: 0, deathT: -1, spawnT: 0,
+      anim: Math.random() * Math.PI * 2,
+      staggerT: 0, idleTimer: 0,
+      counterTimer: bossNow ? 60 + Math.floor(Math.random() * 40) : -1,
+      scale: bossNow ? 1.28 : 1.0,
+      eState: 'patrol',
+      alertTimer: 0,
+      alertHold: Math.floor(25 + (1 - leg.aggression) * 35),
+      patrolDir: side > 0 ? -1 : 1,
+      patrolMin: Math.max(s * 2, patrolCentre - patrolRadius),
+      patrolMax: Math.min(W - s * 2, patrolCentre + patrolRadius),
+      retreatX: ex,
+    };
   }
 
   if (k.enemy) {
     const e = k.enemy;
     e.anim += 0.08 + CIN.smoothBass * 0.06;
-    if (e.hitFlash  > 0) e.hitFlash  -= 0.08;
-    if (e.staggerT  > 0) e.staggerT  -= 0.06;
+    e.idleTimer++;
+    if (e.hitFlash > 0) e.hitFlash -= 0.08;
+    if (e.staggerT > 0) e.staggerT -= 0.06;
+    if (e.spawnT < 1)   e.spawnT    = Math.min(1, e.spawnT + 0.028);
 
-    // Spawn fade-in
-    if (e.spawnT < 1) e.spawnT = Math.min(1, e.spawnT + 0.04);
-
-    // Death animation
+    // Death → delayed respawn if encounter still warranted
     if (e.deathT >= 0) {
       e.deathT += 0.028;
       if (e.deathT >= 1) {
         k.enemy = null;
-        // Respawn after a beat if still fighting
-        if (narrativeMode === 'fight') {
-          setTimeout(() => {
-            if (CIN.knight && narrativeMode === 'fight') CIN.knight.enemy = null;
-          }, 800 + Math.random() * 600);
-        }
+        setTimeout(() => {
+          if (!CIN.knight) return;
+          const kk = CIN.knight;
+          if (kk.enemy) return;
+          const nm  = kk._lastNarrativeMode || 'rest';
+          const ib2 = isBoss || (journeyActive &&
+            (kk.legend||{bossStep:-1}).step === (kk.legend||{bossStep:-1}).bossStep);
+          const dt2 = (kk.legend ? kk.legend.step : 0) / 7;
+          const ef2 = ib2 ? 0 : nm === 'fight' ? 0 : nm === 'prowl' ? 0.25
+                    : nm === 'drift' ? 0.5 : 1.0;
+          if (dt2 < ef2) return;
+          const side2 = kk.dir > 0 ? 1 : -1;
+          const ex2   = side2 > 0 ? W - s * 2.5 : s * 2.5;
+          const pc2   = side2 > 0 ? W * (0.72 - dt2 * 0.18) : W * (0.28 + dt2 * 0.18);
+          const pr2   = W * (0.12 + dt2 * 0.08);
+          kk.enemy = {
+            x: ex2, y: kk.y, velX: 0,
+            hp: ib2 ? 6 : 3, maxHp: ib2 ? 6 : 3,
+            hitFlash: 0, deathT: -1, spawnT: 0,
+            anim: Math.random() * Math.PI * 2,
+            staggerT: 0, idleTimer: 0,
+            counterTimer: ib2 ? 60 + Math.floor(Math.random() * 40) : -1,
+            scale: ib2 ? 1.28 : 1.0,
+            eState: 'patrol',
+            alertTimer: 0,
+            alertHold: Math.floor(25 + (1 - (kk.legend||{aggression:0.5}).aggression) * 35),
+            patrolDir: side2 > 0 ? -1 : 1,
+            patrolMin: Math.max(s * 2, pc2 - pr2),
+            patrolMax: Math.min(W - s * 2, pc2 + pr2),
+            retreatX: ex2,
+          };
+        }, 1200 + Math.random() * 900);
       }
     }
 
-    // Boss enemy moves — advances on knight or retreats to drive repositioning
-    if (e.deathT < 0 && bossNow && e.counterTimer > 0) {
-      e.counterTimer--;
-      if (e.counterTimer === 0) {
-        // Counter-attack: lunge toward knight, push him back
-        e.targetX = k.x + (k.dir > 0 ? -s * 3 : s * 3);
-        e.targetX = Math.max(s*2, Math.min(W-s*2, e.targetX));
-        e.counterTimer = 55 + Math.floor(Math.random() * 45);
-        // Drive the knight's combat target away
-        if (k.combatTarget !== null) {
-          k.combatTarget += k.dir * s * 2.5;
-          k.combatTarget = Math.max(s*2, Math.min(W-s*2, k.combatTarget));
+    if (e.deathT < 0) {
+      const eDir = k.x < e.x ? -1 : 1;
+      const distToKnight  = Math.abs(k.x - e.x);
+      const detectionRange = W * (0.38 - depthT * 0.14 + k.bossBuildupT * 0.12);
+      const canEscalate   = narrativeMode === 'fight' || narrativeMode === 'prowl'
+                         || narrativeMode === 'drift' || bossNow;
+
+      // patrol → alert when knight enters detection range
+      if (e.eState === 'patrol' && canEscalate && distToKnight < detectionRange) {
+        e.eState = 'alert';
+        e.alertTimer = 0;
+        e.velX *= 0.15;
+      }
+      // mode dropped while alert → retreat
+      if (e.eState === 'alert' && !canEscalate) {
+        e.eState = 'retreat';
+        e.retreatX = e.x < W * 0.5 ? s * 1.5 : W - s * 1.5;
+      }
+      // alert hold expires
+      if (e.eState === 'alert') {
+        e.alertTimer++;
+        e.velX *= 0.88;
+        if (e.alertTimer >= e.alertHold) {
+          e.eState = (narrativeMode === 'fight' || bossNow) ? 'aggro' : 'patrol';
+          e.alertTimer = 0;
         }
       }
-      // Drift toward targetX
-      const edx = e.targetX - e.x;
-      e.velX += (Math.sign(edx) * s * 0.018 - e.velX) * 0.08;
-    } else {
-      // Non-boss: stay near combatTarget
-      const exTarget = k.combatTarget !== null ? k.combatTarget : e.x;
-      const edx = exTarget - e.x;
-      e.velX += (Math.sign(edx) * s * 0.008 - e.velX) * 0.06;
-    }
-    e.x += e.velX;
-    e.x = Math.max(s*2, Math.min(W-s*2, e.x));
-    e.y += (cinWaveYAt(e.x, W, waveData, waveFloor, waveAmp) - e.y) * 0.04;
+      // mode dropped while in aggro → retreat
+      if (e.eState === 'aggro' && !encounterAllowed) {
+        e.eState = 'retreat';
+        e.retreatX = e.x < W * 0.5 ? s * 1.5 : W - s * 1.5;
+      }
 
-    // Detect knight hit — strikeCooldown hits windupEnd+1 = impact frame
+      // Movement per state
+      if (e.eState === 'patrol') {
+        if (e.x <= e.patrolMin + s * 0.5) e.patrolDir =  1;
+        if (e.x >= e.patrolMax - s * 0.5) e.patrolDir = -1;
+        const patrolSpd = s * (0.006 + depthT * 0.004 + leg.aggression * 0.003);
+        e.velX += (e.patrolDir * patrolSpd - e.velX) * 0.05;
+
+      } else if (e.eState === 'aggro') {
+        if (bossNow && e.counterTimer > 0) {
+          e.counterTimer--;
+          if (e.counterTimer === 0) {
+            e.targetX = k.x + (k.dir > 0 ? -s * 3 : s * 3);
+            e.targetX = Math.max(s * 2, Math.min(W - s * 2, e.targetX));
+            e.counterTimer = 55 + Math.floor(Math.random() * 45);
+            if (k.combatTarget !== null) {
+              k.combatTarget += k.dir * s * 2.5;
+              k.combatTarget  = Math.max(s * 2, Math.min(W - s * 2, k.combatTarget));
+            }
+          }
+          const edx = (e.targetX || e.x) - e.x;
+          e.velX += (Math.sign(edx) * s * 0.022 - e.velX) * 0.09;
+        } else {
+          const idealDist = s * (2.4 - depthT * 0.6);
+          const edx = (k.x + eDir * idealDist) - e.x;
+          e.velX += (Math.sign(edx) * s * 0.013 - e.velX) * 0.07;
+        }
+
+      } else if (e.eState === 'retreat') {
+        const rdx = e.retreatX - e.x;
+        e.velX += (Math.sign(rdx) * s * 0.016 - e.velX) * 0.06;
+        if (Math.abs(rdx) < s * 1.2) e.deathT = 0;
+      }
+
+      e.x += e.velX;
+      e.x  = Math.max(s * 2, Math.min(W - s * 2, e.x));
+      e.y += (cinWaveYAt(e.x, W, waveData, waveFloor, waveAmp) - e.y) * 0.04;
+    }
+    // Detect knight hit
     const windupEnd = Math.floor(15 - leg.aggression * 6);
     if (k.state === 'strike' && k.strikeCooldown === windupEnd + 1) {
       const hitDist = Math.abs(k.x - e.x);
@@ -6634,14 +6737,19 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         e.hp--;
         e.hitFlash = 1.0;
         e.staggerT = 1.0;
-        if (e.hp <= 0) e.deathT = 0; // start death
+        if (e.hp <= 0) e.deathT = 0;
       }
     }
 
     // ── Draw enemy ─────────────────────────────────────────────────
     if (e.deathT >= 0 || e.spawnT < 1 || e.deathT < 0) {
-      const alpha = e.deathT >= 0 ? Math.max(0, 1 - e.deathT * 1.4)
-                  : Math.min(1, e.spawnT);
+      const baseAlpha = e.deathT >= 0 ? Math.max(0, 1 - e.deathT * 1.4)
+                      : Math.min(1, e.spawnT);
+      // Patrol: very dim silhouette (enemy unaware). Alert: partial. Aggro/retreat: full.
+      const stateFade = e.eState === 'patrol'  ? (0.10 + depthT * 0.20)
+                      : e.eState === 'alert'   ? (0.45 + depthT * 0.20)
+                      : 1.0;
+      const alpha = baseAlpha * stateFade;
       const es = s * e.scale;
       const ex = e.x, ey = e.y;
       // Enemy always faces the knight
@@ -7465,8 +7573,20 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
 function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   const R = zone.vizR, G = zone.vizG, B = zone.vizB;
   const atmo = cinGetAtmo(zone);
-  const rest = CIN.restLevel;       // 1=resting, 0=active
+  const rest = CIN.restLevel;
   const active = 1 - rest;
+
+  // ── WORLD SCROLL CAMERA ──────────────────────────────────────────
+  // Advances the world left at a natural walking pace.
+  // Active music = brisk travel. Rest = camera drifts to a stop.
+  // Bass hits add micro-lunges for organic feel.
+  // Each terrain layer uses its own parallax fraction of camX.
+  const baseSpeed   = W * 0.00048;
+  const targetSpeed = -(baseSpeed * active
+                    + CIN.smoothBass * W * 0.00022
+                    + CIN.smoothEnergy * W * 0.00012);
+  CIN.camVel += (targetSpeed - CIN.camVel) * (active > 0.1 ? 0.04 : 0.018);
+  CIN.camX  += CIN.camVel;
 
   // ── 1. SKY FILL — motion blur persistence
   // Resting: slower decay = dreamier trails. Active: faster = sharper
@@ -7535,41 +7655,50 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   // ── 6. PARALLAX TERRAIN LAYERS ──────────────────────────────────
   if (CIN.terrainParallax && CIN.terrainParallax.length) {
     CIN.terrainParallax.forEach((layer, li) => {
-      // Parallax scroll based on bass energy + depth
-      const scrollX = Math.sin(t * 0.0003 * layer.speed) * W * 0.012 * (li + 1);
+      // True parallax: far layers (li=0) move slowest, near layers fastest
+      // Parallax depth fraction: 0.08 (far) → 0.55 (near)
+      const parallaxFrac = 0.08 + li * 0.16;
+      // Also keep the gentle organic sway on top of real scroll
+      const organicSway = Math.sin(t * 0.00018 * layer.speed) * W * 0.004 * (li + 1);
+      const scrollX = -(CIN.camX * parallaxFrac) + organicSway;
       const bassLift = CIN.smoothBass * H * 0.025 * (li * 0.5 + 0.3);
 
-      // Sky-to-terrain fill color: far = sky tinted, near = near black
+      // Terrain points are built once for [0..W]; repeat tiles either side for infinite scroll
+      const tileW = W;
+      const offset = ((scrollX % tileW) + tileW) % tileW; // always positive wrap
+
       const depthDark = li / 3.5;
       const fillR = Math.floor(R * (0.12 - depthDark * 0.12));
       const fillG = Math.floor(G * (0.07 - depthDark * 0.07));
       const fillB = Math.floor(B * (0.15 - depthDark * 0.15));
 
-      c.beginPath();
-      c.moveTo(0, H);
-      layer.pts.forEach((p, i) => {
-        const px = p.x + scrollX;
-        const py = p.y - bassLift;
-        i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
-      });
-      // Close shape to bottom
-      c.lineTo(W + scrollX, H);
-      c.lineTo(0, H);
-      c.closePath();
-      c.fillStyle = `rgba(${fillR},${fillG},${fillB},${layer.alpha})`;
-      c.fill();
-
-      // Rim light on ridges — brighter when active
-      if (li <= 1) {
+      // Draw two copies side by side so the seam never shows
+      for (let copy = -1; copy <= 1; copy++) {
+        const dx = copy * tileW - offset;
         c.beginPath();
+        c.moveTo(dx, H);
         layer.pts.forEach((p, i) => {
-          const px = p.x + scrollX;
+          const px = p.x + dx;
           const py = p.y - bassLift;
           i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
         });
-        c.strokeStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${0.04 + CIN.smoothBass * 0.14 + active * 0.06})`;
-        c.lineWidth = 1;
-        c.stroke();
+        c.lineTo(layer.pts[layer.pts.length - 1].x + dx, H);
+        c.lineTo(dx, H);
+        c.closePath();
+        c.fillStyle = `rgba(${fillR},${fillG},${fillB},${layer.alpha})`;
+        c.fill();
+
+        if (li <= 1) {
+          c.beginPath();
+          layer.pts.forEach((p, i) => {
+            const px = p.x + dx;
+            const py = p.y - bassLift;
+            i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+          });
+          c.strokeStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${0.04 + CIN.smoothBass * 0.14 + active * 0.06})`;
+          c.lineWidth = 1;
+          c.stroke();
+        }
       }
     });
   }
@@ -7581,7 +7710,9 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       const y = fog.y + Math.sin(t * fog.freq + fog.phase) * fog.amp * (0.5 + rest * 0.5);
       const fAlpha = (fog.alpha * (0.6 + rest * 0.4)) + CIN.smoothEnergy * 0.04;
       const fogW = W * 1.4;
-      const fogX = (fog.x % fogW) - fogW * 0.2;
+      // Fog drifts with a near-ground parallax on top of its own self-scroll
+      const fogCamDrift = CIN.camX * 0.18;
+      const fogX = ((fog.x - fogCamDrift) % fogW + fogW * 2) % fogW - fogW * 0.2;
 
       const fGrd = c.createLinearGradient(0, y - fog.height, 0, y + fog.height * 0.6);
       fGrd.addColorStop(0, 'rgba(0,0,0,0)');
@@ -7626,12 +7757,15 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   // ── 8.5. KNIGHT — stands on waveform ─────────────────────────────
   cinDrawKnight(c, W, H, zone, t, rest, waveData, waveFloor, waveAmp);
 
-  // ── 9. TORCH FLAMES — resting: low and slow. Active: roaring.
-  const torchXs = [W*0.11, W*0.27, W*0.50, W*0.73, W*0.89];
+  // ── 9. TORCH FLAMES — world-space, scroll with near layer
+  const nearParallax = 0.55; // matches li=3 fraction
+  const torchScroll  = (CIN.camX * nearParallax) % (W * 0.26); // spacing between torches
+  const torchSpacing = W * 0.26;
   const torchY  = H * 0.76;
-  torchXs.forEach((tx, ti) => {
+  for (let ti = -1; ti <= 5; ti++) {
+    const tx = ((ti * torchSpacing - torchScroll) % (W * 1.3) + W * 1.3) % (W * 1.3) - W * 0.15;
+    if (tx < -W * 0.1 || tx > W * 1.1) continue;
     const flicker = 0.5 + 0.5 * Math.sin(t * (0.06 + rest * 0.04) + ti * 1.9) + CIN.smoothBass * 0.35;
-    // Resting: tiny flame, low energy. Active: blazing.
     const baseH = 8 + rest * 4;
     const fh = (baseH + active * 22 + CIN.smoothBass * 16) * flicker;
     const fw = (5 + active * 6 + CIN.smoothBass * 4) * flicker;
@@ -7644,17 +7778,17 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     c.beginPath();
     c.ellipse(tx, torchY - fh/2, fw, fh, 0, 0, Math.PI * 2);
     c.fill();
-  });
+  }
 
-  // ── 10. EMBERS
+  // ── 10. EMBERS — drift left with world scroll wind
+  const windDrift = CIN.camVel * 0.6; // embers blown back by forward travel
   CIN.embers.forEach(p => {
     p.age++;
-    // Resting: slow drift. Active: frenzied.
     const drift = 0.3 + active * 1.4 + CIN.smoothEnergy * 1.2;
-    p.x += p.vx * drift;
+    p.x += p.vx * drift - windDrift;
     p.y += p.vy * (0.4 + CIN.smoothBass * 0.6 + active * 0.6);
     p.vx += (Math.random() - 0.5) * 0.05;
-    if (p.y < -10 || p.age > p.maxLife) {
+    if (p.x < -10 || p.x > W + 10 || p.y < -10 || p.age > p.maxLife) {
       p.x = Math.random() * W;
       p.y = H * (0.7 + Math.random() * 0.28);
       p.vx = (Math.random() - 0.5) * 0.4;
@@ -7673,7 +7807,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     c.fill();
   });
 
-  // ── 11. ZONE-SPECIFIC AMBIENT PARTICLES
+  // ── 11. ZONE-SPECIFIC AMBIENT PARTICLES — drift with world wind
   const particleAtmo = cinGetAtmo(zone);
   CIN.particles.forEach((p, pi) => {
     p.age++;
@@ -7682,15 +7816,13 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       CIN.particles[pi] = cinMakeParticle(particleAtmo.particle, zone, W, H, false);
       return;
     }
-    // Wisps and motes: sine drift
     if (p.type === 'wisp' || p.type === 'mote' || p.type === 'void') {
-      p.x += p.vx + Math.sin(t * 0.008 + p.phase) * 0.3;
+      p.x += p.vx + Math.sin(t * 0.008 + p.phase) * 0.3 - windDrift * 0.4;
       p.y += p.vy + Math.cos(t * 0.006 + p.phase) * 0.2;
     } else {
-      p.x += p.vx * (0.5 + active * 1.2);
+      p.x += p.vx * (0.5 + active * 1.2) - windDrift * 0.7;
       p.y += p.vy * (0.6 + active * 1.0);
     }
-    // Wrap
     if (p.x < -10) p.x = W + 5;
     if (p.x > W + 10) p.x = -5;
     if (p.y < -10) p.y = H + 5;
@@ -7709,18 +7841,21 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     c.fill();
   });
 
-  // ── 12. RUNE GLYPHS — pulse with mid energy + resting breathing
+  // ── 12. RUNE GLYPHS — scroll with mid parallax layer, wrap across canvas
   if (CIN.runes.length) {
-    const midPulse = CIN.smoothMid * 0.4;
+    const midPulse    = CIN.smoothMid * 0.4;
     const restBreathe = rest * 0.06 * Math.sin(t * 0.014);
+    const runeParallax = 0.24; // mid-depth layer
     CIN.runes.forEach(rn => {
-      const glow = Math.sin(t * rn.speed + rn.phase);
+      const glow  = Math.sin(t * rn.speed + rn.phase);
       const alpha = rn.baseAlpha + midPulse * 0.12 + restBreathe + glow * 0.02;
       if (alpha < 0.005) return;
+      // World-space x, wrapped so runes cycle continuously
+      const rx = ((rn.x - CIN.camX * runeParallax) % (W * 1.2) + W * 1.2) % (W * 1.2) - W * 0.1;
       c.font = `${rn.size}px serif`;
       c.textAlign = 'center';
       c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${alpha})`;
-      c.fillText(rn.glyph, rn.x, rn.y);
+      c.fillText(rn.glyph, rx, rn.y);
     });
   }
 
@@ -7959,6 +8094,8 @@ function drawCinematic() {
     cinInitEmbers(zone, W, H);
     cinBuildRunes(zone, W, H);
     cinInitFog(zone, W, H);
+    CIN.camX   = 0;   // reset scroll on new zone
+    CIN.camVel = 0;
     CIN.whispers = [];
     CIN.whisperCooldown = 90;
     // Preserve legend across zone reset — it belongs to the journey, not the zone
