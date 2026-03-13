@@ -1910,8 +1910,7 @@ function startRandomJourney() {
     step++;
     if (step < JOURNEY_STEPS) {
       const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
-      const nextFloor = JOURNEY_FLOORS[step] ?? 85;
-      crawlToFloor(nextFloor, dur * 0.6, null);
+      crawlToFloor(floor, dur * 0.6, null);
       journeyTimers.push(setTimeout(journeyStep, dur));
 
     } else {
