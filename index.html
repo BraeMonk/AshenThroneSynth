@@ -1491,12 +1491,35 @@ function buildPresetUI() {
 
 // ── Coherent Randomizer ───────────────────────────────────────────
 const LAYER_ARCHETYPES = {
-  desolate:  { required: ['drone','strings'],                pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ'],                    max: 3, floors: [1,20]  },
-  marching:  { required: ['drone','strings','bass'],         pool: ['perc','wardrums','march','stomp','chains','horn','melody','cello','ritualchant'],        max: 5, floors: [15,60] },
-  choral:    { required: ['drone','strings','choir'],        pool: ['organ','bells','heartbeat','ritualchant','lute','melody','cello','whispers','riser'],     max: 4, floors: [10,50] },
-  combat:    { required: ['drone','strings','bass','perc'],  pool: ['wardrums','stomp','march','chaos','melody','cello','choir','horn','chains','ritualchant'], max: 6, floors: [25,80] },
-  arcane:    { required: ['drone','strings','melody'],       pool: ['cello','lute','bells','riser','glitch','choir','organ','whispers','heartbeat'],           max: 5, floors: [20,70] },
-  nightmare: { required: ['drone','strings','bass','chaos'], pool: ['wardrums','stomp','glitch','ritualchant','riser','perc','march','choir','bells'],          max: 6, floors: [40,99] },
+  // Sparse opening — drone and strings as atmosphere, nothing rhythmic
+  desolate:  { required: ['drone','strings'],
+               pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ'],
+               max: 2, floors: [1,20] },
+
+  // Rhythm-led — bass and march define the section, strings are support not lead
+  marching:  { required: ['bass','march','wardrums'],
+               pool: ['drone','strings','perc','stomp','chains','horn','cello','ritualchant'],
+               max: 4, floors: [15,60] },
+
+  // Choir-led — choir and organ define the section, strings are optional colour
+  choral:    { required: ['choir','organ'],
+               pool: ['drone','strings','bells','heartbeat','ritualchant','lute','cello','whispers','riser'],
+               max: 4, floors: [10,50] },
+
+  // Full combat — perc and bass anchor, strings and choir build on top
+  combat:    { required: ['bass','perc','wardrums'],
+               pool: ['drone','strings','stomp','march','chaos','melody','cello','choir','horn','chains','ritualchant'],
+               max: 6, floors: [25,80] },
+
+  // Melody-led — melody and harmonic colour define the section, no rhythm
+  arcane:    { required: ['melody','organ'],
+               pool: ['drone','strings','cello','lute','bells','riser','glitch','choir','whispers','heartbeat'],
+               max: 4, floors: [20,70] },
+
+  // Maximum density — everything, chaotic
+  nightmare: { required: ['drone','bass','chaos','wardrums'],
+               pool: ['strings','stomp','glitch','ritualchant','riser','perc','march','choir','bells','horn'],
+               max: 7, floors: [40,99] },
 };
 
 function getEligibleArchetypes(floor) {
@@ -1586,32 +1609,32 @@ const JOURNEY_MOODS = {
   descent: {
     label: 'Descent',
     desc: 'Dungeon crawl — darkness builds to nightmare',
-    layerArc:  ['desolate','desolate','choral','marching','marching','combat','combat','nightmare'],
-    scaleArc:  ['dark','dark','eerie','epic','epic','dread','dread','dread'],
+    layerArc:  ['desolate','marching','marching','combat','combat','nightmare','nightmare','desolate'],
+    scaleArc:  ['dark','dark','eerie','epic','dread','dread','dread','dark'],
   },
   tragic: {
     label: 'Tragic',
-    desc: 'Build to devastation then fall to silence',
-    layerArc:  ['choral','choral','marching','combat','combat','choral','desolate','desolate'],
-    scaleArc:  ['dark','epic','epic','dark','dread','dark','dark','eerie'],
+    desc: 'Grief and collapse — choir from the start, then silence',
+    layerArc:  ['choral','choral','combat','combat','choral','choral','desolate','desolate'],
+    scaleArc:  ['dark','dark','dark','dread','dark','eerie','dark','dark'],
   },
   triumphant: {
     label: 'Triumphant',
-    desc: 'March to glory — heroism earned through struggle',
-    layerArc:  ['marching','marching','combat','combat','nightmare','combat','marching','choral'],
-    scaleArc:  ['epic','epic','epic','dread','dread','epic','epic','epic'],
+    desc: 'March to glory — heroic from bar one',
+    layerArc:  ['marching','marching','combat','nightmare','combat','combat','marching','choral'],
+    scaleArc:  ['epic','epic','epic','epic','dread','epic','epic','epic'],
   },
   arcane: {
     label: 'Arcane',
-    desc: 'Ethereal and unstable — no drums, no march',
-    layerArc:  ['arcane','choral','arcane','arcane','choral','arcane','arcane','choral'],
-    scaleArc:  ['arcane','eerie','arcane','arcane','eerie','arcane','dread','arcane'],
+    desc: 'Ethereal and unstable — melody and organ, no drums',
+    layerArc:  ['arcane','arcane','choral','arcane','arcane','arcane','choral','arcane'],
+    scaleArc:  ['arcane','arcane','eerie','arcane','dread','arcane','arcane','eerie'],
   },
   meditative: {
     label: 'Meditative',
-    desc: 'Wide and still — choir and space, no combat',
-    layerArc:  ['choral','desolate','choral','arcane','choral','desolate','choral','choral'],
-    scaleArc:  ['arcane','dark','arcane','arcane','eerie','arcane','arcane','dark'],
+    desc: 'Wide and still — choir and bells, no combat ever',
+    layerArc:  ['choral','choral','arcane','choral','arcane','choral','choral','desolate'],
+    scaleArc:  ['arcane','arcane','arcane','eerie','arcane','arcane','dark','dark'],
   },
 };
 
@@ -1672,7 +1695,8 @@ function startRandomJourney() {
     initAudio();
     CE.onZoneChange(getZone(floor));
     const preset = getZone(floor);
-    const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+    const rawIntensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+    const intensity = Math.max(0.3, rawIntensity);
     const percBufs = buildPercBufs(preset);
 
     const shuffled = [...cfg.pool].sort(() => rng() - 0.5);
@@ -2331,42 +2355,42 @@ function killLayer(name) {
 }
 
 function busTarget(n, i) {
-  // Orchestral hierarchy: foundation layers carry weight, melodic layers sing above,
-  // atmosphere sits behind everything. Nothing competes. Silence is preserved.
+  // Proper orchestral hierarchy — lead voices are loudest in their section.
+  // Strings are support/texture, not the loudest thing in every mix.
   return {
-    // Foundation — felt more than heard
-    drone:       0.30 + i * 0.10,   // sub-layer, below strings
-    strings:     0.45 + i * 0.12,   // THE main orchestral body — strings own the mid
-    bass:        0.38,              // punchy, sits under strings
-    heartbeat:   0.24 + i * 0.08,  // subliminal pulse
+    // Foundation — felt, not featured
+    drone:       0.22 + i * 0.08,   // texture bed, deliberately quiet
+    strings:     0.32 + i * 0.10,   // support layer — fills space, doesn't lead
+    bass:        0.40,               // low anchor, punchy
+    heartbeat:   0.20 + i * 0.06,   // subliminal
 
-    // Rhythm — punctuation, not wall-to-wall
-    perc:        0.48,
-    wardrums:    0.44 + i * 0.10,
-    chains:      0.28 + i * 0.08,
-    march:       0.34 + i * 0.08,
-    stomp:       0.38 + i * 0.06,
+    // Rhythm — these define marching/combat sections, should hit hard
+    perc:        0.52,
+    wardrums:    0.50 + i * 0.10,
+    march:       0.48 + i * 0.08,   // lead in marching — louder than strings
+    stomp:       0.42 + i * 0.06,
+    chains:      0.28 + i * 0.06,
 
-    // Atmosphere — pushed behind, presence not loudness
-    wind:        0.18 + i * 0.10,
-    riser:       0.24 + i * 0.12,
-    firecrackle: 0.15 + i * 0.08,
-    whispers:    0.16 + i * 0.06,
-    ritualchant: 0.24 + i * 0.08,
-    glitch:      0.14 * i,
+    // Atmosphere
+    wind:        0.16 + i * 0.08,
+    riser:       0.22 + i * 0.10,
+    firecrackle: 0.14 + i * 0.06,
+    whispers:    0.14 + i * 0.05,
+    ritualchant: 0.26 + i * 0.08,
+    glitch:      0.12 * i,
 
-    // Melodic — clear space above foundation
-    melody:      0.38,              // lead, sits on top
-    cello:       0.30 + i * 0.08,  // countermelody below melody
-    choir:       0.28 + i * 0.08,  // ensemble behind melody
-    lute:        0.22 + i * 0.06,
-    horn:        0.26 + i * 0.08,
-    bells:       0.20 + i * 0.08,
-    organ:       0.22 + i * 0.06,
+    // Melodic — these are lead voices, must sit above strings
+    melody:      0.50,               // lead melodic — loudest non-perc layer
+    choir:       0.46 + i * 0.10,   // lead in choral sections — above strings
+    cello:       0.36 + i * 0.08,   // countermelody
+    organ:       0.38 + i * 0.08,   // harmonic lead in arcane/choral
+    horn:        0.40 + i * 0.08,
+    lute:        0.28 + i * 0.06,
+    bells:       0.26 + i * 0.08,
 
     // Special
-    chaos:       0.18 * i,
-    boss:        0.42,
+    chaos:       0.20 * i,
+    boss:        0.44,
   }[n] ?? 0.28;
 }
 
@@ -2939,9 +2963,9 @@ function makeSchedLoop(name, schedFn) {
   let nextBarTime = ctx.currentTime + 0.05;
   function tick() {
     if (!layerOn[name]) return;
-    const bpm = isBoss ? getZone(parseInt(slider.value)).bpm + 22 : getZone(parseInt(slider.value)).bpm;
-    const beat = 60 / bpm;
-    const barDur = beat * 4;
+    // Use barLength as the source of truth — respects BPM lock and crossfade
+    const barDur = isBoss ? (60 / (getZone(parseInt(slider.value)).bpm + 22)) * 4 : barLength;
+    const beat = barDur / 4;
     while (nextBarTime < ctx.currentTime + SCHED_AHEAD + barDur) {
       schedFn(nextBarTime, beat);
       nextBarTime += barDur;
@@ -4878,6 +4902,10 @@ function updateFloorUI() {
 
     // Update lastZoneName only after fromZone is safely captured
     lastZoneName = toZone.name;
+
+    // Journey owns layer state during a run — skip crossfade layer queuing
+    if (journeyActive) return;
+
     startZoneCrossfade(fromZone, toZone, ni, pb);
 
   }, 200);
