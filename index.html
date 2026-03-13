@@ -5423,7 +5423,7 @@ function morphDroneNodes(blended, intensity) {
   });
 }
   
-function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
+function startZoneCrossfade(fromZone, toZone, intensity, percBufs, skipLayers = false) {
   // Resolve to canonical zones immediately — never store blended objects
   const realFrom = ZONES.find(z => z.name === fromZone.name) ?? fromZone;
   const realTo   = ZONES.find(z => z.name === toZone.name)   ?? toZone;
@@ -5455,6 +5455,8 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
   xfade.bpmStart  = effectiveBpmStart;
   xfade.bpmEnd    = realTo.bpm;
   xfade.intensity = intensity;
+
+  if (skipLayers) { CE.onZoneChange(realTo); logTimeline(`Crossfade → ${realTo.name}`); return; }
 
   // ── Queue layer restarts ─────────────────────────────────────────
   // All times are in bars from now so they're immune to BPM changes.
@@ -5558,10 +5560,8 @@ function updateFloorUI() {
     // Update lastZoneName only after fromZone is safely captured
     lastZoneName = toZone.name;
 
-    // Journey owns layer state during a run — skip crossfade layer queuing
-    if (journeyActive) return;
-
-    startZoneCrossfade(fromZone, toZone, ni, pb);
+    // Journey owns layer state — run BPM/drone crossfade but skip layer queuing
+    startZoneCrossfade(fromZone, toZone, ni, pb, journeyActive);
 
   }, 200);
 }
