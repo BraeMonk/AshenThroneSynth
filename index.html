@@ -714,14 +714,18 @@
 
     <!-- OST TAB -->
     <div class="tab-pane" id="tab-ost" style="padding:24px 0 16px;">
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
         <button class="layer-toggle" onclick="startSongGen()" style="flex:0 0 auto;padding:10px 20px;">▶ Generate OST</button>
         <button class="layer-toggle" onclick="stopSongGen()"  style="flex:0 0 auto;padding:10px 20px;">⏹ Stop</button>
-        <div style="flex:1;">
-          <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--text);margin-bottom:6px;" id="songGenStatus">Idle — 7 min 20 sec of OST</div>
-          <div class="song-gen-bar"><div class="song-gen-fill" id="songGenFill"></div></div>
-        </div>
       </div>
+
+      <button class="layer-toggle" onclick="startRandomJourney()" style="width:100%;padding:12px;margin-bottom:16px;">🌑 Journey</button>
+
+      <div style="flex:1;">
+        <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--text);margin-bottom:6px;" id="songGenStatus">Idle — 7 min 20 sec of OST</div>
+        <div class="song-gen-bar"><div class="song-gen-fill" id="songGenFill"></div></div>
+      </div>
+      
       <div style="margin-bottom:16px;">
         <div style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-dim);margin-bottom:10px;">Steps</div>
         <div id="ostStepList" style="display:flex;flex-direction:column;gap:4px;"></div>
@@ -1008,6 +1012,7 @@ function updatePhraseUI() {
 }
 
 let autoEvolution = false;
+let journeyActive = false;
 
 // ── Motif memory ─────────────────────────────────────────────────
 let baseMotif = [0, 2, 4, 2]; // reused across phrases
@@ -1228,7 +1233,7 @@ function ostRunStep() {
   const now         = ctx.currentTime;
   const barProgress = (now % barLength);
   const toNextBar   = barLength - barProgress;
-  const barDelay    = toNextBar < 0.1 ? barLength : toNextBar; // avoid tiny gaps
+  const barDelay    = barLength;
 
   // Boss layer handled immediately at bar boundary
   setTimeout(() => {
@@ -1399,12 +1404,12 @@ function buildPresetUI() {
 
 // ── Coherent Randomizer ───────────────────────────────────────────
 const LAYER_ARCHETYPES = {
-  desolate:  { required: ['drone'],                    pool: ['wind','heartbeat','whispers','firecrackle','bells'],     max: 3, floors: [1,20]  },
-  marching:  { required: ['drone','bass'],             pool: ['perc','wardrums','march','stomp','chains','horn'],       max: 4, floors: [15,60] },
-  choral:    { required: ['drone','choir'],            pool: ['organ','bells','heartbeat','ritualchant','lute'],        max: 3, floors: [10,50] },
-  combat:    { required: ['drone','bass','perc'],      pool: ['wardrums','stomp','march','chaos','melody','choir'],     max: 5, floors: [25,80] },
-  arcane:    { required: ['drone','melody'],           pool: ['lute','bells','riser','glitch','choir','organ'],         max: 4, floors: [20,70] },
-  nightmare: { required: ['drone','bass','chaos'],     pool: ['wardrums','stomp','glitch','ritualchant','riser'],       max: 5, floors: [40,99] },
+  desolate:  { required: ['drone'],                    pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ'],              max: 3, floors: [1,20]  },
+  marching:  { required: ['drone','bass'],             pool: ['perc','wardrums','march','stomp','chains','horn','melody','ritualchant'],          max: 5, floors: [15,60] },
+  choral:    { required: ['drone','choir'],            pool: ['organ','bells','heartbeat','ritualchant','lute','melody','whispers','riser'],      max: 4, floors: [10,50] },
+  combat:    { required: ['drone','bass','perc'],      pool: ['wardrums','stomp','march','chaos','melody','choir','horn','chains','ritualchant'], max: 6, floors: [25,80] },
+  arcane:    { required: ['drone','melody'],           pool: ['lute','bells','riser','glitch','choir','organ','whispers','heartbeat'],            max: 5, floors: [20,70] },
+  nightmare: { required: ['drone','bass','chaos'],     pool: ['wardrums','stomp','glitch','ritualchant','riser','perc','march','choir','bells'],  max: 6, floors: [40,99] },
 };
 
 function getEligibleArchetypes(floor) {
@@ -1427,6 +1432,7 @@ function pickArchetype(floor) {
 }
 
 function randomizeCoherent(forcedArchetype) {
+  if (!isPlaying) togglePlay();
   const floor = parseInt(slider.value);
   const archetypeName = forcedArchetype || pickArchetype(floor);
   const cfg = LAYER_ARCHETYPES[archetypeName];
@@ -1435,7 +1441,7 @@ function randomizeCoherent(forcedArchetype) {
   muteAll();
 
   // Shuffle pool and pick up to max
-  const shuffled = [...cfg.pool].sort(() => rng() - 0.5);
+  const shuffled = [...cfg.pool].sort(() => Math.random() - 0.5);
   const picked = shuffled.slice(0, cfg.max);
   const toEnable = [...cfg.required, ...picked];
 
@@ -1471,9 +1477,113 @@ function randomizeCoherent(forcedArchetype) {
     currentPhrase = phraseSeq[0];
     autoEvolution = true;
 
-    if (!isPlaying) togglePlay();
     startPhraseEngine();
   }, FADE_OUT * 1000 + 100);
+}
+
+const JOURNEY_ARC = ['desolate', 'desolate', 'choral', 'marching', 'marching', 'combat', 'combat', 'nightmare'];
+
+const SCALE_MOODS = {
+  dark:    ['phrygian', 'locrian', 'nat_minor'],
+  eerie:   ['harmonic', 'diminished', 'chromatic'],
+  epic:    ['dorian', 'mixolydian', 'nat_minor'],
+  arcane:  ['lydian', 'whole_tone', 'chromatic'],
+  dread:   ['locrian', 'diminished', 'chromatic'],
+};
+
+const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dread', 'dread'];
+
+function startRandomJourney() {
+  if (!isPlaying) togglePlay();
+  
+  const JOURNEY_STEPS = 8;
+  const startFloor = parseInt(slider.value);
+  let step = 0;
+  
+  journeyActive = true;
+
+  const allJourneyScales = [...new Set(Object.values(SCALE_MOODS).flat())];
+  const journeyScale = allJourneyScales[Math.floor(Math.random() * allJourneyScales.length)];
+  selectScale(journeyScale);
+  
+  function journeyStep() {
+    if (!isPlaying) return;
+    
+    const JOURNEY_FLOORS = [1, 10, 18, 26, 35, 50, 65, 85];
+    const floor = JOURNEY_FLOORS[step] ?? 85;
+
+    slider.value = floor;
+    updateFloorUI();
+    
+    const archetypeName = JOURNEY_ARC[step] || 'nightmare';
+    
+    const cfg = LAYER_ARCHETYPES[archetypeName];
+    if (!cfg) return;
+    initAudio();
+    const preset = getZone(floor);
+    const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+    const percBufs = buildPercBufs(preset);
+
+    const shuffled = [...cfg.pool].sort(() => rng() - 0.5);
+    const picked = shuffled.slice(0, cfg.max);
+    const toEnable = new Set([...cfg.required, ...picked]);
+    toEnable.add('drone');
+
+    // Snap all layer changes to next bar boundary
+    const now = ctx.currentTime;
+    const toNextBar = barLength - (now % barLength) + barLength;
+
+    setTimeout(() => {
+      const newBpm = preset.bpm;
+      const oldFloor = JOURNEY_FLOORS[step - 1] ?? floor;
+      const oldBpm = getZone(oldFloor).bpm;
+      if (Math.abs(oldBpm - newBpm) > 4) {
+        barLength = (60 / newBpm) * 4;
+      }
+
+      Object.keys(layerOn).forEach(name => {
+        if (name === 'drone' || name === 'bass') return;
+        if (layerOn[name] && !toEnable.has(name)) {
+          layerOn[name] = false;
+          document.getElementById('btn-' + name)?.classList.remove('active');
+          document.getElementById('pill-' + name)?.classList.remove('on');
+          stopLayer(name);
+        }
+      });
+    
+      const layerOrder = ['drone','bass','heartbeat','organ','choir','lute','melody','bells','whispers','riser','wind','firecrackle','perc','wardrums','march','stomp','chains','horn','chaos','glitch','ritualchant'];
+      const toStartList = [...toEnable].sort((a, b) => layerOrder.indexOf(a) - layerOrder.indexOf(b)).filter(name => name in layerOn && !layerOn[name]);
+      toStartList.forEach((name, i) => {
+        setTimeout(() => {
+          if (!isPlaying) return;
+          layerOn[name] = true;
+          document.getElementById('btn-' + name)?.classList.add('active');
+          document.getElementById('pill-' + name)?.classList.add('on');
+          startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+        }, i * barLength * 1000);
+      });
+    }, toNextBar * 1000);
+
+    phraseSeq = { desolate: PHRASE_SEQUENCES.normal, marching: PHRASE_SEQUENCES.combat, choral: PHRASE_SEQUENCES.normal, combat: PHRASE_SEQUENCES.combat, arcane: PHRASE_SEQUENCES.normal, nightmare: PHRASE_SEQUENCES.boss }[archetypeName] || PHRASE_SEQUENCES.normal;
+    phraseSeqIdx = 0;
+    currentPhrase = phraseSeq[0];
+    autoEvolution = true;
+    startPhraseEngine();
+
+    setStatus(`🌑 Journey · ${archetypeName} · Floor ${floor}`);
+    logTimeline(`Journey step ${step + 1}: ${archetypeName} · Floor ${floor}`);
+    document.getElementById('randArchetypeLabel').textContent = archetypeName.toUpperCase();
+
+    step++;
+    if (step < JOURNEY_STEPS) {
+      const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
+      setTimeout(journeyStep, dur);
+    } else {
+      journeyActive = false;
+    }
+  }
+  
+  journeyStep();
 }
 
 // ── Event system ──────────────────────────────────────────────────
@@ -1786,6 +1896,10 @@ function initAudio() {
   saturationNode.curve = makeSatCurve(_saturation);
   saturationNode.oversample = '4x';
 
+  const satMakeup = ctx.createGain();
+  satMakeup.gain.value = 1.4;
+  saturationNode.connect(satMakeup);
+  
   // Mood filter (master lowpass modulated by mood)
   moodFilter = ctx.createBiquadFilter();
   moodFilter.type = 'lowpass';
@@ -1805,7 +1919,7 @@ function initAudio() {
   // Chain: masterGain → HPF → saturation → moodFilter → compressor → analyser → destination
   masterGain.connect(masterHPF);
   masterHPF.connect(saturationNode);
-  saturationNode.connect(moodFilter);
+  satMakeup.connect(moodFilter);
   moodFilter.connect(masterCompressor);
   masterCompressor.connect(analyser);
   analyser.connect(ctx.destination);
@@ -1825,11 +1939,14 @@ function initAudio() {
 function makeSatCurve(amount) {
   const n = 256;
   const curve = new Float32Array(n);
-  const deg = Math.PI / 180;
-  const k = amount < 0.01 ? 0.01 : amount * 200;
   for (let i = 0; i < n; i++) {
     const x = (i * 2) / n - 1;
-    curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    if (amount < 0.01) {
+      curve[i] = x; // pure bypass at zero
+    } else {
+      const k = amount * 20; // was amount * 200 — much gentler
+      curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+    }
   }
   return curve;
 }
@@ -2571,6 +2688,7 @@ function updateFloorUI() {
     barLength = (60 / np.bpm) * 4;
     LAYER_NAMES.forEach(name => {
       if (name === 'boss') { if (isBoss) startLayer(name, np, ni, null); return; }
+      if (journeyActive && (name === 'drone' || name === 'bass')) return;
       if (layerOn[name]) startLayer(name, np, ni, PERC_BUF_LAYERS.has(name) ? pb : null);
     });
     if (changed) logTimeline(`Zone: ${np.name} · Floor ${f2}`);
