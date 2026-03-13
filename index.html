@@ -6575,9 +6575,9 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
 
   const encounterFloor = bossNow ? 0
     : narrativeMode === 'fight'   ? 0
-    : narrativeMode === 'prowl'   ? 0.25
-    : narrativeMode === 'drift'   ? 0.5
-    : (narrativeMode === 'witness' && depthT > 0.72) ? 0.65
+    : narrativeMode === 'prowl'   ? 0
+    : narrativeMode === 'drift'   ? 0.2
+    : (narrativeMode === 'witness' && depthT > 0.72) ? 0.5
     : 1.0;
   const encounterAllowed = depthT >= encounterFloor;
 
@@ -6662,7 +6662,7 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     if (e.deathT < 0) {
       const eDir = k.x < e.x ? -1 : 1;
       const distToKnight  = Math.abs(k.x - e.x);
-      const detectionRange = W * (0.38 - depthT * 0.14 + k.bossBuildupT * 0.12);
+      const detectionRange = W * (0.50 - depthT * 0.14 + k.bossBuildupT * 0.12);
       const canEscalate   = narrativeMode === 'fight' || narrativeMode === 'prowl'
                          || narrativeMode === 'drift' || bossNow;
 
