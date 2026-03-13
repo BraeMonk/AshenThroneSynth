@@ -4103,100 +4103,195 @@ function buildGlitch(preset, intensity, name) {
 }
 
 // ── STRINGS ───────────────────────────────────────────────────────
-// Full orchestral string section: slow bow attack, natural harmonic series,
-// stacked octave voicing, bow pressure tremolo, per-section spatial placement.
-// This is the backbone. Everything else decorates around this.
+// Live orchestral strings: tracks chord changes bar-by-bar, phrase-aware
+// density (bass only in intro → full section in climax), smooth frequency
+// glides on chord changes with bow re-attack, natural harmonic series,
+// and a 16-bar swell/breathe cycle that runs independently of the fade system.
 function buildStrings(preset, intensity, name) {
   const b = bus[name];
   const now = ctx.currentTime;
 
-  // String section: 3 registers — bass strings, viola/cello, violin
-  // Each has different bow character, detune spread, and filter shape
-  const sections = [
-    { octMult: 0.5,  spread: 6,  wave: 'sawtooth', gv: 0.28, lpf: 600,  attack: 0.55, label: 'bass'   },
-    { octMult: 1.0,  spread: 4,  wave: 'sawtooth', gv: 0.32, lpf: 1200, attack: 0.38, label: 'cello'  },
-    { octMult: 2.0,  spread: 3,  wave: 'sawtooth', gv: 0.22, lpf: 2400, attack: 0.28, label: 'violin' },
+  // ── Section definitions ─────────────────────────────────────────
+  // 3 string registers. Each is independently toggled by phrase density.
+  // sectionGain node: fade system never touches it (that's b.gain's job).
+  // We use sectionGain to drive phrase-based muting.
+  const SECTIONS = [
+    { id: 'bass',   octMult: 0.5,  spread: 7,  lpf: 550,  attack: 0.60, baseGv: 0.30, phases: ['intro','build','tension','climax','resolution'] },
+    { id: 'mid',    octMult: 1.0,  spread: 4,  lpf: 1400, attack: 0.38, baseGv: 0.32, phases: ['build','tension','climax','resolution'] },
+    { id: 'violin', octMult: 2.0,  spread: 3,  lpf: 3000, attack: 0.22, baseGv: 0.20, phases: ['climax'] },
   ];
 
-  sections.forEach(({ octMult, spread, wave, gv, lpf, attack }) => {
-    const rootFreq = CE.chordTone('strings', 1, 0) * octMult;
-    const thirdFreq = CE.chordTone('strings', 1, 1) * octMult;
-    const fifthFreq = CE.chordTone('strings', 1, 2) * octMult;
+  // Master internal gain — swell cycle modulates this, NOT b.gain
+  const swellGain = mkGain(1.0);
+  swellGain.connect(b);
+  reg(name, swellGain);
 
-    // Three oscillators per section: root, 3rd, 5th — chord voicing
-    [
-      { freq: rootFreq,  det: -spread, gv: gv },
-      { freq: rootFreq,  det:  spread, gv: gv * 0.85 },
-      { freq: thirdFreq, det: -spread * 0.5, gv: gv * 0.55 },
-      { freq: fifthFreq, det:  spread * 0.5, gv: gv * 0.40 },
-    ].forEach(({ freq, det, gv: vg }) => {
-      const o    = mkOsc(freq, wave, det);
-      const filt = mkFilt(lpf + intensity * 400, 'lowpass', 0.75);
-      const g    = mkGain(vg);
+  // Per-section: create oscillators and store references for live retuning
+  const stringSections = []; // { oscs: [{osc, baseDetCents, voiceIdx, octMult}], sectionGain, bowLfo, bowLfoG, lpfNode }
 
-      // Bow attack — slow fade in from zero, like a bow being drawn across strings
-      const bowEnv = mkGain(0);
-      bowEnv.gain.setValueAtTime(0, now);
-      bowEnv.gain.linearRampToValueAtTime(1.0, now + attack);
+  SECTIONS.forEach(({ id, octMult, spread, lpf, attack, baseGv, phases }) => {
+    // Section-level gain: controls phrase density
+    const sectionGain = mkGain(0);
+    sectionGain.connect(swellGain);
+    reg(name, sectionGain);
 
-      chain(o, g, filt, bowEnv, b);
+    // Bow pressure LFO — per section, subtly different rates
+    const bowLfo  = mkOsc(0.07 + Math.random() * 0.05, 'sine');
+    const bowLfoG = mkGain(0.018 + intensity * 0.008);
+    chain(bowLfo, bowLfoG); bowLfoG.connect(sectionGain.gain);
+    bowLfo.start();
+    reg(name, bowLfo, bowLfoG);
+
+    // Shared LPF for this section
+    const lpfNode = mkFilt(lpf + intensity * 300, 'lowpass', 0.8);
+    lpfNode.connect(sectionGain);
+    reg(name, lpfNode);
+
+    // 4 voices per section: root×2 (detuned), 3rd, 5th
+    // voiceIdx maps to chord tone: 0=root, 1=3rd, 2=5th
+    const voiceDefs = [
+      { voiceIdx: 0, det: -spread },
+      { voiceIdx: 0, det:  spread },
+      { voiceIdx: 1, det: -spread * 0.4 },
+      { voiceIdx: 2, det:  spread * 0.4 },
+    ];
+    const voiceGains = [baseGv, baseGv * 0.82, baseGv * 0.52, baseGv * 0.38];
+
+    const oscs = voiceDefs.map(({ voiceIdx, det }, vi) => {
+      const freq = CE.chordTone('strings', 1, voiceIdx) * octMult;
+      const o    = mkOsc(freq, 'sawtooth', det);
+      const g    = mkGain(voiceGains[vi]);
+      chain(o, g, lpfNode);
       o.start();
-      reg(name, o, g, filt, bowEnv);
+      reg(name, o, g);
+      return { osc: o, det, voiceIdx, octMult };
     });
 
-    // Bow pressure tremolo — very slow, subtle amplitude wavering
-    // Real bowing has micro-variations in pressure. This is what separates
-    // "string pad" from "string synth"
-    const bowLfo  = mkOsc(0.08 + Math.random() * 0.04, 'sine');
-    const bowLfoG = mkGain(0.022 + intensity * 0.010);
-    // We modulate a shared gain node that all voices of this section feed into
-    // (implementation: modulate via a pre-mix gain — approximate but effective)
-    const sectionMix = mkGain(1.0);
-    chain(bowLfo, bowLfoG); bowLfoG.connect(sectionMix.gain);
-    bowLfo.start();
-    reg(name, bowLfo, bowLfoG, sectionMix);
+    // Initial bow attack envelope on sectionGain
+    const inPhrase = phases.includes(currentPhrase);
+    const targetVol = inPhrase ? 1.0 : 0.0;
+    sectionGain.gain.setValueAtTime(0, now);
+    if (inPhrase) sectionGain.gain.linearRampToValueAtTime(targetVol, now + attack);
+
+    stringSections.push({ oscs, sectionGain, bowLfoG, lpfNode, phases, attack, octMult });
   });
 
-  // Harmonic series on top of the fundamental — what makes it sound like wood
-  // 2nd partial (octave): very present
-  // 3rd partial (5th above octave): moderate
-  // 4th partial (2 octaves): soft
-  // 5th partial: barely there, just shimmer
-  const fundamental = preset.root;
-  const harmonics = [
-    { ratio: 2.0, gain: 0.055 },
-    { ratio: 3.0, gain: 0.028 },
-    { ratio: 4.0, gain: 0.014 },
-    { ratio: 5.0, gain: 0.007 },
-  ];
-  harmonics.forEach(({ ratio, gain: hg }) => {
-    const o    = mkOsc(fundamental * ratio, 'sine');
-    const g    = mkGain(hg + intensity * hg * 0.5);
-    const filt = mkFilt(fundamental * ratio * 2, 'lowpass', 0.6);
-    chain(o, g, filt, b);
+  // ── Harmonic series — felt not heard ────────────────────────────
+  // Tracks the root, updates on chord change via retuneStrings
+  const harmonicOscs = [
+    { ratio: 2.0, gv: 0.048 },
+    { ratio: 3.0, gv: 0.024 },
+    { ratio: 4.0, gv: 0.012 },
+    { ratio: 5.0, gv: 0.006 },
+  ].map(({ ratio, gv }) => {
+    const o    = mkOsc(CE.chordTone('strings', 1, 0) * ratio * 0.5, 'sine');
+    const g    = mkGain(gv);
+    const filt = mkFilt(800 + ratio * 400, 'lowpass', 0.6);
+    chain(o, g, filt, swellGain);
     o.start();
     reg(name, o, g, filt);
+    return { osc: o, ratio };
   });
 
-  // Dynamic swell — 32-bar cycle: silence → swell in → hold → breathe out → repeat
-  // This is the Hans Zimmer move. Strings don't stay at constant volume.
-  const swellCycle = (barLength * 32) || 20; // fallback if bar not started yet
-  let swellPhase = 0;
+  // ── Bar-synced chord tracker ─────────────────────────────────────
+  // Polls CE.currentChord every bar. If chord changed, glide all oscs
+  // to new frequencies with a bow re-attack on sectionGain.
+  let lastChordLabel = CE.currentChord.label;
+
+  function retuneStrings() {
+    if (!layerOn[name]) return;
+
+    const chord = CE.currentChord;
+    const chordChanged = chord.label !== lastChordLabel;
+
+    if (chordChanged) {
+      lastChordLabel = chord.label;
+      const now2   = ctx.currentTime;
+      const glide  = 0.35; // seconds to glide to new chord — smooth, not instant
+
+      stringSections.forEach(({ oscs, sectionGain, attack, octMult, phases }) => {
+        // Retune each oscillator to its new chord tone
+        oscs.forEach(({ osc, det, voiceIdx, octMult: om }) => {
+          const newFreq = CE.chordTone('strings', 1, voiceIdx) * om;
+          // Exponential ramp — linear sounds mechanical, expo sounds like strings
+          osc.frequency.cancelScheduledValues(now2);
+          osc.frequency.setValueAtTime(osc.frequency.value, now2);
+          osc.frequency.exponentialRampToValueAtTime(Math.max(20, newFreq), now2 + glide);
+        });
+
+        // Bow re-attack: brief dip then swell back — bow lifts and re-engages
+        const inPhrase = phases.includes(currentPhrase);
+        if (inPhrase) {
+          const curVol = sectionGain.gain.value;
+          sectionGain.gain.cancelScheduledValues(now2);
+          sectionGain.gain.setValueAtTime(curVol, now2);
+          sectionGain.gain.linearRampToValueAtTime(curVol * 0.55, now2 + 0.08); // dip
+          sectionGain.gain.linearRampToValueAtTime(curVol, now2 + glide + 0.10);// recover
+        }
+      });
+
+      // Retune harmonics to new root
+      const newRoot = CE.chordTone('strings', 1, 0) * 0.5;
+      harmonicOscs.forEach(({ osc, ratio }) => {
+        osc.frequency.cancelScheduledValues(now2);
+        osc.frequency.setValueAtTime(osc.frequency.value, now2);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, newRoot * ratio), now2 + glide);
+      });
+    }
+
+    // ── Phrase-aware section density ──────────────────────────────
+    // Check if current phrase changed; open/close sections accordingly
+    stringSections.forEach(({ sectionGain, phases, attack }) => {
+      const shouldBeOn = phases.includes(currentPhrase);
+      const now3 = ctx.currentTime;
+      // Only ramp if significantly different from target to avoid constant scheduling
+      const cur  = sectionGain.gain.value;
+      const tgt  = shouldBeOn ? 1.0 : 0.0;
+      if (Math.abs(cur - tgt) > 0.05) {
+        sectionGain.gain.cancelScheduledValues(now3);
+        sectionGain.gain.setValueAtTime(cur, now3);
+        if (shouldBeOn) {
+          sectionGain.gain.linearRampToValueAtTime(tgt, now3 + attack);
+        } else {
+          sectionGain.gain.linearRampToValueAtTime(tgt, now3 + 1.8); // slow fade out
+        }
+      }
+    });
+
+    // Schedule next check at next bar boundary
+    const beatLen  = barLength / 4;
+    const nextBar  = barLength - ((ctx.currentTime % barLength) || 0);
+    const waitMs   = Math.max(50, nextBar * 1000);
+    regT(name, setTimeout(retuneStrings, waitMs));
+  }
+
+  // First check after one bar (let audio context settle)
+  regT(name, setTimeout(retuneStrings, (barLength || 2) * 1000));
+
+  // ── 16-bar swell cycle ───────────────────────────────────────────
+  // Strings breathe over a 16-bar arc: swell up for 6 bars, hold 6, breathe 4.
+  // swellGain is the target — never touches b.gain (fade system's domain).
   function doSwell() {
     if (!layerOn[name]) return;
-    const n2 = ctx.currentTime;
-    const swellIn  = swellCycle * 0.35;
-    const hold     = swellCycle * 0.40;
-    const swellOut = swellCycle * 0.25;
+    const now4   = ctx.currentTime;
+    const bl     = barLength || 2;
+    const swIn   = bl * 6;
+    const hold   = bl * 6;
+    const swOut  = bl * 4;
+    const total  = swIn + hold + swOut;
 
-    // We don't touch b.gain (that's the fade system's territory)
-    // Instead we modulate a secondary gain that sits inside the chain
-    // Already handled by bowEnv above; swell is emergent from the slow bow attack
-    // For ongoing swell, we schedule a gentle gain bump on the bus input
-    swellPhase = (swellPhase + 1) % 3;
-    regT(name, setTimeout(doSwell, swellCycle * 1000));
+    swellGain.gain.cancelScheduledValues(now4);
+    swellGain.gain.setValueAtTime(swellGain.gain.value, now4);
+    swellGain.gain.linearRampToValueAtTime(1.0,  now4 + swIn);          // swell up
+    swellGain.gain.setValueAtTime(1.0,            now4 + swIn);
+    swellGain.gain.linearRampToValueAtTime(0.55,  now4 + swIn + hold);  // breathe down
+    swellGain.gain.linearRampToValueAtTime(0.82,  now4 + total);        // recover
+
+    regT(name, setTimeout(doSwell, total * 1000));
   }
-  regT(name, setTimeout(doSwell, swellCycle * 1000));
+
+  // Stagger swell start so it doesn't peak immediately on entry
+  regT(name, setTimeout(doSwell, (barLength * 2 || 4) * 1000));
 }
 
 // ── CELLO COUNTERMELODY ───────────────────────────────────────────
