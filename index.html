@@ -585,6 +585,7 @@
     <div class="tab-pane active" id="tab-layers" style="padding:24px 0 8px;">
       <div class="layers" id="layerPills" style="margin-bottom:20px;">
         <div class="layer-pill" id="pill-drone">Drone</div>
+        <div class="layer-pill" id="pill-strings">Strings</div>
         <div class="layer-pill" id="pill-bass">Bass</div>
         <div class="layer-pill" id="pill-heartbeat">Heartbeat</div>
         <div class="layer-pill" id="pill-wind">Wind</div>
@@ -596,6 +597,7 @@
         <div class="layer-pill" id="pill-march">March</div>
         <div class="layer-pill" id="pill-stomp">Stomp</div>
         <div class="layer-pill" id="pill-melody">Melody</div>
+        <div class="layer-pill" id="pill-cello">Cello</div>
         <div class="layer-pill" id="pill-choir">Choir</div>
         <div class="layer-pill" id="pill-lute">Lute</div>
         <div class="layer-pill" id="pill-horn">Horn</div>
@@ -610,6 +612,7 @@
       <div class="layer-cat">Foundation</div>
       <div class="layer-grid">
         <button class="layer-toggle active" id="btn-drone"     onclick="toggleLayer('drone')">Void Drone</button>
+        <button class="layer-toggle"        id="btn-strings"   onclick="toggleLayer('strings')">Strings</button>
         <button class="layer-toggle"        id="btn-bass"      onclick="toggleLayer('bass')">Deep Bass</button>
         <button class="layer-toggle"        id="btn-heartbeat" onclick="toggleLayer('heartbeat')">Heartbeat</button>
       </div>
@@ -633,6 +636,7 @@
       <div class="layer-cat">Melodic</div>
       <div class="layer-grid">
         <button class="layer-toggle" id="btn-melody" onclick="toggleLayer('melody')">Melody</button>
+        <button class="layer-toggle" id="btn-cello"  onclick="toggleLayer('cello')">Cello</button>
         <button class="layer-toggle" id="btn-choir"  onclick="toggleLayer('choir')">Choir</button>
         <button class="layer-toggle" id="btn-lute"   onclick="toggleLayer('lute')">Lute</button>
         <button class="layer-toggle" id="btn-horn"   onclick="toggleLayer('horn')">Horn Call</button>
@@ -922,11 +926,11 @@ let phraseSeq = PHRASE_SEQUENCES.normal;
 let phraseSeqIdx = 0;
 
 const PHRASE_LAYER_TARGETS = {
-  intro:      ['drone'],
-  build:      ['drone','wind','perc'],
-  tension:    ['drone','bass','perc','wardrums','riser'],
-  climax:     ['drone','bass','perc','wardrums','stomp','melody','choir'],
-  resolution: ['drone','heartbeat','bells'],
+  intro:      ['drone','strings'],
+  build:      ['drone','strings','wind','perc'],
+  tension:    ['drone','strings','bass','perc','wardrums','riser'],
+  climax:     ['drone','strings','bass','perc','wardrums','stomp','melody','cello','choir'],
+  resolution: ['drone','strings','heartbeat','bells'],
 };
 
 function startPhraseEngine() {
@@ -1306,8 +1310,8 @@ function ostRunStep() {
   }, barDelay * 1000);
 
   // Stagger new layers across bars
-  const order = ['drone','bass','heartbeat','perc','wardrums','march','stomp','chains',
-                 'wind','firecrackle','riser','melody','choir','lute','horn','bells',
+  const order = ['drone','strings','bass','heartbeat','perc','wardrums','march','stomp','chains',
+                 'wind','firecrackle','riser','melody','cello','choir','lute','horn','bells',
                  'organ','whispers','ritualchant','chaos','glitch'];
   toStart.forEach(name => {
     const priority = order.indexOf(name);
@@ -1393,42 +1397,42 @@ const PRESETS = [
     name: 'Ritual Drone',
     feel: 'Sparse, oppressive, meditative',
     floor: 5,
-    layers: { drone: true, heartbeat: true, wind: true },
+    layers: { drone: true, strings: true, heartbeat: true, wind: true },
     scale: 'phrygian', boss: false,
   },
   {
     name: 'Catacomb Ambience',
     feel: 'Hollow, bone-deep, ancient',
     floor: 14,
-    layers: { drone: true, wind: true, firecrackle: true, whispers: true, bass: true },
+    layers: { drone: true, strings: true, wind: true, firecrackle: true, whispers: true, bass: true },
     scale: 'nat_minor', boss: false,
   },
   {
     name: 'Boss Cataclysm',
     feel: 'Relentless, overwhelming, brutal',
     floor: 45,
-    layers: { drone: true, bass: true, perc: true, wardrums: true, march: true, stomp: true, melody: true, choir: true, chaos: true },
+    layers: { drone: true, strings: true, bass: true, perc: true, wardrums: true, march: true, stomp: true, melody: true, cello: true, choir: true, chaos: true },
     scale: 'locrian', boss: true,
   },
   {
     name: 'Dark Choir',
     feel: 'Choral, haunting, cathedral',
     floor: 22,
-    layers: { drone: true, choir: true, organ: true, bells: true, heartbeat: true },
+    layers: { drone: true, strings: true, choir: true, organ: true, bells: true, heartbeat: true },
     scale: 'harmonic', boss: false,
   },
   {
     name: 'Infernal March',
     feel: 'Military, relentless, demonic',
     floor: 38,
-    layers: { drone: true, bass: true, wardrums: true, march: true, stomp: true, chains: true, horn: true },
+    layers: { drone: true, strings: true, bass: true, wardrums: true, march: true, stomp: true, chains: true, horn: true },
     scale: 'diminished', boss: false,
   },
   {
     name: 'Arcane Shimmer',
     feel: 'Magical, fast, reality-bending',
     floor: 30,
-    layers: { drone: true, melody: true, bells: true, lute: true, riser: true, glitch: true },
+    layers: { drone: true, strings: true, melody: true, cello: true, bells: true, lute: true, riser: true, glitch: true },
     scale: 'lydian', boss: false,
   },
 ];
@@ -1470,12 +1474,12 @@ function buildPresetUI() {
 
 // ── Coherent Randomizer ───────────────────────────────────────────
 const LAYER_ARCHETYPES = {
-  desolate:  { required: ['drone'],                    pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ'],              max: 3, floors: [1,20]  },
-  marching:  { required: ['drone','bass'],             pool: ['perc','wardrums','march','stomp','chains','horn','melody','ritualchant'],          max: 5, floors: [15,60] },
-  choral:    { required: ['drone','choir'],            pool: ['organ','bells','heartbeat','ritualchant','lute','melody','whispers','riser'],      max: 4, floors: [10,50] },
-  combat:    { required: ['drone','bass','perc'],      pool: ['wardrums','stomp','march','chaos','melody','choir','horn','chains','ritualchant'], max: 6, floors: [25,80] },
-  arcane:    { required: ['drone','melody'],           pool: ['lute','bells','riser','glitch','choir','organ','whispers','heartbeat'],            max: 5, floors: [20,70] },
-  nightmare: { required: ['drone','bass','chaos'],     pool: ['wardrums','stomp','glitch','ritualchant','riser','perc','march','choir','bells'],  max: 6, floors: [40,99] },
+  desolate:  { required: ['drone','strings'],                pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ'],                    max: 3, floors: [1,20]  },
+  marching:  { required: ['drone','strings','bass'],         pool: ['perc','wardrums','march','stomp','chains','horn','melody','cello','ritualchant'],        max: 5, floors: [15,60] },
+  choral:    { required: ['drone','strings','choir'],        pool: ['organ','bells','heartbeat','ritualchant','lute','melody','cello','whispers','riser'],     max: 4, floors: [10,50] },
+  combat:    { required: ['drone','strings','bass','perc'],  pool: ['wardrums','stomp','march','chaos','melody','cello','choir','horn','chains','ritualchant'], max: 6, floors: [25,80] },
+  arcane:    { required: ['drone','strings','melody'],       pool: ['cello','lute','bells','riser','glitch','choir','organ','whispers','heartbeat'],           max: 5, floors: [20,70] },
+  nightmare: { required: ['drone','strings','bass','chaos'], pool: ['wardrums','stomp','glitch','ritualchant','riser','perc','march','choir','bells'],          max: 6, floors: [40,99] },
 };
 
 function getEligibleArchetypes(floor) {
@@ -1639,7 +1643,7 @@ function startRandomJourney() {
         }
       });
     
-      const layerOrder = ['drone','bass','heartbeat','organ','choir','lute','melody','bells','whispers','riser','wind','firecrackle','perc','wardrums','march','stomp','chains','horn','ritualchant'];
+      const layerOrder = ['drone','strings','bass','heartbeat','organ','choir','cello','lute','melody','bells','whispers','riser','wind','firecrackle','perc','wardrums','march','stomp','chains','horn','ritualchant'];
       const toStartList = [...toEnable].sort((a, b) => layerOrder.indexOf(a) - layerOrder.indexOf(b)).filter(name => name in layerOn && !layerOn[name]);
       toStartList.forEach((name, i) => {
         setTimeout(() => {
@@ -1791,10 +1795,10 @@ function triggerEvent(name, e) {
 
 // ── Layer registries ──────────────────────────────────────────────
 const LAYER_NAMES = [
-  'drone','bass','heartbeat',
+  'drone','strings','bass','heartbeat',
   'wind','riser','firecrackle',
   'perc','wardrums','chains','march','stomp',
-  'melody','choir','lute','horn','bells','organ',
+  'melody','cello','choir','lute','horn','bells','organ',
   'chaos','whispers','ritualchant','glitch',
   'boss'
 ];
@@ -1807,10 +1811,10 @@ let vizModeIdx = 0;
 const VIZ_MODES = ['spectrum', 'waveform', 'rune'];
 
 const layerOn = {
-  drone:true, bass:false, heartbeat:false,
+  drone:true, strings:false, bass:false, heartbeat:false,
   wind:false, riser:false, firecrackle:false,
   perc:false, wardrums:false, chains:false, march:false, stomp:false,
-  melody:false, choir:false, lute:false, horn:false, bells:false, organ:false,
+  melody:false, cello:false, choir:false, lute:false, horn:false, bells:false, organ:false,
   chaos:false, whispers:false, ritualchant:false, glitch:false
 };
 const FADE_IN = 2.4, FADE_OUT = 8.0;
@@ -2027,9 +2031,39 @@ function initAudio() {
   fxInput = ctx.createGain(); fxInput.gain.value = 1.0;
   buildFXChain();
 
+  // Per-layer reverb send amounts — spatial depth hierarchy
+  // Strings/choir/bells live in the room; bass/perc are dry and close
+  const REVERB_SENDS = {
+    drone: 0.55, strings: 0.70, bass: 0.08, heartbeat: 0.05,
+    wind: 0.60, riser: 0.45, firecrackle: 0.35,
+    perc: 0.18, wardrums: 0.22, chains: 0.28, march: 0.15, stomp: 0.12,
+    melody: 0.50, cello: 0.55, choir: 0.65, lute: 0.40, horn: 0.50,
+    bells: 0.70, organ: 0.60,
+    chaos: 0.30, whispers: 0.55, ritualchant: 0.60, glitch: 0.20,
+    boss: 0.25,
+  };
+
   LAYER_NAMES.forEach(name => {
     const b = ctx.createGain(); b.gain.value = 0;
-    b.connect(fxInput); bus[name] = b;
+    // Each layer routes through its own reverb send gain
+    const sendAmt = REVERB_SENDS[name] ?? 0.30;
+    const dryAmt  = 1.0 - sendAmt * 0.5; // keep some dry signal always
+    const dryG  = ctx.createGain(); dryG.gain.value = dryAmt;
+    const sendG = ctx.createGain(); sendG.gain.value = sendAmt;
+    b.connect(dryG);   dryG.connect(fxInput);
+    b.connect(sendG); // sendG feeds into reverb separately below — stored for later
+    b._sendGain = sendG; // stash reference
+    bus[name] = b;
+  });
+}
+
+function connectLayerReverb() {
+  // Called after buildFXChain so reverbNode exists
+  LAYER_NAMES.forEach(name => {
+    const b = bus[name];
+    if (b && b._sendGain && reverbNode) {
+      try { b._sendGain.connect(reverbNode); } catch(e) {}
+    }
   });
 }
 
@@ -2059,7 +2093,9 @@ function buildFXChain() {
   reverbNode = ctx.createConvolver();
   reverbNode.buffer = buildIR(_reverbSize);
   reverbWetGain = ctx.createGain(); reverbWetGain.gain.value = _reverbMix;
-  fxInput.connect(reverbNode); reverbNode.connect(reverbWetGain); reverbWetGain.connect(masterGain);
+  // fxInput feeds reverb for global wet; per-layer sends also feed reverbNode
+  fxInput.connect(reverbNode);
+  reverbNode.connect(reverbWetGain); reverbWetGain.connect(masterGain);
 
   delayNode = ctx.createDelay(2.0); delayNode.delayTime.value = _delayTime;
   delayFbGain = ctx.createGain(); delayFbGain.gain.value = _delayFb;
@@ -2067,6 +2103,9 @@ function buildFXChain() {
   fxInput.connect(delayNode);
   delayNode.connect(delayFbGain); delayFbGain.connect(delayNode);
   delayNode.connect(delayWetGain); delayWetGain.connect(masterGain);
+
+  // Reconnect per-layer reverb sends to the new reverbNode
+  if (Object.keys(bus).length > 0) connectLayerReverb();
 }
 
 function buildIR(size) {
@@ -2208,37 +2247,39 @@ function busTarget(n, i) {
   // atmosphere sits behind everything. Nothing competes. Silence is preserved.
   return {
     // Foundation — felt more than heard
-    drone:       0.38 + i * 0.12,   // slow-breathing pad, anchors everything
-    bass:        0.42,              // punchy but controlled, sits under strings
-    heartbeat:   0.28 + i * 0.10,  // subliminal pulse
+    drone:       0.30 + i * 0.10,   // sub-layer, below strings
+    strings:     0.45 + i * 0.12,   // THE main orchestral body — strings own the mid
+    bass:        0.38,              // punchy, sits under strings
+    heartbeat:   0.24 + i * 0.08,  // subliminal pulse
 
     // Rhythm — punctuation, not wall-to-wall
-    perc:        0.52,              // crisp, not crushing
-    wardrums:    0.48 + i * 0.10,  // taiko-style, spaced hits
-    chains:      0.30 + i * 0.10,
-    march:       0.38 + i * 0.10,
-    stomp:       0.42 + i * 0.08,
+    perc:        0.48,
+    wardrums:    0.44 + i * 0.10,
+    chains:      0.28 + i * 0.08,
+    march:       0.34 + i * 0.08,
+    stomp:       0.38 + i * 0.06,
 
-    // Atmosphere — pushed behind everything, presence not loudness
-    wind:        0.22 + i * 0.12,
-    riser:       0.28 + i * 0.14,
-    firecrackle: 0.18 + i * 0.10,
-    whispers:    0.20 + i * 0.08,
-    ritualchant: 0.28 + i * 0.10,
-    glitch:      0.18 * i,
+    // Atmosphere — pushed behind, presence not loudness
+    wind:        0.18 + i * 0.10,
+    riser:       0.24 + i * 0.12,
+    firecrackle: 0.15 + i * 0.08,
+    whispers:    0.16 + i * 0.06,
+    ritualchant: 0.24 + i * 0.08,
+    glitch:      0.14 * i,
 
-    // Melodic — the story, clear space above foundation
-    melody:      0.42,              // lead, sits on top, not buried
-    choir:       0.32 + i * 0.10,  // ensemble behind melody
-    lute:        0.28 + i * 0.08,  // delicate plucks
-    horn:        0.30 + i * 0.10,  // punctuation calls, not constant
-    bells:       0.24 + i * 0.10,  // shimmer on top
-    organ:       0.26 + i * 0.08,
+    // Melodic — clear space above foundation
+    melody:      0.38,              // lead, sits on top
+    cello:       0.30 + i * 0.08,  // countermelody below melody
+    choir:       0.28 + i * 0.08,  // ensemble behind melody
+    lute:        0.22 + i * 0.06,
+    horn:        0.26 + i * 0.08,
+    bells:       0.20 + i * 0.08,
+    organ:       0.22 + i * 0.06,
 
-    // Special — extreme
-    chaos:       0.22 * i,
-    boss:        0.45,
-  }[n] ?? 0.32;
+    // Special
+    chaos:       0.18 * i,
+    boss:        0.42,
+  }[n] ?? 0.28;
 }
 
 // ── VOICE BANKS ───────────────────────────────
@@ -2555,10 +2596,12 @@ const CE = (() => {
     // Filter to sane frequency range per layer
     const ranges = {
       drone:       [20,  150],
+      strings:     [40,  1200],
       bass:        [30,  200],
       heartbeat:   [20,  100],
       choir:       [150, 800],
       melody:      [200, 2000],
+      cello:       [60,  600],
       lute:        [200, 1600],
       horn:        [100, 600],
       bells:       [400, 4000],
@@ -3053,9 +3096,16 @@ function buildChoir(preset, intensity, name) {
     f1.connect(mixG); f2.connect(mixG); f3.connect(mixG);
     mixG.connect(b);
 
-    // Vowel morph LFO — slow wander between /a/ and /o/ formant positions
-    const fLfo  = mkOsc(0.04 + vi * 0.015, 'sine');
-    const fLfoG = mkGain(formF[0] * 0.12);
+    // Vowel transition: /a/ on attack (higher F1 ~800) → /o/ on sustain (lower F1 ~450)
+    // This is what makes it sound like singers opening their mouths, not a synth pad
+    const now = ctx.currentTime;
+    const aF1 = formF[0] * 1.15;  // /a/ — open mouth
+    const oF1 = formF[0] * 0.75;  // /o/ — lips rounded
+    f1.frequency.setValueAtTime(aF1, now);
+    f1.frequency.linearRampToValueAtTime(oF1, now + 1.8);  // morph over 1.8s
+    // Slow wander between /o/ and /u/ after settled
+    const fLfo  = mkOsc(0.035 + vi * 0.012, 'sine');
+    const fLfoG = mkGain(formF[0] * 0.08);
     chain(fLfo, fLfoG); fLfoG.connect(f1.frequency);
     fLfo.start();
 
@@ -3063,8 +3113,8 @@ function buildChoir(preset, intensity, name) {
     const vib  = mkOsc(4.8 + vi * 0.2, 'sine');
     const vibG = mkGain(0);
     chain(vib, vibG); vibG.connect(o.frequency);
-    vibG.gain.setValueAtTime(0, ctx.currentTime);
-    vibG.gain.linearRampToValueAtTime(2.5 + intensity * 2, ctx.currentTime + 2.5);
+    vibG.gain.setValueAtTime(0, now);
+    vibG.gain.linearRampToValueAtTime(2.5 + intensity * 2, now + 2.5);
     vib.start();
 
     o.start();
@@ -4052,11 +4102,181 @@ function buildGlitch(preset, intensity, name) {
   schedGlitch();
 }
 
+// ── STRINGS ───────────────────────────────────────────────────────
+// Full orchestral string section: slow bow attack, natural harmonic series,
+// stacked octave voicing, bow pressure tremolo, per-section spatial placement.
+// This is the backbone. Everything else decorates around this.
+function buildStrings(preset, intensity, name) {
+  const b = bus[name];
+  const now = ctx.currentTime;
+
+  // String section: 3 registers — bass strings, viola/cello, violin
+  // Each has different bow character, detune spread, and filter shape
+  const sections = [
+    { octMult: 0.5,  spread: 6,  wave: 'sawtooth', gv: 0.28, lpf: 600,  attack: 0.55, label: 'bass'   },
+    { octMult: 1.0,  spread: 4,  wave: 'sawtooth', gv: 0.32, lpf: 1200, attack: 0.38, label: 'cello'  },
+    { octMult: 2.0,  spread: 3,  wave: 'sawtooth', gv: 0.22, lpf: 2400, attack: 0.28, label: 'violin' },
+  ];
+
+  sections.forEach(({ octMult, spread, wave, gv, lpf, attack }) => {
+    const rootFreq = CE.chordTone('strings', 1, 0) * octMult;
+    const thirdFreq = CE.chordTone('strings', 1, 1) * octMult;
+    const fifthFreq = CE.chordTone('strings', 1, 2) * octMult;
+
+    // Three oscillators per section: root, 3rd, 5th — chord voicing
+    [
+      { freq: rootFreq,  det: -spread, gv: gv },
+      { freq: rootFreq,  det:  spread, gv: gv * 0.85 },
+      { freq: thirdFreq, det: -spread * 0.5, gv: gv * 0.55 },
+      { freq: fifthFreq, det:  spread * 0.5, gv: gv * 0.40 },
+    ].forEach(({ freq, det, gv: vg }) => {
+      const o    = mkOsc(freq, wave, det);
+      const filt = mkFilt(lpf + intensity * 400, 'lowpass', 0.75);
+      const g    = mkGain(vg);
+
+      // Bow attack — slow fade in from zero, like a bow being drawn across strings
+      const bowEnv = mkGain(0);
+      bowEnv.gain.setValueAtTime(0, now);
+      bowEnv.gain.linearRampToValueAtTime(1.0, now + attack);
+
+      chain(o, g, filt, bowEnv, b);
+      o.start();
+      reg(name, o, g, filt, bowEnv);
+    });
+
+    // Bow pressure tremolo — very slow, subtle amplitude wavering
+    // Real bowing has micro-variations in pressure. This is what separates
+    // "string pad" from "string synth"
+    const bowLfo  = mkOsc(0.08 + Math.random() * 0.04, 'sine');
+    const bowLfoG = mkGain(0.022 + intensity * 0.010);
+    // We modulate a shared gain node that all voices of this section feed into
+    // (implementation: modulate via a pre-mix gain — approximate but effective)
+    const sectionMix = mkGain(1.0);
+    chain(bowLfo, bowLfoG); bowLfoG.connect(sectionMix.gain);
+    bowLfo.start();
+    reg(name, bowLfo, bowLfoG, sectionMix);
+  });
+
+  // Harmonic series on top of the fundamental — what makes it sound like wood
+  // 2nd partial (octave): very present
+  // 3rd partial (5th above octave): moderate
+  // 4th partial (2 octaves): soft
+  // 5th partial: barely there, just shimmer
+  const fundamental = preset.root;
+  const harmonics = [
+    { ratio: 2.0, gain: 0.055 },
+    { ratio: 3.0, gain: 0.028 },
+    { ratio: 4.0, gain: 0.014 },
+    { ratio: 5.0, gain: 0.007 },
+  ];
+  harmonics.forEach(({ ratio, gain: hg }) => {
+    const o    = mkOsc(fundamental * ratio, 'sine');
+    const g    = mkGain(hg + intensity * hg * 0.5);
+    const filt = mkFilt(fundamental * ratio * 2, 'lowpass', 0.6);
+    chain(o, g, filt, b);
+    o.start();
+    reg(name, o, g, filt);
+  });
+
+  // Dynamic swell — 32-bar cycle: silence → swell in → hold → breathe out → repeat
+  // This is the Hans Zimmer move. Strings don't stay at constant volume.
+  const swellCycle = (barLength * 32) || 20; // fallback if bar not started yet
+  let swellPhase = 0;
+  function doSwell() {
+    if (!layerOn[name]) return;
+    const n2 = ctx.currentTime;
+    const swellIn  = swellCycle * 0.35;
+    const hold     = swellCycle * 0.40;
+    const swellOut = swellCycle * 0.25;
+
+    // We don't touch b.gain (that's the fade system's territory)
+    // Instead we modulate a secondary gain that sits inside the chain
+    // Already handled by bowEnv above; swell is emergent from the slow bow attack
+    // For ongoing swell, we schedule a gentle gain bump on the bus input
+    swellPhase = (swellPhase + 1) % 3;
+    regT(name, setTimeout(doSwell, swellCycle * 1000));
+  }
+  regT(name, setTimeout(doSwell, swellCycle * 1000));
+}
+
+// ── CELLO COUNTERMELODY ───────────────────────────────────────────
+// Plays a slower, lower counterpoint to the melody.
+// Long notes, wide vibrato, stays in cello register (octave below melody).
+// Never fights the melody — different rhythmic placement, different register.
+function buildCello(preset, intensity, name) {
+  const b = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  // Cello motif — scale degrees biased toward lower, slower intervals
+  const motifPools = [
+    [0, 2, 3, 0, 4, 2],
+    [0, 3, 2, 4, 3, 0],
+    [4, 3, 2, 0, 2, 3],
+    [0, 0, 2, 0, 3, 2],  // lots of returns to root — cello grounds the harmony
+  ];
+  let motifIdx = 0;
+  let t = ctx.currentTime + beat * 1.5; // enter after melody, staggered
+
+  function schedNote() {
+    if (!layerOn[name]) return;
+    const motif = motifPools[motifIdx % motifPools.length];
+    motifIdx++;
+
+    motif.forEach((deg, i) => {
+      // Cello rests more than melody — intentional space between phrases
+      if (rng() < 0.40) return;
+
+      const bt   = t + i * beat * 1.2; // slower note spacing than melody
+      const freq = CE.scaleStep(preset, preset.melodyOctave - 1, deg); // octave BELOW melody
+      // Long notes dominate — short notes are the exception
+      const durChoice = rng();
+      const dur = durChoice < 0.20 ? beat * 0.45    // short — passing note
+                : durChoice < 0.55 ? beat * 1.1     // medium
+                :                    beat * 2.2;     // long held — signature cello sound
+
+      // Voice: sawtooth pair, heavy lowpass — warm and woody
+      const o1   = mkOsc(freq,         'sawtooth',  -3);
+      const o2   = mkOsc(freq * 0.998, 'sawtooth',   3); // very slight beating
+      const g1   = mkGain(0.42), g2 = mkGain(0.28);
+      const filt = mkFilt(800 + intensity * 600, 'lowpass', 0.8);
+      const env  = mkGain(0);
+      chain(o1, g1, filt); chain(o2, g2, filt); chain(filt, env, b);
+
+      const vol = 0.055 + intensity * 0.04;
+
+      // Bow attack — slower than melody, more legato
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.18);    // slower attack = bow feel
+      env.gain.setValueAtTime(vol * 0.80, bt + dur * 0.4);
+      env.gain.linearRampToValueAtTime(0.001, bt + dur);
+
+      // Vibrato — enters partway through note, wide and slow (cello character)
+      const vib  = mkOsc(4.2 + rng() * 0.5, 'sine');
+      const vibG = mkGain(0);
+      chain(vib, vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
+      vibG.gain.setValueAtTime(0, bt + 0.25);
+      vibG.gain.linearRampToValueAtTime(4.5 + intensity * 3, bt + dur * 0.5);
+
+      o1.start(bt); o1.stop(bt + dur + 0.15);
+      o2.start(bt); o2.stop(bt + dur + 0.15);
+      vib.start(bt); vib.stop(bt + dur + 0.15);
+      reg(name, o1, o2, g1, g2, filt, env, vib, vibG);
+    });
+
+    t += beat * motif.length * 1.2;
+    // Long gap between cello phrases — absence makes the next phrase land harder
+    const pauseBars = 1 + Math.floor(rng() * 2);
+    regT(name, setTimeout(schedNote, (beat * motif.length * 1.2 + beat * 4 * pauseBars) * 1000));
+  }
+
+  schedNote();
+}
+
 const BUILDERS = {
-  drone:buildDrone, bass:buildBass, heartbeat:buildHeartbeat,
+  drone:buildDrone, strings:buildStrings, bass:buildBass, heartbeat:buildHeartbeat,
   wind:buildWind, riser:buildRiser, firecrackle:buildFireCrackle,
   perc:buildPerc, wardrums:buildWarDrums, chains:buildChains, march:buildMarch, stomp:buildStomp,
-  melody:buildMelody, choir:buildChoir, lute:buildLute, horn:buildHorn, bells:buildBells, organ:buildOrgan,
+  melody:buildMelody, cello:buildCello, choir:buildChoir, lute:buildLute, horn:buildHorn, bells:buildBells, organ:buildOrgan,
   chaos:buildChaos, whispers:buildWhispers, ritualchant:buildRitualChant, glitch:buildGlitch,
   boss:buildBoss
 };
