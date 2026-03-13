@@ -2058,7 +2058,7 @@ const FADE_IN = 2.4, FADE_OUT = 8.0;
 // Cinematic
 let cinematicActive = false;
 let cinematicRaf = null;
-const particles = [];
+// particles array replaced by CIN.embers in cinematic scene system
 
 // ── Zone presets ──────────────────────────────────────────────────
 const ZONES = [
@@ -5556,106 +5556,350 @@ function exitCinematic() {
   if (cinematicRaf) { cancelAnimationFrame(cinematicRaf); cinematicRaf = null; }
 }
 
-// Cinematic particle system
-function initParticles(zone) {
-  particles.length = 0;
-  for (let i = 0; i < 80; i++) {
-    particles.push({
-      x: Math.random(),
-      y: Math.random(),
-      vx: (Math.random() - 0.5) * 0.0008,
-      vy: -Math.random() * 0.0012 - 0.0002,
-      size: Math.random() * 2.5 + 0.5,
+// ── CINEMATIC SCENE STATE ────────────────────────────────────────
+const CIN = {
+  t: 0,                    // frame counter
+  lastZone: null,          // for detecting zone change
+  // Embers
+  embers: [],
+  // Fog layers
+  fogShift: [0, 0, 0],
+  // Whisper text system
+  whispers: [],
+  whisperCooldown: 0,
+  // Silhouette terrain (generated once per zone)
+  terrain: null,
+  terrainZone: null,
+  // Moon / orb glow
+  moonFlicker: 1,
+  // Energy smoothing
+  smoothEnergy: 0,
+  smoothBass:   0,
+  smoothMid:    0,
+  smoothHigh:   0,
+  // Flash
+  flashAlpha: 0,
+};
+
+// Per-zone narrative whisper lines
+const ZONE_WHISPERS = {
+  'Ashen Fields':    ['the war is over', 'nothing grows here', 'ash and silence', 'they all fell here', 'do not look back', 'the drums have stopped', 'walk quickly'],
+  'Rotwood Forest':  ['it knows you are here', 'the trees remember', 'eyes between the bark', 'do not stray from the path', 'something breathes', 'old roots drink deep', 'turn around'],
+  'Catacombs Deep':  ['they never left', 'bone remembers flesh', 'the dark is listening', 'hundreds of names, forgotten', 'the walls close slowly', 'breathe shallow', 'you are not alone'],
+  'Shadowmere':      ['the veil thins here', 'wraiths walk beside you', 'cold to the marrow', 'they were once like you', 'do not speak their names', 'light cannot hold'],
+  "Sorcerer's Veil": ['the spell unravels', 'reality bends', 'arcane residue burns', 'what you see is not real', 'the formula is incomplete', 'the old tongue whispers back'],
+  'Obsidian Keep':   ['iron rusts in blood', 'the keep will not fall', 'war does not end here', 'stone remembers the siege', 'the garrison still marches', 'dread holds the walls'],
+  'Void Spire':      ['the spire goes up forever', 'do not look down', 'you are very small', 'the void looks back', 'gravity falters', 'the stars are wrong here'],
+  'Infernal Core':   ['it is too late', 'the heat is a living thing', 'everything burns eventually', 'you should not be here', 'the core remembers nothing', 'turn back', 'there is no turning back'],
+};
+
+function cinInitEmbers(zone, W, H) {
+  CIN.embers = [];
+  const count = 55;
+  for (let i = 0; i < count; i++) {
+    CIN.embers.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: -(Math.random() * 0.6 + 0.15),
+      size: Math.random() * 2.2 + 0.4,
       life: Math.random(),
-      speed: Math.random() * 0.5 + 0.3,
+      maxLife: Math.random() * 180 + 80,
+      age: Math.floor(Math.random() * 200),
       r: zone.vizR, g: zone.vizG, b: zone.vizB,
     });
   }
 }
 
-function drawCinematic() {
-  const canvas = document.getElementById('cinematicCanvas');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  const c = canvas.getContext('2d');
-  const zone = getZone(parseInt(slider.value));
+function cinBuildTerrain(zone, W, H) {
+  // Build two rugged silhouette ridgelines using zone's vizR/G/B as seed-ish influence
+  const pts1 = [], pts2 = [];
+  const seg = 12;
+  const base1 = H * 0.68, base2 = H * 0.78;
+  const rng = (s) => { let x = Math.sin(s * 127.1 + zone.vizR * 0.07) * 43758.5; return x - Math.floor(x); };
+  for (let i = 0; i <= seg; i++) {
+    const t = i / seg;
+    // Far ridge — smoother, taller ruins shapes
+    const ruinBump = rng(i + 0.3) > 0.82 ? (rng(i + 1.1) * H * 0.18) : (rng(i + 0.7) * H * 0.1);
+    pts1.push({ x: t * W, y: base1 - ruinBump });
+    // Near ridge — rougher, lower, fills in foreground
+    const nearBump = rng(i + 5.5) * H * 0.07;
+    pts2.push({ x: t * W, y: base2 - nearBump });
+  }
+  CIN.terrain = { pts1, pts2 };
+  CIN.terrainZone = zone.name;
+}
 
-  if (particles.length === 0) initParticles(zone);
+function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
+  const R = zone.vizR, G = zone.vizG, B = zone.vizB;
 
-  let freqData = new Uint8Array(analyser ? analyser.frequencyBinCount : 256);
-  if (analyser) analyser.getByteFrequencyData(freqData);
-  const avgEnergy = freqData.reduce((a, b) => a + b, 0) / freqData.length / 255;
+  // ── 1. SKY — persist with motion blur via low-alpha fill
+  c.fillStyle = `rgba(0,0,0,0.14)`;
+  c.fillRect(0, 0, W, H);
 
-  c.fillStyle = `rgba(0,0,0,0.18)`;
-  c.fillRect(0, 0, canvas.width, canvas.height);
+  // ── 2. HORIZON ATMOSPHERIC GLOW
+  const horizonY = H * 0.62;
+  const skyGrd = c.createLinearGradient(0, 0, 0, horizonY);
+  skyGrd.addColorStop(0,   `rgba(0,0,0,1)`);
+  skyGrd.addColorStop(0.5, `rgba(${Math.floor(R*0.15)},${Math.floor(G*0.08)},${Math.floor(B*0.18)},0.85)`);
+  skyGrd.addColorStop(1,   `rgba(${Math.floor(R*0.35)},${Math.floor(G*0.2)},${Math.floor(B*0.28)},0.5)`);
+  c.fillStyle = skyGrd;
+  c.fillRect(0, 0, W, horizonY + 40);
 
-  // Background glow
-  const grd = c.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.width * 0.5);
-  grd.addColorStop(0, `rgba(${zone.vizR},${zone.vizG},${zone.vizB},${0.04 + avgEnergy * 0.08})`);
-  grd.addColorStop(1, 'transparent');
-  c.fillStyle = grd;
-  c.fillRect(0, 0, canvas.width, canvas.height);
+  // Horizon bloom — pulses with bass
+  const bassBloom = CIN.smoothBass;
+  const bloomGrd = c.createRadialGradient(W/2, horizonY, 0, W/2, horizonY, W * 0.55);
+  bloomGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.6)},${Math.floor(B*0.5)},${0.08 + bassBloom * 0.18})`);
+  bloomGrd.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = bloomGrd;
+  c.fillRect(0, horizonY - H*0.35, W, H*0.5);
 
-  // Frequency rings
-  const cx = canvas.width / 2, cy = canvas.height / 2;
-  const numRings = 5;
-  for (let r = 0; r < numRings; r++) {
-    const binStart = Math.floor(r * freqData.length / numRings);
-    const binEnd = Math.floor((r + 1) * freqData.length / numRings);
-    let sum = 0;
-    for (let b = binStart; b < binEnd; b++) sum += freqData[b];
-    const energy = sum / ((binEnd - binStart) * 255);
-    const radius = (r + 1) * Math.min(canvas.width, canvas.height) * 0.08 + energy * 60;
-    c.beginPath();
-    c.arc(cx, cy, radius, 0, Math.PI * 2);
-    c.strokeStyle = `rgba(${zone.vizR},${zone.vizG},${zone.vizB},${0.08 + energy * 0.35})`;
-    c.lineWidth = 1 + energy * 3;
-    c.stroke();
+  // ── 3. DISTANT MOON / ORB
+  CIN.moonFlicker += (Math.random() - 0.5) * 0.04;
+  CIN.moonFlicker = Math.max(0.7, Math.min(1.0, CIN.moonFlicker));
+  const moonX = W * 0.72, moonY = H * 0.18;
+  const moonR = Math.min(W, H) * 0.045 * CIN.moonFlicker;
+  const moonGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 3.5);
+  moonGrd.addColorStop(0,   `rgba(${R},${Math.floor(G*0.9)},${B},${0.55 * CIN.moonFlicker})`);
+  moonGrd.addColorStop(0.3, `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.5)},${Math.floor(B*0.7)},${0.18 * CIN.moonFlicker})`);
+  moonGrd.addColorStop(1,   'rgba(0,0,0,0)');
+  c.fillStyle = moonGrd;
+  c.fillRect(0, 0, W, H * 0.5);
+  // Core disc
+  c.beginPath();
+  c.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+  c.fillStyle = `rgba(${R},${G},${B},${0.45 * CIN.moonFlicker})`;
+  c.fill();
+
+  // ── 4. FOG BANDS (3 layers drifting at different speeds)
+  const fogSpeeds = [0.18, 0.28, 0.38];
+  const fogYs     = [H * 0.55, H * 0.63, H * 0.70];
+  const fogAlphas = [0.06, 0.10, 0.14];
+  const fogHeights= [H * 0.22, H * 0.18, H * 0.15];
+  for (let fi = 0; fi < 3; fi++) {
+    CIN.fogShift[fi] = (CIN.fogShift[fi] + fogSpeeds[fi]) % (W * 2);
+    const fy = fogYs[fi];
+    const fa = fogAlphas[fi] + CIN.smoothEnergy * 0.06;
+    // Draw two copies offset by W for seamless scroll
+    for (let copy = -1; copy <= 1; copy++) {
+      const grd = c.createLinearGradient(0, fy - fogHeights[fi]/2, 0, fy + fogHeights[fi]);
+      grd.addColorStop(0, 'rgba(0,0,0,0)');
+      grd.addColorStop(0.4, `rgba(${Math.floor(R*0.4)},${Math.floor(G*0.3)},${Math.floor(B*0.5)},${fa})`);
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = grd;
+      c.fillRect(copy * W - CIN.fogShift[fi], fy - fogHeights[fi]/2, W * 2, fogHeights[fi] * 1.5);
+    }
   }
 
-  // Spectrum waveform circle
-  const waveData = new Uint8Array(analyser ? analyser.fftSize : 512);
-  if (analyser) analyser.getByteTimeDomainData(waveData);
+  // ── 5. TERRAIN SILHOUETTES
+  if (CIN.terrain) {
+    const { pts1, pts2 } = CIN.terrain;
+    // Far ridge (darker, slightly translucent)
+    c.beginPath();
+    c.moveTo(0, H);
+    pts1.forEach(p => c.lineTo(p.x, p.y));
+    c.lineTo(W, H);
+    c.closePath();
+    c.fillStyle = `rgba(${Math.floor(R*0.12)},${Math.floor(G*0.08)},${Math.floor(B*0.16)},0.92)`;
+    c.fill();
+    // Rim light on far ridge
+    c.beginPath();
+    pts1.forEach((p, i) => i === 0 ? c.moveTo(p.x, p.y) : c.lineTo(p.x, p.y));
+    c.strokeStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${0.06 + CIN.smoothBass * 0.12})`;
+    c.lineWidth = 1.2;
+    c.stroke();
+
+    // Near ridge (solid dark foreground)
+    c.beginPath();
+    c.moveTo(0, H);
+    pts2.forEach(p => c.lineTo(p.x, p.y));
+    c.lineTo(W, H);
+    c.closePath();
+    c.fillStyle = `rgba(4,3,6,0.97)`;
+    c.fill();
+  }
+
+  // ── 6. WAVEFORM as ground mist / energy at base
+  const waveSlice = Math.min(waveData.length, 512);
+  const waveFloor = H * 0.88;
+  const waveAmp   = H * 0.10;
+  // Glow fill under waveform
   c.beginPath();
-  const waveR = Math.min(canvas.width, canvas.height) * 0.22;
-  for (let i = 0; i < waveData.length; i++) {
-    const angle = (i / waveData.length) * Math.PI * 2;
-    const amplitude = ((waveData[i] / 128) - 1) * waveR * 0.35;
-    const x = cx + (waveR + amplitude) * Math.cos(angle);
-    const y = cy + (waveR + amplitude) * Math.sin(angle);
+  c.moveTo(0, H);
+  for (let i = 0; i < waveSlice; i++) {
+    const x = (i / waveSlice) * W;
+    const sample = (waveData[i] / 128.0) - 1.0;
+    const y = waveFloor + sample * waveAmp;
     i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
   }
-  c.closePath();
-  c.strokeStyle = `rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.7)`;
-  c.lineWidth = 1.5;
+  c.lineTo(W, H); c.lineTo(0, H); c.closePath();
+  const waveGrd = c.createLinearGradient(0, waveFloor - waveAmp, 0, H);
+  waveGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.6)},${B},${0.22 + CIN.smoothEnergy * 0.2})`);
+  waveGrd.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = waveGrd;
+  c.fill();
+  // Waveform line
+  c.beginPath();
+  for (let i = 0; i < waveSlice; i++) {
+    const x = (i / waveSlice) * W;
+    const y = waveFloor + ((waveData[i] / 128.0) - 1.0) * waveAmp;
+    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+  }
+  c.strokeStyle = `rgba(${R},${G},${B},${0.45 + CIN.smoothHigh * 0.3})`;
+  c.lineWidth = 1;
   c.stroke();
 
-  // Ash particles
-  particles.forEach(p => {
-    p.x += p.vx * (1 + avgEnergy * 2);
-    p.y += p.vy * p.speed;
-    p.life -= 0.003;
-    if (p.life <= 0 || p.y < 0) {
-      p.x = Math.random();
-      p.y = 1.0;
-      p.life = Math.random() * 0.8 + 0.2;
-      p.vx = (Math.random() - 0.5) * 0.0008;
-      p.vy = -Math.random() * 0.0012 - 0.0002;
-      p.r = zone.vizR; p.g = zone.vizG; p.b = zone.vizB;
-    }
+  // ── 7. TORCH FLAMES — spaced along near-ridge horizon
+  const torchXs = [W*0.12, W*0.28, W*0.51, W*0.74, W*0.88];
+  const torchY  = H * 0.75;
+  torchXs.forEach((tx, ti) => {
+    const flicker = 0.6 + 0.4 * Math.sin(t * 0.09 + ti * 1.7) + CIN.smoothBass * 0.4;
+    const fh = (12 + CIN.smoothBass * 18) * flicker;
+    const fw = (6 + CIN.smoothBass * 6) * flicker;
+    const tGrd = c.createRadialGradient(tx, torchY, 0, tx, torchY - fh, fw * 2.5);
+    tGrd.addColorStop(0,   `rgba(255,200,80,${0.7 * flicker})`);
+    tGrd.addColorStop(0.3, `rgba(${R},${Math.floor(G*0.4)},0,${0.4 * flicker})`);
+    tGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = tGrd;
     c.beginPath();
-    c.arc(p.x * canvas.width, p.y * canvas.height, p.size, 0, Math.PI * 2);
-    c.fillStyle = `rgba(${p.r},${p.g},${p.b},${p.life * 0.6})`;
+    c.ellipse(tx, torchY - fh/2, fw, fh, 0, 0, Math.PI * 2);
     c.fill();
   });
 
-  // Phrase text
-  c.font = `400 12px 'Cinzel', serif`;
-  c.fillStyle = `rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.4)`;
-  c.letterSpacing = '0.3em';
-  c.textAlign = 'center';
-  c.fillText(currentPhrase.toUpperCase(), cx, cy + waveR * 1.6);
+  // ── 8. EMBERS
+  CIN.embers.forEach(p => {
+    p.age++;
+    p.x += p.vx * (1 + CIN.smoothEnergy * 1.5);
+    p.y += p.vy * (1 + CIN.smoothBass * 0.8);
+    p.vx += (Math.random() - 0.5) * 0.06;
+    if (p.y < -10 || p.age > p.maxLife) {
+      p.x = Math.random() * W;
+      p.y = H * (0.7 + Math.random() * 0.3);
+      p.vx = (Math.random() - 0.5) * 0.4;
+      p.vy = -(Math.random() * 0.6 + 0.15);
+      p.age = 0;
+      p.maxLife = Math.random() * 180 + 80;
+      p.r = R; p.g = G; p.b = B;
+    }
+    const prog = p.age / p.maxLife;
+    const alpha = Math.sin(prog * Math.PI) * 0.65;
+    c.beginPath();
+    c.arc(p.x, p.y, p.size * (1 - prog * 0.5), 0, Math.PI * 2);
+    c.fillStyle = prog < 0.3
+      ? `rgba(255,${180 + Math.floor(p.g * 0.4)},60,${alpha})`
+      : `rgba(${p.r},${Math.floor(p.g * 0.5)},${Math.floor(p.b * 0.3)},${alpha * 0.5})`;
+    c.fill();
+  });
 
+  // ── 9. FLASH on transient / high energy
+  if (CIN.smoothBass > 0.75 && Math.random() < 0.04) CIN.flashAlpha = 0.06 + Math.random() * 0.06;
+  if (CIN.flashAlpha > 0) {
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${CIN.flashAlpha})`;
+    c.fillRect(0, 0, W, H);
+    CIN.flashAlpha *= 0.72;
+  }
+
+  // ── 10. WHISPER TEXT
+  if (CIN.whisperCooldown > 0) CIN.whisperCooldown--;
+  if (CIN.whisperCooldown === 0 && Math.random() < 0.008) {
+    const pool = ZONE_WHISPERS[zone.name] || ZONE_WHISPERS['Ashen Fields'];
+    const line = pool[Math.floor(Math.random() * pool.length)];
+    CIN.whispers.push({
+      text: line,
+      x: W * (0.15 + Math.random() * 0.7),
+      y: H * (0.12 + Math.random() * 0.55),
+      alpha: 0,
+      phase: 'in',  // 'in' → 'hold' → 'out'
+      holdFrames: 160 + Math.floor(Math.random() * 120),
+      heldFor: 0,
+      size: 11 + Math.floor(Math.random() * 6),
+      italic: Math.random() > 0.4,
+    });
+    CIN.whisperCooldown = 220 + Math.floor(Math.random() * 180);
+  }
+  CIN.whispers = CIN.whispers.filter(w => !(w.phase === 'out' && w.alpha <= 0.01));
+  CIN.whispers.forEach(w => {
+    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.012); if (w.alpha >= 1) w.phase = 'hold'; }
+    if (w.phase === 'hold') { w.heldFor++; if (w.heldFor >= w.holdFrames) w.phase = 'out'; }
+    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.008); }
+    const fontStr = w.italic
+      ? `italic 400 ${w.size}px 'IM Fell English', serif`
+      : `400 ${w.size}px 'Cinzel', serif`;
+    c.font = fontStr;
+    c.textAlign = 'center';
+    // Faint shadow for depth
+    c.fillStyle = `rgba(0,0,0,${w.alpha * 0.5})`;
+    c.fillText(w.text, w.x + 1, w.y + 1);
+    // Main text in zone color, very dim
+    c.fillStyle = `rgba(${R},${Math.floor(G*0.85)},${B},${w.alpha * 0.38})`;
+    c.fillText(w.text, w.x, w.y);
+  });
+
+  // ── 11. HUD — zone name + phrase + floor + desc
+  // Zone name (top center)
+  c.font = `700 ${Math.floor(Math.min(W,H)*0.022)}px 'Cinzel', serif`;
+  c.textAlign = 'center';
+  c.fillStyle = `rgba(${R},${Math.floor(G*0.85)},${B},0.75)`;
+  c.fillText(zone.name.toUpperCase(), W/2, H * 0.07);
+  // Desc (italic, below zone name)
+  c.font = `italic 400 ${Math.floor(Math.min(W,H)*0.016)}px 'IM Fell English', serif`;
+  c.fillStyle = `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.6)},${Math.floor(B*0.8)},0.38)`;
+  c.fillText(zone.desc, W/2, H * 0.07 + Math.min(W,H)*0.032);
+  // Phrase bottom-left
+  c.font = `400 ${Math.floor(Math.min(W,H)*0.014)}px 'Cinzel', serif`;
+  c.textAlign = 'left';
+  c.fillStyle = `rgba(${R},${G},${B},0.3)`;
+  c.fillText(currentPhrase.toUpperCase(), W * 0.04, H * 0.93);
+  // Floor bottom-right
+  c.textAlign = 'right';
+  c.fillStyle = `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.6)},${Math.floor(B*0.7)},0.35)`;
+  c.fillText(`FLOOR ${slider.value}`, W * 0.96, H * 0.93);
+}
+
+function drawCinematic() {
+  const canvas = document.getElementById('cinematicCanvas');
+  const W = canvas.width  = window.innerWidth;
+  const H = canvas.height = window.innerHeight;
+  const c = canvas.getContext('2d');
+  const zone = getZone(parseInt(slider.value));
+
+  // Zone change — rebuild terrain & embers
+  if (zone.name !== CIN.lastZone) {
+    CIN.lastZone = zone.name;
+    cinBuildTerrain(zone, W, H);
+    cinInitEmbers(zone, W, H);
+    CIN.whispers = [];
+    CIN.whisperCooldown = 60;
+  }
+  if (!CIN.terrain) { cinBuildTerrain(zone, W, H); cinInitEmbers(zone, W, H); }
+
+  // Audio data
+  const fftSize = analyser ? analyser.frequencyBinCount : 256;
+  const freqData = new Uint8Array(fftSize);
+  const waveData = new Uint8Array(analyser ? analyser.fftSize : 512);
+  if (analyser) {
+    analyser.getByteFrequencyData(freqData);
+    analyser.getByteTimeDomainData(waveData);
+  } else {
+    waveData.fill(128);
+  }
+
+  // Smooth energy bands
+  const bassEnd  = Math.floor(fftSize * 0.08);
+  const midEnd   = Math.floor(fftSize * 0.35);
+  const highEnd  = Math.floor(fftSize * 0.85);
+  const avg = (arr, s, e) => { let sum=0; for(let i=s;i<e;i++) sum+=arr[i]; return sum/((e-s)*255); };
+  const rawBass  = avg(freqData, 0,       bassEnd);
+  const rawMid   = avg(freqData, bassEnd,  midEnd);
+  const rawHigh  = avg(freqData, midEnd,   highEnd);
+  const rawEnergy= avg(freqData, 0,        fftSize);
+  CIN.smoothBass   += (rawBass   - CIN.smoothBass)   * 0.18;
+  CIN.smoothMid    += (rawMid    - CIN.smoothMid)    * 0.12;
+  CIN.smoothHigh   += (rawHigh   - CIN.smoothHigh)   * 0.10;
+  CIN.smoothEnergy += (rawEnergy - CIN.smoothEnergy) * 0.10;
+
+  CIN.t++;
+  cinDrawScene(c, W, H, zone, freqData, waveData, CIN.t);
   cinematicRaf = requestAnimationFrame(drawCinematic);
 }
 
