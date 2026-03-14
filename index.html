@@ -1014,7 +1014,10 @@ function hashString(str) {
   return h;
 }
 
-let rng = Math.random; // default to true random
+// Auto-seed rng with a unique session key at page load
+// This ensures every session sounds different even without an explicit seed
+const _sessionSeed = Date.now() ^ (Math.random() * 0xFFFFFFFF | 0);
+let rng = seedRandom(_sessionSeed); // session-unique by default (not Math.random)
 
 function applySeed() {
   const val = document.getElementById('seedInput').value.trim();
@@ -2541,11 +2544,17 @@ JC.tick = function() {
   // moment-to-moment gain riding independently.
   if(!JC.sceneTransition){
     JC._reconcileBar = (JC._reconcileBar||0) + 1;
-    if(JC._reconcileBar >= 4){
+    // Skip reconcile during the opening window (first 8 bars) so the cold-open
+    // fade-in isn't interrupted by a layer restart from the reconcile loop.
+    const _journeyAgeMs = Date.now() - JC.startTime;
+    const _openingWindowMs = (barLength || 4) * 8 * 1000;
+    if(JC._reconcileBar >= 4 && _journeyAgeMs > _openingWindowMs){
       JC._reconcileBar = 0;
       JC.reconcile(preset,intensity);
     }
-    JC.applyMasterVolume();
+    // Only apply master volume after the opening window — during opening,
+    // masterGain is being driven by the cinematic rise schedule
+    if (_journeyAgeMs > _openingWindowMs) JC.applyMasterVolume();
   }
 };
 
@@ -2556,15 +2565,34 @@ function startRandomJourney() {
   activeJourneyMood=moodKeys[Math.floor(Math.random()*moodKeys.length)];
   selectJourneyMood(activeJourneyMood);
 
-  // Clear all timers and layers
+  // ── COLD OPEN: silence everything immediately before journey begins ──────────
+  // stopLayer() uses an 8-second fadeOut — previous layers would bleed audibly
+  // into the journey opening. Instead we:
+  //   1. Drop masterGain to 0 in 0.15s (inaudible click-free cut)
+  //   2. killLayer() all nodes hard (no fade tail)
+  //   3. Hold silence for the journey's opening fade-in
+  //   4. masterGain rises slowly as the first layers emerge from nothing
+  // This way the journey always starts from true silence — the drone fades
+  // in as the first and only sound the listener hears.
   JC.timers.forEach(clearTimeout); JC.timers=[];
   journeyTimers.forEach(clearTimeout); journeyTimers=[];
+
+  // Instant-mute masterGain — click-free cut in 150ms
+  if (ctx && masterGain) {
+    const now0 = ctx.currentTime;
+    masterGain.gain.cancelScheduledValues(now0);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now0);
+    masterGain.gain.linearRampToValueAtTime(0, now0 + 0.15);
+  }
+
+  // Hard-kill all layers — no fadeOut tail
   Object.keys(layerOn).forEach(name=>{
     if(layerOn[name]){
       layerOn[name]=false;
       document.getElementById('btn-'+name)?.classList.remove('active');
       document.getElementById('pill-'+name)?.classList.remove('on');
-      stopLayer(name);
+      killLayer(name); // immediate — no 8-second bleed
+      fadingOut.delete(name);
     }
   });
   JC.activeSet.clear();
@@ -2623,22 +2651,59 @@ function startRandomJourney() {
   autoEvolution = true;
   startPhraseEngine();
 
-  // Drone seeds immediately — the first sound the listener hears
-  layerOn['drone'] = true;
-  document.getElementById('btn-drone')?.classList.add('active');
-  document.getElementById('pill-drone')?.classList.add('on');
-  startLayer('drone', firstPreset, 0.08, null);
-  JC.activeSet.add('drone');
+  // ── IMMEDIATE JOURNEY OPEN — full bloom, no drone-solo moment ──────────────
+  // All chapter-1 layers start together, staggered by just half a bar each,
+  // over masterGain that rises from 0 in 2 bars. The listener hears the
+  // journey already in motion — not waiting for a drone to warm up first.
 
-  // Strings enter after 2 bars — gives drone space to establish itself
-  JC.timers.push(setTimeout(() => {
-    if (!JC.active || !isPlaying) return;
-    layerOn['strings'] = true;
-    document.getElementById('btn-strings')?.classList.add('active');
-    document.getElementById('pill-strings')?.classList.add('on');
-    startLayer('strings', firstPreset, 0.10, null);
-    JC.activeSet.add('strings');
-  }, barLength * 2 * 1000));
+  const openBarMs = barLength * 1000;
+
+  // masterGain rises from 0 over 2 bars — fast enough to feel immediate,
+  // slow enough to not click
+  if (ctx && masterGain) {
+    const now1 = ctx.currentTime;
+    masterGain.gain.cancelScheduledValues(now1);
+    masterGain.gain.setValueAtTime(0, now1);
+    masterGain.gain.linearRampToValueAtTime(0.38, now1 + barLength * 2);
+  }
+
+  // Compute opening layer set at low energy so we don't blast everything at once
+  JC.energy = 0.08;
+  const openingSet = JC.computeTargetSet();
+  JC.energy = 0;
+
+  // Stagger order and delays — layers bloom in together, not sequentially
+  // Each pair enters within half a bar of the previous, so by bar 2
+  // the full opening texture is established
+  const openStagger = [
+    { layers: ['drone'],              bars: 0.0 },
+    { layers: ['strings', 'wind'],    bars: 0.3 },
+    { layers: ['heartbeat', 'bass'],  bars: 0.7 },
+    { layers: ['choir', 'organ'],     bars: 1.1 },
+    { layers: ['melody', 'bells'],    bars: 1.6 },
+    { layers: ['cello', 'lute'],      bars: 2.0 },
+  ];
+
+  openStagger.forEach(({ layers: lnames, bars }) => {
+    const delayMs = bars * openBarMs;
+    const fireAt  = () => {
+      lnames.forEach(lname => {
+        if (!openingSet.has(lname)) return;
+        if (!JC.active || !isPlaying) return;
+        layerOn[lname] = true;
+        document.getElementById('btn-'+lname)?.classList.add('active');
+        document.getElementById('pill-'+lname)?.classList.add('on');
+        const pb = PERC_BUF_LAYERS.has(lname) ? buildPercBufs(firstPreset) : null;
+        // Entry intensity scales with stagger position so later layers
+        // don't blast in louder than the foundation
+        const entryIntensity = 0.05 + (bars / 2.5) * 0.08;
+        startLayer(lname, firstPreset, entryIntensity, pb);
+        JC.activeSet.add(lname);
+      });
+    };
+    if (delayMs < 50) fireAt();
+    else JC.timers.push(setTimeout(fireAt, delayMs));
+  });
 
   setStatus(`🌑 Journey begins — ${firstChapter.label}`);
   document.getElementById('randArchetypeLabel').textContent=firstChapter.label.toUpperCase();
@@ -2829,8 +2894,8 @@ const ZONES = [
     // Sparse and foreboding. Kick on 1 only. No hihat. Melody barely moves.
     // Root: A1 (27.5 Hz) — the lowest we go. Establishes the tonal floor.
     name:'Ashen Fields', range:[1,12], color:'#8b3a3a', bpm:58,
-    root:27.5, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818],
-    droneWave:'sine', droneFilterFreq:220, droneFilterQ:1.2,
+    root:55.0, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818],
+    droneWave:'sine', droneFilterFreq:280, droneFilterQ:1.2,
     droneLfoRate:0.04, droneLfoDepth:80, droneAmpLfo:0.06,
     kickFreq:52, kickDecay:0.55, snareDecay:0.18, snareFilterFreq:900,
     kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
@@ -2846,8 +2911,8 @@ const ZONES = [
     // Kick adds a ghost on beat 3. Hihat enters on quarter notes only.
     // Root steps down a whole tone (G#1 ≈ 26.0 Hz) — barely perceptible, just darker.
     name:'Rotwood Forest', range:[13,24], color:'#5a4a2a', bpm:64,
-    root:26.0, scale:[1,1.0595,1.1225,1.3348,1.4983,1.5874,1.6818],
-    droneWave:'sawtooth', droneFilterFreq:260, droneFilterQ:2.5,
+    root:52.0, scale:[1,1.0595,1.1225,1.3348,1.4983,1.5874,1.6818],
+    droneWave:'sawtooth', droneFilterFreq:320, droneFilterQ:2.5,
     droneLfoRate:0.07, droneLfoDepth:140, droneAmpLfo:0.08,
     kickFreq:55, kickDecay:0.38, snareDecay:0.14, snareFilterFreq:1100,
     kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,0,0,1,0,0,0],
@@ -2863,8 +2928,8 @@ const ZONES = [
     // Kick now 1+3 (the stomp begins). Hihat on every beat. Bass gets movement.
     // Root: G#1 (24.5 Hz) — another step down. The floor gets lower.
     name:'Catacombs Deep', range:[25,36], color:'#3a3a5a', bpm:70,
-    root:24.5, scale:[1,1.0595,1.2599,1.3348,1.4142,1.5874,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:180, droneFilterQ:3.5,
+    root:49.0, scale:[1,1.0595,1.2599,1.3348,1.4142,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:260, droneFilterQ:3.5,
     droneLfoRate:0.06, droneLfoDepth:260, droneAmpLfo:0.11,
     kickFreq:48, kickDecay:0.65, snareDecay:0.20, snareFilterFreq:700,
     kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
@@ -2880,8 +2945,8 @@ const ZONES = [
     // Kick syncopates for the first time (1, 2.5, 3). Hihat fills with 8ths.
     // Root nudges down to G1 (23.1 Hz) — the descent continues its slow pull.
     name:'Shadowmere', range:[37,48], color:'#4a2a6a', bpm:78,
-    root:23.1, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:300, droneFilterQ:4.5,
+    root:46.2, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:360, droneFilterQ:4.5,
     droneLfoRate:0.10, droneLfoDepth:380, droneAmpLfo:0.13,
     kickFreq:50, kickDecay:0.40, snareDecay:0.15, snareFilterFreq:1500,
     kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
@@ -2898,8 +2963,8 @@ const ZONES = [
     // Root: F#1 (23.1 Hz) — holding the tonal center steady as texture maxes out.
     // Melody steps up an octave here (melodyOctave:1) — it soars above the chaos.
     name:"Sorcerer's Veil", range:[49,60], color:'#2a4a6a', bpm:88,
-    root:23.1, scale:[1,1.0595,1.1892,1.2599,1.4983,1.6818,1.7818],
-    droneWave:'triangle', droneFilterFreq:420, droneFilterQ:5.5,
+    root:46.2, scale:[1,1.0595,1.1892,1.2599,1.4983,1.6818,1.7818],
+    droneWave:'triangle', droneFilterFreq:480, droneFilterQ:5.5,
     droneLfoRate:0.15, droneLfoDepth:520, droneAmpLfo:0.16,
     kickFreq:52, kickDecay:0.30, snareDecay:0.11, snareFilterFreq:1900,
     kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,1,0,0,1,0,0], hihatPattern:[1,0,1,0,1,1,0,1],
@@ -2916,8 +2981,8 @@ const ZONES = [
     // Root rises to F1 (21.8 Hz) — the lowest the drone goes, counterintuitively
     // making it feel like a floor dropped. Maximum texture density.
     name:'Obsidian Keep', range:[61,72], color:'#6a2a4a', bpm:98,
-    root:21.8, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:480, droneFilterQ:4.0,
+    root:43.6, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:540, droneFilterQ:4.0,
     droneLfoRate:0.20, droneLfoDepth:660, droneAmpLfo:0.19,
     kickFreq:46, kickDecay:0.42, snareDecay:0.16, snareFilterFreq:1700,
     kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,1,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
@@ -3035,7 +3100,7 @@ function initAudio() {
   // Subsonic HPF
   masterHPF = ctx.createBiquadFilter();
   masterHPF.type = 'highpass';
-  masterHPF.frequency.value = 30;
+  masterHPF.frequency.value = 18; // lowered from 30Hz — was eating zone 1-3 sub bass
 
   // Saturation (WaveShaper)
   saturationNode = ctx.createWaveShaper();
@@ -3054,7 +3119,7 @@ function initAudio() {
 
   // Master compressor — gentle glue, not a limiter
   masterCompressor = ctx.createDynamicsCompressor();
-  masterCompressor.threshold.value = -18;
+  masterCompressor.threshold.value = -14; // raised from -18 — less compression on sub bass
   masterCompressor.knee.value = 12;
   masterCompressor.ratio.value = 3.0;
   masterCompressor.attack.value = 0.008;  // 8ms — fast enough to catch peaks, slow enough to let transients breathe
@@ -3079,7 +3144,7 @@ function initAudio() {
   // Per-layer reverb send amounts — spatial depth hierarchy
   // Strings/choir/bells live in the room; bass/perc are dry and close
   const REVERB_SENDS = {
-    drone: 0.55, strings: 0.70, bass: 0.08, heartbeat: 0.06,
+    drone: 0.72, strings: 0.70, bass: 0.32, heartbeat: 0.06, // drone+bass boosted for sub presence
     wind: 0.60, riser: 0.45, firecrackle: 0.35,
     perc: 0.18, wardrums: 0.20, chains: 0.22, march: 0.18, stomp: 0.16,
     melody: 0.50, cello: 0.55, choir: 0.65, lute: 0.40, horn: 0.50,
@@ -4040,11 +4105,42 @@ function buildDrone(preset, intensity, name) {
     return { osc: o, role };
   });
 
-  // Sub — stays locked to zone root always (felt not heard harmonically)
-  const subO    = mkOsc(preset.root * 0.5, 'sine');
-  const subFilt = mkFilt(90, 'lowpass', 0.7);
-  const subG    = mkGain(0.18);
-  chain(subO, subFilt, subG, b); subO.start(); reg(name, subO, subFilt, subG);
+  // Sub — skull-rocking sub bass with subwoofer-friendly soft-clip crunch.
+  // Two sines: root for punch, root*2 for presence on small speakers.
+  // A WaveShaper with gentle tanh saturation on the sub path adds
+  // odd harmonics (3rd, 5th) — the "chest-crushing" crunch that makes
+  // dark ambient feel physical without distorting into noise.
+  const subFreqA = Math.max(28, preset.root);
+  const subFreqB = Math.max(55, preset.root * 2);
+  const subO     = mkOsc(subFreqA, 'sine');
+  const subO2    = mkOsc(subFreqB, 'sine');
+
+  // Soft-clip curve — tanh saturation at drive 2.0. Adds warmth and crunch.
+  // drive 1.5–2.5 = "subwoofer crunch". drive > 4 = fuzz (not what we want).
+  function makeSubCrunchCurve(drive) {
+    const n = 256, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2 / n) - 1;
+      curve[i] = Math.tanh(x * drive) / Math.tanh(drive);
+    }
+    return curve;
+  }
+  const subCrunch = ctx.createWaveShaper();
+  subCrunch.curve = makeSubCrunchCurve(2.0 + intensity * 1.2);
+  subCrunch.oversample = '2x';
+
+  const subFilt  = mkFilt(130, 'lowpass', 0.6);
+  const subFilt2 = mkFilt(160, 'lowpass', 0.5);
+  const subG     = mkGain(0.36 + intensity * 0.18);
+  const subG2    = mkGain(0.22 + intensity * 0.10);
+
+  // Route sub through crunch before filter: sine → crunch → filter → bus
+  subO.connect(subCrunch); subCrunch.connect(subFilt);
+  chain(subFilt, subG, b);
+  chain(subO2, subFilt2, subG2, b); // root*2 stays clean — just warmth, no crunch
+
+  subO.start(); subO2.start();
+  reg(name, subO, subO2, subCrunch, subFilt, subFilt2, subG, subG2);
 
   // Filter breathe LFO — very slow, low depth, rate scattered ±8%
   const _filtLfoRate = (preset.droneLfoRate * 0.6 + intensity * 0.04) * (0.92 + rng() * 0.16);
@@ -4729,10 +4825,12 @@ function buildBass(preset, intensity, name) {
                   : isClimax    ? (0.42 + intensity * 0.12)   // climax release: loud
                   :               (0.28 + intensity * 0.12);
 
-        // Sub oscillator — one octave below, adds physical weight
-        const sub  = mkOsc(rootFreq * 0.5, 'sine');
-        const main = mkOsc(rootFreq,       'sine');
-        const filt = mkFilt(pedalActive ? 90 : 120, 'lowpass', pedalActive ? 0.8 : 0.6);
+        // Sub oscillator — at rootFreq for audible punch (rootFreq*0.5 on early
+        // zones is 11-13Hz, completely subsonic). Two sines: sub + main.
+        const subFreqBass = Math.max(35, rootFreq * 0.5); // never below 35Hz
+        const sub  = mkOsc(subFreqBass, 'sine');
+        const main = mkOsc(rootFreq,    'sine');
+        const filt = mkFilt(pedalActive ? 100 : 140, 'lowpass', pedalActive ? 0.8 : 0.6);
         const env  = mkGain(0);
         chain(sub,  env, b);
         chain(main, filt, env, b);
@@ -5012,7 +5110,7 @@ function MP_getScore() {
   const base = (pc % 2 === 0) ? score.primary : score.development;
 
   // Use a deterministic-but-varied seed per (chapter × playCount × journey)
-  const seed = (JC.startTime & 0xFFFF) ^ (pc * 1337) ^ (label ? label.charCodeAt(0) * 17 : 0);
+  const seed = (_sessionSeed ^ (JC.startTime & 0xFFFF)) ^ (pc * 1337) ^ (label ? label.charCodeAt(0) * 17 : 0);
   let s = seed | 1;
   const lrng = () => {
     s = Math.imul(s ^ s >>> 15, s | 1);
@@ -5246,13 +5344,26 @@ function buildMelody(preset, intensity, name) {
 function buildChoir(preset, intensity, name) {
   const b = bus[name];
 
-  // 5 voices — same as before but now phrase-aware
+  // ── HELL'S CHOIR — 8 voices across 4 registers ───────────────────────────
+  // Voice design: infernal bass (below root) + bass + tenor + alto/soprano.
+  // Lower voices use growl via high-Q bandpass on subharmonics — the "demonic
+  // bass choir" sound. Higher voices retain the ethereal formant shimmer.
+  // octMult is relative to CE chordTone frequency (already at zone root level ~55Hz).
+  // octMult:0.5 = ~27Hz (too low) → we use 1.0 and 2.0 registers instead,
+  // with the infernal bass voice handled separately via its own oscillator pair.
   const voices = [
-    { octMult:0.5,  det:-4, gv:0.22, formF:[280,550,1100]  },
-    { octMult:0.5,  det: 5, gv:0.18, formF:[280,550,1100]  },
-    { octMult:1.0,  det:-3, gv:0.20, formF:[350,900,1800]  },
-    { octMult:1.0,  det: 4, gv:0.18, formF:[350,900,1800]  },
-    { octMult:2.0,  det: 0, gv:0.12, formF:[450,1200,2400] },
+    // Infernal bass — one octave below root, dark /o/ vowel, heavy and slow
+    { octMult:1.0,  det:-6,  gv:0.26, formF:[200,450,900],   wave:'sawtooth' },
+    { octMult:1.0,  det: 7,  gv:0.22, formF:[200,450,900],   wave:'sawtooth' },
+    // Bass section — root level, /a/ vowel opening, warm
+    { octMult:1.0,  det:-3,  gv:0.20, formF:[350,750,1500],  wave:'sawtooth' },
+    { octMult:1.0,  det: 4,  gv:0.18, formF:[350,750,1500],  wave:'sawtooth' },
+    // Tenor/alto — octave up, the "beautiful" layer
+    { octMult:2.0,  det:-2,  gv:0.16, formF:[450,1000,2200], wave:'sawtooth' },
+    { octMult:2.0,  det: 3,  gv:0.14, formF:[450,1000,2200], wave:'sawtooth' },
+    // High shimmer — two octaves up, whisper formants, very quiet
+    { octMult:4.0,  det:-1,  gv:0.07, formF:[600,1400,2800], wave:'sawtooth' },
+    { octMult:4.0,  det: 2,  gv:0.06, formF:[600,1400,2800], wave:'sawtooth' },
   ];
 
   const choirOscs = [];
@@ -5260,42 +5371,70 @@ function buildChoir(preset, intensity, name) {
   const f1Nodes   = [];
   const masterGains = [];
 
-  voices.forEach(({ octMult, det, gv, formF }, vi) => {
-    const raw  = CE.chordTone('choir', 1, vi % 3);
-    const freq = (raw && raw > 10 ? raw : preset.root * 2) * octMult;
-    const o    = mkOsc(freq, 'sawtooth', det);
+  voices.forEach(({ octMult, det, gv, formF, wave }, vi) => {
+    // Use actual chord tones from CE — cycle through available chord voices
+    const raw  = CE.chordTone('choir', 1, vi % Math.max(1, CE.currentChord.ratios.length));
+    const freq = Math.max(20, (raw && raw > 10 ? raw : preset.root * 2) * octMult);
+    const o    = mkOsc(freq, wave || 'sawtooth', det);
 
-    const f1 = mkFilt(formF[0], 'bandpass', 8);
-    const f2 = mkFilt(formF[1], 'bandpass', 5);
-    const f3 = mkFilt(formF[2], 'bandpass', 3);
-    // Master gain per voice — driven by MP_choirOpenness()
-    const mixG = mkGain(gv * 0.4); // start at 40% — opens with phrase
+    // Three formant bandpass filters — F1/F2/F3 model the vocal tract
+    // Lower voices (vi < 4) get wider Q for more "body" — upper voices narrower for shimmer
+    const qScale = vi < 4 ? 1.0 : 0.7;
+    const f1 = mkFilt(formF[0], 'bandpass', 8  * qScale);
+    const f2 = mkFilt(formF[1], 'bandpass', 5  * qScale);
+    const f3 = mkFilt(formF[2], 'bandpass', 3  * qScale);
+
+    // Lower voices (bass/infernal): add subharmonic growl via ring-mod style WaveShaper
+    // This gives that "demon choir" roughness without killing the pitch
+    let growlNode = null;
+    if (vi < 4 && intensity > 0.2) {
+      // Second oscillator one octave below, very quiet, adds gritty undertone
+      const growlOsc  = mkOsc(Math.max(20, freq * 0.5), 'sawtooth', det * 0.5);
+      const growlFilt = mkFilt(formF[1] * 0.6, 'lowpass', 0.7);
+      const growlG    = mkGain((0.08 + intensity * 0.06) * (vi < 2 ? 1.4 : 1.0));
+      chain(growlOsc, growlFilt, growlG, b);
+      growlOsc.start();
+      reg(name, growlOsc, growlFilt, growlG);
+      growlNode = growlOsc;
+    }
+
+    const mixG = mkGain(gv * 0.4);
     o.connect(f1); o.connect(f2); o.connect(f3);
     f1.connect(mixG); f2.connect(mixG); f3.connect(mixG);
     mixG.connect(b);
 
     const now = ctx.currentTime;
-    // Vowel: start closed /u/, open to /a/ as openness rises
-    const closedF1 = formF[0] * 0.60; // /u/
-    const openF1   = formF[0] * 1.15; // /a/
+    // Lower voices start /u/ (dark, closed), open to /o/ — not /a/
+    // Upper voices start /e/, open to /a/ — the beautiful shimmer
+    const isLow    = vi < 4;
+    const closedF1 = isLow ? formF[0] * 0.55 : formF[0] * 0.70; // /u/ or /e/
+    const openF1   = isLow ? formF[0] * 0.90 : formF[0] * 1.20; // /o/ or /a/
     f1.frequency.setValueAtTime(closedF1, now);
 
-    const fLfo  = mkOsc(0.035 + vi * 0.012, 'sine');
-    const fLfoG = mkGain(formF[0] * 0.05);
+    // Formant LFO — each voice slightly different rate, lower voices slower
+    const fLfoRate = isLow ? 0.022 + vi * 0.008 : 0.038 + vi * 0.010;
+    const fLfo  = mkOsc(fLfoRate, 'sine');
+    const fLfoG = mkGain(formF[0] * (isLow ? 0.035 : 0.055));
     chain(fLfo, fLfoG); fLfoG.connect(f1.frequency);
     fLfo.start();
 
-    const vib  = mkOsc(4.8 + vi * 0.2, 'sine');
+    // Vibrato — lower voices slower and deeper (church organ-like)
+    // upper voices faster and lighter (classical soprano-like)
+    const vibRate  = isLow ? 3.2 + vi * 0.15 + rng() * 0.3 : 5.0 + vi * 0.18 + rng() * 0.4;
+    const vibDepthVal = isLow ? 3.5 + intensity * 3 : 2.0 + intensity * 2;
+    const vib  = mkOsc(vibRate, 'sine');
     const vibG = mkGain(0);
     chain(vib, vibG); vibG.connect(o.frequency);
     vibG.gain.setValueAtTime(0, now);
-    vibG.gain.linearRampToValueAtTime(2.5 + intensity * 2, now + 2.5);
+    // Delayed vibrato onset — lower voices enter later (more sustained, less nervous)
+    const vibDelay = isLow ? 1.8 + vi * 0.4 : 1.2 + vi * 0.2;
+    vibG.gain.linearRampToValueAtTime(vibDepthVal, now + vibDelay);
     vib.start();
 
     o.start();
     reg(name, o, f1, f2, f3, mixG, fLfo, fLfoG, vib, vibG);
-    choirOscs.push({ osc:o, octMult, voiceIdx:vi%3 });
-    f1Nodes.push({ f1, formF, mixG, gv });
+    choirOscs.push({ osc:o, octMult, voiceIdx:vi % Math.max(1, CE.currentChord.ratios.length), growlOsc: growlNode });
+    f1Nodes.push({ f1, formF, mixG, gv, closedF1, openF1 });
   });
 
   // Breath noise
@@ -5311,37 +5450,51 @@ function buildChoir(preset, intensity, name) {
   breathSrc.start();
   reg(name,breathSrc,bFilt1,bFilt2,bG);
 
-  // Sub choir — root octave, underpins the whole texture
-  const subRaw  = CE.chordTone('choir',0,0);
-  const subFreq = (subRaw&&subRaw>10)?subRaw:preset.root;
-  const subO    = mkOsc(subFreq,'sine');
-  const subFilt = mkFilt(350,'lowpass',0.7);
-  const subG    = mkGain(0.08+intensity*0.05);
-  chain(subO,subFilt,subG,b);
-  subO.start();
-  reg(name,subO,subFilt,subG);
+  // Sub choir — deep undertone, the belly of hell's choir
+  // Two sines: root for weight, root*0.5 for that subsonic pressure layer
+  // Higher gain than before — this IS the floor the beautiful voices rest on
+  const subRaw   = CE.chordTone('choir',0,0);
+  const subFreq  = Math.max(40, (subRaw&&subRaw>10)?subRaw:preset.root);
+  const subFreq2 = Math.max(22, subFreq * 0.5);
+  const subO     = mkOsc(subFreq,  'sine');
+  const subO2    = mkOsc(subFreq2, 'sine');
+  const subFilt  = mkFilt(200, 'lowpass', 0.6); // up from 350 — but still sub
+  const subFilt2 = mkFilt(100, 'lowpass', 0.5);
+  const subG     = mkGain(0.22 + intensity * 0.12); // up from 0.08
+  const subG2    = mkGain(0.14 + intensity * 0.08);
+  chain(subO,  subFilt,  subG,  b);
+  chain(subO2, subFilt2, subG2, b);
+  subO.start(); subO2.start();
+  reg(name, subO, subO2, subFilt, subFilt2, subG, subG2);
 
-  // ── DEEP ETHEREAL PAD — the cathedral floor ───────────────────────
-  // Two sines one octave BELOW the sub, with a very slow beating
-  // (1.5 cents detuned) creating an organ-pipe resonance.
-  // Rolled off above 200Hz so it's felt not heard — pure depth.
-  // This is what makes large spaces feel physically present.
-  const deepFreq = Math.max(22, subFreq * 0.5); // one octave below sub — clamped so it stays audible
-  const deepA    = mkOsc(deepFreq,          'sine', 0);
-  const deepB    = mkOsc(deepFreq * 1.0009, 'sine', 0); // ~1.5 cents — slow beat ~0.06Hz
-  const deepFilt = mkFilt(180, 'lowpass', 0.5);
-  const deepG    = mkGain(0.06 + intensity * 0.04);
-  // Very slow swell — the pad breathes on a 20-second cycle
-  // deepPad breath LFO — use a separate gain node driven by the LFO rather than
-  // additive connection to deepG.gain, which could push total gain past 1.0
+  // ── DEEP ETHEREAL PAD — skull pressure, felt not heard ──────────────
+  // subFreq here is the choir root (~preset.root). We sit AT that level,
+  // not below it — subFreq*0.5 on early zones is 10-14Hz (completely subsonic).
+  // Three layers: low beating pair + octave-up pair for presence on small speakers.
+  const deepFreq  = Math.max(30, subFreq);          // root level — audible sub
+  const deepFreq2 = Math.max(60, subFreq * 2);      // octave up — felt on any speaker
+
+  const deepA     = mkOsc(deepFreq,           'sine', 0);
+  const deepB     = mkOsc(deepFreq  * 1.0009, 'sine', 0); // 1.5 cents — slow 0.06Hz beat
+  const deepC     = mkOsc(deepFreq2,          'sine', 0);
+  const deepD     = mkOsc(deepFreq2 * 1.0006, 'sine', 0); // 1 cent — even slower beat
+
+  const deepFiltA = mkFilt(110, 'lowpass', 0.4);    // hard roll-off — pure pressure
+  const deepFiltB = mkFilt(170, 'lowpass', 0.5);
+  const deepGA    = mkGain(0.28 + intensity * 0.18); // was 0.06 — real sub weight
+  const deepGB    = mkGain(0.16 + intensity * 0.10);
+
   const deepLfo  = mkOsc(0.05, 'sine');
-  const deepLfoG = mkGain(0.015); // depth: ±0.015 around base gain
+  const deepLfoG = mkGain(0.025);
   deepLfo.connect(deepLfoG);
-  deepLfoG.connect(deepG.gain); // additive mod is fine here since base is 0.06-0.10
-  deepA.connect(deepFilt); deepB.connect(deepFilt);
-  chain(deepFilt, deepG, b);
-  deepA.start(); deepB.start(); deepLfo.start();
-  reg(name, deepA, deepB, deepFilt, deepG, deepLfo, deepLfoG);
+  deepLfoG.connect(deepGA.gain);
+
+  deepA.connect(deepFiltA); deepB.connect(deepFiltA);
+  deepC.connect(deepFiltB); deepD.connect(deepFiltB);
+  chain(deepFiltA, deepGA, b);
+  chain(deepFiltB, deepGB, b);
+  deepA.start(); deepB.start(); deepC.start(); deepD.start(); deepLfo.start();
+  reg(name, deepA, deepB, deepC, deepD, deepFiltA, deepFiltB, deepGA, deepGB, deepLfo, deepLfoG);
 
   let choirLastChord = CE.currentChord.label;
 
@@ -5354,12 +5507,18 @@ function buildChoir(preset, intensity, name) {
       choirLastChord = chord.label;
       const now2  = ctx.currentTime;
       const glide = 0.8;
-      choirOscs.forEach(({osc,octMult,voiceIdx})=>{
+      choirOscs.forEach(({osc,octMult,voiceIdx,growlOsc})=>{
         const newFreq = CE.chordTone('choir',1,voiceIdx)*octMult;
         if(!newFreq||newFreq<10) return;
         osc.frequency.cancelScheduledValues(now2);
         osc.frequency.setValueAtTime(osc.frequency.value,now2);
-        osc.frequency.exponentialRampToValueAtTime(newFreq,now2+glide);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20,newFreq),now2+glide);
+        // Also retune the growl subharmonic if present
+        if(growlOsc) {
+          growlOsc.frequency.cancelScheduledValues(now2);
+          growlOsc.frequency.setValueAtTime(growlOsc.frequency.value,now2);
+          growlOsc.frequency.exponentialRampToValueAtTime(Math.max(20,newFreq*0.5),now2+glide*1.3);
+        }
       });
       const newSub = CE.chordTone('choir',0,0);
       if(newSub&&newSub>10){
@@ -5367,9 +5526,10 @@ function buildChoir(preset, intensity, name) {
         subO.frequency.setValueAtTime(subO.frequency.value,now2);
         subO.frequency.exponentialRampToValueAtTime(newSub,now2+glide*1.2);
         // Deep pad retuning — very slow glide, like a pipe organ speaking
-        const newDeep = newSub * 0.5;
-        [deepA, deepB].forEach((osc, oi) => {
-          const target = oi === 0 ? newDeep : newDeep * 1.0009;
+        const newDeep  = Math.max(30, newSub);
+        const newDeep2 = Math.max(60, newSub * 2);
+        [[deepA, newDeep], [deepB, newDeep * 1.0009],
+         [deepC, newDeep2], [deepD, newDeep2 * 1.0006]].forEach(([osc, target]) => {
           osc.frequency.cancelScheduledValues(now2);
           osc.frequency.setValueAtTime(osc.frequency.value, now2);
           osc.frequency.exponentialRampToValueAtTime(Math.max(22, target), now2 + glide * 2.5);
@@ -5381,10 +5541,11 @@ function buildChoir(preset, intensity, name) {
     // openness 0→1 drives: F1 freq (closed→open vowel) + voice gain
     const openness = MP_choirOpenness();
     const now3 = ctx.currentTime;
-    f1Nodes.forEach(({f1,formF,mixG,gv})=>{
-      const closedF1 = formF[0]*0.60;
-      const openF1   = formF[0]*1.15;
-      const targetF1 = closedF1 + (openF1-closedF1)*openness;
+    f1Nodes.forEach(({f1,formF,mixG,gv,closedF1,openF1})=>{
+      // Use stored closed/open values so lower voices stay darker
+      const cF1 = closedF1 ?? formF[0]*0.60;
+      const oF1 = openF1   ?? formF[0]*1.15;
+      const targetF1 = cF1 + (oF1-cF1)*openness;
       f1.frequency.setTargetAtTime(targetF1, now3, 0.4);
       // Volume: cadence = full, tension peak = 85%, quiet = 35%
       const targetGv = gv*(0.35+openness*0.65);
