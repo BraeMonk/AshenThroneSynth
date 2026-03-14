@@ -3017,6 +3017,21 @@ function initAudio() {
   masterGain = ctx.createGain();
   masterGain.gain.value = 0.38; // was 0.55 — headroom for multiple layers
 
+  // ── GLOBAL BREATH — the room itself breathes ─────────────────────────────
+  // A very slow LFO (0.03–0.07 Hz, rate varies per session) applied to masterGain.
+  // This is not per-layer — the entire mix swells and recedes together,
+  // creating the "air movement" that dark ambient producers rely on.
+  // Depth is kept subtle (±0.028) so it never fights the adaptive mix loop.
+  const _breathRate  = 0.032 + (rng() * 0.038); // different each session
+  const _breathLfo   = ctx.createOscillator();
+  const _breathLfoG  = ctx.createGain();
+  _breathLfo.type    = 'sine';
+  _breathLfo.frequency.value = _breathRate;
+  _breathLfoG.gain.value     = 0.028;
+  _breathLfo.connect(_breathLfoG);
+  _breathLfoG.connect(masterGain.gain);
+  _breathLfo.start();
+
   // Subsonic HPF
   masterHPF = ctx.createBiquadFilter();
   masterHPF.type = 'highpass';
@@ -3975,7 +3990,10 @@ function buildDrone(preset, intensity, name) {
   warmFilt.disconnect(b); // reroute: voices → warmFilt → breathGain → b
 
   // Amplitude breath LFO — very slow, subtle, like lungs expanding
-  const aLfo  = mkOsc(0.03 + preset.droneAmpLfo * 0.3, 'sine');
+  // Rate slightly randomised per session (±8%) so drone layers phase-drift
+  // relative to each other and to the global breath — the beating is the soul
+  const _aLfoRate = (0.03 + preset.droneAmpLfo * 0.3) * (0.92 + rng() * 0.16);
+  const aLfo  = mkOsc(_aLfoRate, 'sine');
   const aLfoG = mkGain(0.055 + intensity * 0.025);
   chain(aLfo, aLfoG); aLfoG.connect(breathGain.gain);
   aLfo.start(); reg(name, aLfo, aLfoG, breathGain);
@@ -4002,10 +4020,23 @@ function buildDrone(preset, intensity, name) {
     { freq: initOct * 1.5,   gv: 0.03, det:  0,  role: 'oct'   }, // 12th — air
   ];
 
-  const droneOscs = dronePartials.map(({ freq, gv, det, role }) => {
+  const droneOscs = dronePartials.map(({ freq, gv, det, role }, pi) => {
     const o = mkOsc(Math.max(15, freq), 'sine', det);
     const g = mkGain(gv);
     chain(o, g, warmFilt); o.start(); reg(name, o, g);
+
+    // Pitch drift — each partial gets its own micro-LFO at a unique rate
+    // so they gently beat against each other. Real instruments never hold
+    // perfectly still. Rate: 0.008–0.022 Hz (~45–120 sec cycle). Depth: 1–3 cents.
+    const driftRate  = 0.008 + rng() * 0.014 + pi * 0.0009; // each partial unique
+    const driftDepth = (1.0 + rng() * 2.0) * (freq > 100 ? 1.0 : 0.5); // cents, less on subs
+    const driftLfo   = mkOsc(driftRate, 'sine');
+    const driftLfoG  = mkGain(driftDepth);
+    driftLfo.connect(driftLfoG);
+    driftLfoG.connect(o.detune); // drive detune (cents) not frequency (Hz)
+    driftLfo.start();
+    reg(name, driftLfo, driftLfoG);
+
     return { osc: o, role };
   });
 
@@ -4015,8 +4046,9 @@ function buildDrone(preset, intensity, name) {
   const subG    = mkGain(0.18);
   chain(subO, subFilt, subG, b); subO.start(); reg(name, subO, subFilt, subG);
 
-  // Filter breathe LFO — very slow, low depth
-  const lfo  = mkOsc(preset.droneLfoRate * 0.6 + intensity * 0.04, 'sine');
+  // Filter breathe LFO — very slow, low depth, rate scattered ±8%
+  const _filtLfoRate = (preset.droneLfoRate * 0.6 + intensity * 0.04) * (0.92 + rng() * 0.16);
+  const lfo  = mkOsc(_filtLfoRate, 'sine');
   const lfoG = mkGain(preset.droneLfoDepth * 0.5 + intensity * 120);
   chain(lfo, lfoG); lfoG.connect(warmFilt.frequency); lfo.start(); reg(name, lfo, lfoG, warmFilt);
 
@@ -5116,15 +5148,33 @@ function buildMelody(preset, intensity, name) {
 
   let t = ctx.currentTime + beat * 0.5;
 
+  // ── Human timing — performers rush at tension, drag at cadence ───────────
+  // Returns a small ms offset to apply to setTimeout scheduling.
+  // Beat-level granularity: ±5ms at rest, up to ±14ms at climax/cadence.
+  // This is the single biggest contributor to "performed vs printed" feel.
+  function humanDelayMs(phrasePos, phraseLenLocal) {
+    const pos   = phraseLenLocal > 0 ? phrasePos / phraseLenLocal : 0;
+    const phase = currentPhrase || 'build';
+    // Rush slightly in tension/climax (negative = early), drag on cadence
+    const lean  = (phase === 'tension' || phase === 'climax') ? -0.55 : 0.3;
+    const shape = Math.sin(pos * Math.PI) * lean; // arch — peaks at phrase midpoint
+    const base  = (rng() - 0.5) * 10;             // ±5ms base jitter
+    return base + shape * 9;                       // total range: roughly ±14ms
+  }
+
   // ── playNote — synthesize one melody note at scheduled time t ────────
   // Uses the partials/timbre/atk/vib vars captured in the buildMelody closure.
   // isStrong → louder attack; isPeak → brightest harmonic; isCadence → longer release.
   function playNote(startTime, freq, dur, { isStrong = false, isPeak = false, isCadence = false } = {}) {
     if (!freq || freq < 20 || !layerOn[name]) return;
-    const gainAmt = isStrong ? 0.22 + energy * 0.14
-                  : isPeak   ? 0.18 + energy * 0.12
-                  : isCadence? 0.14 + energy * 0.10
-                  :            0.12 + energy * 0.09;
+    // Velocity humanization — ±15% gain variance shaped by phrase position
+    // Makes the melody feel performed: soft notes between beats, accents on strong ones
+    const _velBase  = isStrong ? 0.22 + energy * 0.14
+                    : isPeak   ? 0.18 + energy * 0.12
+                    : isCadence? 0.14 + energy * 0.10
+                    :            0.12 + energy * 0.09;
+    const _velHuman = 1.0 + (rng() - 0.5) * 0.30; // ±15% around base
+    const gainAmt   = _velBase * _velHuman;
     const relTime = isCadence ? dur * 1.4 : dur * 0.85;
     const env = ctx.createGain();
     env.gain.setValueAtTime(0, startTime);
@@ -5187,7 +5237,8 @@ function buildMelody(preset, intensity, name) {
     t += noteDur + beat * restAfter;
 
     if (isCadence) MP.callDone = true;
-    regT(name, setTimeout(schedNote, (noteDur + beat * restAfter) * 1000 * 0.95));
+    const _humanMs = humanDelayMs(MP._noteIdx, MP.phraseLen);
+    regT(name, setTimeout(schedNote, (noteDur + beat * restAfter) * 1000 * 0.95 + _humanMs));
   }
   schedNote();
 }
@@ -6447,7 +6498,7 @@ function buildStrings(preset, intensity, name) {
     // Bow pressure LFO — per section, subtly different rates
     // Pizzicato: no bow LFO (plucked strings don't bow)
     // Tremolo: much faster LFO to create the tremolo effect
-    const bowRate  = vcfg.tremRate ? vcfg.tremRate + Math.random() * 2 : (0.07 + Math.random() * 0.05);
+    const bowRate  = vcfg.tremRate ? vcfg.tremRate + rng() * 2 : (0.07 + rng() * 0.05);
     const bowLfo  = mkOsc(bowRate, 'sine');
     const bowDepth = vcfg.pluck ? 0 : (0.018 + intensity * 0.008) * vcfg.bowDepth;
     const bowLfoG = mkGain(bowDepth);
@@ -6507,6 +6558,19 @@ function buildStrings(preset, intensity, name) {
       }
 
       o.start();
+
+      // Pitch drift — each string voice gets its own micro-LFO so they
+      // gently beat against each other over long sustained passages.
+      // Not on pizzicato (notes decay before drift is perceptible).
+      if (!vcfg.pluck) {
+        const sDrift    = mkOsc(0.009 + rng() * 0.018 + vi * 0.004, 'sine');
+        const sDriftG   = mkGain(0.7 + rng() * 1.8); // 0.7–2.5 cents
+        sDrift.connect(sDriftG);
+        sDriftG.connect(o.detune);
+        sDrift.start();
+        reg(name, sDrift, sDriftG);
+      }
+
       reg(name, o, g);
       return { osc: o, det, voiceIdx, octMult };
     });
