@@ -5606,155 +5606,173 @@ function MP_nextPhrase(preset) {
 }
 
 function buildMelody(preset, intensity, name) {
+  // ── ETHEREAL SUSTAINED MELODY ──────────────────────────────────────────────
+  // Rather than discrete one-shot notes, this runs 3 sustained additive voices
+  // that smoothly glide between chord tones on a slow arc.  Each voice holds its
+  // note for several beats then crossfades to the next chord tone, creating a
+  // shimmering polyphonic texture that climbs, peaks, and falls with the phrase.
+  //
+  // Architecture:
+  //   Arc scheduler  — picks the next chord-tone target every arcBeats beats.
+  //   3 additive voices (fundamental + 2nd partial + 3rd partial) each with
+  //     their own gain envelope so partials can swell at different rates.
+  //   Phrase amplitude arc — a slow LFO-like gain ramp that shapes rise/fall
+  //     over the full phrase length so the melody breathes as a whole.
+  //   Chord-tone cycling — walks through the chord voicing sequence
+  //     (3rd → 5th → 7th → root → ...) so chord changes are audible.
+  // ──────────────────────────────────────────────────────────────────────────
   const b   = bus[name];
-  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
-  const beat = 60 / bpm;
+  const bpm    = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat   = 60 / bpm;
   const energy = JC.active ? JC.energy : intensity;
 
-  // ── Timbre: dark orchestral string tone, never kazoo ─────────────────────
-  // Previously used triangle/square waves from preset.melodyWave — that's the
-  // kazoo sound. Now: always sawtooth through a dark lowpass + resonant peak.
-  // The filter opens with velocity so loud notes are brighter.
-  // At low energy: dark and bowed. At high energy: brighter but never shrill.
-  // Vibrato rate and depth match cello-as-lead rather than woodwind.
-  const atkTime  = 0.08 + (1 - energy) * 0.12;  // 80-200ms — slower at low energy
-  const vibHz    = 4.0 + energy * 0.8;            // 4.0-4.8Hz — cello range
-  const vibDepth = 2.5 + energy * 2.0;            // Hz depth, scales with energy
-  // Partial structure: sawtooth-like but weighted toward warm low partials
-  // No strong odd harmonics at r:3/r:5 — that's what made it nasal
-  const partials = [
-    {r:1, a:0.60},  // fundamental — most of the weight
-    {r:2, a:0.25},  // 2nd harmonic — warmth
-    {r:3, a:0.10},  // 3rd — kept very low
-    {r:4, a:0.08},  // 4th — body
-    {r:5, a:0.04},  // upper — air, barely audible
-    {r:6, a:0.02},
+  // ── Timbre params ──────────────────────────────────────────────────────────
+  const vibHz    = 4.2 + energy * 0.6;       // 4.2–4.8 Hz — bowed string range
+  const vibDepth = 1.8 + energy * 1.4;       // gentle, deepens with energy
+  const atkTime  = 1.4 + (1 - energy) * 1.2; // 1.4–2.6 s — slow bow onset
+  const relTime  = 2.2 + (1 - energy) * 1.8; // 2.2–4.0 s — tail lingers
+
+  // Partial map: warm + airy, no nasal odd-harmonic spike
+  const PARTIALS = [
+    { r:1, a:0.55 },
+    { r:2, a:0.22 },
+    { r:3, a:0.08 },
+    { r:4, a:0.06 },
+    { r:6, a:0.02 },
   ];
-  // Initialise score state for current chapter
+
+  // Chord-voice sequence that walks through the harmony:
+  // 3rd → 5th → 7th → root-up-octave → 5th → 3rd — one full arc per phrase
+  const VOICE_SEQ = [1, 2, 3, 0, 2, 1, 3, 2];
+
+  // ── Arc state ─────────────────────────────────────────────────────────────
+  // arcStep counts how many chord-tone targets we've emitted this phrase.
+  // arcTotal is how many steps make one full phrase (slow: 6–10 beats each).
+  const arcBeats = energy > 0.65 ? 5 : energy > 0.35 ? 7 : 9; // beats per tone hold
+  const arcTotal = VOICE_SEQ.length; // one full chord-voice arc = one "phrase"
+  let   arcStep  = 0;
+  let   arcNow   = ctx.currentTime + 0.1; // absolute time cursor
+
+  // Keep MP fields in sync so choir/cello openness still reads them correctly
   const chapterLabel = (journeyActive || JC.active)
     ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label : null;
   MP_resetForChapter(chapterLabel);
 
-  let t = ctx.currentTime + beat * 0.5;
+  // ── makeSustainedVoice ─────────────────────────────────────────────────────
+  // Spawns a full additive oscillator stack for one sustained chord tone.
+  // The note lasts holdDur + relTime so it bleeds into the next target.
+  // arcPos 0..1 shapes the phrase amplitude arc (soft→loud→soft).
+  function makeSustainedVoice(startTime, freq, holdDur, arcPos) {
+    if (!freq || freq < 80 || !layerOn[name]) return;
 
-  // ── Human timing — performers rush at tension, drag at cadence ───────────
-  // Returns a small ms offset to apply to setTimeout scheduling.
-  // Beat-level granularity: ±5ms at rest, up to ±14ms at climax/cadence.
-  // This is the single biggest contributor to "performed vs printed" feel.
-  function humanDelayMs(phrasePos, phraseLenLocal) {
-    const pos   = phraseLenLocal > 0 ? phrasePos / phraseLenLocal : 0;
-    const phase = currentPhrase || 'build';
-    // Rush slightly in tension/climax (negative = early), drag on cadence
-    const lean  = (phase === 'tension' || phase === 'climax') ? -0.55 : 0.3;
-    const shape = Math.sin(pos * Math.PI) * lean; // arch — peaks at phrase midpoint
-    const base  = (rng() - 0.5) * 10;             // ±5ms base jitter
-    return base + shape * 9;                       // total range: roughly ±14ms
-  }
+    // Phrase arc amplitude: sin arch peaks at 0.5, valleys at 0/1
+    // Low-energy phrases are quieter overall but still arch
+    const arcPeak  = 0.15 + energy * 0.13;
+    const arcValley= arcPeak * 0.35;
+    const gainAmt  = arcValley + (arcPeak - arcValley) * Math.sin(arcPos * Math.PI);
+    // Small human variance per note
+    const velVar   = 1.0 + (rng() - 0.5) * 0.18;
+    const gFinal   = gainAmt * velVar;
 
-  // ── playNote — synthesize one melody note at scheduled time t ────────
-  // Uses the partials/timbre/atk/vib vars captured in the buildMelody closure.
-  // isStrong → louder attack; isPeak → brightest harmonic; isCadence → longer release.
-  function playNote(startTime, freq, dur, { isStrong = false, isPeak = false, isCadence = false } = {}) {
-    if (!freq || freq < 20 || !layerOn[name]) return;
-    // Velocity humanization — ±15% gain variance shaped by phrase position
-    // Makes the melody feel performed: soft notes between beats, accents on strong ones
-    const _velBase  = isStrong ? 0.22 + energy * 0.14
-                    : isPeak   ? 0.18 + energy * 0.12
-                    : isCadence? 0.14 + energy * 0.10
-                    :            0.12 + energy * 0.09;
-    const _velHuman = 1.0 + (rng() - 0.5) * 0.30; // ±15% around base
-    const gainAmt   = _velBase * _velHuman;
-    const relTime = isCadence ? dur * 2.0 : Math.max(0.4, dur * 1.2); // longer release — sustained, not chopped
+    // Envelope: slow attack → hold → slow release (always overlapping with next)
     const env = ctx.createGain();
     env.gain.setValueAtTime(0, startTime);
-    env.gain.linearRampToValueAtTime(gainAmt, startTime + atkTime);
-    env.gain.setValueAtTime(gainAmt, startTime + Math.max(atkTime, dur - relTime));
-    env.gain.exponentialRampToValueAtTime(0.0001, startTime + dur + relTime);
+    env.gain.linearRampToValueAtTime(gFinal, startTime + atkTime);
+    env.gain.setValueAtTime(gFinal, startTime + Math.max(atkTime + 0.01, holdDur - relTime * 0.5));
+    env.gain.exponentialRampToValueAtTime(0.0001, startTime + holdDur + relTime);
     env.connect(b);
 
-    // Heavenly synth chain:
-    // Sawtooth → gentle lowpass (dark, distant) → chorus detune pair → env
-    // The chorus pair (±4 cents) creates the shimmer-spread of a real string section.
-    const lpfFreq  = freq * (1.8 + gainAmt * 4); // darker than before — more distant
-    const lpf      = mkFilt(Math.min(lpfFreq, 4000), 'lowpass', 0.8); // lower Q = softer
+    // Filter chain: dark lowpass for body + faint highpass shimmer for air
+    const lpfFreq = Math.min(freq * 2.2, 3600);
+    const lpf     = mkFilt(lpfFreq, 'lowpass', 0.7);
     lpf.connect(env);
+    const shimmer = mkFilt(freq * 5, 'highpass', 0.4);
+    const shimG   = mkGain(0.04);
+    shimmer.connect(shimG); shimG.connect(env);
 
-    // High shimmer — a very quiet high-shelf adds the "air" without harshness
-    const shimmer  = mkFilt(freq * 4, 'highpass', 0.5);
-    const shimmerG = mkGain(0.06);
-    shimmer.connect(shimmerG); shimmerG.connect(env);
-
-    partials.forEach(({ r, a }) => {
+    PARTIALS.forEach(({ r, a }) => {
       const pFreq = freq * r;
-      if (pFreq > 8000) return;  // tighter ceiling — purer, less harsh
-      // Chorus pair: two saws slightly detuned — creates the string-section spread
-      const detune = r === 1 ? 4 : 2; // more spread on fundamental
-      const o = mkOsc(pFreq, 'sawtooth', detune * (r % 2 === 0 ? -1 : 1));
-      const g = mkGain(a * (isPeak ? 1.1 : 1.0));
-      const vib  = mkOsc(vibHz + rng() * 0.5, 'sine');
+      if (pFreq > 7200) return;
+      // Slight stereo spread via alternating detune per partial
+      const det  = (r === 1 ? 5 : 2) * (r % 2 === 0 ? -1 : 1);
+      const o    = mkOsc(pFreq, 'sawtooth', det);
+      const g    = mkGain(a);
+
+      // Vibrato — enters after attack settles, depth scales with energy
+      const vib  = mkOsc(vibHz + rng() * 0.3, 'sine');
       const vibG = mkGain(0);
-      // Delayed vibrato onset — note speaks cleanly before vibrato enters
+      const vibOn = startTime + atkTime * 0.7;
       vibG.gain.setValueAtTime(0, startTime);
-      vibG.gain.linearRampToValueAtTime(0, startTime + atkTime + 0.08);
-      vibG.gain.linearRampToValueAtTime(vibDepth * (isStrong ? 1.2 : 1.0), startTime + Math.min(dur * 0.6, 0.35));
+      vibG.gain.linearRampToValueAtTime(0, vibOn);
+      vibG.gain.linearRampToValueAtTime(vibDepth, vibOn + 0.4);
+      // Vibrato fades slightly on release for naturalness
+      const vibOff = startTime + holdDur;
+      vibG.gain.setValueAtTime(vibDepth, vibOff);
+      vibG.gain.linearRampToValueAtTime(vibDepth * 0.3, startTime + holdDur + relTime);
       chain(vib, vibG); vibG.connect(o.frequency);
-      vib.start(startTime); vib.stop(startTime + dur + relTime + 0.05);
-      chain(o, g, lpf);  // into lowpass, not directly to env
-      o.start(startTime); o.stop(startTime + dur + relTime + 0.05);
+      vib.start(startTime); vib.stop(startTime + holdDur + relTime + 0.1);
+
+      o.connect(g);
+      g.connect(lpf);
+      if (r === 1) g.connect(shimmer);
+      o.start(startTime); o.stop(startTime + holdDur + relTime + 0.1);
       reg(name, o, g, vib, vibG);
     });
-    reg(name, env, lpf, warmFilt, warmG);
+    reg(name, env, lpf, shimmer, shimG);
   }
 
-  function schedNote() {
+  // ── schedArcStep ──────────────────────────────────────────────────────────
+  // Called once per arc step.  Picks the chord tone for this position in the
+  // phrase arc, spawns a sustained voice, and schedules the next step.
+  function schedArcStep() {
     if (!layerOn[name]) return;
 
-    const phrase = MP_getScore();
+    // Sync MP position fields so choir/cello openness calculations stay valid
+    MP.position  = arcStep;
+    MP.phraseLen = arcTotal;
+    MP.callDone  = (arcStep >= arcTotal - 1);
 
-    if (MP._noteIdx >= phrase.length) {
-      // Phrase complete — rest then repeat as development variant
-      MP._playCount++;
-      MP._noteIdx   = 0;
-      MP.position   = 0;
-      MP.callDone   = true;
-      const next    = MP_getScore();
-      MP.phraseLen  = next.length;
-      MP.cadenceBar = Math.max(0, next.length - 3);
-      MP.degreePath = next.map(n => n[0]);
-      const restBeats = energy > 0.65 ? 2 : energy > 0.35 ? 4 : 6;
-      regT(name, setTimeout(schedNote, beat * restBeats * 1000));
-      return;
+    const arcPos     = arcStep / Math.max(1, arcTotal - 1); // 0..1
+    const voiceIdx   = VOICE_SEQ[arcStep % VOICE_SEQ.length];
+    const oct        = preset.melodyOctave + 1; // float above strings
+    const freq       = CE.chordTone('melody', oct, voiceIdx);
+    const holdDur    = beat * arcBeats;
+
+    // Overlap factor: next voice enters before this one fully releases
+    // so there's never a gap — voices always cross-fade.
+    const overlapFrac = 0.35 + (1 - energy) * 0.15; // more overlap at low energy
+    const stepDur     = holdDur * (1 - overlapFrac);
+
+    makeSustainedVoice(arcNow, freq, holdDur, arcPos);
+
+    // Occasionally add a second voice a 5th above for richness at high energy
+    if (energy > 0.55 && arcStep % 3 === 1) {
+      const freq5 = CE.chordTone('melody', oct, 2); // 5th
+      if (Math.abs(freq5 - freq) > 20) { // don't double if same pitch
+        makeSustainedVoice(arcNow + beat * 0.5, freq5, holdDur * 0.7, arcPos * 0.8);
+      }
     }
 
-    const [deg, beatDur, restAfter] = phrase[MP._noteIdx];
-    MP._noteIdx++;
-    MP.position = MP._noteIdx;
+    arcNow  += stepDur;
+    arcStep++;
 
-    const oct      = preset.melodyOctave + 1; // float above strings and choir
-    // Heavenly harmonic preference — avoid root (grounded), prefer 3rd/5th/7th.
-    // Remap deg=0 to the 3rd (index 1), so the melody almost never lands on the root.
-    const nRatios    = Math.max(1, CE.currentChord.ratios.length);
-    const rawVoice   = deg % nRatios;
-    // 0→1 (3rd), 1→1, 2→2 (5th), 3→3 (7th if exists, else 5th), rest untouched
-    const voiceMap   = [1, 1, 2, Math.min(3, nRatios-1), 2, Math.min(3, nRatios-1), 2];
-    const chordVoice = voiceMap[rawVoice] ?? rawVoice;
-    const freq       = CE.chordTone('melody', oct, chordVoice);
-    MP.lastDeg     = deg;
-    const noteDur  = beat * beatDur;
-    const isStrong = (MP._noteIdx === 1 || MP._noteIdx === Math.floor(phrase.length / 2));
-    const isPeak   = (MP._noteIdx === Math.floor(phrase.length * 0.45));
-    const isCadence = (MP._noteIdx >= phrase.length - 2);
-
-    playNote(t, freq, noteDur, { isStrong, isPeak, isCadence });
-    // Minimum breath between notes — heavenly melody doesn't rush
-    const minRest = beat * 0.25;
-    t += noteDur + Math.max(minRest, beat * restAfter);
-
-    if (isCadence) MP.callDone = true;
-    const _humanMs = humanDelayMs(MP._noteIdx, MP.phraseLen);
-    regT(name, setTimeout(schedNote, (noteDur + beat * restAfter) * 1000 * 0.95 + _humanMs));
+    if (arcStep >= arcTotal) {
+      // Phrase complete — rest briefly then start a new arc
+      arcStep     = 0;
+      MP._playCount++;
+      MP.callDone = true;
+      // After rest, re-call to start the next phrase arc
+      const restBeats = energy > 0.65 ? 1 : energy > 0.35 ? 2.5 : 4;
+      const restMs    = beat * restBeats * 1000;
+      // Advance arcNow past the rest window too
+      arcNow += beat * restBeats;
+      regT(name, setTimeout(schedArcStep, restMs));
+    } else {
+      regT(name, setTimeout(schedArcStep, stepDur * 1000));
+    }
   }
-  schedNote();
+
+  schedArcStep();
 }
 
 function buildChoir(preset, intensity, name) {
