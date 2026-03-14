@@ -1187,7 +1187,6 @@ function advancePhrase() {
     CE.onPhrase(currentPhrase, getZone(parseInt(slider.value)));
     if (autoEvolution) {
       applyPhraseLayers();
-      // Restart melodic layers so new patterns schedule
       if (isPlaying) {
         const floor = parseInt(slider.value);
         const preset = getZone(floor);
@@ -1195,6 +1194,9 @@ function advancePhrase() {
         ['melody','bass','choir','lute','horn'].forEach(name => {
           if (layerOn[name]) startLayer(name, preset, intensity, null);
         });
+        // Kick the mix immediately on phrase change — don't wait for next tick
+        stopAdaptiveMixLoop();
+        startAdaptiveMixLoop();
       }
     }
   }
@@ -2323,9 +2325,9 @@ function initAudio() {
   // Per-layer reverb send amounts — spatial depth hierarchy
   // Strings/choir/bells live in the room; bass/perc are dry and close
   const REVERB_SENDS = {
-    drone: 0.55, strings: 0.70, bass: 0.08, heartbeat: 0.05,
+    drone: 0.55, strings: 0.70, bass: 0.08, heartbeat: 0.06,
     wind: 0.60, riser: 0.45, firecrackle: 0.35,
-    perc: 0.38, wardrums: 0.42, chains: 0.28, march: 0.25, stomp: 0.22,
+    perc: 0.18, wardrums: 0.20, chains: 0.22, march: 0.18, stomp: 0.16,
     melody: 0.50, cello: 0.55, choir: 0.65, lute: 0.40, horn: 0.50,
     bells: 0.70, organ: 0.60,
     chaos: 0.30, whispers: 0.55, ritualchant: 0.60, glitch: 0.20,
@@ -2560,44 +2562,153 @@ function killLayer(name) {
   nodes[name] = [];
 }
 
-function busTarget(n, i) {
-  // Proper orchestral hierarchy — lead voices are loudest in their section.
-  // Strings are support/texture, not the loudest thing in every mix.
-  return {
-    // Foundation — felt, not featured
-    drone:       0.22 + i * 0.08,   // texture bed, deliberately quiet
-    strings:     0.32 + i * 0.10,   // support layer — fills space, doesn't lead
-    bass:        0.40,               // low anchor, punchy
-    heartbeat:   0.20 + i * 0.06,   // subliminal
+// ── ADAPTIVE CINEMATIC MIXER ─────────────────────────────────────────
+// Professional orchestral film mixing model:
+//   One role group leads at any moment. All others are scaled relative
+//   to the lead. Priority is determined by phrase arc + real-time energy.
+//   Layers within the same role share headroom proportionally.
+//   The mix shifts every 80ms with a 0.6s ramp — feels like a human
+//   engineer riding faders, not a robot snapping between presets.
 
-    // Rhythm — these define marching/combat sections, should hit hard
-    perc:        0.52,
-    wardrums:    0.50 + i * 0.10,
-    march:       0.48 + i * 0.08,   // lead in marching — louder than strings
-    stomp:       0.42 + i * 0.06,
-    chains:      0.28 + i * 0.06,
+// Absolute gain ceiling per layer — hard limit regardless of mix state
+const MIX_CEILING = {
+  drone:       0.48,  strings:     0.55,  bass:        0.55,  heartbeat:   0.58,
+  perc:        0.76,  wardrums:    0.74,  march:       0.68,  stomp:       0.64,
+  chains:      0.40,  wind:        0.28,  riser:       0.38,  firecrackle: 0.20,
+  whispers:    0.20,  ritualchant: 0.50,  glitch:      0.24,  boss:        0.60,
+  melody:      0.68,  choir:       0.66,  cello:       0.54,  organ:       0.52,
+  horn:        0.58,  lute:        0.40,  bells:       0.42,  chaos:       0.34,
+};
 
-    // Atmosphere
-    wind:        0.16 + i * 0.08,
-    riser:       0.22 + i * 0.10,
-    firecrackle: 0.14 + i * 0.06,
-    whispers:    0.14 + i * 0.05,
-    ritualchant: 0.26 + i * 0.08,
-    glitch:      0.12 * i,
+// Role membership — every layer belongs to exactly one role
+const MIX_ROLE_OF = {
+  melody:'melodic', choir:'melodic', horn:'melodic', cello:'melodic', organ:'melodic',
+  lute:'melodic',   bells:'melodic',
+  perc:'rhythmic',  wardrums:'rhythmic', march:'rhythmic', stomp:'rhythmic',
+  strings:'harmonic', drone:'harmonic', bass:'harmonic',
+  heartbeat:'pulse', chains:'pulse', ritualchant:'pulse', boss:'pulse',
+  wind:'texture',   riser:'texture', firecrackle:'texture',
+  whispers:'texture', glitch:'texture', chaos:'texture',
+};
 
-    // Melodic — these are lead voices, must sit above strings
-    melody:      0.50,               // lead melodic — loudest non-perc layer
-    choir:       0.46 + i * 0.10,   // lead in choral sections — above strings
-    cello:       0.36 + i * 0.08,   // countermelody
-    organ:       0.38 + i * 0.08,   // harmonic lead in arcane/choral
-    horn:        0.40 + i * 0.08,
-    lute:        0.28 + i * 0.06,
-    bells:       0.26 + i * 0.08,
+// How loudly each role plays when it is the lead (1.0) or supporting
+// Rows = this role. Cols = which role is currently leading.
+//                         melodic  rhythmic  harmonic  pulse   texture
+const MIX_RELATION = {
+  melodic:  { melodic:1.00, rhythmic:0.70, harmonic:0.85, pulse:0.75, texture:0.90 },
+  rhythmic: { melodic:0.65, rhythmic:1.00, harmonic:0.55, pulse:0.80, texture:0.60 },
+  harmonic: { melodic:0.55, rhythmic:0.45, harmonic:1.00, pulse:0.50, texture:0.80 },
+  pulse:    { melodic:0.60, rhythmic:0.75, harmonic:0.55, pulse:1.00, texture:0.65 },
+  texture:  { melodic:0.35, rhythmic:0.30, harmonic:0.40, pulse:0.35, texture:1.00 },
+};
 
-    // Special
-    chaos:       0.20 * i,
-    boss:        0.44,
-  }[n] ?? 0.28;
+// Which role leads in each phrase — base priority before energy modulation
+const PHRASE_LEAD = {
+  intro:      'harmonic',
+  build:      'rhythmic',
+  tension:    'pulse',
+  climax:     'rhythmic',
+  resolution: 'melodic',
+};
+
+// Determine the lead role this frame — phrase sets the default,
+// real-time energy can shift it toward rhythm or melody
+function getLeadRole(intensity) {
+  const phrase  = currentPhrase || 'intro';
+  const bass    = CIN?.smoothBass   ?? 0;
+  const mid     = CIN?.smoothMid    ?? 0;
+  const energy  = CIN?.smoothEnergy ?? 0;
+  const boss    = isBoss;
+
+  if (boss) return 'rhythmic'; // boss always drives rhythm
+
+  // Energy votes — strong bass pushes toward rhythmic, strong mid toward melodic
+  const rhythmicVote = bass * 0.7 + energy * 0.3;
+  const melodicVote  = mid  * 0.6 + (1 - energy) * 0.2;
+
+  const base = PHRASE_LEAD[phrase] ?? 'harmonic';
+
+  // Only override if energy vote is strongly dominant (>0.55 threshold)
+  // — prevents constant flickering from subtle energy variations
+  if (rhythmicVote > 0.55 && rhythmicVote > melodicVote + 0.15) return 'rhythmic';
+  if (melodicVote  > 0.55 && melodicVote  > rhythmicVote + 0.15) return 'melodic';
+  return base;
+}
+
+function adaptiveMixTarget(name, intensity) {
+  const role    = MIX_ROLE_OF[name] ?? 'texture';
+  const ceiling = MIX_CEILING[name] ?? 0.35;
+  const lead    = getLeadRole(intensity);
+  const depth   = intensity; // 0→1
+
+  // Relational scale: how loud this role plays given who's leading
+  const relation = MIX_RELATION[role]?.[lead] ?? 0.5;
+
+  // Within-role headroom sharing — layers in same role share proportionally
+  // Count active siblings in same role
+  const siblings = Object.entries(MIX_ROLE_OF)
+    .filter(([n, r]) => r === role && layerOn[n] && n !== name).length;
+  // Lead layer in its own role gets priority; siblings step back slightly
+  // First active sibling = full share, each additional = gentle reduction
+  const siblingScale = siblings === 0 ? 1.0
+                     : siblings === 1 ? 0.88
+                     : siblings === 2 ? 0.78
+                     : 0.70;
+
+  // Depth scale — shallow floors are naturally quieter
+  const depthScale = 0.70 + depth * 0.35;
+
+  // Boss lift — everything up, but hierarchy preserved
+  const bossLift = isBoss ? 1.20 : 1.0;
+
+  // Final target — relation sets the hierarchy, ceiling caps it
+  const raw = ceiling * relation * siblingScale * depthScale * bossLift;
+  return Math.min(ceiling, Math.max(0.04, raw));
+}
+
+// Legacy shim — called on layer start for initial gain
+function busTarget(n, i) { return adaptiveMixTarget(n, i); }
+
+// ── Continuous mix update loop ────────────────────────────────────────
+// 80ms tick, 0.6s ramp — shifts feel musical not mechanical.
+// Skips layers that are fading out (gain near zero).
+let _mixLoopID = null;
+let _lastLead  = null;
+
+function startAdaptiveMixLoop() {
+  if (_mixLoopID) return;
+  function tick() {
+    if (!isPlaying) { _mixLoopID = null; return; }
+    const floor     = parseInt(document.getElementById('floorSlider')?.value ?? '1');
+    const intensity = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
+    const now       = ctx?.currentTime ?? 0;
+
+    // Use a slower ramp when lead role changes (smooth handoff),
+    // faster ramp for within-role adjustments
+    const lead      = getLeadRole(intensity);
+    const rampTime  = lead !== _lastLead ? 0.9 : 0.5;
+    _lastLead       = lead;
+
+    LAYER_NAMES.forEach(name => {
+      if (!layerOn[name]) return;
+      const b = bus[name];
+      if (!b || b.gain.value <= 0.002) return;
+      const target = adaptiveMixTarget(name, intensity);
+      if (Math.abs(b.gain.value - target) > 0.012) {
+        b.gain.cancelScheduledValues(now);
+        b.gain.setValueAtTime(b.gain.value, now);
+        b.gain.linearRampToValueAtTime(target, now + rampTime);
+      }
+    });
+
+    _mixLoopID = setTimeout(tick, 80);
+  }
+  tick();
+}
+
+function stopAdaptiveMixLoop() {
+  if (_mixLoopID) { clearTimeout(_mixLoopID); _mixLoopID = null; }
+  _lastLead = null;
 }
 
 // ── VOICE BANKS ───────────────────────────────
@@ -3594,15 +3705,18 @@ function buildBass(preset, intensity, name) {
     while (nextBarTime < ctx.currentTime + SCHED_AHEAD + barDur) {
       const barStart = nextBarTime;
 
-      const rootFreq = CE.chordTone('bass', 0, 0);
-      const fifthFreq = rootFreq * 1.5;
+      // Cinematic sub-bass: root on beat 1, optional 5th on beat 3
+      // Always sine — no sawtooth/triangle, no arpeggios, no climbs
+      const rootFreq = CE.chordTone('bass', 0, 0);   // root of current chord
+      const fifthFreq = rootFreq * 1.5;               // perfect 5th above
 
+      // Beat 1 — root, long sustain
       {
         const t   = barStart;
         const dur = beat * 1.6;
 
-        const sub  = mkOsc(rootFreq * 0.5, 'sine');
-        const main = mkOsc(rootFreq,       'sine');
+        const sub  = mkOsc(rootFreq * 0.5, 'sine');   // one octave below root — true sub
+        const main = mkOsc(rootFreq,       'sine');   // root fundamental
         const filt = mkFilt(120, 'lowpass', 0.6);
         const env  = mkGain(0);
         chain(sub,  env, b);
@@ -3618,6 +3732,7 @@ function buildBass(preset, intensity, name) {
         reg(name, sub, main, filt, env);
       }
 
+      // Beat 3 — 5th, shorter, softer (skip ~30% of bars for breathing room)
       if (rng() > 0.30) {
         const t   = barStart + beat * 2;
         const dur = beat * 0.9;
@@ -3942,48 +4057,58 @@ function buildBoss(preset, intensity, name) {
 }
 
 function buildHeartbeat(preset, intensity, name) {
-  const b = bus[name];
+  const b  = bus[name];
+  const sr = ctx.sampleRate;
+
+  const makeThump = (freq, decay, noiseMix) => {
+    const len = Math.floor(sr * (decay + 0.3));
+    const buf = ctx.createBuffer(1, len, sr);
+    const d   = buf.getChannelData(0);
+    let phase = 0;
+    let noiseHP = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t     = i / sr;
+      const env   = Math.exp(-t / decay);
+      const glide = freq * (1 + 0.22 * Math.exp(-t * 12));
+      phase      += (2 * Math.PI * glide) / sr;
+      const tone  = Math.sin(phase);
+      const raw   = Math.random() * 2 - 1;
+      noiseHP     = raw - noiseHP * 0.92;
+      const noise = noiseHP * noiseMix * Math.exp(-t / 0.018);
+      const sub   = Math.sin(phase * 0.5) * 0.45;
+      d[i] = (tone * 0.65 + sub + noise) * env;
+    }
+    return buf;
+  };
+
+  // LUB — bigger, lower, more impact
+  const thump1 = makeThump(42 + preset.root * 0.08, 0.42, 0.14);
+  // DUB — slightly higher, shorter
+  const thump2 = makeThump(34 + preset.root * 0.06, 0.26, 0.10);
+
   const bpm      = isBoss ? preset.bpm + 22 : preset.bpm;
-  const interval = 60 / (bpm * 0.28);
+  const interval = 60 / (bpm * 0.28); // full heartbeat cycle
   let t = ctx.currentTime + 0.1;
 
   function schedBeat() {
     if (!layerOn[name]) return;
 
-    // First thump — use different freqs to avoid phase cancellation
-    const f1   = mkOsc(preset.root * 0.28, 'sine');
-    const env1 = mkGain(0);
-    chain(f1, env1, b);
-    env1.gain.setValueAtTime(0, t);
-    env1.gain.linearRampToValueAtTime(0.55 + intensity * 0.3, t + 0.012);
-    env1.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-    f1.start(t); f1.stop(t + 0.28);
-    reg(name, f1, env1);
+    // THUMP 1 — LUB, full weight
+    const s1  = ctx.createBufferSource(); s1.buffer = thump1;
+    const lp1 = mkFilt(95, 'lowpass', 0.5);
+    const g1  = mkGain(0.72 + intensity * 0.22);
+    chain(s1, lp1, g1, b);
+    s1.start(t); reg(name, s1, lp1, g1);
 
-    // Second thump — clearly different pitch, slight delay, softer
-    const t2   = t + 0.22;
-    const f2   = mkOsc(preset.root * 0.19, 'sine'); // lower, not almost-unison
-    const env2 = mkGain(0);
-    chain(f2, env2, b);
-    env2.gain.setValueAtTime(0, t2);
-    env2.gain.linearRampToValueAtTime(0.38 + intensity * 0.2, t2 + 0.012);
-    env2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.18);
-    f2.start(t2); f2.stop(t2 + 0.28);
-    reg(name, f2, env2);
+    // THUMP 2 — DUB, half second after LUB
+    const t2  = t + 0.50;
+    const s2  = ctx.createBufferSource(); s2.buffer = thump2;
+    const lp2 = mkFilt(80, 'lowpass', 0.4);
+    const g2  = mkGain(0.52 + intensity * 0.16);
+    chain(s2, lp2, g2, b);
+    s2.start(t2); reg(name, s2, lp2, g2);
 
-    // Transient click on first thump — physical impact feel
-    const clickBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.008), ctx.sampleRate);
-    const cd = clickBuf.getChannelData(0);
-    for (let i = 0; i < cd.length; i++) {
-      cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.002));
-    }
-    const clickSrc  = ctx.createBufferSource(); clickSrc.buffer = clickBuf;
-    const clickFilt = mkFilt(180, 'lowpass', 1.2);
-    const clickG    = mkGain(0.18 + intensity * 0.1);
-    chain(clickSrc, clickFilt, clickG, b);
-    clickSrc.start(t);
-    reg(name, clickSrc, clickFilt, clickG);
-
+    // Next pair after full interval (long pause after dub)
     t += interval;
     regT(name, setTimeout(schedBeat, (interval - 0.15) * 1000));
   }
@@ -4163,37 +4288,60 @@ function buildWarDrums(preset, intensity, name) {
   const b  = bus[name];
   const sr = ctx.sampleRate;
 
-  const makeTom = (freq, decay, crackAmp) => {
-    const len = Math.floor(sr * (decay * 4 + 0.1));
+  const makeDrum = (freq, decay, tone, crackMix) => {
+    const len = Math.floor(sr * (decay * 3.5 + 0.25));
     const buf = ctx.createBuffer(1, len, sr);
     const d   = buf.getChannelData(0);
+
+    // Membrane modes — real drums have multiple inharmonic resonances
+    // Ratios approximate actual circular membrane Bessel function zeros
+    const modes = [
+      { ratio: 1.000, amp: 1.00, decay: decay },
+      { ratio: 1.593, amp: 0.28, decay: decay * 0.45 },
+      { ratio: 2.136, amp: 0.14, decay: decay * 0.28 },
+      { ratio: 2.296, amp: 0.10, decay: decay * 0.22 },
+    ];
+
+    // Pre-integrate phases
+    const phases = modes.map(() => 0);
+    let noiseLP = 0;
+
     for (let i = 0; i < d.length; i++) {
-      const t     = i / sr;
-      // Pitch sweep — starts high, falls to fundamental
-      const sweep = freq * Math.exp(-t * 5) + freq * 0.6;
-      const body  = Math.sin(2 * Math.PI * sweep * t) * Math.exp(-t / decay);
-      // Transient crack — noise burst at onset gives the stick attack
-      const crack = t < 0.012 ? (Math.random() * 2 - 1) * crackAmp * Math.exp(-t / 0.004) : 0;
-      // Subtle tone at 2× for membrane ring
-      const ring  = Math.sin(2 * Math.PI * freq * 2.1 * t) * Math.exp(-t / (decay * 0.3)) * 0.15;
-      d[i] = (body * 0.75 + crack + ring) * 0.9;
+      const t   = i / sr;
+      // Pitch envelope — fast initial drop, settles to fundamental
+      const pitchEnv = 1 + tone * Math.exp(-t * 18);
+      let   sample   = 0;
+
+      modes.forEach((m, mi) => {
+        const mFreq = freq * m.ratio * pitchEnv;
+        phases[mi] += (2 * Math.PI * mFreq) / sr;
+        sample += Math.sin(phases[mi]) * m.amp * Math.exp(-t / m.decay);
+      });
+
+      // Shell resonance noise — low-passed, decays quickly
+      const raw  = Math.random() * 2 - 1;
+      noiseLP = noiseLP * 0.72 + raw * 0.28;
+      const noise = noiseLP * crackMix * Math.exp(-t / 0.022);
+
+      // Air compression thud — very low freq, very short
+      const thud = Math.sin(2 * Math.PI * freq * 0.28 * t) * Math.exp(-t / 0.055) * 0.4;
+
+      d[i] = (sample * 0.65 + noise + thud) * 0.88;
     }
     return buf;
   };
 
-  const lowTom  = makeTom(preset.root * 0.65,  0.85, 0.7);
-  const highTom = makeTom(preset.root * 1.05,  0.5,  0.55);
-  const floorTom = makeTom(preset.root * 0.45, 1.1,  0.8); // deep floor tom
+  // Three drums tuned to feel like a large ensemble
+  const lowTom   = makeDrum(preset.root * 0.52, 1.05, 0.5, 0.18);
+  const highTom  = makeDrum(preset.root * 0.82, 0.60, 0.4, 0.14);
+  const floorTom = makeDrum(preset.root * 0.35, 1.35, 0.6, 0.22);
 
-  // Patterns — vary per bar via groove mutation
   const lowPat   = [1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0];
   const highPat  = [0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0];
-  const floorPat = [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0]; // sparse, heavy
+  const floorPat = [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0];
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
-
-    // Mutate patterns slightly each bar for variation
     const mutate = (pat) => pat.map((v, i) => (rng() < 0.08 && i !== 0) ? (v ? 0 : (rng() < 0.4 ? 1 : 0)) : v);
     const lp = mutate(lowPat);
     const hp = mutate(highPat);
@@ -4201,23 +4349,26 @@ function buildWarDrums(preset, intensity, name) {
 
     for (let i = 0; i < 16; i++) {
       const t = barStart + i * step;
+      // Slight humanise — tiny random timing offset
+      const hum = (rng() - 0.5) * 0.011;
 
       if (lp[i]) {
         const s = ctx.createBufferSource(); s.buffer = lowTom;
-        const g = mkGain(0.85 + intensity * 0.2);
-        const lpf = mkFilt(800, 'lowpass', 0.8);
-        chain(s, lpf, g, b); s.start(t); reg(name, s, g, lpf);
+        const g = mkGain(0.68 + intensity * 0.16);
+        const lp1 = mkFilt(320, 'lowpass', 0.55);
+        chain(s, lp1, g, b); s.start(t + hum); reg(name, s, g, lp1);
       }
       if (hp[i] && intensity > 0.15) {
         const s = ctx.createBufferSource(); s.buffer = highTom;
-        const g = mkGain(0.6 + intensity * 0.25);
-        chain(s, g, b); s.start(t); reg(name, s, g);
+        const g = mkGain(0.44 + intensity * 0.18);
+        const lp2 = mkFilt(380, 'lowpass', 0.55);
+        chain(s, lp2, g, b); s.start(t + hum); reg(name, s, g, lp2);
       }
       if (fp[i] && intensity > 0.4) {
         const s = ctx.createBufferSource(); s.buffer = floorTom;
-        const g = mkGain(0.9 + intensity * 0.15);
-        const lpf = mkFilt(500, 'lowpass', 1.0);
-        chain(s, lpf, g, b); s.start(t); reg(name, s, g, lpf);
+        const g = mkGain(0.74 + intensity * 0.12);
+        const lp3 = mkFilt(220, 'lowpass', 0.45);
+        chain(s, lp3, g, b); s.start(t + hum); reg(name, s, g, lp3);
       }
     }
   });
@@ -5259,10 +5410,12 @@ function togglePlay() {
     document.getElementById('playBtn').textContent = '⏹  Silence the Void';
     document.getElementById('playBtn').classList.add('playing');
     startSynth(); drawViz();
+    startAdaptiveMixLoop();
   } else {
     isPlaying = false;
     document.getElementById('playBtn').textContent = '▶  Invoke the Void';
     document.getElementById('playBtn').classList.remove('playing');
+    stopAdaptiveMixLoop();
     stopSynth(); setStatus('Silence reclaims the void...');
   }
 }
@@ -6649,7 +6802,7 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
       if (e.deathT >= 1) {
         k.enemy = null;
         if (['combat','strike'].includes(k.state)) {
-           k.state = 'patrol'; k.stateTimer = 0; k.combatTarget = null;
+          k.state = 'patrol'; k.stateTimer = 0; k.combatTarget = null;
         }
         setTimeout(() => {
           if (!CIN.knight) return;
