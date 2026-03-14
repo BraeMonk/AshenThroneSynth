@@ -2889,7 +2889,13 @@ function startRandomJourney() {
     logTimeline('Journey end');
     JC.timers.push(setTimeout(()=>{
       if(!isPlaying) return;
-      togglePlay(); masterGain.gain.value=0.38;
+      togglePlay();
+      if (ctx && masterGain) {
+        const _now = ctx.currentTime;
+        masterGain.gain.cancelScheduledValues(_now);
+        masterGain.gain.setValueAtTime(masterGain.gain.value, _now);
+        masterGain.gain.linearRampToValueAtTime(0.38, _now + 0.08);
+      }
     },(outroDur+0.3)*1000));
   }, JC.totalDurationMs));
 }
@@ -3719,7 +3725,9 @@ function startAdaptiveMixLoop() {
       const b = bus[name];
       if (!b || b.gain.value <= 0.002) return;
       const target = adaptiveMixTarget(name, intensity);
-      if (Math.abs(b.gain.value - target) > 0.012) {
+      if (Math.abs(b.gain.value - target) > 0.018) {
+        // Only interrupt if meaningfully off-target — avoids click from
+        // cancelling a ramp that's already almost done
         b.gain.cancelScheduledValues(now);
         b.gain.setValueAtTime(b.gain.value, now);
         b.gain.linearRampToValueAtTime(target, now + rampTime);
@@ -4301,7 +4309,7 @@ function buildDrone(preset, intensity, name) {
   }
   const subCrunch = ctx.createWaveShaper();
   subCrunch.curve = makeSubCrunchCurve(2.0 + intensity * 1.2);
-  subCrunch.oversample = '2x';
+  subCrunch.oversample = '4x';
 
   const subFilt  = mkFilt(130, 'lowpass', 0.6);
   const subFilt2 = mkFilt(160, 'lowpass', 0.5);
@@ -5651,7 +5659,7 @@ function buildChoir(preset, intensity, name) {
   const bFilt2 = mkFilt(600,'highpass',0.5);
   const bG     = mkGain(0.012+intensity*0.008);
   chain(breathSrc,bFilt1,bFilt2,bG,b);
-  breathSrc.start();
+  breathSrc.start(ctx.currentTime + 0.01);
   reg(name,breathSrc,bFilt1,bFilt2,bG);
 
   // Sub choir — deep undertone, the belly of hell's choir
@@ -5973,7 +5981,7 @@ function buildWind(preset, intensity, name) {
     gustLfo.start();
 
     chain(src, filt, g, b);
-    src.start();
+    src.start(ctx.currentTime + 0.01);
     reg(name, src, filt, g, lfo, lfoG, gustLfo, gustLfoG);
   });
 
@@ -6005,7 +6013,7 @@ function buildRiser(preset, intensity, name) {
   const filt = mkFilt(80, 'bandpass', 2.5);
   const g    = mkGain(0);
   chain(src, filt, g, b);
-  src.start();
+  src.start(ctx.currentTime + 0.01);
 
   function sweep() {
     const now = ctx.currentTime;
@@ -6064,7 +6072,7 @@ function buildFireCrackle(preset, intensity, name) {
   chain(gustLfo, gustG); gustG.connect(rumbleG.gain);
   gustLfo.start();
   chain(rumble, rumbleFilt, rumbleHPF, rumbleG, b);
-  rumble.start();
+  rumble.start(ctx.currentTime + 0.01);
   reg(name, rumble, rumbleFilt, rumbleHPF, rumbleG, gustLfo, gustG);
 
   // Crackle events — variable density based on intensity
@@ -6531,69 +6539,103 @@ function buildHorn(preset, intensity, name) {
 
 function buildBells(preset, intensity, name) {
   const b = bus[name];
-  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
-  const beat = 60 / bpm;
-  let t = ctx.currentTime + 0.5;
 
-  function schedBar() {
-    const count = 1 + Math.floor(rng() * 3);
-    const slots = [0, 1, 2, 3, 4, 5].sort(() => rng() - 0.5).slice(0, count);
-    const scale = getScale(preset);
+  // Inharmonic partials — bell synthesis (shared across all hits)
+  const PARTIALS = [
+    { ratio: 1,     amp: 0.55, decay: 2.8  },
+    { ratio: 2.756, amp: 0.28, decay: 1.6  },
+    { ratio: 5.404, amp: 0.14, decay: 0.9  },
+    { ratio: 8.933, amp: 0.07, decay: 0.55 },
+    { ratio: 13.34, amp: 0.03, decay: 0.3  },
+    { ratio: 2.772, amp: 0.12, decay: 1.4  }, // shimmer partial
+  ];
 
-    slots.forEach(slot => {
-      const bt  = t + slot * beat * 0.5;
-      const deg = Math.floor(rng() * scale.length);
-      const freq = CE.scaleStep(preset, preset.melodyOctave + 2, deg);
-
-      // Inharmonic partials — what makes bells sound like bells, not sine waves
-      const partials = [
-        { ratio: 1,     amp: 0.55, decay: 2.8  },
-        { ratio: 2.756, amp: 0.28, decay: 1.6  },
-        { ratio: 5.404, amp: 0.14, decay: 0.9  },
-        { ratio: 8.933, amp: 0.07, decay: 0.55 },
-        { ratio: 13.34, amp: 0.03, decay: 0.3  },
-        // Shimmer partial — slight detuning creates chorus shimmer
-        { ratio: 2.772, amp: 0.12, decay: 1.4  },
-      ];
-
-      partials.forEach(({ ratio, amp, decay }) => {
-        const o   = mkOsc(freq * ratio, 'sine');
-        const env = mkGain(0);
-        chain(o, env, b);
-
-        // Velocity variation — hits are never the same loudness
-        const vel = amp * (0.55 + intensity * 0.45) * (0.7 + rng() * 0.3);
-
-        env.gain.setValueAtTime(0, bt);
-        env.gain.linearRampToValueAtTime(vel, bt + 0.004);
-        env.gain.exponentialRampToValueAtTime(0.0001, bt + decay * (1.2 + intensity * 0.5));
-
-        o.start(bt);
-        o.stop(bt + decay * 2.0);
-        reg(name, o, env);
-      });
-
-      // Attack transient — small noise burst gives the strike a physical feel
-      const transientBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.025), ctx.sampleRate);
-      const td = transientBuf.getChannelData(0);
-      for (let i = 0; i < td.length; i++) {
-        const tt = i / ctx.sampleRate;
-        td[i] = (Math.random() * 2 - 1) * Math.exp(-tt / 0.004)
-               * Math.sin(2 * Math.PI * freq * 2 * tt);
-      }
-      const tSrc = ctx.createBufferSource(); tSrc.buffer = transientBuf;
-      const tFilt = mkFilt(freq * 3, 'bandpass', 2);
-      const tG    = mkGain(0.08 + intensity * 0.06);
-      chain(tSrc, tFilt, tG, b);
-      tSrc.start(bt);
-      reg(name, tSrc, tFilt, tG);
+  function strikeBell(bt, freq, vel) {
+    PARTIALS.forEach(({ ratio, amp, decay }) => {
+      const o   = mkOsc(freq * ratio, 'sine');
+      const env = mkGain(0);
+      chain(o, env, b);
+      const v = amp * vel * (0.8 + rng() * 0.2);
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(v, bt + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.0001, bt + decay * (1.2 + intensity * 0.5));
+      o.start(bt); o.stop(bt + decay * 2.0);
+      reg(name, o, env);
     });
-
-    t += beat * 4;
-    regT(name, setTimeout(schedBar, beat * 3.6 * 1000));
+    // Attack transient — physical strike feel
+    const tr = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.025), ctx.sampleRate);
+    const td = tr.getChannelData(0);
+    for (let i = 0; i < td.length; i++) {
+      const tt = i / ctx.sampleRate;
+      td[i] = (Math.random()*2-1) * Math.exp(-tt/0.004) * Math.sin(2*Math.PI*freq*2*tt);
+    }
+    const tSrc = ctx.createBufferSource(); tSrc.buffer = tr;
+    const tFilt = mkFilt(freq * 3, 'bandpass', 2);
+    const tG    = mkGain(0.08 + intensity * 0.06);
+    chain(tSrc, tFilt, tG, b); tSrc.start(bt); reg(name, tSrc, tFilt, tG);
   }
 
-  schedBar();
+  // ── Bells lock to groove — ornament the grid, not float above it ─────────
+  // Bells use three roles based on their position relative to the groove:
+  //
+  //   ACCENT bell  — on beat 1 (i=0) every bar: chord root, highest velocity.
+  //                  The "announcement" hit. Always fires unless intensity is very low.
+  //
+  //   RESPONSE bell — on snare positions (i=4, i=12): chord colour tone, medium vel.
+  //                  The backbeat shimmer. Creates the halo around the snare.
+  //                  Fires ~65% of snare hits so it's present but not mechanical.
+  //
+  //   FILL bell    — on quiet 16th positions (no kick, no snare):
+  //                  Scale degree chosen from upper scale tones (deg 3-6).
+  //                  Very low probability (~10-18%) — sparse colour, not rhythm.
+  //                  Only fires at moderate-high intensity.
+  //
+  // Bells NEVER fire on kick positions (except beat 1 which they share) —
+  // low-frequency kick energy and high-frequency bell shimmer fight each other.
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const step = beat * 0.25;
+    const groove = currentGroove || {
+      kick: [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+      snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0]
+    };
+    const kick  = groove.kick;
+    const snare = groove.snare;
+    const scale = getScale(preset);
+    const scaleLen = scale.length;
+
+    for (let i = 0; i < 16; i++) {
+      const t = barStart + i * step;
+
+      // ACCENT — beat 1 only, chord root, full velocity
+      if (i === 0 && intensity > 0.08) {
+        const freq = CE.scaleStep(preset, preset.melodyOctave + 2, 0);
+        strikeBell(t, freq, 0.60 + intensity * 0.32);
+        continue; // beat 1 done — skip other rules for this step
+      }
+
+      // RESPONSE — snare positions, chord colour tone
+      if (snare[i] && !kick[i] && rng() < 0.62 + intensity * 0.18) {
+        // Choose a colour tone — degree 2, 4, or 6 depending on bar position
+        const colourDegs = [2, 4, Math.min(6, scaleLen - 1)];
+        const deg  = colourDegs[Math.floor(rng() * colourDegs.length)];
+        const freq = CE.scaleStep(preset, preset.melodyOctave + 2, deg);
+        strikeBell(t, freq, 0.32 + intensity * 0.22);
+        continue;
+      }
+
+      // FILL — sparse, only on quiet 16ths with no kick or snare
+      if (!kick[i] && !snare[i] && intensity > 0.35) {
+        const fillProb = 0.08 + intensity * 0.10; // 8–18%
+        if (rng() < fillProb) {
+          // Upper scale tones only — bells live in the top of the register
+          const deg  = 3 + Math.floor(rng() * Math.max(1, scaleLen - 3));
+          const freq = CE.scaleStep(preset, preset.melodyOctave + 2, deg);
+          strikeBell(t, freq, 0.18 + intensity * 0.14);
+        }
+      }
+    }
+  });
 }
 
 function buildOrgan(preset, intensity, name) {
@@ -6731,7 +6773,7 @@ function buildWhispers(preset, intensity, name) {
     flutter.start();
 
     chain(src, filt, g, b);
-    src.start();
+    src.start(ctx.currentTime + 0.01);
     reg(name, src, filt, g, waver, waverG, flutter, flutterG);
   });
 
@@ -7006,7 +7048,7 @@ function buildStrings(preset, intensity, name) {
     bowLfoMasterG.connect(noiseG.gain);
 
     chain(src, filt, noiseG, b);
-    src.start();
+    src.start(ctx.currentTime + 0.01);
     reg(name, src, filt, noiseG);
   });
   // Tracks the root, updates on chord change via retuneStrings
