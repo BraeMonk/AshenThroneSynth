@@ -979,6 +979,7 @@ canvas {
 let ctx = null, masterGain = null, analyser = null, recDest = null;
 let fxInput = null;
 let reverbNode = null, reverbDryGain = null, reverbWetGain = null;
+let reverbNodeShort = null, reverbWetGainShort = null; // tight room for percussion
 let delayNode = null, delayFbGain = null, delayWetGain = null;
 let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF = null;
 
@@ -1104,10 +1105,51 @@ function stopPhraseEngine() {
   currentBar = 0; phraseBar = 0; totalBar = 0;
 }
 
+// ── Tension silence window state ─────────────────────────────────
+// When tension phrase hits bar 5/8, we pull back melodic and rhythmic layers
+// for 4 bars of near-silence before climax fires. The contrast is what makes
+// the climax land with physical weight.
+let tensionSilenceActive = false;
+
 function tickBar() {
   currentBar++;
   phraseBar++;
   totalBar++;
+
+  // ── Tension silence window — 4 bars before climax ──────────────
+  // When tension reaches bar 5 (of 8), pull back all non-harmonic layers.
+  // advancePhrase() fires at bar 8 and triggers climax — the silence
+  // means the first climax hit lands into a void, maximum contrast.
+  const phraseDurCheck = PHRASE_DURATIONS[currentPhrase] || 8;
+  const barsBeforeEnd  = phraseDurCheck - phraseBar;
+  if (currentPhrase === 'tension' && barsBeforeEnd === 3 && !tensionSilenceActive && isPlaying) {
+    tensionSilenceActive = true;
+    // Duck rhythmic and melodic layers for the silence window
+    const silenceLayers = ['perc','wardrums','stomp','march','melody','cello','choir','horn','lute','boss'];
+    silenceLayers.forEach(name => {
+      const b = bus[name];
+      if (b && layerOn[name]) {
+        const now2 = ctx?.currentTime ?? 0;
+        b.gain.cancelScheduledValues(now2);
+        b.gain.setValueAtTime(b.gain.value, now2);
+        b.gain.linearRampToValueAtTime(0.001, now2 + barLength * 1.2); // fade over ~1 bar
+      }
+    });
+    // Strings and drone stay but pull back to near-nothing — the held breath
+    ['strings','drone'].forEach(name => {
+      const b = bus[name];
+      if (b && layerOn[name]) {
+        const now2 = ctx?.currentTime ?? 0;
+        b.gain.cancelScheduledValues(now2);
+        b.gain.setValueAtTime(b.gain.value, now2);
+        b.gain.linearRampToValueAtTime(0.032, now2 + barLength * 1.5);
+      }
+    });
+  }
+  // Release silence flag when we exit tension
+  if (currentPhrase !== 'tension' && tensionSilenceActive) {
+    tensionSilenceActive = false;
+  }
 
   // ── Drain the pending queue ──────────────────────────────────────
   // Work on a snapshot so any startLayer calls that re-enqueue don't
@@ -1184,6 +1226,7 @@ function advancePhrase() {
   const next = phraseSeq[phraseSeqIdx];
   if (next !== currentPhrase) {
     currentPhrase = next;
+    tensionSilenceActive = false; // always clear on phrase change
     CE.onPhrase(currentPhrase, getZone(parseInt(slider.value)));
     if (autoEvolution) {
       applyPhraseLayers();
@@ -1194,6 +1237,20 @@ function advancePhrase() {
         ['melody','bass','choir','lute','horn'].forEach(name => {
           if (layerOn[name]) startLayer(name, preset, intensity, null);
         });
+        // On climax: forcibly reassert all layer gains to break the silence window.
+        // This is the explosion after the held breath.
+        if (next === 'climax') {
+          const now2 = ctx?.currentTime ?? 0;
+          LAYER_NAMES.forEach(name => {
+            const b = bus[name];
+            if (b && layerOn[name]) {
+              const target = adaptiveMixTarget(name, intensity);
+              b.gain.cancelScheduledValues(now2);
+              b.gain.setValueAtTime(b.gain.value, now2);
+              b.gain.linearRampToValueAtTime(target, now2 + 0.12); // fast slam in
+            }
+          });
+        }
         // Kick the mix immediately on phrase change — don't wait for next tick
         stopAdaptiveMixLoop();
         startAdaptiveMixLoop();
@@ -1242,18 +1299,55 @@ let journeyActive = false;
 let journeyDepth  = 0;   // 0-7, current step index — read by knight
 
 // ── Motif memory ─────────────────────────────────────────────────
-let baseMotif = [0, 2, 4, 2]; // reused across phrases
-let motifAge = 0;
+// ── Zone leitmotifs ───────────────────────────────────────────────
+// Each zone has a fixed 4-6 note interval cell — the musical fingerprint
+// the listener will subconsciously recognize after repeated exposure.
+// Intervals are designed around the zone's harmonic character:
+//   Ashen Fields:     falling minor third + step — grief, weight
+//   Rotwood Forest:   chromatic creep upward — unease, stalking
+//   Catacombs Deep:   tritone leap + resolution — dread, finality
+//   Shadowmere:       stepwise rise then fall — yearning, loss
+//   Sorcerer's Veil:  wide leap + chromatic — arcane, unstable
+//   Obsidian Keep:    march-like fourths — militaristic, relentless
+//   Void Spire:       cluster + silence (rest=7) — alien, wrong
+//   Infernal Core:    descending half-steps — collapse, inevitability
+const ZONE_LEITMOTIFS = {
+  'Ashen Fields':   [0, 2, 0, 3, 2, 0],        // falling minor third resolves to root
+  'Rotwood Forest': [0, 1, 2, 3, 2, 1],        // chromatic ascent — unsettling
+  'Catacombs Deep': [0, 6, 0, 5, 4, 0],        // tritone leap + approach
+  'Shadowmere':     [0, 2, 4, 3, 2, 0],        // rise and fall — longing
+  "Sorcerer's Veil":[0, 5, 1, 4, 2, 0],        // wide leaps — arcane instability
+  'Obsidian Keep':  [0, 3, 0, 4, 3, 0],        // fourth-based march cell
+  'Void Spire':     [0, 6, 1, 5, 0, 2],        // dissonant, no clear home
+  'Infernal Core':  [6, 5, 4, 3, 2, 1],        // inexorable descent
+};
+
+let baseMotif = [0, 2, 4, 2]; // fallback if zone not found
+let motifAge  = 0;
 
 function mutateMotif(preset) {
+  // Always anchor to the zone's leitmotif as the base identity.
+  // Every 4th call, allow a small variation — never drift so far
+  // that the listener loses the thread. Every 8th call, return
+  // exactly to the anchor so it stays recognizable.
+  const anchor = ZONE_LEITMOTIFS[preset.name] || [0, 2, 4, 2];
   motifAge++;
-  if (motifAge % 4 === 0) {
-    const scale = getScale(preset);
-    baseMotif = baseMotif.map(deg => {
-      return rng() < 0.3 ? Math.floor(rng() * scale.length) : deg;
+
+  if (motifAge % 8 === 0) {
+    // Snap back to exact leitmotif — the "recognition moment"
+    baseMotif = [...anchor];
+  } else if (motifAge % 4 === 0) {
+    // Minor variation: transpose one note by ±1 scale degree,
+    // or ornament with a passing tone — identity preserved
+    baseMotif = anchor.map((deg, i) => {
+      if (i === 0 || i === anchor.length - 1) return deg; // root positions are sacred
+      return rng() < 0.25 ? Math.max(0, deg + (rng() < 0.5 ? 1 : -1)) : deg;
     });
+  } else {
+    baseMotif = [...anchor];
   }
-  return [...baseMotif]; // return copy — never mutate the shared reference
+
+  return [...baseMotif];
 }
 
 // ── Timeline logging ──────────────────────────────────────────────
@@ -1639,6 +1733,109 @@ function buildPresetUI() {
 }
 
 // ── Coherent Randomizer ───────────────────────────────────────────
+// ── Instrument family coherence rules ────────────────────────────────
+// These define which instrument families exist and their dependency rules.
+// The coherent pool selector uses these to ensure that whenever a melodic
+// or rhythmic layer is chosen, its required support layers are present.
+//
+// Rules:
+//   'needs'   — if this layer is picked, also pick one from the needs list
+//               (harmonic anchor for melodic layers, bass for rhythmic)
+//   'blocks'  — if this layer is picked, remove these from the candidate pool
+//               (avoid doubling up on the same register)
+//   'weight'  — relative probability in the shuffle (default 1.0)
+const LAYER_COHERENCE = {
+  // Melodic — need a harmonic foundation or they float
+  melody:      { needs: ['strings','drone'],   blocks: [],             weight: 1.0 },
+  choir:       { needs: ['strings','drone'],   blocks: [],             weight: 1.0 },
+  cello:       { needs: ['bass','strings'],    blocks: [],             weight: 1.0 },
+  horn:        { needs: ['strings','drone'],   blocks: ['lute'],       weight: 0.8 },
+  lute:        { needs: ['drone','strings'],   blocks: ['horn'],       weight: 0.8 },
+  bells:       { needs: ['drone','strings'],   blocks: [],             weight: 0.7 },
+  organ:       { needs: ['drone'],             blocks: [],             weight: 1.0 },
+  // Rhythmic — need a bass anchor or they have no weight
+  wardrums:    { needs: ['bass'],              blocks: [],             weight: 1.0 },
+  march:       { needs: ['bass'],              blocks: [],             weight: 1.0 },
+  stomp:       { needs: ['bass','wardrums'],   blocks: [],             weight: 0.9 },
+  perc:        { needs: ['bass'],              blocks: [],             weight: 1.0 },
+  chains:      { needs: ['bass','wardrums'],   blocks: [],             weight: 0.7 },
+  // Textural — mostly self-contained but some need a carrier
+  ritualchant: { needs: ['drone'],             blocks: [],             weight: 0.8 },
+  whispers:    { needs: ['drone','strings'],   blocks: [],             weight: 0.7 },
+  glitch:      { needs: [],                   blocks: [],             weight: 0.6 },
+  chaos:       { needs: ['bass'],              blocks: [],             weight: 0.9 },
+  riser:       { needs: [],                   blocks: [],             weight: 0.7 },
+  wind:        { needs: [],                   blocks: [],             weight: 0.8 },
+  firecrackle: { needs: [],                   blocks: [],             weight: 0.6 },
+  // Pulse — self-contained
+  heartbeat:   { needs: [],                   blocks: [],             weight: 0.8 },
+};
+
+// Coherent pool selector — replaces the raw shuffle + slice pattern.
+// Given a set of required layers and a candidate pool, picks up to `max`
+// additional layers such that:
+//   1. Every picked melodic/rhythmic layer has its harmonic/bass anchor present
+//      (either in required or in the picks so far)
+//   2. Blocked layers are excluded after their blocker is picked
+//   3. Selection is still random within these constraints — different every run
+//   4. Falls back gracefully if constraints can't be fully satisfied
+function coherentPoolPick(required, pool, max, seed) {
+  const active  = new Set(required);    // layers confirmed to be playing
+  const blocked = new Set();            // excluded by already-chosen layers
+
+  // Mark anything blocked by required layers
+  required.forEach(name => {
+    (LAYER_COHERENCE[name]?.blocks || []).forEach(b => blocked.add(b));
+  });
+
+  // Weighted shuffle of pool (excluding blocked)
+  const candidates = pool
+    .filter(n => !blocked.has(n) && !active.has(n))
+    .map(n => ({ name: n, weight: LAYER_COHERENCE[n]?.weight ?? 1.0, sort: (seed || Math.random()) * (LAYER_COHERENCE[n]?.weight ?? 1.0) }))
+    .sort((a, b) => b.sort - a.sort); // descending weight — heavier layers preferred
+
+  // Re-randomize within weight bands so it doesn't always pick the same order
+  // (stable sort by weight tier, random within tier)
+  candidates.sort((a, b) => {
+    const aTier = Math.round(a.weight * 4); // quantize to 4 tiers
+    const bTier = Math.round(b.weight * 4);
+    if (aTier !== bTier) return bTier - aTier;
+    return Math.random() - 0.5; // random within same tier
+  });
+
+  const picked = [];
+
+  for (const { name } of candidates) {
+    if (picked.length >= max) break;
+    if (blocked.has(name)) continue;
+
+    const rule = LAYER_COHERENCE[name];
+
+    // Check needs: does this layer have at least one of its needs already active?
+    if (rule?.needs?.length) {
+      const needsMet = rule.needs.some(n => active.has(n));
+      if (!needsMet) {
+        // Try to satisfy by adding a need layer first (if it's in the pool and we have budget)
+        const satisfier = rule.needs.find(n => pool.includes(n) && !active.has(n) && !blocked.has(n));
+        if (satisfier && picked.length + 2 <= max) {
+          picked.push(satisfier);
+          active.add(satisfier);
+          (LAYER_COHERENCE[satisfier]?.blocks || []).forEach(b => blocked.add(b));
+        } else {
+          // Can't satisfy — skip this layer rather than let it float unsupported
+          continue;
+        }
+      }
+    }
+
+    picked.push(name);
+    active.add(name);
+    (rule?.blocks || []).forEach(b => blocked.add(b));
+  }
+
+  return picked;
+}
+
 const LAYER_ARCHETYPES = {
   // Sparse opening — drone and strings as atmosphere, nothing rhythmic
   desolate:  { required: ['drone','strings'],
@@ -1701,9 +1898,8 @@ function randomizeCoherent(forcedArchetype) {
 
   muteAll();
 
-  // Shuffle pool and pick up to max
-  const shuffled = [...cfg.pool].sort(() => Math.random() - 0.5);
-  const picked = shuffled.slice(0, cfg.max);
+  // Coherent pool selection — respects instrument family rules
+  const picked  = coherentPoolPick(cfg.required, cfg.pool, cfg.max);
   const toEnable = [...cfg.required, ...picked];
 
   setTimeout(() => {
@@ -1889,9 +2085,8 @@ function startRandomJourney() {
     const percBufs = buildPercBufs(preset, sessionVoices['perc']);
 
     const availablePool = step >= 4 && cfg.latePool ? [...cfg.pool, ...cfg.latePool] : cfg.pool;
-    const shuffled = [...availablePool].sort(() => rng() - 0.5);
-    const picked = shuffled.slice(0, cfg.max);
-    const toEnable = new Set([...cfg.required, ...picked]);
+    const picked    = coherentPoolPick(cfg.required, availablePool, cfg.max);
+    const toEnable  = new Set([...cfg.required, ...picked]);
 
     // Step 0 starts immediately, subsequent steps snap to bar boundary
     const now = ctx.currentTime;
@@ -2329,7 +2524,7 @@ function initAudio() {
     wind: 0.60, riser: 0.45, firecrackle: 0.35,
     perc: 0.18, wardrums: 0.20, chains: 0.22, march: 0.18, stomp: 0.16,
     melody: 0.50, cello: 0.55, choir: 0.65, lute: 0.40, horn: 0.50,
-    bells: 0.70, organ: 0.60,
+    bells: 0.70, organ: 0.40,
     chaos: 0.30, whispers: 0.55, ritualchant: 0.60, glitch: 0.20,
     boss: 0.25,
   };
@@ -2348,12 +2543,20 @@ function initAudio() {
   });
 }
 
+// Percussion layers get a short, tight room — close and punchy.
+// Sustained layers (strings, choir, drone) get the long hall.
+// This prevents drum transients from smearing the string tail.
+const PERC_REVERB_LAYERS = new Set(['perc','wardrums','march','stomp','boss','heartbeat','chains']);
+
 function connectLayerReverb() {
-  // Called after buildFXChain so reverbNode exists
+  // Called after buildFXChain so reverb nodes exist
   LAYER_NAMES.forEach(name => {
     const b = bus[name];
-    if (b && b._sendGain && reverbNode) {
-      try { b._sendGain.connect(reverbNode); } catch(e) {}
+    if (!b || !b._sendGain) return;
+    const target = PERC_REVERB_LAYERS.has(name) ? reverbNodeShort : reverbNode;
+    if (target) {
+      try { b._sendGain.disconnect(); } catch(e) {}
+      try { b._sendGain.connect(target); } catch(e) {}
     }
   });
 }
@@ -2375,17 +2578,25 @@ function makeSatCurve(amount) {
 
 // ── FX chain ──────────────────────────────────────────────────────
 function buildFXChain() {
-  [reverbDryGain, reverbWetGain, reverbNode, delayNode, delayFbGain, delayWetGain].forEach(n => {
+  [reverbDryGain, reverbWetGain, reverbNode, reverbNodeShort, reverbWetGainShort,
+   delayNode, delayFbGain, delayWetGain].forEach(n => {
     if (n) try { n.disconnect(); } catch(e) {}
   });
   reverbDryGain = ctx.createGain(); reverbDryGain.gain.value = 1.0 - _reverbMix;
   fxInput.connect(reverbDryGain); reverbDryGain.connect(masterGain);
 
+  // Long hall reverb — strings, choir, drone, melodic layers
   reverbNode = ctx.createConvolver();
   reverbNode.buffer = buildIR(_reverbSize);
   reverbWetGain = ctx.createGain(); reverbWetGain.gain.value = _reverbMix;
-  // Per-layer sendG feeds reverbNode — do NOT also route fxInput here (double-wet crackle)
   reverbNode.connect(reverbWetGain); reverbWetGain.connect(masterGain);
+
+  // Short room reverb — percussion only, tight and punchy (fixed 0.08 size)
+  // Keeps transients clean and separated from the hall tail
+  reverbNodeShort = ctx.createConvolver();
+  reverbNodeShort.buffer = buildIR(0.08);
+  reverbWetGainShort = ctx.createGain(); reverbWetGainShort.gain.value = _reverbMix * 0.55;
+  reverbNodeShort.connect(reverbWetGainShort); reverbWetGainShort.connect(masterGain);
 
   delayNode = ctx.createDelay(2.0); delayNode.delayTime.value = _delayTime;
   delayFbGain = ctx.createGain(); delayFbGain.gain.value = _delayFb;
@@ -2394,7 +2605,7 @@ function buildFXChain() {
   delayNode.connect(delayFbGain); delayFbGain.connect(delayNode);
   delayNode.connect(delayWetGain); delayWetGain.connect(masterGain);
 
-  // Reconnect per-layer reverb sends to the new reverbNode
+  // Reconnect per-layer reverb sends to correct rooms
   if (Object.keys(bus).length > 0) connectLayerReverb();
 }
 
@@ -2452,6 +2663,7 @@ function onReverbMix(el) {
   if (!ctx) return;
   reverbDryGain.gain.setTargetAtTime(1.0 - _reverbMix, ctx.currentTime, 0.05);
   reverbWetGain.gain.setTargetAtTime(_reverbMix, ctx.currentTime, 0.05);
+  if (reverbWetGainShort) reverbWetGainShort.gain.setTargetAtTime(_reverbMix * 0.55, ctx.currentTime, 0.05);
 }
 function onDelayTime(el) {
   _delayTime = (el.value / 100) * 1.2;
@@ -2575,7 +2787,7 @@ const MIX_CEILING = {
   perc:        0.76,  wardrums:    0.74,  march:       0.68,  stomp:       0.64,
   chains:      0.40,  wind:        0.28,  riser:       0.38,  firecrackle: 0.20,
   whispers:    0.20,  ritualchant: 0.50,  glitch:      0.24,  boss:        0.60,
-  melody:      0.68,  choir:       0.66,  cello:       0.54,  organ:       0.52,
+  melody:      0.68,  choir:       0.66,  cello:       0.54,  organ:       0.38,
   horn:        0.58,  lute:        0.40,  bells:       0.42,  chaos:       0.34,
 };
 
@@ -2634,6 +2846,17 @@ function getLeadRole(intensity) {
   return base;
 }
 
+// Phrase arc depth multiplier — controls overall energy envelope per phrase.
+// This is what separates a resolution from a climax at the mix level.
+// Applies on top of role relations so the hierarchy is preserved, just quieter.
+const PHRASE_DEPTH = {
+  intro:      0.52,   // sparse — only drone and strings, held back
+  build:      0.72,   // growing — layers entering, mix opening up
+  tension:    0.88,   // taut — full but restrained, energy coiled
+  climax:     1.00,   // everything — the only moment of full release
+  resolution: 0.58,   // exhale — melody carries, everything else recedes
+};
+
 function adaptiveMixTarget(name, intensity) {
   const role    = MIX_ROLE_OF[name] ?? 'texture';
   const ceiling = MIX_CEILING[name] ?? 0.35;
@@ -2660,8 +2883,13 @@ function adaptiveMixTarget(name, intensity) {
   // Boss lift — everything up, but hierarchy preserved
   const bossLift = isBoss ? 1.20 : 1.0;
 
+  // Phrase arc multiplier — the arc breathes, not just the layers
+  const phraseDepth = PHRASE_DEPTH[currentPhrase] ?? 0.80;
+  // Melodic role in resolution gets a lift to carry the exhale
+  const phraseLift  = (currentPhrase === 'resolution' && role === 'melodic') ? 1.22 : 1.0;
+
   // Final target — relation sets the hierarchy, ceiling caps it
-  const raw = ceiling * relation * siblingScale * depthScale * bossLift;
+  const raw = ceiling * relation * siblingScale * depthScale * bossLift * phraseDepth * phraseLift;
   return Math.min(ceiling, Math.max(0.04, raw));
 }
 
@@ -3157,27 +3385,29 @@ function buildDrone(preset, intensity, name) {
   chain(aLfo, aLfoG); aLfoG.connect(breathGain.gain);
   aLfo.start(); reg(name, aLfo, aLfoG, breathGain);
 
-  // Chord-aware stacked voices — root / 5th / octave (not wall-of-detune)
-  const rootFreq  = preset.root;
-  const fifthFreq = preset.root * 1.5;        // perfect fifth
-  const octFreq   = preset.root * 2.0;        // octave up
+  // Chord-tracking voices — root / 5th / octave, retune on chord change
+  // Initial frequencies from CE so they start harmonically correct
+  const initRoot  = CE.chordTone('drone', -1, 0);
+  const initFifth = initRoot * 1.5;
+  const initOct   = initRoot * 2.0;
 
-  const voices = [
-    { freq: rootFreq,  wave: 'sine',            det: 0,   gv: 0.38 }, // fundamental — sine stays clean
-    { freq: rootFreq,  wave: preset.droneWave,  det: -8,  gv: 0.18 }, // color layer — slightly flat
-    { freq: rootFreq,  wave: preset.droneWave,  det:  8,  gv: 0.18 }, // color layer — slightly sharp
-    { freq: fifthFreq, wave: 'sine',            det: 0,   gv: 0.14 }, // fifth — always sine, stays transparent
-    { freq: octFreq,   wave: 'triangle',        det: 0,   gv: 0.10 }, // octave — triangle, soft
+  const voiceDefs = [
+    { freq: initRoot,  wave: 'sine',           det: 0,   gv: 0.38, role: 'root'  },
+    { freq: initRoot,  wave: preset.droneWave, det: -8,  gv: 0.18, role: 'root'  },
+    { freq: initRoot,  wave: preset.droneWave, det:  8,  gv: 0.18, role: 'root'  },
+    { freq: initFifth, wave: 'sine',           det: 0,   gv: 0.14, role: 'fifth' },
+    { freq: initOct,   wave: 'triangle',       det: 0,   gv: 0.10, role: 'oct'   },
   ];
 
-  voices.forEach(({ freq, wave, det, gv }) => {
+  const droneOscs = voiceDefs.map(({ freq, wave, det, gv, role }) => {
     const o = mkOsc(freq, wave, det);
     const g = mkGain(gv);
     chain(o, g, warmFilt); o.start(); reg(name, o, g);
+    return { osc: o, role };
   });
 
-  // Sub — separate path, very low, felt not heard
-  const subO    = mkOsc(rootFreq * 0.5, 'sine');
+  // Sub — stays locked to zone root always (felt not heard harmonically)
+  const subO    = mkOsc(preset.root * 0.5, 'sine');
   const subFilt = mkFilt(90, 'lowpass', 0.7);
   const subG    = mkGain(0.18);
   chain(subO, subFilt, subG, b); subO.start(); reg(name, subO, subFilt, subG);
@@ -3186,6 +3416,33 @@ function buildDrone(preset, intensity, name) {
   const lfo  = mkOsc(preset.droneLfoRate * 0.6 + intensity * 0.04, 'sine');
   const lfoG = mkGain(preset.droneLfoDepth * 0.5 + intensity * 120);
   chain(lfo, lfoG); lfoG.connect(warmFilt.frequency); lfo.start(); reg(name, lfo, lfoG, warmFilt);
+
+  // ── Chord retune loop — tracks CE every bar ──────────────────────
+  // Drones glide slowly (1.5s) so chord shifts feel like tectonic movement,
+  // not melody. Sub stays put — it anchors physical presence regardless of harmony.
+  let droneLastChord = CE.currentChord.label;
+  function retuneDrone() {
+    if (!layerOn[name]) return;
+    const chord = CE.currentChord;
+    if (chord.label !== droneLastChord) {
+      droneLastChord = chord.label;
+      const now2     = ctx.currentTime;
+      const glide    = 1.5; // slow — drone shifts like a tidal pull, not a melody
+      const newRoot  = CE.chordTone('drone', -1, 0);
+      const newFifth = newRoot * 1.5;
+      const newOct   = newRoot * 2.0;
+      droneOscs.forEach(({ osc, role }) => {
+        const target = role === 'root' ? newRoot : role === 'fifth' ? newFifth : newOct;
+        osc.frequency.cancelScheduledValues(now2);
+        osc.frequency.setValueAtTime(osc.frequency.value, now2);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(15, target), now2 + glide);
+      });
+    }
+    // Poll every 2 bars — chord changes happen every 2 bars normally
+    const waitMs = Math.max(200, (barLength || 2) * 2 * 1000);
+    regT(name, setTimeout(retuneDrone, waitMs));
+  }
+  regT(name, setTimeout(retuneDrone, (barLength || 2) * 1000));
 }
 
 function buildPercBufs(preset, voice) {
@@ -3973,6 +4230,9 @@ function buildChoir(preset, intensity, name) {
     { octMult: 2.0,  det:  0,  gv: 0.12, formF: [450, 1200, 2400] }, // soprano
   ];
 
+  // Collect osc refs for chord retune loop
+  const choirOscs = [];
+
   voices.forEach(({ octMult, det, gv, formF }, vi) => {
     const raw  = CE.chordTone('choir', 1, vi % 3);
     const freq = (raw && raw > 10 ? raw : preset.root * 2) * octMult;
@@ -4011,6 +4271,7 @@ function buildChoir(preset, intensity, name) {
 
     o.start();
     reg(name, o, f1, f2, f3, mixG, fLfo, fLfoG, vib, vibG);
+    choirOscs.push({ osc: o, octMult, voiceIdx: vi % 3 });
   });
 
   // Breath noise — essential. Without this it sounds like a synth, not a choir.
@@ -4035,6 +4296,36 @@ function buildChoir(preset, intensity, name) {
   chain(subO, subFilt, subG, b);
   subO.start();
   reg(name, subO, subFilt, subG);
+
+  // ── Choir chord retune loop — tracks CE every bar ────────────────
+  // Singers glide to new pitches over 0.8s — portamento, not instant snap.
+  // Mimics breath support adjusting pitch naturally.
+  let choirLastChord = CE.currentChord.label;
+  function retuneChoir() {
+    if (!layerOn[name]) return;
+    const chord = CE.currentChord;
+    if (chord.label !== choirLastChord) {
+      choirLastChord = chord.label;
+      const now2  = ctx.currentTime;
+      const glide = 0.8; // singers settle into new pitch — slower than strings
+      choirOscs.forEach(({ osc, octMult, voiceIdx }) => {
+        const newFreq = CE.chordTone('choir', 1, voiceIdx) * octMult;
+        if (!newFreq || newFreq < 10) return;
+        osc.frequency.cancelScheduledValues(now2);
+        osc.frequency.setValueAtTime(osc.frequency.value, now2);
+        osc.frequency.exponentialRampToValueAtTime(newFreq, now2 + glide);
+      });
+      // Sub also tracks root
+      const newSub = CE.chordTone('choir', 0, 0);
+      if (newSub && newSub > 10) {
+        subO.frequency.cancelScheduledValues(now2);
+        subO.frequency.setValueAtTime(subO.frequency.value, now2);
+        subO.frequency.exponentialRampToValueAtTime(newSub, now2 + glide * 1.2);
+      }
+    }
+    regT(name, setTimeout(retuneChoir, Math.max(200, (barLength || 2) * 1000)));
+  }
+  regT(name, setTimeout(retuneChoir, (barLength || 2) * 1000));
 }
 
 function buildChaos(preset, intensity, name) {
@@ -4851,13 +5142,13 @@ function buildOrgan(preset, intensity, name) {
   const voice = sessionVoices[name] || 'sine';
 
   const VCFG = {
-    sine:      { satAmt: 0.22, lpfMult: 1.0, attackMult: 1.0,  relMult: 1.0,  gainMult: 1.0,  subGain: 0.26, lfoDepth: 0.04 },
-    drawbar:   { satAmt: 0.45, lpfMult: 1.6, attackMult: 0.55, relMult: 0.75, gainMult: 1.15, subGain: 0.32, lfoDepth: 0.06 },
-    cathedral: { satAmt: 0.14, lpfMult: 0.5, attackMult: 2.0,  relMult: 1.6,  gainMult: 0.9,  subGain: 0.38, lfoDepth: 0.02 },
+    sine:      { satAmt: 0.22, lpfMult: 1.0, attackMult: 1.0,  relMult: 1.0,  gainMult: 0.62, subGain: 0.16, lfoDepth: 0.04 },
+    drawbar:   { satAmt: 0.45, lpfMult: 1.6, attackMult: 0.55, relMult: 0.75, gainMult: 0.72, subGain: 0.20, lfoDepth: 0.06 },
+    cathedral: { satAmt: 0.14, lpfMult: 0.5, attackMult: 2.0,  relMult: 1.6,  gainMult: 0.55, subGain: 0.22, lfoDepth: 0.02 },
   };
   const vc = VCFG[voice] || VCFG.sine;
 
-  const mix     = mkGain(0.72 * vc.gainMult); mix.connect(b);
+  const mix     = mkGain(0.42 * vc.gainMult); mix.connect(b);
   const airFilt = mkFilt((2600 + intensity * 1400) * vc.lpfMult, 'lowpass', 0.6);
   airFilt.connect(mix);
   const orgSat  = ctx.createWaveShaper();
@@ -4881,10 +5172,10 @@ function buildOrgan(preset, intensity, name) {
 
     const allBars = [
       { ratio: 0.5, gv: vc.subGain },
-      { ratio: 1,   gv: 0.36 },
-      { ratio: 2,   gv: 0.18 },
-      { ratio: 3,   gv: 0.10 },
-      { ratio: 4,   gv: 0.06 },
+      { ratio: 1,   gv: 0.22 },
+      { ratio: 2,   gv: 0.10 },
+      { ratio: 3,   gv: 0.055 },
+      { ratio: 4,   gv: 0.028 },
     ];
     const bars = voice === 'drawbar' ? allBars : allBars.slice(0, 4);
 
@@ -4906,8 +5197,9 @@ function buildOrgan(preset, intensity, name) {
         env.gain.setValueAtTime(0, t);
         env.gain.linearRampToValueAtTime(peak * 0.6, t + attackT * 0.5);
         env.gain.linearRampToValueAtTime(peak, t + attackT);
+        // Hold at peak — no creep above it
         env.gain.setValueAtTime(peak, t + attackT + holdT * 0.7);
-        env.gain.linearRampToValueAtTime(peak * 1.05, t + attackT + holdT * 0.85);
+        env.gain.linearRampToValueAtTime(peak * 0.92, t + attackT + holdT); // gentle settle
         env.gain.linearRampToValueAtTime(0.0001, t + attackT + holdT + releaseT);
 
         lfoA.start(t); o.start(t);
