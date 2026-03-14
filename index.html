@@ -2072,10 +2072,22 @@ const JOURNEY_MOODS = {
   awakening: {
     label: 'Awakening',
     desc: 'Inverted — starts at the peak and slowly dissolves into ash, like waking in the aftermath',
-    // Energy arc runs in reverse: high at the start, decaying through all 8 chapters.
-    // Starts with nightmare texture, strips back layer by layer to desolate silence.
     layerArc:  ['nightmare','combat','marching','choral','marching','choral','desolate','desolate'],
     scaleArc:  ['dread','dread','epic','dark','eerie','dark','dark','arcane'],
+  },
+
+  catharsis: {
+    label: 'Catharsis',
+    desc: 'Slow grief to earned beauty — choir builds through pain toward genuine release, then rests in warmth',
+    layerArc:  ['choral','choral','combat','choral','choral','choral','choral','desolate'],
+    scaleArc:  ['dark','dark','dread','dark','eerie','arcane','arcane','dark'],
+  },
+
+  void: {
+    label: 'Void',
+    desc: 'Alien and placeless — chromatic harmonics, no tonal center, never resolves, music from somewhere else',
+    layerArc:  ['arcane','arcane','nightmare','arcane','nightmare','arcane','arcane','arcane'],
+    scaleArc:  ['arcane','eerie','dread','eerie','dread','eerie','arcane','eerie'],
   },
 };
 
@@ -2134,7 +2146,10 @@ const JC_ENERGY_CURVES = {
   paranoia:   [0.28,0.45,0.38,0.52,0.42,0.58,0.48,0.35],
   elegy:      [0.15,0.22,0.30,0.38,0.42,0.38,0.28,0.16], // slow gentle arc, soft peak, long decay
   siege:      [0.45,0.72,0.90,0.95,0.95,0.90,0.85,0.55], // peaks fast, stays high, grinds
-  awakening:  [0.90,0.78,0.62,0.45,0.35,0.25,0.18,0.10], // inverted — starts high, decays to silence
+  awakening:  [0.90,0.78,0.62,0.45,0.35,0.25,0.18,0.10],
+  // New moods
+  catharsis:  [0.12,0.20,0.45,0.38,0.62,0.85,0.78,0.45], // late peak — earns it slowly, stays warm
+  void:       [0.18,0.30,0.28,0.42,0.38,0.45,0.35,0.28], // jagged mid-range, never peaks, never settles
 };
 
 // Layer groups define when instruments enter and leave as energy rises 0→1.
@@ -2172,7 +2187,9 @@ const JC_MOOD_SUPPRESS = {
   paranoia:   new Set(['horn_acc','bells_det']),                       // no heroic brass or delicate bells
   elegy:      new Set(['rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak','horn_acc']), // no drums ever
   siege:      new Set(['bells_det','organ_col','atmosphere','ritual']), // no delicate/atmospheric — pure force
-  awakening:  new Set(['ritual','chains_tex']),                        // starts full, strips naturally via energy
+  awakening:  new Set(['ritual','chains_tex']),
+  catharsis:  new Set(['chaos_peak','chains_tex']),       // no chaos — grief is clean
+  void:       new Set(['horn_acc','ritual','chains_tex']),// no heroic brass, no ritual — pure alien
 };
 
 // ── CHAPTER PHRASE ARCS ───────────────────────────────────────────────
@@ -2392,71 +2409,242 @@ function fireLeitmotifReturn(preset, energy) {
 JC.reconcile = function(preset, intensity) {
   const target   = JC.computeTargetSet();
   const percBufs = buildPercBufs(preset, sessionVoices['perc']);
+  const phrase   = currentPhrase || 'intro';
+  const e        = intensity;
 
   const SUSTAIN_LAYERS = new Set([
     'drone','strings','choir','melody','cello','organ','bass',
     'heartbeat','wind','whispers','ritualchant','bells','horn','lute'
   ]);
 
-  // One entrance, one exit per call — slow evolution, not a scene cut
-  let entrances = 0, exits = 0;
+  // ── MOOD CHARACTERS: instrument sets per phrase per mood ───────────────────
+  // Each mood defines what each phrase sounds like for that emotional context.
+  // Tragic tension sounds nothing like siege tension — different instruments,
+  // different texture, different emotional register.
+  const MOOD_CHARACTERS = {
+    descent: {
+      intro:      ['drone','strings','wind','heartbeat'],
+      build:      ['drone','strings','bass','melody','perc','choir'],
+      tension:    ['drone','strings','bass','perc','wardrums','riser','whispers'],
+      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','choir','melody','horn','chaos'],
+      resolution: ['drone','strings','melody','cello','choir','bells','organ'],
+    },
+    tragic: {
+      intro:      ['drone','strings','choir','wind'],             // choir from the start
+      build:      ['drone','strings','choir','melody','cello','organ'],
+      tension:    ['drone','strings','bass','choir','riser','whispers'], // no drums — grief not fear
+      climax:     ['drone','strings','bass','choir','melody','cello','perc','horn'], // one drum layer max
+      resolution: ['drone','strings','choir','cello','bells'],    // sparse, no melody — just sustained sound
+    },
+    triumphant: {
+      intro:      ['drone','strings','bass','perc'],              // march from bar one
+      build:      ['drone','strings','bass','perc','wardrums','horn','melody'],
+      tension:    ['drone','strings','bass','perc','wardrums','march','riser','horn'],
+      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','horn','choir','melody','chaos'],
+      resolution: ['drone','strings','bass','perc','horn','choir','melody'], // triumphant doesn't quiet down much
+    },
+    arcane: {
+      intro:      ['drone','strings','organ','bells','lute'],     // no drums, all shimmer
+      build:      ['drone','strings','organ','melody','lute','bells','choir'],
+      tension:    ['drone','strings','bass','organ','melody','riser','glitch'], // glitch as tension texture
+      climax:     ['drone','strings','bass','organ','melody','choir','bells','chaos','glitch'],
+      resolution: ['drone','strings','organ','bells','lute','choir'], // back to shimmer
+    },
+    meditative: {
+      intro:      ['drone','strings','wind','bells'],
+      build:      ['drone','strings','choir','organ','bells','melody'],
+      tension:    ['drone','strings','bass','choir','riser','heartbeat'], // heartbeat as tension, no drums
+      climax:     ['drone','strings','bass','choir','melody','cello','organ','bells'], // no perc ever
+      resolution: ['drone','strings','choir','bells','organ'],
+    },
+    ritual: {
+      intro:      ['drone','strings','wardrums','ritualchant'],   // drums and chant from start
+      build:      ['drone','strings','bass','wardrums','march','ritualchant','choir'],
+      tension:    ['drone','strings','bass','wardrums','march','stomp','chains','ritualchant'],
+      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','chains','chaos','choir'],
+      resolution: ['drone','strings','ritualchant','choir','wind'], // ritual wind-down
+    },
+    paranoia: {
+      intro:      ['drone','strings','glitch','wind','riser'],    // unsettled from bar 1
+      build:      ['drone','strings','bass','perc','glitch','melody','riser'],
+      tension:    ['drone','strings','bass','perc','chaos','glitch','riser','whispers'],
+      climax:     ['drone','strings','bass','perc','wardrums','chaos','glitch','melody','choir'],
+      resolution: ['drone','strings','glitch','melody','whispers'], // never fully resolves
+    },
+    elegy: {
+      intro:      ['drone','strings','cello','wind'],             // no percussion ever
+      build:      ['drone','strings','cello','choir','organ'],
+      tension:    ['drone','strings','cello','choir','riser'],    // no drums — elegy has no fight
+      climax:     ['drone','strings','cello','choir','melody','organ','horn'], // orchestral but no rhythm
+      resolution: ['drone','strings','cello','bells'],            // stripped to essence
+    },
+    siege: {
+      intro:      ['drone','strings','bass','perc','wardrums'],   // full assault from start
+      build:      ['drone','strings','bass','perc','wardrums','march','stomp','horn'],
+      tension:    ['drone','strings','bass','perc','wardrums','march','stomp','chains','riser'],
+      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','chains','horn','chaos','choir'],
+      resolution: ['drone','strings','bass','perc','wardrums','horn'], // siege never fully stops
+    },
+    awakening: {
+      intro:      ['drone','strings','bass','perc','wardrums','march','chaos','choir'],
+      build:      ['drone','strings','bass','perc','wardrums','choir','melody','horn'],
+      tension:    ['drone','strings','bass','perc','choir','melody','riser'],
+      climax:     ['drone','strings','bass','choir','melody','cello','organ'],
+      resolution: ['drone','strings','wind','bells'],
+    },
 
-  const ORDER = ['drone','strings','bass','choir','organ','heartbeat','wind',
-                 'melody','cello','lute','bells','horn','perc','wardrums',
-                 'march','stomp','chains','riser','ritualchant','whispers',
-                 'chaos','glitch','firecrackle'];
+    catharsis: {
+      intro:      ['drone','strings','cello','wind'],              // sparse, aching
+      build:      ['drone','strings','cello','choir','bass'],      // choir enters slowly
+      tension:    ['drone','strings','bass','perc','choir','cello','riser'], // one drum layer, choir holds
+      climax:     ['drone','strings','bass','choir','melody','cello','organ','horn','bells'], // the release — full and beautiful
+      resolution: ['drone','strings','choir','cello','organ','bells'], // warm, not quiet — earned warmth
+    },
 
-  ORDER.forEach(name => {
-    if (!(name in layerOn)) return;
-    const on     = layerOn[name];
-    const should = target.has(name);
+    void: {
+      intro:      ['drone','strings','organ','glitch'],            // unsettling from start
+      build:      ['drone','strings','bass','organ','melody','glitch','chaos'],
+      tension:    ['drone','strings','bass','chaos','glitch','riser','whispers'], // alien texture
+      climax:     ['drone','strings','bass','chaos','glitch','melody','choir','organ'], // wrong but full
+      resolution: ['drone','strings','organ','glitch','whispers'], // never resolves — just gets quieter and stranger
+    },
+  };
 
-    if (should && !on && entrances < 1) {
-      entrances++;
-      layerOn[name] = true;
-      document.getElementById('btn-'+name)?.classList.add('active');
-      document.getElementById('pill-'+name)?.classList.add('on');
+  // Pick the character for this mood+phrase, fall back to descent
+  const moodChar = MOOD_CHARACTERS[JC.mood] || MOOD_CHARACTERS.descent;
+  const charArray = moodChar[phrase] || moodChar.build;
+  const CHARACTER = {
+    intro:      new Set(charArray),
+    build:      new Set(charArray),
+    tension:    new Set(charArray),
+    climax:     new Set(charArray),
+    resolution: new Set(charArray),
+  };
 
-      if (SUSTAIN_LAYERS.has(name) && nodes[name].length > 0 && !fadingOut.has(name)) {
-        // Layer is already running (nodes alive, not fading) — just raise the gain.
-        // This is the warm re-entry: no cold restart, no robotic re-attack.
-        const b = bus[name];
-        if (b && ctx) {
-          const target2 = busTarget(name, intensity);
-          const now2    = ctx.currentTime;
-          b.gain.cancelScheduledValues(now2);
-          b.gain.setValueAtTime(b.gain.value, now2);
-          b.gain.linearRampToValueAtTime(target2, now2 + 4.0); // 4s bloom in
-        }
-      } else {
-        // Either not a sustain layer, not running, or mid-fade-out — start fresh
-        startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
-      }
-      JC.activeSet.add(name);
-    }
+  // ── ROLE CAPS: max active layers per role group ───────────────────────────
+  // Rhythm cap varies by mood — elegy/meditative have no rhythm, siege has lots
+  const rhythmCap = {
+    elegy: 0, meditative: 0, arcane: 0,          // no rhythm ever
+    tragic: 1, awakening: 2, catharsis: 1, void: 1, // limited rhythm
+    descent: e > 0.70 ? 4 : 2,
+    triumphant: e > 0.50 ? 4 : 3,
+    ritual: e > 0.50 ? 5 : 3,
+    paranoia: e > 0.60 ? 3 : 2,
+    siege: e > 0.40 ? 5 : 4,                      // siege always heavy on rhythm
+  }[JC.mood] ?? (e > 0.70 ? 4 : 2);
 
-    if (!should && on && exits < 1) {
-      exits++;
-      layerOn[name] = false;
-      document.getElementById('btn-'+name)?.classList.remove('active');
-      document.getElementById('pill-'+name)?.classList.remove('on');
+  const ROLE_CAPS = {
+    melodic:  e > 0.65 ? 3 : 2,
+    rhythmic: rhythmCap,
+    harmonic: 3,
+    pulse:    2,
+    texture:  2,
+  };
 
-      if (SUSTAIN_LAYERS.has(name)) {
-        const b = bus[name];
-        if (b && ctx) {
-          fadingOut.add(name);
-          const now2 = ctx.currentTime;
-          b.gain.cancelScheduledValues(now2);
-          b.gain.setValueAtTime(b.gain.value, now2);
-          b.gain.linearRampToValueAtTime(0, now2 + 6.0);
-          setTimeout(() => { fadingOut.delete(name); killLayer(name); }, 6200);
-        }
-      } else {
-        stopLayer(name);
-      }
-      JC.activeSet.delete(name);
-    }
+  // Count current active layers per role
+  const roleCounts = {};
+  Object.entries(MIX_ROLE_OF).forEach(([name, role]) => {
+    if (layerOn[name]) roleCounts[role] = (roleCounts[role] || 0) + 1;
   });
+
+  const char     = new Set(charArray); // already resolved for this mood+phrase
+  let entrances  = 0;
+  let exits      = 0;
+
+  // ── PRIORITY ORDER: what enters and exits first ───────────────────────────
+  // Foundation layers enter first, texture last.
+  // On exit, texture leaves first, foundation last.
+  const ENTER_ORDER = [
+    'drone','strings','bass',          // foundation — always first
+    'perc','wardrums',                 // rhythm anchor
+    'choir','melody',                  // primary voice
+    'cello','organ','horn',            // secondary voice
+    'march','stomp','chains',          // heavy rhythm
+    'heartbeat','wind','riser',        // atmosphere
+    'bells','lute','whispers',         // detail
+    'ritualchant','chaos','glitch',    // edge
+    'firecrackle',
+  ];
+  const EXIT_ORDER = [...ENTER_ORDER].reverse(); // texture exits first
+
+  // ── DECIDE WHAT SHOULD ENTER ─────────────────────────────────────────────
+  // A layer should enter if:
+  //   1. target set wants it
+  //   2. phrase character includes it (or energy is high enough to override)
+  //   3. its role is under cap (or there's a candidate to swap out)
+  const wantsIn = ENTER_ORDER.filter(name => {
+    if (!(name in layerOn) || layerOn[name]) return false;   // already on or unknown
+    if (!target.has(name)) return false;                     // not wanted by energy
+    const inChar = char.has(name);
+    const charOverride = e > 0.82; // near-climax: character cap lifts
+    return inChar || charOverride;
+  });
+
+  // ── DECIDE WHAT SHOULD EXIT ──────────────────────────────────────────────
+  // A layer should exit if:
+  //   1. target set no longer wants it, OR
+  //   2. it's outside the phrase character AND role is over cap AND energy isn't peaking
+  const wantsOut = EXIT_ORDER.filter(name => {
+    if (!(name in layerOn) || !layerOn[name]) return false;  // already off or unknown
+    if (!target.has(name)) return true;                      // energy says leave
+    const inChar = char.has(name);
+    if (inChar) return false;                                // character says stay
+    // Outside character — exit if role is over cap and energy not at peak
+    const role = MIX_ROLE_OF[name] ?? 'texture';
+    const cap  = ROLE_CAPS[role] ?? 2;
+    return (roleCounts[role] || 0) > cap && e < 0.80;
+  });
+
+  // ── APPLY: one entrance, one exit per call ────────────────────────────────
+  const doEnter = (name) => {
+    entrances++;
+    layerOn[name] = true;
+    document.getElementById('btn-'+name)?.classList.add('active');
+    document.getElementById('pill-'+name)?.classList.add('on');
+    const role = MIX_ROLE_OF[name] ?? 'texture';
+    roleCounts[role] = (roleCounts[role] || 0) + 1;
+
+    if (SUSTAIN_LAYERS.has(name) && nodes[name].length > 0 && !fadingOut.has(name)) {
+      const b = bus[name];
+      if (b && ctx) {
+        const now2 = ctx.currentTime;
+        b.gain.cancelScheduledValues(now2);
+        b.gain.setValueAtTime(b.gain.value, now2);
+        b.gain.linearRampToValueAtTime(busTarget(name, intensity), now2 + 4.0);
+      }
+    } else {
+      startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+    }
+    JC.activeSet.add(name);
+  };
+
+  const doExit = (name) => {
+    exits++;
+    layerOn[name] = false;
+    document.getElementById('btn-'+name)?.classList.remove('active');
+    document.getElementById('pill-'+name)?.classList.remove('on');
+    const role = MIX_ROLE_OF[name] ?? 'texture';
+    roleCounts[role] = Math.max(0, (roleCounts[role] || 1) - 1);
+
+    if (SUSTAIN_LAYERS.has(name)) {
+      const b = bus[name];
+      if (b && ctx) {
+        fadingOut.add(name);
+        const now2 = ctx.currentTime;
+        b.gain.cancelScheduledValues(now2);
+        b.gain.setValueAtTime(b.gain.value, now2);
+        b.gain.linearRampToValueAtTime(0, now2 + 6.0);
+        setTimeout(() => { fadingOut.delete(name); killLayer(name); }, 6200);
+      }
+    } else {
+      stopLayer(name);
+    }
+    JC.activeSet.delete(name);
+  };
+
+  // Exit first (makes room), then enter — prevents brief overcrowding
+  if (wantsOut.length > 0 && exits < 1) doExit(wantsOut[0]);
+  if (wantsIn.length  > 0 && entrances < 1) doEnter(wantsIn[0]);
 };
 
 JC.applyMasterVolume = function() {
@@ -2539,34 +2727,11 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   const now = ctx.currentTime;
   const targetVol = 0.14 + JC.energy * 0.28;
 
-  // ── THE ONE TRUE SILENCE ─────────────────────────────────────────────
-  // Step 5 is the peak of the Journey arc — the boss threshold, the moment
-  // everything has been building toward. We drop the master to near-silence
-  // for exactly 2 bars (the held breath), then slam back to full volume.
-  // This is the physiological chills mechanism: the auditory system registers
-  // near-absence, then the impact arrives into that vacuum.
-  // This fires ONCE per Journey. No other transition does this.
-  const isPeakTransition = (JC.step === 5);
-  if (isPeakTransition) {
-    const silenceBars   = 2;
-    const silenceLevel  = 0.018; // not total silence — the drone and strings breathe here
-    const bloomDur      = bl * 3; // 3 bars to return to full — fast but not instant
-
-    masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    // Fall to near-silence over half a bar
-    masterGain.gain.linearRampToValueAtTime(silenceLevel, now + bl * 0.5);
-    // Hold
-    masterGain.gain.setValueAtTime(silenceLevel, now + bl * silenceBars);
-    // SLAM back — this is the hit. The rate of return is as important as the silence.
-    // Fast attack, then settle — like a film score orchestra hit.
-    masterGain.gain.linearRampToValueAtTime(targetVol * 1.12, now + bl * silenceBars + bloomDur * 0.3);
-    masterGain.gain.linearRampToValueAtTime(targetVol,        now + bl * silenceBars + bloomDur);
-  } else {
-    masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * 8);
-  }
+  // Peak transition — no silence, just a fast swell into the climax
+  // The music itself carries the impact; we don't need to hollow it out first.
+  masterGain.gain.cancelScheduledValues(now);
+  masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+  masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * 8);
 
   // UI update after 1 bar
   JC.timers.push(setTimeout(()=>{
@@ -2725,11 +2890,15 @@ function startRandomJourney() {
   // Awakening starts at peak — boss fires early. Siege has no boss (pure grind).
   // Other moods: boss in chapters 4-6 (the normal peak zone).
   if (activeJourneyMood === 'awakening') {
-    JC.bossStep = Math.floor(rng() * 2); // chapter 0 or 1
+    JC.bossStep = Math.floor(rng() * 2);
   } else if (activeJourneyMood === 'siege') {
-    JC.bossStep = 2 + Math.floor(rng() * 2); // chapter 2 or 3 — early
+    JC.bossStep = 2 + Math.floor(rng() * 2);
+  } else if (activeJourneyMood === 'catharsis') {
+    JC.bossStep = 5 + Math.floor(rng() * 2); // chapters 5-6 — the earned peak
+  } else if (activeJourneyMood === 'void') {
+    JC.bossStep = 3 + Math.floor(rng() * 2); // chapters 3-4 — alien intrusion mid-journey
   } else {
-    JC.bossStep = 4 + Math.floor(rng() * 3); // chapters 4-6 — normal
+    JC.bossStep = 4 + Math.floor(rng() * 3);
   }
   JC._reconcileBar=0;
   _leitmotifReturnFired=false;
@@ -2760,6 +2929,8 @@ function startRandomJourney() {
       elegy:     {aggression:0.05,patience:0.85,grief:0.95,glory:0.15},
       siege:     {aggression:0.98,patience:0.1,grief:0.0,glory:0.8},
       awakening: {aggression:0.3, patience:0.7,grief:0.7,glory:0.4},
+      catharsis: {aggression:0.1, patience:0.9,grief:0.8,glory:0.6},
+      void:      {aggression:0.2, patience:0.5,grief:0.3,glory:0.0},
     };
     const bt=moodTraits[activeJourneyMood]||moodTraits.descent;
     CIN.knight.legend={
@@ -5536,7 +5707,11 @@ function buildMelody(preset, intensity, name) {
     MP.position = MP._noteIdx;
 
     const oct      = preset.melodyOctave + (energy > 0.65 ? 1 : 0);
-    const freq     = CE.scaleStep(preset, oct, deg);
+    // Use chordTone directly — guaranteed to be in the current chord.
+    // Map score degree 0→root, 1→3rd, 2→5th, 3→7th, 4+→upper extensions
+    // by cycling through chord ratios. This is always harmonically correct.
+    const chordVoice = deg % Math.max(1, CE.currentChord.ratios.length);
+    const freq     = CE.chordTone('melody', oct, chordVoice);
     MP.lastDeg     = deg;
     const noteDur  = beat * beatDur;
     const isStrong = (MP._noteIdx === 1 || MP._noteIdx === Math.floor(phrase.length / 2));
@@ -5806,13 +5981,36 @@ function buildChaos(preset, intensity, name) {
     reg(name, o, filt, preGain, env, trem, tremG, sweepLfo, sweepLfoG);
   });
 
-  // Subharmonic grind — octave below, filtered heavily, adds a physical rumble to chaos
+  // Subharmonic grind — octave below, filtered heavily, adds physical rumble
   const subO    = mkOsc(preset.root * 2, 'sawtooth');
   const subFilt = mkFilt(200, 'lowpass', 2);
   const subG    = mkGain(0.035 * intensity);
   chain(subO, subFilt, subG, b);
   subO.start();
   reg(name, subO, subFilt, subG);
+
+  // ── Chord retune — chaos stays harmonically related to current chord ──────
+  // The oscillators track CE.currentChord.root so they don't clash when
+  // the chord changes underneath them. Glide is fast (0.3s) — chaos snaps.
+  const chaosOscs = []; // collect refs above — rebuild tracking array
+  // We can't easily ref the oscs from the forEach above, so we poll CE instead
+  // and retune subO which is the most audible pitch component.
+  let chaosLastChord = CE.currentChord.label;
+  function retuneChaos() {
+    if (!layerOn[name]) return;
+    const chord = CE.currentChord;
+    if (chord.label !== chaosLastChord) {
+      chaosLastChord = chord.label;
+      const now2 = ctx.currentTime;
+      const newRoot = chord.root;
+      // Retune sub to new chord root (×2 for the grind register)
+      subO.frequency.cancelScheduledValues(now2);
+      subO.frequency.setValueAtTime(subO.frequency.value, now2);
+      subO.frequency.exponentialRampToValueAtTime(Math.max(20, newRoot * 2), now2 + 0.3);
+    }
+    regT(name, setTimeout(retuneChaos, Math.max(200, (barLength||2)*1000)));
+  }
+  regT(name, setTimeout(retuneChaos, (barLength||2)*1000));
 }
 
 function buildBoss(preset, intensity, name) {
@@ -5876,6 +6074,32 @@ function buildBoss(preset, intensity, name) {
   chain(ringMod, ringModG); ringModG.connect(ringG.gain);
   ringCarrier.start(); ringMod.start();
   reg(name, ringCarrier, ringMod, ringG, ringFilt, ringModG);
+
+  // ── Boss chord retune — tracks CE so it doesn't clash on chord changes ────
+  let bossLastChord = CE.currentChord.label;
+  function retuneBoss() {
+    if (!layerOn[name]) return;
+    const chord = CE.currentChord;
+    if (chord.label !== bossLastChord) {
+      bossLastChord = chord.label;
+      const now2 = ctx.currentTime;
+      const r = chord.root;
+      // Retune ring carrier pair to new chord root
+      [ringCarrier, ringMod].forEach((osc, i) => {
+        osc.frequency.cancelScheduledValues(now2);
+        osc.frequency.setValueAtTime(osc.frequency.value, now2);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, r * 1.5 + i * 2.2), now2 + 0.4);
+      });
+      // Retune subs
+      [sub1, sub2].forEach((osc, i) => {
+        osc.frequency.cancelScheduledValues(now2);
+        osc.frequency.setValueAtTime(osc.frequency.value, now2);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(10, r * 0.25 * (1 + i * 0.003)), now2 + 0.5);
+      });
+    }
+    regT(name, setTimeout(retuneBoss, Math.max(200, (barLength||2)*1000)));
+  }
+  regT(name, setTimeout(retuneBoss, (barLength||2)*1000));
 }
 
 function buildHeartbeat(preset, intensity, name) {
@@ -6026,16 +6250,17 @@ function buildRiser(preset, intensity, name) {
     g.gain.linearRampToValueAtTime(0.12 + intensity * 0.18, now + duration * 0.45);
     g.gain.linearRampToValueAtTime(0, now + duration * 0.96);
 
-    // Tone riser — waits for noise to build before entering
-    // Start delay: noise establishes first ~3s, then tone joins
-    const toneDelay = duration * 0.22;
-    const toneO     = mkOsc(preset.root * 0.5, 'sawtooth');
-    const toneFilt  = mkFilt(200, 'lowpass', 3);
-    const toneG     = mkGain(0);
+    // Tone riser — starts from current chord root, sweeps up 3 octaves
+    // Using CE.currentChord.root ensures it's harmonically grounded
+    const toneDelay  = duration * 0.22;
+    const chordRoot  = CE.currentChord.root || preset.root;
+    const toneO      = mkOsc(Math.max(20, chordRoot * 0.5), 'sawtooth');
+    const toneFilt   = mkFilt(200, 'lowpass', 3);
+    const toneG      = mkGain(0);
     chain(toneO, toneFilt, toneG, b);
     toneO.start(now + toneDelay);
-    toneO.frequency.setValueAtTime(preset.root * 0.5, now + toneDelay);
-    toneO.frequency.exponentialRampToValueAtTime(preset.root * 5, now + duration * 0.85);
+    toneO.frequency.setValueAtTime(Math.max(20, chordRoot * 0.5), now + toneDelay);
+    toneO.frequency.exponentialRampToValueAtTime(Math.max(20, chordRoot * 8), now + duration * 0.85);
     toneG.gain.setValueAtTime(0, now + toneDelay);
     toneG.gain.linearRampToValueAtTime(0.07 + intensity * 0.07, now + toneDelay + duration * 0.2);
     toneG.gain.linearRampToValueAtTime(0, now + duration * 0.96);
