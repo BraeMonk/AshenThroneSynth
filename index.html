@@ -2192,38 +2192,39 @@ function fireLeitmotifReturn(preset, energy) {
   if(_leitmotifReturnFired || !isPlaying || !ctx) return;
   _leitmotifReturnFired = true;
 
-  // The opening leitmotif — always Ashen Fields, the first zone the player heard.
-  // Returning to it at the peak is the emotional payoff.
   const openingMotif = ZONE_LEITMOTIFS['Ashen Fields'] || [0, 2, 0, 3, 2, 0];
-  // Transpose up a minor third (3 semitones) — classic film technique.
-  // Same theme, new harmonic height — the listener recognises it AND feels lifted.
-  const MINOR_THIRD = Math.pow(2, 3/12);
-
+  const MINOR_THIRD  = Math.pow(2, 3/12);
   const beat = (barLength || 4) / 4;
-  const bpm  = preset.bpm;
-  let t = ctx.currentTime + beat * 2; // enter 2 beats after transition
+  let t = ctx.currentTime + beat * 2;
 
-  // Force melody and choir on if they aren't
-  const ensureOn = (layerName) => {
-    if(!layerOn[layerName]){
+  // Ensure layers are on — but DON'T call startLayer for melody or cello.
+  // startLayer rebuilds synth nodes AND calls MP_resetForChapter which would
+  // restart schedNote, doubling the notes we're about to schedule directly.
+  // Just ensure the bus gain is raised and the layer state is marked on.
+  const ensureOnSoft = (layerName, intensity) => {
+    if (!layerOn[layerName]) {
       layerOn[layerName] = true;
       document.getElementById('btn-'+layerName)?.classList.add('active');
       document.getElementById('pill-'+layerName)?.classList.add('on');
-      startLayer(layerName, preset, energy, null);
       JC.activeSet.add(layerName);
+      // Only start non-melodic layers fresh — they don't have note scheduling conflicts
+      if (layerName !== 'melody' && layerName !== 'cello') {
+        startLayer(layerName, preset, intensity, null);
+      } else {
+        // For melody/cello: just raise the bus gain if it's there
+        const b = bus[layerName];
+        if (b && ctx) {
+          const now2 = ctx.currentTime;
+          b.gain.cancelScheduledValues(now2);
+          b.gain.setValueAtTime(b.gain.value, now2);
+          b.gain.linearRampToValueAtTime(busTarget(layerName, intensity), now2 + 2.0);
+        }
+      }
     }
   };
-  ensureOn('melody');
-  ensureOn('choir');
-  ensureOn('strings');
-
-  // Reset MP so melody's next phrase will be the leitmotif
-  // We inject the motif directly into MP.degreePath
-  MP.position    = 0;
-  MP.callDone    = false;
-  MP.phraseLen   = openingMotif.length + 2; // motif + 2-bar cadence tail
-  MP.cadenceBar  = openingMotif.length;
-  MP.degreePath  = [...openingMotif, 0, 0]; // motif + root resolution
+  ensureOnSoft('melody', energy);
+  ensureOnSoft('choir',  energy);
+  ensureOnSoft('strings', energy);
 
   // Play the motif directly via WebAudio scheduled notes — bypasses the
   // normal schedNote loop so it fires exactly when we want it
@@ -4676,80 +4677,275 @@ function buildBass(preset, intensity, name) {
 // Shared state read by melody, cello, choir, and strings.
 // ══════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════
+// THE COMPOSED SCORE
+// ══════════════════════════════════════════════════════════════════════
+// Each chapter has written melodic material — actual tunes, not algorithms.
+// Format per note: [scaleDeg, beatDuration, restAfter]
+//   scaleDeg:    scale degree (0=root, 1=2nd, 2=3rd, etc.)
+//   beatDuration: note length in beats (1=quarter, 2=half, 0.5=eighth)
+//   restAfter:   beats of silence after note (0=legato, 0.5=short gap)
+//
+// Two phrases per chapter:
+//   primary:     the tune — heard first, anchors the listener
+//   development: variation — subtle change on the repeat, keeps interest
+//   celline:     cello counterpoint — independent line, plays simultaneously
+//                with the melody's cadence bars
+//
+// Design principles:
+//   - Every primary phrase begins with the zone's leitmotif cell
+//   - Cadences always fall on scale degree 0 or 4 (tonic or dominant)
+//   - The development phrase transposes or inverts 1-2 notes only
+//   - Cello lines move contrary to the melody (ascending when melody descends)
+//   - Rests are placed at phrase peaks to let the note speak
+
+const COMPOSED_SCORE = {
+  // Chapter 1 — The Awakening. Sparse. The melody enters hesitantly.
+  // Leitmotif cell: [0,2,0,3,2,0] — falling minor third, weight of loss
+  'The Awakening': {
+    primary: [
+      [0,2,0.5], [2,1,0],   [0,1.5,0.5], [3,1,0],   [2,2,1],
+      [0,1,0],   [2,0.5,0], [4,1,0.5],   [3,1,0],   [2,3,2],
+      [0,1.5,0], [1,1,0],   [0,2,1],
+    ],
+    development: [
+      [0,2,0.5], [2,1,0],   [0,1.5,0.5], [4,1,0],   [3,2,1],
+      [0,1,0],   [2,0.5,0], [5,1,0.5],   [3,1,0],   [2,3,2],
+      [0,1.5,0], [1,1,0],   [0,2,1],
+    ],
+    celline: [
+      [4,2,0.5], [3,1,0],   [4,1.5,0.5], [2,1,0],   [0,2,1],
+      [4,1,0],   [3,0.5,0], [2,1,0],     [0,3,2],
+    ],
+  },
+
+  // Chapter 2 — Rotwood Descent. Chromatic unease enters. Faster.
+  // Leitmotif: [0,1,2,3,2,1] — chromatic ascent, stalking quality
+  'Rotwood Descent': {
+    primary: [
+      [0,1,0],   [1,0.5,0], [2,0.5,0],   [3,1,0.5], [2,1,0],
+      [1,1,0],   [3,2,0.5], [2,1,0],     [4,1,0],   [3,2,1],
+      [1,1,0],   [0,1,0],   [2,0.5,0],   [0,2,1],
+    ],
+    development: [
+      [0,1,0],   [1,0.5,0], [2,0.5,0],   [4,1,0.5], [3,1,0],
+      [2,1,0],   [4,2,0.5], [3,1,0],     [5,1,0],   [4,2,1],
+      [2,1,0],   [1,1,0],   [0,0.5,0],   [0,2,1],
+    ],
+    celline: [
+      [6,1.5,0], [5,1,0],   [4,1.5,0.5], [3,2,0.5], [2,1,0],
+      [4,1,0],   [3,2,1],   [0,2,1],
+    ],
+  },
+
+  // Chapter 3 — The Catacombs. Heavy. Tritone leaps. Space between notes.
+  // Leitmotif: [0,6,0,5,4,0] — tritone leap + approach, dread
+  'The Catacombs': {
+    primary: [
+      [0,2,1],   [6,1,0],   [0,1,0.5],   [5,1,0],   [4,2,1],
+      [0,1.5,0], [2,1,0],   [4,2,1],     [0,3,2],
+    ],
+    development: [
+      [0,2,1],   [6,1,0],   [1,1,0.5],   [5,1,0],   [4,2,1],
+      [0,1.5,0], [3,1,0],   [5,2,1],     [0,3,2],
+    ],
+    celline: [
+      [4,2,0.5], [6,1,0],   [5,1,0.5],   [4,2,1],
+      [2,1.5,0], [0,1,0],   [2,3,2],
+    ],
+  },
+
+  // Chapter 4 — Shadowmere. Yearning. The melody reaches upward then falls.
+  // Leitmotif: [0,2,4,3,2,0] — rise and fall, longing
+  'Shadowmere': {
+    primary: [
+      [0,1,0],   [2,1,0],   [4,1.5,0.5], [3,1,0],   [2,2,0.5],
+      [4,1,0],   [5,1,0],   [6,2,1],     [4,1,0],   [3,1,0],
+      [2,2,0.5], [0,1,0],   [2,0.5,0],   [0,3,2],
+    ],
+    development: [
+      [0,1,0],   [2,1,0],   [5,1.5,0.5], [4,1,0],   [3,2,0.5],
+      [5,1,0],   [6,1,0],   [5,2,1],     [4,1,0],   [2,1,0],
+      [3,2,0.5], [1,1,0],   [0,0.5,0],   [0,3,2],
+    ],
+    celline: [
+      [6,1.5,0], [5,1,0],   [3,1.5,0.5], [4,2,0.5],
+      [2,1,0],   [4,1,0],   [3,2,1],     [0,2,1],
+    ],
+  },
+
+  // Chapter 5 — The Veil Breaks. Faster. Wide leaps. Unstable.
+  // Leitmotif: [0,5,1,4,2,0] — wide leaps, arcane instability
+  "The Veil Breaks": {
+    primary: [
+      [0,1,0],   [5,0.5,0], [1,0.5,0],   [4,1,0.5], [2,1,0],
+      [0,0.5,0], [4,1,0],   [6,1,0.5],   [5,1,0],   [4,2,0.5],
+      [2,0.5,0], [0,1,0],   [2,0.5,0],   [0,2,1],
+    ],
+    development: [
+      [0,1,0],   [5,0.5,0], [2,0.5,0],   [5,1,0.5], [3,1,0],
+      [1,0.5,0], [4,1,0],   [6,1,0.5],   [5,1,0],   [3,2,0.5],
+      [1,0.5,0], [0,1,0],   [2,0.5,0],   [0,2,1],
+    ],
+    celline: [
+      [5,1,0],   [4,0.5,0], [2,1,0.5],   [0,1,0],
+      [2,1,0],   [4,1.5,0.5],[3,2,1],    [0,2,1],
+    ],
+  },
+
+  // Chapter 6 — Obsidian Keep. March feel. Fourth-based. Relentless.
+  // Leitmotif: [0,3,0,4,3,0] — fourth-based march cell
+  'Obsidian Keep': {
+    primary: [
+      [0,1,0],   [3,1,0],   [0,0.5,0],   [4,1,0],   [3,1,0.5],
+      [0,1,0],   [3,0.5,0], [5,1,0],     [4,1,0.5], [3,1,0],
+      [0,2,0.5], [4,1,0],   [3,0.5,0],   [0,2,1],
+    ],
+    development: [
+      [0,1,0],   [3,1,0],   [0,0.5,0],   [5,1,0],   [4,1,0.5],
+      [0,1,0],   [3,0.5,0], [6,1,0],     [5,1,0.5], [4,1,0],
+      [0,2,0.5], [5,1,0],   [3,0.5,0],   [0,2,1],
+    ],
+    celline: [
+      [3,1,0],   [0,1,0],   [4,1,0.5],   [3,1,0],
+      [5,1,0],   [3,2,0.5], [0,2,1],
+    ],
+  },
+
+  // Chapter 7 — The Void Spire. Dissonant. No clear home. Alien.
+  // Leitmotif: [0,6,1,5,0,2] — dissonant, no clear home
+  'The Void Spire': {
+    primary: [
+      [0,1,0.5], [6,1,0],   [1,1,0.5],   [5,1,0],   [0,1.5,0.5],
+      [2,1,0],   [6,0.5,0], [4,1,0],     [5,2,1],
+      [0,1,0],   [1,0.5,0], [0,2,1],
+    ],
+    development: [
+      [0,1,0.5], [6,1,0],   [2,1,0.5],   [6,1,0],   [1,1.5,0.5],
+      [3,1,0],   [6,0.5,0], [5,1,0],     [6,2,1],
+      [1,1,0],   [0,0.5,0], [0,2,1],
+    ],
+    celline: [
+      [5,1,0],   [6,0.5,0], [5,1,0.5],   [3,1,0],
+      [1,1.5,0], [0,1,0],   [2,2,1],
+    ],
+  },
+
+  // Chapter 8 — Infernal Core. Descending. Inevitable. Final.
+  // Leitmotif: [6,5,4,3,2,1] — inexorable descent
+  'Infernal Core': {
+    primary: [
+      [6,1,0],   [5,1,0],   [4,1,0.5],   [3,1,0],   [2,2,0.5],
+      [1,1,0],   [0,1.5,0], [2,1,0],     [1,2,1],
+      [0,3,2],
+    ],
+    development: [
+      [6,1,0],   [5,1,0],   [4,1,0.5],   [2,1,0],   [3,2,0.5],
+      [1,1,0],   [0,1.5,0], [1,1,0],     [0,2,1],
+      [0,3,2],
+    ],
+    celline: [
+      [0,2,0.5], [1,1,0],   [2,1.5,0.5], [4,1,0],
+      [5,2,0.5], [6,1,0],   [5,2,1],
+    ],
+  },
+};
+
+// Fallback score for any unlabelled chapter
+const SCORE_FALLBACK = COMPOSED_SCORE['The Awakening'];
+
+// ── SCORE PLAYER STATE ────────────────────────────────────────────
+// Replaces the generative MP brain entirely.
+// Reads directly from COMPOSED_SCORE — deterministic, composed.
 const MP = {
-  contour:'arch', phraseLen:8, position:0, cadenceBar:6,
-  energy:0.3, lastDeg:0, callDone:false, phraseAge:0,
-  degreePath:[0,2,4,3,2,4,2,0],
+  // Keep these fields for compatibility with choir openness and cello
+  phraseLen:   10,
+  position:    0,
+  cadenceBar:  8,
+  energy:      0.3,
+  lastDeg:     0,
+  callDone:    false,
+  phraseAge:   0,
+  degreePath:  [0,2,4,3,2,0,4,2,0,0], // fallback — overwritten on first play
+  contour:     'arch', // used only by MP_choirOpenness
+  // Score state
+  _chapter:    null,   // current chapter label
+  _phrase:     null,   // 'primary' or 'development'
+  _noteIdx:    0,      // position in the current phrase array
+  _playCount:  0,      // how many times this chapter's score has played
 };
 
-const MP_CONTOURS = {
-  ascent:(len,e)=>{
-    const pk=Math.round(3+e*4);
-    return Array.from({length:len},(_,i)=>{const p=i/(len-1);return p<0.6?Math.round(p/0.6*pk):Math.round(pk*(1-(p-0.6)/0.4));});
-  },
-  descent:(len,e)=>{
-    const s=Math.round(4+e*3);
-    return Array.from({length:len},(_,i)=>Math.round(s*(1-Math.pow(i/(len-1),2))));
-  },
-  arch:(len,e)=>{
-    const pk=Math.round(3+e*4);
-    return Array.from({length:len},(_,i)=>Math.round(Math.sin(i/(len-1)*Math.PI)*pk));
-  },
-  question:(len,e)=>{
-    const end=e>0.5?6:1,pk=Math.round(2+e*3);
-    return Array.from({length:len},(_,i)=>{const p=i/(len-1);return p<0.7?Math.round(p/0.7*pk):Math.round(pk+(end-pk)*((p-0.7)/0.3));});
-  },
-  answer:(len,e)=>{
-    const s=e>0.5?6:1;
-    return Array.from({length:len},(_,i)=>{const p=i/(len-1);return p<0.2?Math.round(s+(e>0.5?1:-1)):Math.round(s*(1-(p-0.2)/0.8));});
-  },
-};
+function MP_getScore() {
+  // Determine which chapter we're in
+  const label = (journeyActive || JC.active)
+    ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label
+    : null;
+  const score = (label && COMPOSED_SCORE[label]) || SCORE_FALLBACK;
 
-function MP_selectContour(energy,age){
-  if(age%4>=2) return age%4===2?'question':'answer';
-  if(energy>0.72) return 'arch';
-  if(energy>0.45) return 'ascent';
-  if(energy<0.20) return 'descent';
-  return ['arch','ascent','descent'][Math.floor(Math.random()*3)];
+  // Primary on first play, development on alternating repeats
+  // This gives the listener the tune first, then a variation — never random
+  const useDevt = MP._playCount > 0 && (MP._playCount % 2 === 1);
+  return useDevt ? score.development : score.primary;
 }
 
-function MP_nextPhrase(preset){
-  const e=JC.active?JC.energy:MP.energy;
-  MP.phraseAge++;
-  MP.contour=MP_selectContour(e,MP.phraseAge);
-  MP.position=0; MP.callDone=false;
-  MP.phraseLen=e>0.70?8:e>0.40?10:12+Math.floor(Math.random()*4);
-  MP.cadenceBar=MP.phraseLen-2;
-  const fn=MP_CONTOURS[MP.contour]||MP_CONTOURS.arch;
-  MP.degreePath=fn(MP.phraseLen,e);
-  if(MP.phraseAge%3===0){
-    const anch=ZONE_LEITMOTIFS[preset.name]||[0,2,4,2];
-    const bl=Math.min(anch.length,Math.floor(MP.phraseLen/2));
-    for(let i=0;i<bl;i++) MP.degreePath[i]=anch[i%anch.length];
+function MP_getCelloLine() {
+  const label = (journeyActive || JC.active)
+    ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label
+    : null;
+  const score = (label && COMPOSED_SCORE[label]) || SCORE_FALLBACK;
+  return score.celline;
+}
+
+function MP_resetForChapter(label) {
+  if (MP._chapter !== label) {
+    MP._chapter   = label;
+    MP._playCount = 0;
   }
-  MP.energy=e;
+  MP._noteIdx  = 0;
+  MP.position  = 0;
+  MP.callDone  = false;
+  const phrase = MP_getScore();
+  MP.phraseLen = phrase.length;
+  MP.cadenceBar = Math.max(0, phrase.length - 3);
+  // Keep degreePath populated for choir openness continuity
+  MP.degreePath = phrase.map(n => n[0]);
+  MP.phraseAge++;
 }
 
-function MP_degreeAt(bar,isResponse){
-  if(bar>=MP.cadenceBar) return 0;
-  if(bar===MP.cadenceBar-1) return MP.energy>0.5?6:1;
-  const base=MP.degreePath[Math.min(bar,MP.degreePath.length-1)]||0;
-  if(isResponse) return base<=3?base+4:Math.max(0,base-3);
-  if(Math.random()<0.18) return Math.max(0,base+(Math.random()<0.5?1:-1));
-  return base;
-}
-
-function MP_choirOpenness(){
-  const e=JC.active?JC.energy:MP.energy;
-  const p=MP.phraseLen?MP.position/MP.phraseLen:0;
-  switch(MP.contour){
-    case 'arch':     return e*Math.sin(p*Math.PI);
-    case 'ascent':   return e*(p<0.6?p/0.6:1-(p-0.6)/0.4);
-    case 'descent':  return e*(1-p*p);
-    case 'question': return e*Math.min(1,p*1.4);
-    case 'answer':   return e*(p<0.3?p/0.3:1-(p-0.3)/0.7);
+// Shim — choir openness still uses this
+function MP_choirOpenness() {
+  const e = JC.active ? JC.energy : MP.energy;
+  const p = MP.phraseLen ? MP.position / MP.phraseLen : 0;
+  switch (MP.contour) {
+    case 'arch':     return e * Math.sin(p * Math.PI);
+    case 'ascent':   return e * (p < 0.6 ? p / 0.6 : 1 - (p - 0.6) / 0.4);
+    case 'descent':  return e * (1 - p * p);
+    case 'question': return e * Math.min(1, p * 1.4);
+    case 'answer':   return e * (p < 0.3 ? p / 0.3 : 1 - (p - 0.3) / 0.7);
     default:         return e;
   }
+}
+
+// Shim for any remaining callers — returns the degree at current position
+function MP_degreeAt(bar, isResponse) {
+  const phrase = MP_getScore();
+  const idx    = Math.min(bar, phrase.length - 1);
+  const deg    = phrase[idx][0];
+  if (isResponse) return deg <= 3 ? deg + 4 : Math.max(0, deg - 3);
+  return deg;
+}
+
+// Keep for compatibility
+function MP_nextPhrase(preset) {
+  MP.phraseAge++;
+  MP.position  = 0;
+  MP.callDone  = false;
+  const phrase = MP_getScore();
+  MP.phraseLen = phrase.length;
+  MP.cadenceBar = Math.max(0, phrase.length - 3);
+  MP.degreePath = phrase.map(n => n[0]);
+  MP._noteIdx  = 0;
+  MP._playCount++;
 }
 
 function buildMelody(preset, intensity, name) {
@@ -4769,122 +4965,50 @@ function buildMelody(preset, intensity, name) {
   const atkTime=isWoodwind?0.012:isBrass?0.038:0.09+energy*0.045;
   const vibHz=isWoodwind?5.5:isBrass?4.0:4.2;
   const vibDepth=isWoodwind?1.8:isBrass?2.5:3.8;
-  if(MP.position===0&&MP.phraseAge===0) MP_nextPhrase(preset);
-  let t=ctx.currentTime+beat*0.5;
+  // Initialise score state for current chapter
+  const chapterLabel = (journeyActive || JC.active)
+    ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label : null;
+  MP_resetForChapter(chapterLabel);
 
-  function playNote(bt, freq, noteDur, opts = {}) {
-    // ── MICRO-TIMING HUMANISATION ─────────────────────────────────────
-    // Real players never hit exactly on the grid. Strong beats anticipate
-    // slightly (lean in), weak beats are slightly late (laid back).
-    // Phrase peaks get a tiny tenuto — held just a hair longer.
-    const isStrongBeat = opts.isStrong || false;
-    const isPeak       = opts.isPeak   || false;
-    const microShift   = isStrongBeat
-      ? -(0.008 + Math.random() * 0.012)   // strong: 8-20ms early
-      :  (0.006 + Math.random() * 0.016);  // weak:   6-22ms late
-    const humanBt = bt + microShift;
+  let t = ctx.currentTime + beat * 0.5;
 
-    // Velocity variation — ±15% of base volume, correlated with phrase position
-    // so the phrase has a natural swell shape rather than uniform loudness
-    const velVariation = 0.85 + Math.random() * 0.30;
-    const baseVol = (0.04 + energy * 0.07) * velVariation;
-    const vol = baseVol * (isPeak ? 1.22 : isStrongBeat ? 1.10 : 1.0);
+  function schedNote() {
+    if (!layerOn[name]) return;
 
-    // Tenuto on phrase peaks — note held slightly longer, decays more slowly
-    const tenuto = isPeak ? 1.18 : 1.0;
-    const humanDur = noteDur * tenuto;
+    const phrase = MP_getScore();
 
-    const env = mkGain(0); env.connect(b); reg(name, env);
-
-    // ── NOTE SWELL — the heart of the alive-note feeling ─────────────
-    // Instead of attack → hold → decay, the note breathes:
-    //   attack → swell to peak at 55% → gentle settle → release
-    // The swell mimics bow pressure / breath pressure increasing mid-note.
-    // On strong beats the swell is more pronounced (more bow weight).
-    const swellPeak = vol * (isBrass ? 1.10 : isStrongBeat ? 1.14 : 1.06);
-    env.gain.setValueAtTime(0, humanBt);
-    env.gain.linearRampToValueAtTime(swellPeak, humanBt + atkTime);
-    if (isBrass) {
-      // Brass: quick bloom then settle — "tonguing" attack character
-      env.gain.linearRampToValueAtTime(vol * 0.88, humanBt + atkTime + 0.14);
-      env.gain.setValueAtTime(vol * 0.88, humanBt + humanDur * 0.60);
-    } else {
-      // Strings/woodwind: swell continues to 55% then gentle release
-      env.gain.linearRampToValueAtTime(swellPeak * 1.04, humanBt + humanDur * 0.40);
-      env.gain.linearRampToValueAtTime(vol * 0.88,       humanBt + humanDur * 0.60);
-    }
-    env.gain.linearRampToValueAtTime(0.001, humanBt + humanDur);
-
-    // Partials — same as before but routed through the humanised envelope
-    partials.forEach(({ r, a }) => {
-      const o    = mkOsc(Math.max(20, freq * r * (r > 4 ? 1 + (r - 4) * 0.001 : 1)), 'sine');
-      const g    = mkGain(a);
-      const pEnv = mkGain(1.0);
-      chain(o, g, pEnv, env);
-      pEnv.gain.setValueAtTime(1.0, humanBt);
-      pEnv.gain.setValueAtTime(1.0, humanBt + atkTime * 2.5);
-      pEnv.gain.linearRampToValueAtTime(r === 1 ? 0.96 : r <= 3 ? 0.68 : 0.22, humanBt + humanDur * 0.60);
-      if (r <= 2 && humanDur > beat * 0.4) {
-        const vib  = mkOsc(vibHz + Math.random() * 0.3, 'sine');
-        const vibG = mkGain(0);
-        chain(vib, vibG); vibG.connect(o.frequency);
-        // Vibrato enters late — after the note is established, never at the attack
-        const viStart = humanBt + humanDur * (isPeak ? 0.22 : 0.30);
-        vibG.gain.setValueAtTime(0, viStart);
-        vibG.gain.linearRampToValueAtTime(
-          vibDepth + energy * vibDepth * 0.5 + (isPeak ? vibDepth * 0.3 : 0),
-          viStart + humanDur * 0.35
-        );
-        vib.start(humanBt); vib.stop(humanBt + humanDur + 0.2);
-        reg(name, vib, vibG);
-      }
-      o.start(humanBt); o.stop(humanBt + humanDur + 0.2);
-      reg(name, o, g, pEnv);
-    });
-
-    // Breath/bow noise — same envelope shape as the note swell
-    const nLen = Math.min(Math.floor(ctx.sampleRate * (humanDur + 0.08)), ctx.sampleRate * 3);
-    const nBuf = ctx.createBuffer(1, nLen, ctx.sampleRate);
-    const nd   = nBuf.getChannelData(0);
-    for (let j = 0; j < nd.length; j++) nd[j] = Math.random() * 2 - 1;
-    const nSrc  = ctx.createBufferSource(); nSrc.buffer = nBuf;
-    const nFilt = mkFilt(isWoodwind ? 2800 : isBrass ? 650 : 1800, 'bandpass', isWoodwind ? 0.7 : 0.5);
-    const nEnv  = mkGain(0);
-    chain(nSrc, nFilt, nEnv, b);
-    const nVol = (isWoodwind ? 0.006 : isBrass ? 0.003 : 0.004) + energy * 0.004;
-    nEnv.gain.setValueAtTime(nVol, humanBt);
-    nEnv.gain.linearRampToValueAtTime(nVol * 0.4, humanBt + humanDur * 0.3);
-    nEnv.gain.linearRampToValueAtTime(0.0001, humanBt + humanDur);
-    nSrc.start(humanBt); nSrc.stop(humanBt + humanDur + 0.05);
-    reg(name, nSrc, nFilt, nEnv);
-  }
-
-  function schedNote(){
-    if(!layerOn[name]) return;
-    if(MP.position>=MP.phraseLen){
-      MP_nextPhrase(preset);
-      const restBars=energy>0.65?1:energy>0.35?2:3;
-      MP.callDone=true;
-      regT(name,setTimeout(schedNote,beat*4*restBars*1000));
+    if (MP._noteIdx >= phrase.length) {
+      // Phrase complete — rest then repeat as development variant
+      MP._playCount++;
+      MP._noteIdx   = 0;
+      MP.position   = 0;
+      MP.callDone   = true;
+      const next    = MP_getScore();
+      MP.phraseLen  = next.length;
+      MP.cadenceBar = Math.max(0, next.length - 3);
+      MP.degreePath = next.map(n => n[0]);
+      const restBeats = energy > 0.65 ? 2 : energy > 0.35 ? 4 : 6;
+      regT(name, setTimeout(schedNote, beat * restBeats * 1000));
       return;
     }
-    const bar=MP.position; MP.position++;
-    const isStrong=(bar===0||bar===Math.floor(MP.phraseLen/2));
-    const isPeak  =(bar===Math.floor(MP.phraseLen*0.45)); // near phrase apex
-    const isCadence=(bar>=MP.cadenceBar);
-    const restChance=isCadence?0.0:isStrong?0.05:energy<0.25?0.60:energy<0.50?0.35:0.18;
-    if(Math.random()<restChance){
-      regT(name,setTimeout(schedNote,beat*(energy<0.35?1.0:0.5)*1000)); return;
-    }
-    const deg=MP_degreeAt(bar,false);
-    const oct=preset.melodyOctave+(energy>0.65?1:0);
-    const freq=CE.scaleStep(preset,oct,deg);
-    MP.lastDeg=deg;
-    const noteDur=isCadence?beat*(2.5+energy):isStrong?beat*(1.2+energy*0.8):beat*(0.5+energy*0.5);
+
+    const [deg, beatDur, restAfter] = phrase[MP._noteIdx];
+    MP._noteIdx++;
+    MP.position = MP._noteIdx;
+
+    const oct      = preset.melodyOctave + (energy > 0.65 ? 1 : 0);
+    const freq     = CE.scaleStep(preset, oct, deg);
+    MP.lastDeg     = deg;
+    const noteDur  = beat * beatDur;
+    const isStrong = (MP._noteIdx === 1 || MP._noteIdx === Math.floor(phrase.length / 2));
+    const isPeak   = (MP._noteIdx === Math.floor(phrase.length * 0.45));
+    const isCadence = (MP._noteIdx >= phrase.length - 2);
+
     playNote(t, freq, noteDur, { isStrong, isPeak, isCadence });
-    t+=noteDur*0.85+beat*0.15;
-    if(isCadence){MP.callDone=true;regT(name,setTimeout(schedNote,noteDur*1000+beat*2000));}
-    else{regT(name,setTimeout(schedNote,noteDur*0.82*1000));}
+    t += noteDur + beat * restAfter;
+
+    if (isCadence) MP.callDone = true;
+    regT(name, setTimeout(schedNote, (noteDur + beat * restAfter) * 1000 * 0.95));
   }
   schedNote();
 }
@@ -6429,46 +6553,29 @@ function buildCello(preset, intensity, name) {
   function schedResponse() {
     if (!layerOn[name]) return;
 
-    // ── PHRASE OVERLAP ────────────────────────────────────────────
-    // A real orchestra doesn't wait for the melody to finish before
-    // the cello responds. The response overlaps the call's last 2 bars.
-    // We check if the melody is in its final bars (cadenceBar or later)
-    // OR if the phrase has advanced since we last responded.
-    // Whichever comes first, we start the response.
-    //
-    // This creates the interweaving texture of a real string section —
-    // the listener hears melody and cello singing together at the
-    // phrase boundary, not sequentially.
-
-    const melodyInCadence = MP.position >= MP.cadenceBar;
+    const melodyInCadence  = MP.position >= MP.cadenceBar;
     const newPhraseStarted = MP.phraseAge !== _lastMelodyPhraseAge;
 
     if (!melodyInCadence && !newPhraseStarted && !MP.callDone) {
-      // Not yet time — check again in half a bar
       regT(name, setTimeout(schedResponse, beat * 2 * 1000));
       return;
     }
 
     _lastMelodyPhraseAge = MP.phraseAge;
 
-    // Build response — inversion of melody degree path, one octave lower
-    const responseLen = Math.min(MP.phraseLen, 6);
-    const oct = preset.melodyOctave - 1;
-    for (let i = 0; i < responseLen; i++) {
-      const deg    = MP_degreeAt(Math.min(i, MP.degreePath.length - 1), true);
-      const freq   = CE.scaleStep(preset, oct, deg);
-      const isLast = i === responseLen - 1;
-      const dur    = isLast ? beat * 2.8 : i < 2 ? beat * 1.6 : beat * (0.9 + energy * 0.6);
-      // Micro-timing: cello enters slightly late on first note — it's heavier
-      const celOffset = i === 0 ? beat * 0.04 : 0;
-      playCelloNote(t + i * beat * 1.3 + celOffset, freq, dur);
-    }
+    // Read the composed cello counterpoint line for this chapter
+    const celline = MP_getCelloLine();
+    const oct     = preset.melodyOctave - 1;
 
-    t += beat * (responseLen * 1.3 + (2 + Math.floor(Math.random() * 3)));
+    celline.forEach(([deg, beatDur, restAfter], i) => {
+      const freq      = CE.scaleStep(preset, oct, deg);
+      const dur       = beat * beatDur;
+      const celOffset = i === 0 ? beat * 0.04 : 0; // first note: slight late entry
+      playCelloNote(t + celOffset, freq, dur);
+      t += dur + beat * restAfter;
+    });
+
     MP.callDone = false;
-
-    // Schedule next response at the next cadenceBar of the upcoming phrase
-    // Use phraseLen as a guide — don't wait the full phrase, fire near the end
     const nextResponseDelay = beat * Math.max(4, MP.phraseLen - 2);
     regT(name, setTimeout(schedResponse, nextResponseDelay * 1000));
   }
