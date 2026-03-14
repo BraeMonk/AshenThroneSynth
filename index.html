@@ -6097,46 +6097,45 @@ function buildStrings(preset, intensity, name) {
     stringSections.push({ oscs, sectionGain, bowLfoG, lpfNode, phases, attack, octMult });
   });
 
-  // ── Bow rosin noise — the physical layer that makes strings acoustic ──
-  // A narrow bandpass of white noise whose amplitude tracks the bow LFO of
-  // the mid section. You can't isolate it but you feel its absence instantly —
-  // it's what separates "synthesizer approximation" from "real strings."
-  // Three bands: rosin crunch (1-3kHz), air sibilance (4-7kHz), body wood (200-400Hz)
+  // ── Bow rosin noise — subtle physical texture under the strings ──────
+  // Three very narrow bandpass bands at levels where you feel them but can't
+  // isolate them. The sum of all three bands at these gains is about 0.015
+  // total contribution — just enough to remove the "pure synthesis" quality.
+  // A slow LFO varies bow pressure naturally. No swell connection — the
+  // oscillators already move with the swell; the noise just needs to be still.
   const bowNoiseBuf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
   const bnd = bowNoiseBuf.getChannelData(0);
   for (let i = 0; i < bnd.length; i++) bnd[i] = Math.random() * 2 - 1;
 
+  // Slow bow-change LFO — 0.09Hz ≈ one full bow stroke per ~11 seconds
+  const bowLfoMaster  = mkOsc(0.09 + Math.random() * 0.03, 'sine');
+  const bowLfoMasterG = mkGain(0.0028); // very small — just texture variation
+  bowLfoMaster.start();
+  reg(name, bowLfoMaster, bowLfoMasterG);
+
   const BOW_NOISE_BANDS = [
-    { freq: 1800 + intensity * 800, Q: 3.5, gv: 0.018 + intensity * 0.010 }, // rosin
-    { freq: 5200,                   Q: 2.0, gv: 0.008 + intensity * 0.005 }, // air
-    { freq: 280,                    Q: 2.8, gv: 0.012 + intensity * 0.006 }, // wood body
+    { freq: 1900 + intensity * 600, Q: 4.0, gv: 0.005 + intensity * 0.003 }, // rosin crunch
+    { freq: 5000,                   Q: 2.2, gv: 0.002 + intensity * 0.001 }, // air sibilance
+    { freq: 290,                    Q: 3.0, gv: 0.003 + intensity * 0.002 }, // wood body
   ];
 
-  BOW_NOISE_BANDS.forEach(({ freq, Q, gv }) => {
-    const src  = ctx.createBufferSource();
+  BOW_NOISE_BANDS.forEach(({ freq, Q, gv }, bi) => {
+    const src = ctx.createBufferSource();
     src.buffer = bowNoiseBuf; src.loop = true;
-    src.loopStart = Math.random() * 2; src.loopEnd = 4;
+    // Offset loop points per band — prevents phase coherence between bands
+    src.loopStart = bi * 1.1; src.loopEnd = 4;
 
-    const filt  = mkFilt(freq, 'bandpass', Q);
+    const filt   = mkFilt(freq, 'bandpass', Q);
     const noiseG = mkGain(gv);
 
-    // Noise amplitude follows the swell so it breathes with the strings
-    swellGain.connect(noiseG.gain); // swell modulates noise level
+    // Bow LFO modulates gain slightly — natural bow-stroke variation
+    // Using setValueAtTime scheduling avoids the AudioParam modulation bug
+    bowLfoMasterG.connect(noiseG.gain);
+
     chain(src, filt, noiseG, b);
     src.start();
     reg(name, src, filt, noiseG);
   });
-
-  // Bow pressure variation — slow LFO that makes the noise feel like real bowing
-  // (bow pressure increases slightly mid-stroke, releases at the bow change)
-  const bowPressureLfo  = mkOsc(0.11 + Math.random() * 0.04, 'sine');
-  const bowPressureLfoG = mkGain(0.004);
-  chain(bowPressureLfo, bowPressureLfoG);
-  BOW_NOISE_BANDS.forEach((_, i) => {
-    // Connect to each band's gain node — stored in reg already
-  });
-  bowPressureLfo.start();
-  reg(name, bowPressureLfo, bowPressureLfoG);
   // Tracks the root, updates on chord change via retuneStrings
   const harmonicOscs = [
     { ratio: 2.0, gv: 0.048 },
