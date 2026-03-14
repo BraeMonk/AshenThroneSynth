@@ -1269,6 +1269,9 @@ function advancePhrase() {
     _currentPhraseDur = getPhraseDur(next);
     tensionSilenceActive = false;
     CE.onPhrase(currentPhrase, getZone(parseInt(slider.value)));
+    // Mutate the zone leitmotif on each phrase transition — keeps melodic identity
+    // but prevents exact repetition. mutateMotif was defined but never called before.
+    if (journeyActive || JC.active) mutateMotif(getZone(parseInt(slider.value)));
 
     // During Journey, JC.reconcile is the sole authority on layers and gain.
     // autoEvolution / applyPhraseLayers must not run — they cold-restart
@@ -2069,15 +2072,15 @@ const JC = {
   mood:'descent', startTime:0, totalDurationMs:0,
   stepDurations:[], stepStartTimes:[],
   sceneTransition:false, peakStep:5, bossStep:-1,
-  timers:[], activeSet:new Set(),
+  timers:[], activeSet:new Set(), _sceneTransitionClearTimer:null,
 };
 
 const JC_ENERGY_CURVES = {
-  descent:    [0.08,0.18,0.32,0.52,0.72,0.90,0.75,0.15],
-  tragic:     [0.20,0.35,0.50,0.70,0.55,0.30,0.12,0.06],
+  descent:    [0.08,0.18,0.32,0.52,0.72,0.90,0.75,0.22], // ch8 raised so resolution breathes
+  tragic:     [0.20,0.35,0.50,0.70,0.55,0.30,0.22,0.18], // raised floor so choir+melody survive into ch8
   triumphant: [0.25,0.45,0.65,0.85,1.00,0.88,0.70,0.40],
   arcane:     [0.12,0.22,0.38,0.30,0.55,0.40,0.28,0.10],
-  meditative: [0.10,0.15,0.22,0.18,0.25,0.18,0.12,0.06],
+  meditative: [0.10,0.15,0.22,0.18,0.25,0.18,0.20,0.16], // raised floor so resolution has texture
 };
 
 // Layer groups define when instruments enter and leave as energy rises 0→1.
@@ -2387,7 +2390,16 @@ JC.applyMasterVolume = function() {
 };
 
 JC.doSceneTransition = function(toChapter, preset, intensity) {
-  if(!ctx||!masterGain||JC.sceneTransition) return;
+  if(!ctx||!masterGain) return;
+  // If a transition is already in flight, cancel only its clear-timer and proceed.
+  // Never cancel ALL timers — that would wipe pending UI updates and leitmotif returns.
+  if(JC.sceneTransition) {
+    if(JC._sceneTransitionClearTimer) {
+      clearTimeout(JC._sceneTransitionClearTimer);
+      JC._sceneTransitionClearTimer = null;
+    }
+    JC.sceneTransition = false;
+  }
   JC.sceneTransition = true;
   const bl  = barLength||4;
 
@@ -2454,7 +2466,11 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   }, bl*1000));
 
   // Release lock after 4 bars
-  JC.timers.push(setTimeout(()=>{ JC.sceneTransition=false; }, bl*4*1000));
+  JC._sceneTransitionClearTimer = setTimeout(()=>{
+    JC.sceneTransition=false;
+    JC._sceneTransitionClearTimer=null;
+  }, bl*4*1000);
+  JC.timers.push(JC._sceneTransitionClearTimer);
 
   // ── LEITMOTIF RETURN — fires once at the Journey peak ──────────────
   // Steps 4-6 are the peak region (boss step is in this range).
@@ -2486,10 +2502,12 @@ JC.tick = function() {
     const toChapter = JC_CHAPTERS[JC.step];
     const toPreset  = getZone(toChapter.floor);
     logTimeline(`Chapter ${JC.step+1}: ${toChapter.label} · Floor ${toChapter.floor}`);
+    // Always call doSceneTransition — it now force-clears any in-flight
+    // transition rather than silently dropping the chapter advance.
     JC.doSceneTransition(toChapter, toPreset, Math.min(1,JC.energy+0.15));
   }
 
-  // Floor crawl
+  // Floor crawl — update slider AND visual labels so UI stays in sync
   const chapter = JC_CHAPTERS[JC.step]||JC_CHAPTERS[JC.totalSteps-1];
   const cur = parseInt(slider.value);
   if(Math.abs(cur-chapter.floor)>1){
@@ -2498,6 +2516,20 @@ JC.tick = function() {
     slider.value=nf;
     slider.style.setProperty('--pct',((nf-1)/98*100).toFixed(1)+'%');
     document.getElementById('floorNum').textContent=nf;
+    // Update zone name and bar so the display tracks the descent
+    const crawlZone = getZone(nf);
+    document.getElementById('zoneName').textContent = crawlZone.name;
+    document.getElementById('ciFloor').textContent  = `Void Floor ${nf}`;
+    const fn = document.getElementById('floorNum');
+    fn.style.color      = `rgb(${crawlZone.vizR},${crawlZone.vizG},${crawlZone.vizB})`;
+    fn.style.textShadow = `0 0 22px rgba(${crawlZone.vizR},${crawlZone.vizG},${crawlZone.vizB},0.6)`;
+    // Update zone bar segments
+    const segs = document.getElementById('zoneBar')?.querySelectorAll('.zone-seg');
+    const zIdx = typeof ZONES !== 'undefined' ? ZONES.indexOf(crawlZone) : -1;
+    if(segs && zIdx >= 0) segs.forEach((s,i)=>{
+      s.classList.toggle('active', i<=zIdx);
+      s.style.setProperty('--zone-color', crawlZone.color);
+    });
   }
 
   const preset    = getZone(chapter.floor);
@@ -2537,9 +2569,10 @@ function startRandomJourney() {
   });
   JC.activeSet.clear();
 
-  // Step durations — ~7 minutes total, earlier chapters longer
+  // Step durations — ~7 minutes total, randomised ±20s per chapter so
+  // no two journeys have the same pacing. Earlier chapters run longer.
   const BASE=[62000,58000,54000,50000,46000,40000,38000,34000];
-  JC.stepDurations=BASE.map(d=>d+(rng()-0.5)*16000);
+  JC.stepDurations=BASE.map(d=>d+(rng()-0.5)*40000); // ±20s variance
   JC.totalDurationMs=JC.stepDurations.reduce((a,b)=>a+b,0);
   JC.stepStartTimes=[];
   let cum=0;
@@ -2771,118 +2804,169 @@ let cinematicRaf = null;
 // particles array replaced by CIN.embers in cinematic scene system
 
 // ── Zone presets ──────────────────────────────────────────────────
+// ── Zone arc design ────────────────────────────────────────────────
+// Arc: cinematic build (zones 1-6) → surreal collapse / resolution (zones 7-8)
+//
+// TONAL COHERENCE — roots are kept in a slow descending chromatic walk
+// so every zone feels like going *deeper*, not changing rooms:
+//   A1 (27.5 Hz) → A2 (26.0) → G#2 (24.5) → G2 (24.5→23.1) → F#2 (23.1)
+//   → F2 (21.8) → [peak] → [surreal drop — wide open]
+//   Zones 7-8 break the descent on purpose: pitch opens up and floats,
+//   releasing tension like a key change into major after minor.
+//
+// BPM CURVE — smooth ease-up then deliberate release:
+//   58 → 64 → 70 → 78 → 88 → 98 → [peak 104] → [resolution 72]
+//   Each step ≤10 BPM so the 16-bar crossfade always sounds smooth.
+//   The final drop to 72 is the exhale — the player feels it physically.
+//
+// RHYTHM EVOLUTION — each zone adds ONE new rhythmic element rather than
+// replacing the whole pattern. Kick stays on beat 1 in all zones until
+// zone 6 where it fragments. Hihat builds from silence to full 16th density.
+// Zone 8 strips back to kick+bass only — the groove dissolves into the void.
 const ZONES = [
   {
+    // ── Zone 1: Ashen Fields ──────────────────────────────────────
+    // Sparse and foreboding. Kick on 1 only. No hihat. Melody barely moves.
+    // Root: A1 (27.5 Hz) — the lowest we go. Establishes the tonal floor.
     name:'Ashen Fields', range:[1,12], color:'#8b3a3a', bpm:58,
-    root:41.2, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818],
+    root:27.5, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818],
     droneWave:'sine', droneFilterFreq:220, droneFilterQ:1.2,
     droneLfoRate:0.04, droneLfoDepth:80, droneAmpLfo:0.06,
     kickFreq:52, kickDecay:0.55, snareDecay:0.18, snareFilterFreq:900,
-    kickPattern:[1,0,0,0,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
-    bassWave:'sine', bassFilterFreq:180, bassPattern:[0,0,0,4,0,0,2,0],
-    melodyWave:'triangle', melodyOctave:1, melodySkip:0.35,
-    melodyPatterns:[[0,2,0,3,2,0,4,2],[0,4,3,2,0,2,3,4]],
+    kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+    bassWave:'sine', bassFilterFreq:180, bassPattern:[0,0,0,0,0,0,2,0],
+    melodyWave:'triangle', melodyOctave:0, melodySkip:0.45,
+    melodyPatterns:[[0,2,0,0,2,0,3,2],[0,0,3,2,0,0,4,2]],
     choirFormants:[700,1100,2200], choirVibRate:3.5, choirVibDepth:2,
     vizR:139, vizG:58, vizB:58,
     desc:'Sparse. Foreboding. Distant war drums echo across ash.'
   },
   {
-    name:'Rotwood Forest', range:[13,24], color:'#5a4a2a', bpm:66,
-    root:46.2, scale:[1,1.0595,1.1225,1.3348,1.4983,1.5874,1.6818],
-    droneWave:'sawtooth', droneFilterFreq:280, droneFilterQ:3,
-    droneLfoRate:0.09, droneLfoDepth:160, droneAmpLfo:0.09,
-    kickFreq:58, kickDecay:0.3, snareDecay:0.12, snareFilterFreq:1400,
-    kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,1,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
-    bassWave:'sawtooth', bassFilterFreq:220, bassPattern:[0,2,0,0,3,0,2,0],
-    melodyWave:'triangle', melodyOctave:1, melodySkip:0.25,
-    melodyPatterns:[[0,1,3,1,5,3,1,0],[3,5,3,1,0,1,3,5]],
-    choirFormants:[600,950,1800], choirVibRate:4, choirVibDepth:2.5,
+    // ── Zone 2: Rotwood Forest ────────────────────────────────────
+    // Kick adds a ghost on beat 3. Hihat enters on quarter notes only.
+    // Root steps down a whole tone (G#1 ≈ 26.0 Hz) — barely perceptible, just darker.
+    name:'Rotwood Forest', range:[13,24], color:'#5a4a2a', bpm:64,
+    root:26.0, scale:[1,1.0595,1.1225,1.3348,1.4983,1.5874,1.6818],
+    droneWave:'sawtooth', droneFilterFreq:260, droneFilterQ:2.5,
+    droneLfoRate:0.07, droneLfoDepth:140, droneAmpLfo:0.08,
+    kickFreq:55, kickDecay:0.38, snareDecay:0.14, snareFilterFreq:1100,
+    kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,0,0,1,0,0,0],
+    bassWave:'sine', bassFilterFreq:210, bassPattern:[0,0,2,0,0,0,2,0],
+    melodyWave:'triangle', melodyOctave:0, melodySkip:0.32,
+    melodyPatterns:[[0,1,3,1,0,3,1,0],[3,1,0,1,3,5,3,1]],
+    choirFormants:[650,1000,1900], choirVibRate:4, choirVibDepth:2.5,
     vizR:110, vizG:88, vizB:40,
     desc:'Creaking wood. Dripping. Something follows in the dark.'
   },
   {
-    name:'Catacombs Deep', range:[25,36], color:'#3a3a5a', bpm:74,
-    root:36.7, scale:[1,1.0595,1.2599,1.3348,1.4142,1.5874,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:160, droneFilterQ:4,
-    droneLfoRate:0.06, droneLfoDepth:300, droneAmpLfo:0.12,
-    kickFreq:44, kickDecay:0.7, snareDecay:0.22, snareFilterFreq:600,
-    kickPattern:[1,0,0,0,1,0,0,1], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[0,1,0,1,0,1,0,1],
-    bassWave:'sawtooth', bassFilterFreq:160, bassPattern:[0,0,5,0,0,4,0,2],
-    melodyWave:'square', melodyOctave:1, melodySkip:0.2,
-    melodyPatterns:[[0,2,4,2,5,4,2,0],[5,4,2,0,4,5,6,4]],
-    choirFormants:[500,800,1600], choirVibRate:3, choirVibDepth:1.5,
+    // ── Zone 3: Catacombs Deep ────────────────────────────────────
+    // Kick now 1+3 (the stomp begins). Hihat on every beat. Bass gets movement.
+    // Root: G#1 (24.5 Hz) — another step down. The floor gets lower.
+    name:'Catacombs Deep', range:[25,36], color:'#3a3a5a', bpm:70,
+    root:24.5, scale:[1,1.0595,1.2599,1.3348,1.4142,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:180, droneFilterQ:3.5,
+    droneLfoRate:0.06, droneLfoDepth:260, droneAmpLfo:0.11,
+    kickFreq:48, kickDecay:0.65, snareDecay:0.20, snareFilterFreq:700,
+    kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+    bassWave:'sawtooth', bassFilterFreq:170, bassPattern:[0,0,0,4,0,0,2,0],
+    melodyWave:'square', melodyOctave:0, melodySkip:0.22,
+    melodyPatterns:[[0,2,4,2,0,4,2,0],[5,4,2,0,2,4,2,0]],
+    choirFormants:[560,880,1700], choirVibRate:3, choirVibDepth:1.5,
     vizR:80, vizG:80, vizB:160,
     desc:'Bone-hollow reverb. The dead breathe here.'
   },
   {
-    name:'Shadowmere', range:[37,48], color:'#4a2a6a', bpm:82,
-    root:55, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:340, droneFilterQ:5,
-    droneLfoRate:0.12, droneLfoDepth:450, droneAmpLfo:0.14,
-    kickFreq:55, kickDecay:0.35, snareDecay:0.14, snareFilterFreq:1800,
-    kickPattern:[1,0,0,0,1,0,1,0], snarePattern:[0,0,1,0,0,0,1,1], hihatPattern:[1,1,0,1,1,1,0,1],
-    bassWave:'sawtooth', bassFilterFreq:260, bassPattern:[0,0,4,2,0,5,3,0],
-    melodyWave:'triangle', melodyOctave:2, melodySkip:0.15,
-    melodyPatterns:[[0,1,4,2,5,4,1,0],[4,5,4,2,1,2,4,5],[0,4,6,4,5,4,2,0]],
-    choirFormants:[750,1150,2400], choirVibRate:5, choirVibDepth:3.5,
+    // ── Zone 4: Shadowmere ────────────────────────────────────────
+    // Kick syncopates for the first time (1, 2.5, 3). Hihat fills with 8ths.
+    // Root nudges down to G1 (23.1 Hz) — the descent continues its slow pull.
+    name:'Shadowmere', range:[37,48], color:'#4a2a6a', bpm:78,
+    root:23.1, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:300, droneFilterQ:4.5,
+    droneLfoRate:0.10, droneLfoDepth:380, droneAmpLfo:0.13,
+    kickFreq:50, kickDecay:0.40, snareDecay:0.15, snareFilterFreq:1500,
+    kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+    bassWave:'sawtooth', bassFilterFreq:240, bassPattern:[0,0,4,0,2,0,4,0],
+    melodyWave:'triangle', melodyOctave:0, melodySkip:0.18,
+    melodyPatterns:[[0,1,4,2,5,4,1,0],[4,5,4,2,1,2,4,5],[0,4,5,4,2,4,5,2]],
+    choirFormants:[700,1100,2300], choirVibRate:4.5, choirVibDepth:3,
     vizR:120, vizG:40, vizB:180,
-    desc:'Wraith-song. Dense choir. Minor 2nd dissonance cuts through fog.'
+    desc:'Wraith-song. Dense choir. The pull downward becomes undeniable.'
   },
   {
-    name:"Sorcerer's Veil", range:[49,60], color:'#2a4a6a', bpm:90,
-    root:61.7, scale:[1,1.0595,1.1892,1.2599,1.4983,1.6818,1.7818],
-    droneWave:'triangle', droneFilterFreq:500, droneFilterQ:6,
-    droneLfoRate:0.18, droneLfoDepth:600, droneAmpLfo:0.18,
-    kickFreq:60, kickDecay:0.28, snareDecay:0.1, snareFilterFreq:2200,
-    kickPattern:[1,0,1,0,0,1,0,0], snarePattern:[0,1,0,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
-    bassWave:'triangle', bassFilterFreq:380, bassPattern:[0,3,0,5,2,0,4,6],
-    melodyWave:'sine', melodyOctave:2, melodySkip:0.1,
+    // ── Zone 5: Sorcerer's Veil ───────────────────────────────────
+    // Kick gets aggressive — 1, 2.5, 3, 4. Hihat nearly full. Tension peaks.
+    // Root: F#1 (23.1 Hz) — holding the tonal center steady as texture maxes out.
+    // Melody steps up an octave here (melodyOctave:1) — it soars above the chaos.
+    name:"Sorcerer's Veil", range:[49,60], color:'#2a4a6a', bpm:88,
+    root:23.1, scale:[1,1.0595,1.1892,1.2599,1.4983,1.6818,1.7818],
+    droneWave:'triangle', droneFilterFreq:420, droneFilterQ:5.5,
+    droneLfoRate:0.15, droneLfoDepth:520, droneAmpLfo:0.16,
+    kickFreq:52, kickDecay:0.30, snareDecay:0.11, snareFilterFreq:1900,
+    kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,1,0,0,1,0,0], hihatPattern:[1,0,1,0,1,1,0,1],
+    bassWave:'triangle', bassFilterFreq:340, bassPattern:[0,3,0,4,2,0,4,6],
+    melodyWave:'sine', melodyOctave:1, melodySkip:0.10,
     melodyPatterns:[[0,2,4,6,4,2,5,3],[6,5,4,2,0,2,4,5],[0,4,2,6,5,3,2,4]],
-    choirFormants:[900,1400,2800], choirVibRate:6, choirVibDepth:4,
+    choirFormants:[850,1350,2700], choirVibRate:5.5, choirVibDepth:3.8,
     vizR:60, vizG:120, vizB:200,
-    desc:'Arcane shimmer. Fast arpeggios. Reality unravels at the edges.'
+    desc:'Arcane shimmer. Reality unravels. The climb toward the peak.'
   },
   {
-    name:'Obsidian Keep', range:[61,72], color:'#6a2a4a', bpm:100,
-    root:49, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:420, droneFilterQ:3.5,
-    droneLfoRate:0.22, droneLfoDepth:700, droneAmpLfo:0.2,
-    kickFreq:50, kickDecay:0.4, snareDecay:0.16, snareFilterFreq:1600,
-    kickPattern:[1,0,0,1,0,1,0,0], snarePattern:[0,0,1,0,1,0,0,1], hihatPattern:[1,0,1,1,0,1,1,0],
-    bassWave:'sawtooth', bassFilterFreq:300, bassPattern:[0,0,4,0,2,5,0,3],
-    melodyWave:'square', melodyOctave:2, melodySkip:0.1,
+    // ── Zone 6: Obsidian Keep ─────────────────────────────────────
+    // CLIMAX. Kick fully fragmented — every beat is contested. Full hihat.
+    // Root rises to F1 (21.8 Hz) — the lowest the drone goes, counterintuitively
+    // making it feel like a floor dropped. Maximum texture density.
+    name:'Obsidian Keep', range:[61,72], color:'#6a2a4a', bpm:98,
+    root:21.8, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
+    droneWave:'sawtooth', droneFilterFreq:480, droneFilterQ:4.0,
+    droneLfoRate:0.20, droneLfoDepth:660, droneAmpLfo:0.19,
+    kickFreq:46, kickDecay:0.42, snareDecay:0.16, snareFilterFreq:1700,
+    kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,1,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
+    bassWave:'sawtooth', bassFilterFreq:310, bassPattern:[0,0,4,2,0,5,4,0],
+    melodyWave:'square', melodyOctave:1, melodySkip:0.08,
     melodyPatterns:[[0,2,4,5,4,2,5,6],[5,4,2,0,2,4,5,4],[0,5,4,2,6,5,3,0]],
-    choirFormants:[650,1050,2100], choirVibRate:5.5, choirVibDepth:3,
+    choirFormants:[700,1100,2200], choirVibRate:5.5, choirVibDepth:3.2,
     vizR:180, vizG:40, vizB:100,
-    desc:'Iron and blood. Full orchestral dread. War drums cascade.'
+    desc:'Iron and blood. The peak. Full orchestral dread. It cannot last.'
   },
   {
-    name:'Void Spire', range:[73,84], color:'#5a2a8a', bpm:110,
-    root:51.9, scale:[1,1.0595,1.1225,1.3348,1.4142,1.5874,1.6818],
-    droneWave:'sawtooth', droneFilterFreq:550, droneFilterQ:5,
-    droneLfoRate:0.28, droneLfoDepth:900, droneAmpLfo:0.22,
-    kickFreq:48, kickDecay:0.45, snareDecay:0.18, snareFilterFreq:2000,
-    kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,1,0,1,0,0,1,0], hihatPattern:[1,1,0,1,0,1,1,0],
-    bassWave:'sawtooth', bassFilterFreq:350, bassPattern:[0,4,2,5,0,3,6,2],
-    melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.05,
-    melodyPatterns:[[0,1,4,2,6,5,2,4],[4,5,6,4,2,1,2,4],[0,6,5,4,2,4,5,6]],
-    choirFormants:[800,1300,2600], choirVibRate:7, choirVibDepth:5,
+    // ── Zone 7: Void Spire ────────────────────────────────────────
+    // THE BREAK. BPM drops back to 104 — the listener feels the exhale.
+    // Root leaps UP to 32.7 Hz — a fifth above zone 6. This is intentional:
+    // the resolution feels like breaking surface after being underwater.
+    // Rhythm strips to kick+bass only — the groove dissolves mid-climb.
+    // Melody becomes sparse and pentatonic — surreal, floating.
+    name:'Void Spire', range:[73,84], color:'#5a2a8a', bpm:104,
+    root:32.7, scale:[1,1.1225,1.2599,1.4983,1.6818,1.7818,1.8929],
+    droneWave:'sine', droneFilterFreq:380, droneFilterQ:2.0,
+    droneLfoRate:0.08, droneLfoDepth:500, droneAmpLfo:0.14,
+    kickFreq:44, kickDecay:0.55, snareDecay:0.22, snareFilterFreq:1200,
+    kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+    bassWave:'sine', bassFilterFreq:280, bassPattern:[0,0,0,4,0,0,0,4],
+    melodyWave:'sine', melodyOctave:1, melodySkip:0.25,
+    melodyPatterns:[[0,2,4,0,2,4,2,0],[4,2,0,4,2,0,4,2],[0,4,2,4,0,4,2,4]],
+    choirFormants:[750,1200,2500], choirVibRate:3.0, choirVibDepth:2.0,
     vizR:140, vizG:40, vizB:220,
-    desc:'The spire tears through reality. Dissonant. Relentless.'
+    desc:'The climb breaks. Something releases. The world goes quiet and wide.'
   },
   {
-    name:'Infernal Core', range:[85,99], color:'#8a1a1a', bpm:120,
-    root:43.65, scale:[1,1.0595,1.1225,1.2599,1.4142,1.4983,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:800, droneFilterQ:7,
-    droneLfoRate:0.4, droneLfoDepth:1200, droneAmpLfo:0.3,
-    kickFreq:45, kickDecay:0.5, snareDecay:0.2, snareFilterFreq:2500,
-    kickPattern:[1,1,0,1,1,0,1,0], snarePattern:[0,1,1,0,0,1,0,1], hihatPattern:[1,1,1,1,0,1,1,1],
-    bassWave:'sawtooth', bassFilterFreq:500, bassPattern:[0,2,4,6,4,2,6,0],
-    melodyWave:'sawtooth', melodyOctave:2, melodySkip:0,
-    melodyPatterns:[[0,2,4,6,4,6,4,2],[6,4,2,0,2,4,6,4],[0,6,4,2,6,4,2,0]],
-    choirFormants:[1000,1600,3200], choirVibRate:9, choirVibDepth:7,
-    vizR:220, vizG:20, vizB:20,
-    desc:'The core. Everything burns. Barely musical. Pure dread.'
+    // ── Zone 8: Infernal Core ─────────────────────────────────────
+    // RESOLUTION. BPM drops to 72 — below where we started. The loop completes.
+    // Root: 36.7 Hz (A# / open fifth with zone 7). Pentatonic scale, open voicing.
+    // Only kick on beat 1. Bass on beat 3 only. Silence is the main instrument.
+    // Melody at octave 0 again — we've come full circle, but transformed.
+    // Choir formants opened wide — vowel 'aah', no vibrato, just breath.
+    name:'Infernal Core', range:[85,99], color:'#8a1a1a', bpm:72,
+    root:36.7, scale:[1,1.1225,1.2599,1.4983,1.6818,1.7818,2.0],
+    droneWave:'sine', droneFilterFreq:260, droneFilterQ:0.8,
+    droneLfoRate:0.03, droneLfoDepth:180, droneAmpLfo:0.06,
+    kickFreq:42, kickDecay:0.80, snareDecay:0.28, snareFilterFreq:600,
+    kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+    bassWave:'sine', bassFilterFreq:200, bassPattern:[0,0,0,0,2,0,0,0],
+    melodyWave:'sine', melodyOctave:0, melodySkip:0.55,
+    melodyPatterns:[[0,2,4,2,0,0,4,0],[4,2,0,0,2,4,0,0],[0,4,0,4,2,0,2,4]],
+    choirFormants:[800,1200,2400], choirVibRate:2.0, choirVibDepth:0.8,
+    vizR:220, vizG:80, vizB:40,
+    desc:'Soothing and surreal. The void breathes. Everything resolves into open space.'
   },
 ];
 
@@ -3727,7 +3811,10 @@ const CE = (() => {
   // ── Public: zone change — reset progression ───────────────────
   function onZoneChange(zone) {
     _zone     = zone;
-    _chordIdx = 0;
+    // Offset progression start by a seeded amount per journey — same chords,
+    // different entry point each run so the harmonic cycle feels fresh
+    const jSeed = JC.active ? (JC.startTime & 0xF) : 0;
+    _chordIdx = jSeed % Math.max(1, (getProgression(zone)?.length || 4));
     if (!_eventOverride) {
       const prog      = getProgression(zone);
       const [deg, qual] = prog[0];
@@ -4793,25 +4880,6 @@ const COMPOSED_SCORE = {
     ],
   },
 
-  // Chapter 5 — The Veil Breaks. Faster. Wide leaps. Unstable.
-  // Leitmotif: [0,5,1,4,2,0] — wide leaps, arcane instability
-  "The Veil Breaks": {
-    primary: [
-      [0,1,0],   [5,0.5,0], [1,0.5,0],   [4,1,0.5], [2,1,0],
-      [0,0.5,0], [4,1,0],   [6,1,0.5],   [5,1,0],   [4,2,0.5],
-      [2,0.5,0], [0,1,0],   [2,0.5,0],   [0,2,1],
-    ],
-    development: [
-      [0,1,0],   [5,0.5,0], [2,0.5,0],   [5,1,0.5], [3,1,0],
-      [1,0.5,0], [4,1,0],   [6,1,0.5],   [5,1,0],   [3,2,0.5],
-      [1,0.5,0], [0,1,0],   [2,0.5,0],   [0,2,1],
-    ],
-    celline: [
-      [5,1,0],   [4,0.5,0], [2,1,0.5],   [0,1,0],
-      [2,1,0],   [4,1.5,0.5],[3,2,1],    [0,2,1],
-    ],
-  },
-
   // Chapter 6 — Obsidian Keep. March feel. Fourth-based. Relentless.
   // Leitmotif: [0,3,0,4,3,0] — fourth-based march cell
   'Obsidian Keep': {
@@ -4895,16 +4963,73 @@ const MP = {
 };
 
 function MP_getScore() {
-  // Determine which chapter we're in
   const label = (journeyActive || JC.active)
     ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label
     : null;
   const score = (label && COMPOSED_SCORE[label]) || SCORE_FALLBACK;
 
-  // Primary on first play, development on alternating repeats
-  // This gives the listener the tune first, then a variation — never random
-  const useDevt = MP._playCount > 0 && (MP._playCount % 2 === 1);
-  return useDevt ? score.development : score.primary;
+  // Play 0: primary as written
+  // Play 1: development as written
+  // Play 2+: procedural variation seeded from _playCount + journey startTime
+  //   so every run sounds different but is internally consistent
+  const pc = MP._playCount;
+  if (pc === 0) return score.primary;
+  if (pc === 1) return score.development;
+
+  // Pick base from primary/development alternately, then transform
+  const base = (pc % 2 === 0) ? score.primary : score.development;
+
+  // Use a deterministic-but-varied seed per (chapter × playCount × journey)
+  const seed = (JC.startTime & 0xFFFF) ^ (pc * 1337) ^ (label ? label.charCodeAt(0) * 17 : 0);
+  let s = seed | 1;
+  const lrng = () => {
+    s = Math.imul(s ^ s >>> 15, s | 1);
+    s ^= s + Math.imul(s ^ s >>> 7, s | 61);
+    return ((s ^ s >>> 14) >>> 0) / 4294967296;
+  };
+
+  const variant = Math.floor(lrng() * 5); // 0-4: which transform to apply
+
+  switch(variant) {
+    case 0: {
+      // Retrograde — play the phrase backwards
+      return [...base].reverse().map(([d,dur,rest]) => [d, dur, rest]);
+    }
+    case 1: {
+      // Degree inversion — mirror degrees around axis 3 (mid-scale)
+      return base.map(([d, dur, rest]) => [Math.max(0, Math.min(6, 6 - d)), dur, rest]);
+    }
+    case 2: {
+      // Modal shift — transpose all degrees up by 1 or 2, clamping at 6
+      // (wrapping % 7 would jump degree 6 → 0/1, an octave break — we clamp instead)
+      const shift = lrng() > 0.5 ? 1 : 2;
+      return base.map(([d, dur, rest]) => [Math.min(6, d + shift), dur, rest]);
+    }
+    case 3: {
+      // Rhythmic augmentation — stretch durations by 1.5×, fewer notes
+      return base
+        .filter((_, i) => lrng() > 0.3) // drop ~30% of notes for space
+        .map(([d, dur, rest]) => [d, dur * 1.5, rest * 1.2]);
+    }
+    case 4: {
+      // Rhythmic diminution — compress durations, insert passing tones between notes
+      const out = [];
+      base.forEach(([d, dur, rest], i) => {
+        out.push([d, dur * 0.7, 0]);
+        if (i % 2 === 0 && i < base.length - 1) {
+          const next = base[i+1][0];
+          const pass = d < next ? d + 1 : d - 1;
+          // Passing tone with real duration — no micro-rests (cause WebAudio stop-before-start errors)
+          out.push([Math.max(0, Math.min(6, pass)), Math.max(0.15, dur * 0.3), rest * 0.5]);
+        } else {
+          out.push([d, Math.max(0.15, dur * 0.3), rest]);
+        }
+      });
+      return out;
+    }
+    default:
+      return base;
+  }
 }
 
 function MP_getCelloLine() {
@@ -4990,6 +5115,41 @@ function buildMelody(preset, intensity, name) {
   MP_resetForChapter(chapterLabel);
 
   let t = ctx.currentTime + beat * 0.5;
+
+  // ── playNote — synthesize one melody note at scheduled time t ────────
+  // Uses the partials/timbre/atk/vib vars captured in the buildMelody closure.
+  // isStrong → louder attack; isPeak → brightest harmonic; isCadence → longer release.
+  function playNote(startTime, freq, dur, { isStrong = false, isPeak = false, isCadence = false } = {}) {
+    if (!freq || freq < 20 || !layerOn[name]) return;
+    const gainAmt = isStrong ? 0.22 + energy * 0.14
+                  : isPeak   ? 0.18 + energy * 0.12
+                  : isCadence? 0.14 + energy * 0.10
+                  :            0.12 + energy * 0.09;
+    const relTime = isCadence ? dur * 1.4 : dur * 0.85;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, startTime);
+    env.gain.linearRampToValueAtTime(gainAmt, startTime + atkTime);
+    env.gain.setValueAtTime(gainAmt, startTime + Math.max(atkTime, dur - relTime));
+    env.gain.exponentialRampToValueAtTime(0.0001, startTime + dur + relTime);
+    env.connect(b);
+
+    partials.forEach(({ r, a }) => {
+      const pFreq = freq * r;
+      if (pFreq > 18000) return;
+      const o = mkOsc(pFreq, r === 1 ? preset.melodyWave : 'sine', 0);
+      const g = mkGain(a * (isPeak ? 1.2 : 1.0));
+      const vib  = mkOsc(vibHz + (Math.random() - 0.5) * 0.4, 'sine');
+      const vibG = mkGain(0);
+      vibG.gain.setValueAtTime(0, startTime);
+      vibG.gain.linearRampToValueAtTime(vibDepth * (isStrong ? 1.3 : 1.0), startTime + Math.min(dur * 0.5, 0.18));
+      chain(vib, vibG); vibG.connect(o.frequency);
+      vib.start(startTime); vib.stop(startTime + dur + relTime + 0.05);
+      chain(o, g, env);
+      o.start(startTime); o.stop(startTime + dur + relTime + 0.05);
+      reg(name, o, g, vib, vibG);
+    });
+    reg(name, env);
+  }
 
   function schedNote() {
     if (!layerOn[name]) return;
@@ -5100,6 +5260,7 @@ function buildChoir(preset, intensity, name) {
   breathSrc.start();
   reg(name,breathSrc,bFilt1,bFilt2,bG);
 
+  // Sub choir — root octave, underpins the whole texture
   const subRaw  = CE.chordTone('choir',0,0);
   const subFreq = (subRaw&&subRaw>10)?subRaw:preset.root;
   const subO    = mkOsc(subFreq,'sine');
@@ -5108,6 +5269,28 @@ function buildChoir(preset, intensity, name) {
   chain(subO,subFilt,subG,b);
   subO.start();
   reg(name,subO,subFilt,subG);
+
+  // ── DEEP ETHEREAL PAD — the cathedral floor ───────────────────────
+  // Two sines one octave BELOW the sub, with a very slow beating
+  // (1.5 cents detuned) creating an organ-pipe resonance.
+  // Rolled off above 200Hz so it's felt not heard — pure depth.
+  // This is what makes large spaces feel physically present.
+  const deepFreq = Math.max(22, subFreq * 0.5); // one octave below sub — clamped so it stays audible
+  const deepA    = mkOsc(deepFreq,          'sine', 0);
+  const deepB    = mkOsc(deepFreq * 1.0009, 'sine', 0); // ~1.5 cents — slow beat ~0.06Hz
+  const deepFilt = mkFilt(180, 'lowpass', 0.5);
+  const deepG    = mkGain(0.06 + intensity * 0.04);
+  // Very slow swell — the pad breathes on a 20-second cycle
+  // deepPad breath LFO — use a separate gain node driven by the LFO rather than
+  // additive connection to deepG.gain, which could push total gain past 1.0
+  const deepLfo  = mkOsc(0.05, 'sine');
+  const deepLfoG = mkGain(0.015); // depth: ±0.015 around base gain
+  deepLfo.connect(deepLfoG);
+  deepLfoG.connect(deepG.gain); // additive mod is fine here since base is 0.06-0.10
+  deepA.connect(deepFilt); deepB.connect(deepFilt);
+  chain(deepFilt, deepG, b);
+  deepA.start(); deepB.start(); deepLfo.start();
+  reg(name, deepA, deepB, deepFilt, deepG, deepLfo, deepLfoG);
 
   let choirLastChord = CE.currentChord.label;
 
@@ -5132,6 +5315,14 @@ function buildChoir(preset, intensity, name) {
         subO.frequency.cancelScheduledValues(now2);
         subO.frequency.setValueAtTime(subO.frequency.value,now2);
         subO.frequency.exponentialRampToValueAtTime(newSub,now2+glide*1.2);
+        // Deep pad retuning — very slow glide, like a pipe organ speaking
+        const newDeep = newSub * 0.5;
+        [deepA, deepB].forEach((osc, oi) => {
+          const target = oi === 0 ? newDeep : newDeep * 1.0009;
+          osc.frequency.cancelScheduledValues(now2);
+          osc.frequency.setValueAtTime(osc.frequency.value, now2);
+          osc.frequency.exponentialRampToValueAtTime(Math.max(22, target), now2 + glide * 2.5);
+        });
       }
     }
 
@@ -5847,7 +6038,7 @@ function buildHorn(preset, intensity, name) {
   function schedNote() {
     const pair = hornPats[patIdx++ % hornPats.length];
     const deg  = pair[Math.floor(rng() * pair.length)];
-    const freq = CE.chordTone('horn', preset.melodyOctave, deg % 4);
+    const freq = CE.chordTone('horn', preset.melodyOctave, deg % Math.max(1, CE.currentChord.ratios.length));
     const dur  = beat * (3.5 + rng() * 2);
 
     // Brass source — sawtooth + square blend gives lip buzz character
@@ -6538,19 +6729,23 @@ function buildCello(preset, intensity, name) {
     env.gain.linearRampToValueAtTime(vol,bt+0.18);
     env.gain.setValueAtTime(vol*0.78,bt+dur*0.45);
     env.gain.linearRampToValueAtTime(0.001,bt+dur);
+    const celOscs = [];
     CEL_PARTIALS.forEach(({r,a})=>{
       const o=mkOsc(Math.max(20,freq*r),'sine');
       const g=mkGain(a);
       chain(o,g,env);
       o.start(bt); o.stop(bt+dur+0.2);
       reg(name,o,g);
+      celOscs.push(o);
     });
-    // Slow bow vibrato
-    const vib  = mkOsc(3.8+Math.random()*0.4,'sine');
+    // Slow bow vibrato — modulates pitch, not volume (was incorrectly tremolo)
+    const vib  = mkOsc(3.8+rng()*0.4,'sine');
     const vibG = mkGain(0);
-    chain(vib,vibG); vibG.connect(env.gain);
-    vibG.gain.setValueAtTime(0,bt+0.3);
-    vibG.gain.linearRampToValueAtTime(0.008+energy*0.006,bt+dur*0.5);
+    vib.connect(vibG);
+    vibG.connect(celOscs[0].frequency); // pitch vibrato on fundamental
+    const vibDepthHz = freq * 0.012;    // ~1.2% deviation — natural cello feel
+    vibG.gain.setValueAtTime(0, bt+0.3);
+    vibG.gain.linearRampToValueAtTime(vibDepthHz*(0.5+energy*0.5), bt+dur*0.5);
     vib.start(bt); vib.stop(bt+dur+0.2);
     reg(name,vib,vibG);
     // Bow rosin noise
@@ -6853,7 +7048,7 @@ const xfade = {
   fromZone:  null,
   toZone:    null,
   startBar:  0,
-  totalBars: 12,      // crossfade plays out over 12 bars
+  totalBars: 20,      // crossfade plays out over 20 bars — slow enough to feel like drifting
   bpmStart:  0,
   bpmEnd:    0,
 };
@@ -6974,7 +7169,7 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
   xfade.fromZone  = realFrom;
   xfade.toZone    = realTo;
   xfade.startBar  = totalBar;
-  xfade.totalBars = 16; // extended to cover new breath-duck stagger (bars 5-13)
+  xfade.totalBars = 20; // slow crossfade — zone identity drifts in over 20 bars
   xfade.bpmStart  = effectiveBpmStart;
   xfade.bpmEnd    = realTo.bpm;
   xfade.intensity = intensity;
@@ -6999,36 +7194,37 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
   };
 
   // ── Layer restart stagger — timed around the breath duck ──────────
-  // Bars 0-2: old layers still playing, master ducked to 35%
-  // Bar 3:   CE.onZoneChange fires (chord engine transitions)
-  // Bar 5:   master bus restores — new zone identity is already loaded
-  // Perc locks to new zone first (rhythm anchors the transition)
-  // Melodic layers enter after the duck lifts so they bloom into silence, not noise
+  // ── Layer restart stagger — timed around the 20-bar crossfade ────
+  // Bars 0-4:  old layers still playing, master gently dipped to 52%
+  // Bar 4:    CE.onZoneChange fires (chord engine transitions mid-dip)
+  // Bars 5-7: new rhythm locks in while harmony fades in beneath
+  // Bar 7+:   master bus slowly restores — melodic layers bloom one by one
+  // The result: the transition feels like drifting between states, not switching channels.
 
-  // Perc — bar 5 (just as the duck lifts — new groove locks in)
+  // Perc — bar 5 (rhythm anchors the new zone first)
   ['perc','wardrums','march','stomp','chains'].forEach(n => q(n, 5));
 
-  // Bass — bar 6 (follows perc, underpins new harmony)
+  // Bass — bar 6 (grounds the new harmony)
   q('bass', 6);
 
-  // Strings first — harmonic bed before melody enters
-  if (layerOn['strings']) q('strings', 7);
+  // Strings — bar 8 (harmonic bed after rhythm is established)
+  if (layerOn['strings']) q('strings', 8);
 
-  // Melodic — staggered from bar 8, one per bar, bloom into the restored volume
-  ['choir','melody','lute','horn','bells','organ'].forEach((n, i) => q(n, 8 + i));
+  // Melodic — staggered from bar 9, one per 1.5 bars — slow bloom
+  ['choir','melody','lute','horn','bells','organ'].forEach((n, i) => q(n, 9 + Math.floor(i * 1.5)));
 
-  // Drone — bar 11, only if root pitch moves more than a minor third
+  // Drone — bar 13, only if root pitch moves more than a minor third
   const semitones = Math.abs(12 * Math.log2(realTo.root / realFrom.root));
-  if (semitones > 1.5) q('drone', 11);
+  if (semitones > 1.5) q('drone', 13);
 
-  // Atmosphere — bar 12 onward
+  // Atmosphere — bar 14 onward, drifting in slowly
   ['wind','riser','firecrackle','heartbeat',
-   'chaos','whispers','ritualchant','glitch'].forEach((n, i) => q(n, 12 + i * 0.5 | 0));
+   'chaos','whispers','ritualchant','glitch'].forEach((n, i) => q(n, 14 + i));
 
-  // Zone name flip at bar 6 (midpoint of 12)
+  // Zone name flip at bar 10 (midpoint of 20)
   pendingLayerChanges.push({
     name:      '__zoneName__',
-    targetBar: totalBar + 6,
+    targetBar: totalBar + 10,
     type:      'morph',
     source:    'crossfade',
     toZone:    realTo,
@@ -7047,14 +7243,13 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
     // Duck down — half a bar of fade, hold 2 bars, restore at bar 4
     masterGain.gain.cancelScheduledValues(now);
     masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    masterGain.gain.linearRampToValueAtTime(0.35, now + barSec * 0.6);   // breath in
-    masterGain.gain.setValueAtTime(0.35, now + barSec * 2.5);            // hold
-    masterGain.gain.linearRampToValueAtTime(0.38, now + barSec * 4.5);   // bloom back
+    masterGain.gain.linearRampToValueAtTime(0.52, now + barSec * 1.0);   // breath in — gentle dip
+    masterGain.gain.setValueAtTime(0.52, now + barSec * 4.0);            // hold through pattern swap
+    masterGain.gain.linearRampToValueAtTime(0.38, now + barSec * 7.0);   // bloom back slowly
   }
 
-  // Delay chord engine zone change to bar 3 so it transitions mid-duck
-  // (not while old layers are still at full volume)
-  const zoneChangeDelay = (barLength || 4) * 3 * 1000;
+  // Delay chord engine zone change to bar 4 so it transitions mid-dip
+  const zoneChangeDelay = (barLength || 4) * 4 * 1000;
   setTimeout(() => { CE.onZoneChange(realTo); }, zoneChangeDelay);
 
   logTimeline(`Crossfade → ${realTo.name}`);
