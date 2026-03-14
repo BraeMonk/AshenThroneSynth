@@ -1209,8 +1209,7 @@ function tickBar() {
   }
 
   CE.tick(getZone(parseInt(slider.value)));
-  // Journey Conductor heartbeat — evaluates global progress and reconciles layers
-  if (JC.active && journeyActive) JC.tick();
+  if(JC.active && journeyActive) JC.tick();
   updatePhraseUI();
   updateDebug();
 
@@ -1605,13 +1604,6 @@ function stopSongGen() {
   journeyTimers.forEach(clearTimeout);
   journeyTimers = [];
   journeyActive = false;
-  // Stop Journey Conductor if running
-  if (JC.active) {
-    JC.timers.forEach(clearTimeout);
-    JC.timers = [];
-    JC.active = false;
-    JC.activeSet.clear();
-  }
   journeyDepth = 0;
   if (CIN.knight?.legend) CIN.knight.legend = null;
   if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
@@ -2024,117 +2016,48 @@ function crawlToFloor(targetFloor, durationMs, onComplete) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// JOURNEY CONDUCTOR
-// ──────────────────────────────────────────────────────────────────
-// Replaces the old step-based journey system with a single global arc
-// that shapes energy, density, harmony, and emotion across the full run.
-//
-// Core insight: a film score doesn't loop 8 independent cues.
-// It has ONE arc with a single energy curve from bar 1 to bar N.
-// Every decision — what layers play, how loud, which scale, when to
-// enter or exit — is made relative to global progress (0→1), not
-// relative to which "step" we're on.
-//
-// Architecture:
-//   JC.progress    — 0→1 across the full journey (~7 min)
-//   JC.energy      — evaluated from JC.progress via mood curve
-//   JC.targetLayers — what SHOULD be playing right now
-//   JC.tick()      — called every bar, reconciles actual vs target
-//   Scene transitions — composed moments, not raw crossfades
+// JOURNEY CONDUCTOR (JC)
+// One global arc — quiet → massive → quiet — like a film score.
+// Every decision (layers, energy, volume, scene transitions) is made
+// relative to global progress (0→1), not per-step independently.
 // ══════════════════════════════════════════════════════════════════
 
 const JC = {
-  active:        false,
-  progress:      0,       // 0→1 across full run
-  energy:        0,       // 0→1, driven by curve below
-  step:          0,       // which of 8 chapters we're in
-  totalSteps:    8,
-  mood:          'descent',
-  startTime:     0,       // Date.now() at journey start
-  totalDurationMs: 0,     // total planned journey length in ms
-  stepDurations:   [],    // ms per step (sum = totalDurationMs)
-  stepStartTimes:  [],    // cumulative ms offset for each step
-  sceneTransition: false, // true during a cross-chapter moment
-  peakStep:        5,     // step index where energy peaks (set at start)
-  bossStep:        -1,    // step where boss fires
-  timers:          [],    // all setTimeout IDs so we can cancel cleanly
-
-  // Global layer density state — what's ON right now
-  activeSet: new Set(),
+  active:false, progress:0, energy:0, step:0, totalSteps:8,
+  mood:'descent', startTime:0, totalDurationMs:0,
+  stepDurations:[], stepStartTimes:[],
+  sceneTransition:false, peakStep:5, bossStep:-1,
+  timers:[], activeSet:new Set(),
 };
 
-// ── Energy curves per mood ────────────────────────────────────────
-// Each curve is [value at step 0..7].
-// Interpolated smoothly by JC.evalEnergy(progress).
-// This is the "shape of the piece" — the emotional arc.
 const JC_ENERGY_CURVES = {
-  descent:    [0.08, 0.18, 0.32, 0.52, 0.72, 0.90, 0.75, 0.15],
-  tragic:     [0.20, 0.35, 0.50, 0.70, 0.55, 0.30, 0.12, 0.06],
-  triumphant: [0.25, 0.45, 0.65, 0.85, 1.00, 0.88, 0.70, 0.40],
-  arcane:     [0.12, 0.22, 0.38, 0.30, 0.55, 0.40, 0.28, 0.10],
-  meditative: [0.10, 0.15, 0.22, 0.18, 0.25, 0.18, 0.12, 0.06],
+  descent:    [0.08,0.18,0.32,0.52,0.72,0.90,0.75,0.15],
+  tragic:     [0.20,0.35,0.50,0.70,0.55,0.30,0.12,0.06],
+  triumphant: [0.25,0.45,0.65,0.85,1.00,0.88,0.70,0.40],
+  arcane:     [0.12,0.22,0.38,0.30,0.55,0.40,0.28,0.10],
+  meditative: [0.10,0.15,0.22,0.18,0.25,0.18,0.12,0.06],
 };
 
-// ── Layer density tables ──────────────────────────────────────────
-// Per mood, what layers are available at each energy threshold.
-// Layers are grouped: foundation → texture → rhythm → melodic → chaos.
-// The conductor enables/disables groups based on JC.energy, not step.
-// Each group has an energy threshold to enter and one to exit.
 const JC_LAYER_GROUPS = [
-  // Foundation — always present, energy ≥ 0
-  { id: 'foundation', layers: ['drone'],
-    enter: 0.00, exit: -1 },          // never exits
-  // Harmonic bed — enters early, stays through peak
-  { id: 'harmonic',   layers: ['strings'],
-    enter: 0.08, exit: -1 },
-  // Bass weight — enters with first rhythm pulse
-  { id: 'bass_line',  layers: ['bass'],
-    enter: 0.22, exit: 0.06 },
-  // Atmosphere — low energy texture, fades when rhythm takes over
-  { id: 'atmosphere', layers: ['wind', 'heartbeat'],
-    enter: 0.10, exit: 0.65 },
-  // Fire / riser — tension layer, mid energy
-  { id: 'tension_fx', layers: ['riser'],
-    enter: 0.35, exit: 0.15 },
-  // First percussion — enters at medium energy
-  { id: 'rhythm_1',   layers: ['perc'],
-    enter: 0.30, exit: 0.12 },
-  // War drums — enters heavier
-  { id: 'rhythm_2',   layers: ['wardrums'],
-    enter: 0.50, exit: 0.18 },
-  // March / stomp — full combat density
-  { id: 'rhythm_3',   layers: ['march', 'stomp'],
-    enter: 0.68, exit: 0.25 },
-  // Choir — emotional heart, enters at mid+ energy
-  { id: 'choir_bed',  layers: ['choir'],
-    enter: 0.28, exit: 0.08 },
-  // Melody — solo voice, enters after choir establishes
-  { id: 'solo_voice', layers: ['melody'],
-    enter: 0.20, exit: 0.06 },
-  // Cello — countermelody, layered with melody
-  { id: 'cello_cnt',  layers: ['cello'],
-    enter: 0.38, exit: 0.12 },
-  // Organ — harmonic colour, arcane character
-  { id: 'organ_col',  layers: ['organ'],
-    enter: 0.18, exit: 0.06 },
-  // Bells — high detail layer, only at mid energy
-  { id: 'bells_det',  layers: ['bells'],
-    enter: 0.22, exit: 0.55 },        // exits mid-journey (too delicate for peak)
-  // Horn — heroic accent, peak energy only
-  { id: 'horn_acc',   layers: ['horn'],
-    enter: 0.58, exit: 0.20 },
-  // Chains — dark texture, mid+ energy
-  { id: 'chains_tex', layers: ['chains'],
-    enter: 0.42, exit: 0.15 },
-  // Chaos / glitch — peak energy or boss
-  { id: 'chaos_peak', layers: ['chaos', 'glitch'],
-    enter: 0.75, exit: 0.30 },
-  // Ritual chant — boss/nightmare texture
-  { id: 'ritual',     layers: ['ritualchant', 'whispers'],
-    enter: 0.60, exit: 0.20 },
+  {id:'foundation', layers:['drone'],              enter:0.00, exit:-1   },
+  {id:'harmonic',   layers:['strings'],            enter:0.08, exit:-1   },
+  {id:'bass_line',  layers:['bass'],               enter:0.22, exit:0.06 },
+  {id:'atmosphere', layers:['wind','heartbeat'],   enter:0.10, exit:0.65 },
+  {id:'tension_fx', layers:['riser'],              enter:0.35, exit:0.15 },
+  {id:'rhythm_1',   layers:['perc'],               enter:0.30, exit:0.12 },
+  {id:'rhythm_2',   layers:['wardrums'],           enter:0.50, exit:0.18 },
+  {id:'rhythm_3',   layers:['march','stomp'],      enter:0.68, exit:0.25 },
+  {id:'choir_bed',  layers:['choir'],              enter:0.28, exit:0.08 },
+  {id:'solo_voice', layers:['melody'],             enter:0.20, exit:0.06 },
+  {id:'cello_cnt',  layers:['cello'],              enter:0.38, exit:0.12 },
+  {id:'organ_col',  layers:['organ'],              enter:0.18, exit:0.06 },
+  {id:'bells_det',  layers:['bells'],              enter:0.22, exit:0.55 },
+  {id:'horn_acc',   layers:['horn'],               enter:0.58, exit:0.20 },
+  {id:'chains_tex', layers:['chains'],             enter:0.42, exit:0.15 },
+  {id:'chaos_peak', layers:['chaos','glitch'],     enter:0.75, exit:0.30 },
+  {id:'ritual',     layers:['ritualchant','whispers'], enter:0.60, exit:0.20 },
 ];
 
-// Mood overrides — some moods suppress certain groups entirely
 const JC_MOOD_SUPPRESS = {
   meditative: new Set(['rhythm_2','rhythm_3','chains_tex','chaos_peak','ritual','horn_acc']),
   arcane:     new Set(['rhythm_2','rhythm_3','chains_tex']),
@@ -2142,383 +2065,270 @@ const JC_MOOD_SUPPRESS = {
   triumphant: new Set(['chaos_peak','ritual']),
 };
 
-// ── Scene chapter definitions ─────────────────────────────────────
-// Each chapter has a floor, a phrase shape, and a scale mood.
-// Chapters are NOT independent cues — they're waypoints on one arc.
 const JC_CHAPTERS = [
-  { floor:  1, scale: 'dark',   phrase: 'normal',  label: 'The Awakening'    },
-  { floor: 13, scale: 'dark',   phrase: 'normal',  label: 'Rotwood Descent'  },
-  { floor: 25, scale: 'eerie',  phrase: 'normal',  label: 'The Catacombs'    },
-  { floor: 37, scale: 'eerie',  phrase: 'normal',  label: 'Shadowmere'       },
-  { floor: 49, scale: 'arcane', phrase: 'combat',  label: "The Veil Breaks"  },
-  { floor: 61, scale: 'dread',  phrase: 'combat',  label: 'Obsidian Keep'    },
-  { floor: 73, scale: 'dread',  phrase: 'boss',    label: 'The Void Spire'   },
-  { floor: 85, scale: 'dread',  phrase: 'normal',  label: 'Infernal Core'    },
+  {floor: 1, scale:'dark',   phrase:'normal', label:'The Awakening'   },
+  {floor:13, scale:'dark',   phrase:'normal', label:'Rotwood Descent' },
+  {floor:25, scale:'eerie',  phrase:'normal', label:'The Catacombs'   },
+  {floor:37, scale:'eerie',  phrase:'normal', label:'Shadowmere'      },
+  {floor:49, scale:'arcane', phrase:'combat', label:'The Veil Breaks' },
+  {floor:61, scale:'dread',  phrase:'combat', label:'Obsidian Keep'   },
+  {floor:73, scale:'dread',  phrase:'boss',   label:'The Void Spire'  },
+  {floor:85, scale:'dread',  phrase:'normal', label:'Infernal Core'   },
 ];
 
-// ── Evaluate energy from global progress ──────────────────────────
-// progress = 0→1 across full journey. Returns 0→1 energy value.
-// Interpolates between the 8 curve keyframes using cosine smoothing.
 JC.evalEnergy = function(progress) {
   const curve = JC_ENERGY_CURVES[JC.mood] || JC_ENERGY_CURVES.descent;
   const scaled = Math.max(0, Math.min(0.9999, progress)) * (curve.length - 1);
-  const lo = Math.floor(scaled);
-  const hi = Math.min(curve.length - 1, lo + 1);
-  const t  = scaled - lo;
-  // Cosine interpolation — smoother than linear
-  const tc = (1 - Math.cos(t * Math.PI)) / 2;
-  return curve[lo] + (curve[hi] - curve[lo]) * tc;
+  const lo = Math.floor(scaled), hi = Math.min(curve.length-1, lo+1);
+  const tc = (1-Math.cos((scaled-lo)*Math.PI))/2;
+  return curve[lo]+(curve[hi]-curve[lo])*tc;
 };
 
-// ── Compute target layer set from current energy ───────────────────
 JC.computeTargetSet = function() {
-  const e       = JC.energy;
+  const e = JC.energy;
   const suppress = JC_MOOD_SUPPRESS[JC.mood] || new Set();
-  const target  = new Set();
-
-  JC_LAYER_GROUPS.forEach(group => {
-    if (suppress.has(group.id)) return;
-    const shouldBeOn = e >= group.enter && (group.exit < 0 || e > group.exit);
-    if (shouldBeOn) group.layers.forEach(l => target.add(l));
+  const target = new Set();
+  JC_LAYER_GROUPS.forEach(g => {
+    if(suppress.has(g.id)) return;
+    if(e>=g.enter && (g.exit<0||e>g.exit)) g.layers.forEach(l=>target.add(l));
   });
-
-  // Boss step — inject boss layer and chaos unconditionally
-  if (JC.step === JC.bossStep) {
-    target.add('chaos'); target.add('wardrums');
-    target.add('march'); target.add('stomp');
+  if(JC.step===JC.bossStep){
+    target.add('chaos'); target.add('wardrums'); target.add('march'); target.add('stomp');
   }
-
   return target;
 };
 
-// ── Reconcile active layers toward target ─────────────────────────
-// Layers that should be on but aren't → fade in.
-// Layers that should be off but are → fade out.
-// This runs every bar so transitions are gradual, not instant.
-// At most 2 layers change per tick to prevent overwhelming the mix.
 JC.reconcile = function(preset, intensity) {
-  const target  = JC.computeTargetSet();
+  const target = JC.computeTargetSet();
   const percBufs = buildPercBufs(preset, sessionVoices['perc']);
-
-  // Layer entry order — determines which 2 we process first
   const ORDER = ['drone','strings','bass','choir','organ','heartbeat','wind',
                  'melody','cello','lute','bells','horn','perc','wardrums',
                  'march','stomp','chains','riser','ritualchant','whispers',
                  'chaos','glitch','firecrackle'];
-
-  let entrances = 0, exits = 0;
-
+  let entrances=0, exits=0;
   ORDER.forEach(name => {
-    if (!(name in layerOn)) return;
-    const shouldBeOn = target.has(name);
-    const isOn = layerOn[name];
-
-    if (shouldBeOn && !isOn && entrances < 2) {
+    if(!(name in layerOn)) return;
+    const on = layerOn[name], should = target.has(name);
+    if(should && !on && entrances<2){
       entrances++;
-      layerOn[name] = true;
-      document.getElementById('btn-' + name)?.classList.add('active');
-      document.getElementById('pill-' + name)?.classList.add('on');
-      startLayer(name, preset, intensity,
-        PERC_BUF_LAYERS.has(name) ? percBufs : null);
+      layerOn[name]=true;
+      document.getElementById('btn-'+name)?.classList.add('active');
+      document.getElementById('pill-'+name)?.classList.add('on');
+      startLayer(name,preset,intensity,PERC_BUF_LAYERS.has(name)?percBufs:null);
       JC.activeSet.add(name);
     }
-
-    if (!shouldBeOn && isOn && exits < 2) {
+    if(!should && on && exits<2){
       exits++;
-      layerOn[name] = false;
-      document.getElementById('btn-' + name)?.classList.remove('active');
-      document.getElementById('pill-' + name)?.classList.remove('on');
+      layerOn[name]=false;
+      document.getElementById('btn-'+name)?.classList.remove('active');
+      document.getElementById('pill-'+name)?.classList.remove('on');
       stopLayer(name);
       JC.activeSet.delete(name);
     }
   });
 };
 
-// ── Master volume curve driven by global progress ─────────────────
-// The overall volume follows the energy curve so the piece has a
-// single dynamic arc. Peak energy = full volume; quiet sections
-// are physically quieter, not just sparser.
 JC.applyMasterVolume = function() {
-  if (!ctx || !masterGain) return;
-  // Map energy 0→1 to gain 0.12→0.42
-  // (0.38 is the default master; we allow ±0.04 either side)
-  const targetGain = 0.12 + JC.energy * 0.30;
+  if(!ctx||!masterGain) return;
+  const targetGain = 0.12+JC.energy*0.30;
   const now = ctx.currentTime;
   masterGain.gain.cancelScheduledValues(now);
-  masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-  // Slow ramp — 8 bars. Volume changes feel tidal, not mechanical.
-  masterGain.gain.linearRampToValueAtTime(targetGain, now + (barLength || 4) * 8);
+  masterGain.gain.setValueAtTime(masterGain.gain.value,now);
+  masterGain.gain.linearRampToValueAtTime(targetGain,now+(barLength||4)*8);
 };
 
-// ── Scene transition — the composed moment between chapters ───────
-// Instead of a raw crossfade, each chapter boundary is a distinct event:
-//   1. Two-bar diminuendo — the "held breath" before the scene cuts
-//   2. CE.onZoneChange fires mid-silence (harmony shifts in the quiet)
-//   3. New layers bloom in from silence — the scene arrives
-// This is what makes chapter changes feel like film cues, not playlists.
-JC.doSceneTransition = function(fromChapter, toChapter, preset, intensity) {
-  if (!ctx || !masterGain || JC.sceneTransition) return;
+JC.doSceneTransition = function(toChapter, preset, intensity) {
+  if(!ctx||!masterGain||JC.sceneTransition) return;
   JC.sceneTransition = true;
-
-  const bl  = barLength || 4;
+  const bl  = barLength||4;
   const now = ctx.currentTime;
 
-  // ── Act 1: Diminuendo — pull back to near-silence ────────────────
-  // Duration scales with how big the energy jump is (bigger jump = longer breath)
-  const energyJump = Math.abs(
-    JC.evalEnergy((JC.step) / JC.totalSteps) -
-    JC.evalEnergy((JC.step - 1) / JC.totalSteps)
-  );
-  const breathBars = energyJump > 0.3 ? 3 : energyJump > 0.15 ? 2 : 1;
-  const breathDur  = bl * breathBars;
-  const silenceGain = JC.energy > 0.6 ? 0.06 : 0.14; // deeper breath at peaks
+  // How big was the energy jump?
+  const prevEnergy = JC.evalEnergy(Math.max(0,(JC.step-1)/JC.totalSteps));
+  const energyJump = Math.abs(JC.energy - prevEnergy);
+  const breathBars = energyJump>0.3?3:energyJump>0.15?2:1;
+  const silenceGain = JC.energy>0.6?0.06:0.14;
 
   masterGain.gain.cancelScheduledValues(now);
-  masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-  masterGain.gain.linearRampToValueAtTime(silenceGain, now + breathDur * 0.7);
-  masterGain.gain.setValueAtTime(silenceGain, now + breathDur);
+  masterGain.gain.setValueAtTime(masterGain.gain.value,now);
+  masterGain.gain.linearRampToValueAtTime(silenceGain,now+bl*breathBars*0.7);
+  masterGain.gain.setValueAtTime(silenceGain,now+bl*breathBars);
 
-  // ── Act 2: Zone and harmony shift (mid-silence) ──────────────────
-  const zoneChangeMs = breathDur * 1000 * 0.5;
-  const t2 = JC.timers.length;
-  JC.timers.push(setTimeout(() => {
-    if (!JC.active || !isPlaying) return;
+  // Zone/harmony shift mid-silence
+  JC.timers.push(setTimeout(()=>{
+    if(!JC.active||!isPlaying) return;
     CE.onZoneChange(preset);
-    if (!bpmLocked) barLength = (60 / preset.bpm) * 4;
-    // Update scale
-    const chapter = toChapter;
-    const moodScales = SCALE_MOODS[chapter.scale] || SCALE_MOODS.dark;
-    selectScale(moodScales[Math.floor(rng() * moodScales.length)]);
-    // Update phrase sequence for new chapter
-    const phraseMap = { normal: PHRASE_SEQUENCES.normal, combat: PHRASE_SEQUENCES.combat, boss: PHRASE_SEQUENCES.boss };
-    phraseSeq = phraseMap[chapter.phrase] || PHRASE_SEQUENCES.normal;
-    phraseSeqIdx = 0;
-    currentPhrase = phraseSeq[0];
-    stopPhraseEngine();
-    startPhraseEngine();
-  }, zoneChangeMs));
+    if(!bpmLocked) barLength=(60/preset.bpm)*4;
+    const moodScales=SCALE_MOODS[toChapter.scale]||SCALE_MOODS.dark;
+    selectScale(moodScales[Math.floor(rng()*moodScales.length)]);
+    const phraseMap={normal:PHRASE_SEQUENCES.normal,combat:PHRASE_SEQUENCES.combat,boss:PHRASE_SEQUENCES.boss};
+    phraseSeq=phraseMap[toChapter.phrase]||PHRASE_SEQUENCES.normal;
+    phraseSeqIdx=0; currentPhrase=phraseSeq[0];
+    stopPhraseEngine(); startPhraseEngine();
+  }, bl*breathBars*500));
 
-  // ── Act 3: Bloom — new identity fills the silence ────────────────
-  // Restore master volume slowly as new layers enter
-  const bloomStart = breathDur + bl * 0.5;
-  const bloomDur   = bl * 4;
-  const targetGain = 0.12 + JC.energy * 0.30;
+  // Bloom back
+  const bloomStart = bl*(breathBars+0.5);
+  masterGain.gain.linearRampToValueAtTime(0.12+JC.energy*0.30, now+bloomStart+bl*4);
 
-  masterGain.gain.linearRampToValueAtTime(targetGain, now + bloomStart + bloomDur);
+  JC.timers.push(setTimeout(()=>{ JC.sceneTransition=false; }, (bloomStart+bl*5)*1000));
 
-  // Scene transition flag clears when bloom completes
-  JC.timers.push(setTimeout(() => {
-    JC.sceneTransition = false;
-  }, (bloomStart + bloomDur + bl) * 1000));
-
-  // Zone name UI update
-  const zEl = document.getElementById('zoneName');
-  JC.timers.push(setTimeout(() => {
-    if (zEl) {
-      zEl.classList.add('changing');
-      setTimeout(() => {
-        zEl.textContent = preset.name;
-        zEl.classList.remove('changing');
-      }, 150);
-    }
+  // UI update mid-transition
+  JC.timers.push(setTimeout(()=>{
+    const zEl=document.getElementById('zoneName');
+    if(zEl){zEl.classList.add('changing');setTimeout(()=>{zEl.textContent=preset.name;zEl.classList.remove('changing');},150);}
     document.getElementById('ciZone').textContent  = preset.name;
     document.getElementById('ciFloor').textContent = `Void Floor ${toChapter.floor}`;
     setStatus(`${toChapter.label} — ${preset.desc}`);
-    document.getElementById('randArchetypeLabel').textContent = toChapter.label.toUpperCase();
-  }, zoneChangeMs));
+    document.getElementById('randArchetypeLabel').textContent=toChapter.label.toUpperCase();
+  }, bl*breathBars*500));
 };
 
-// ── Per-bar tick — the conductor's heartbeat ──────────────────────
-// Called by the existing bar clock. Updates progress, energy, and
-// reconciles layers. Everything else flows from these three values.
 JC.tick = function() {
-  if (!JC.active || !isPlaying) return;
+  if(!JC.active||!isPlaying) return;
+  const elapsed = Date.now()-JC.startTime;
+  JC.progress   = Math.min(1,elapsed/JC.totalDurationMs);
+  JC.energy     = JC.evalEnergy(JC.progress);
 
-  // Global progress — where are we in the full journey
-  const elapsed = Date.now() - JC.startTime;
-  JC.progress   = Math.min(1, elapsed / JC.totalDurationMs);
+  // Which chapter?
+  const newStep = Math.min(JC.totalSteps-1,
+    JC.stepStartTimes.reduce((acc,t,i)=>elapsed>=t?i:acc, 0));
+  const stepChanged = newStep>JC.step;
 
-  // Which chapter are we in
-  const newStep = Math.min(JC.totalSteps - 1,
-    JC.stepStartTimes.findLastIndex(t => elapsed >= t));
-  const stepChanged = newStep !== JC.step && newStep > JC.step;
+  if(stepChanged){
+    JC.step = newStep;
+    journeyDepth = JC.step;
+    if(CIN.knight?.legend) CIN.knight.legend.step=JC.step;
+    const toChapter = JC_CHAPTERS[JC.step];
+    const toPreset  = getZone(toChapter.floor);
+    logTimeline(`Chapter ${JC.step+1}: ${toChapter.label} · Floor ${toChapter.floor}`);
+    JC.doSceneTransition(toChapter, toPreset, Math.min(1,JC.energy+0.15));
+  }
 
-  // Energy from curve
-  JC.energy = JC.evalEnergy(JC.progress);
-
-  // Floor crawl — smooth floor number advance toward chapter floor
-  const chapter = JC_CHAPTERS[JC.step] || JC_CHAPTERS[JC.totalSteps - 1];
-  const currentFloor = parseInt(slider.value);
-  if (Math.abs(currentFloor - chapter.floor) > 1) {
-    const dir = chapter.floor > currentFloor ? 1 : -1;
-    const targetF = Math.max(1, Math.min(99, currentFloor + dir));
-    slider.value = targetF;
-    slider.style.setProperty('--pct', ((targetF - 1) / 98 * 100).toFixed(1) + '%');
-    document.getElementById('floorNum').textContent = targetF;
+  // Floor crawl
+  const chapter = JC_CHAPTERS[JC.step]||JC_CHAPTERS[JC.totalSteps-1];
+  const cur = parseInt(slider.value);
+  if(Math.abs(cur-chapter.floor)>1){
+    const dir=chapter.floor>cur?1:-1;
+    const nf=Math.max(1,Math.min(99,cur+dir));
+    slider.value=nf;
+    slider.style.setProperty('--pct',((nf-1)/98*100).toFixed(1)+'%');
+    document.getElementById('floorNum').textContent=nf;
   }
 
   const preset    = getZone(chapter.floor);
-  const intensity = Math.min(1, JC.energy + 0.15); // energy drives intensity, with a floor
-
-  // Chapter boundary — fire scene transition
-  if (stepChanged) {
-    JC.step = newStep;
-    journeyDepth = JC.step;
-    if (CIN.knight?.legend) CIN.knight.legend.step = JC.step;
-
-    const fromChapter = JC_CHAPTERS[JC.step - 1] || JC_CHAPTERS[0];
-    const toChapter   = JC_CHAPTERS[JC.step];
-    const toPreset    = getZone(toChapter.floor);
-
-    logTimeline(`Chapter ${JC.step + 1}: ${toChapter.label} · Floor ${toChapter.floor}`);
-    JC.doSceneTransition(fromChapter, toChapter, toPreset, intensity);
-  }
-
-  // Reconcile layers every bar — gradual, never jarring
-  if (!JC.sceneTransition) {
-    JC.reconcile(preset, intensity);
+  const intensity = Math.min(1,JC.energy+0.15);
+  if(!JC.sceneTransition){
+    JC.reconcile(preset,intensity);
     JC.applyMasterVolume();
   }
 };
 
-// ── Main entry point ──────────────────────────────────────────────
 function startRandomJourney() {
-  if (!isPlaying) togglePlay();
+  if(!isPlaying) togglePlay();
 
-  // Pick mood
-  const moodKeys = Object.keys(JOURNEY_MOODS);
-  activeJourneyMood = moodKeys[Math.floor(Math.random() * moodKeys.length)];
+  const moodKeys=Object.keys(JOURNEY_MOODS);
+  activeJourneyMood=moodKeys[Math.floor(Math.random()*moodKeys.length)];
   selectJourneyMood(activeJourneyMood);
 
-  // Clear all timers and layers from previous run
-  JC.timers.forEach(clearTimeout);
-  JC.timers = [];
-  journeyTimers.forEach(clearTimeout);
-  journeyTimers = [];
-  Object.keys(layerOn).forEach(name => {
-    if (layerOn[name]) {
-      layerOn[name] = false;
-      document.getElementById('btn-' + name)?.classList.remove('active');
-      document.getElementById('pill-' + name)?.classList.remove('on');
+  // Clear all timers and layers
+  JC.timers.forEach(clearTimeout); JC.timers=[];
+  journeyTimers.forEach(clearTimeout); journeyTimers=[];
+  Object.keys(layerOn).forEach(name=>{
+    if(layerOn[name]){
+      layerOn[name]=false;
+      document.getElementById('btn-'+name)?.classList.remove('active');
+      document.getElementById('pill-'+name)?.classList.remove('on');
       stopLayer(name);
     }
   });
   JC.activeSet.clear();
 
-  // ── Step durations — the time budget per chapter ──────────────────
-  // Earlier chapters are longer (world-building); peak chapters shorter
-  // (intensity); final chapter holds, then fades.
-  // Total ~7 minutes = 420 seconds.
-  const BASE_STEP_MS = [
-    62000,  // ch0 — sparse opening, let it breathe
-    58000,  // ch1 — first movement growing
-    54000,  // ch2 — building toward mid
-    50000,  // ch3 — mid-journey pivot
-    46000,  // ch4 — intensity rising fast
-    40000,  // ch5 — peak zone
-    38000,  // ch6 — boss / climax
-    34000,  // ch7 — final chapter, holds then fades
-  ];
-  // Add small random variance (±8s) so each run feels different
-  JC.stepDurations = BASE_STEP_MS.map(d => d + (rng() - 0.5) * 16000);
-  JC.totalDurationMs = JC.stepDurations.reduce((a, b) => a + b, 0);
-  JC.stepStartTimes  = [];
-  let cumulative = 0;
-  JC.stepDurations.forEach(d => { JC.stepStartTimes.push(cumulative); cumulative += d; });
+  // Step durations — ~7 minutes total, earlier chapters longer
+  const BASE=[62000,58000,54000,50000,46000,40000,38000,34000];
+  JC.stepDurations=BASE.map(d=>d+(rng()-0.5)*16000);
+  JC.totalDurationMs=JC.stepDurations.reduce((a,b)=>a+b,0);
+  JC.stepStartTimes=[];
+  let cum=0;
+  JC.stepDurations.forEach(d=>{JC.stepStartTimes.push(cum);cum+=d;});
 
-  // ── Conductor state init ──────────────────────────────────────────
-  JC.active    = true;
-  JC.progress  = 0;
-  JC.energy    = 0;
-  JC.step      = 0;
-  JC.mood      = activeJourneyMood;
-  JC.startTime = Date.now();
-  JC.sceneTransition = false;
-  JC.bossStep  = 4 + Math.floor(rng() * 3); // boss at step 4, 5, or 6
+  JC.active=true; JC.progress=0; JC.energy=0; JC.step=0;
+  JC.mood=activeJourneyMood; JC.startTime=Date.now();
+  JC.sceneTransition=false;
+  JC.bossStep=4+Math.floor(rng()*3);
 
-  journeyActive = true;
-  journeyDepth  = 0;
+  journeyActive=true; journeyDepth=0;
 
-  // ── Knight legend ─────────────────────────────────────────────────
-  if (CIN.knight) {
-    const moodTraits = {
-      descent:    { aggression: 0.5, patience: 0.6, grief: 0.3, glory: 0.2 },
-      tragic:     { aggression: 0.2, patience: 0.8, grief: 0.9, glory: 0.1 },
-      triumphant: { aggression: 0.85, patience: 0.3, grief: 0.1, glory: 0.95 },
-      arcane:     { aggression: 0.15, patience: 0.9, grief: 0.4, glory: 0.3 },
-      meditative: { aggression: 0.05, patience: 1.0, grief: 0.5, glory: 0.1 },
+  // Knight legend
+  if(CIN.knight){
+    const moodTraits={
+      descent:   {aggression:0.5,patience:0.6,grief:0.3,glory:0.2},
+      tragic:    {aggression:0.2,patience:0.8,grief:0.9,glory:0.1},
+      triumphant:{aggression:0.85,patience:0.3,grief:0.1,glory:0.95},
+      arcane:    {aggression:0.15,patience:0.9,grief:0.4,glory:0.3},
+      meditative:{aggression:0.05,patience:1.0,grief:0.5,glory:0.1},
     };
-    const bt = moodTraits[activeJourneyMood] || moodTraits.descent;
-    CIN.knight.legend = {
-      mood: activeJourneyMood, step: 0, bossStep: JC.bossStep,
-      aggression: Math.max(0, Math.min(1, bt.aggression + (Math.random()-0.5)*0.22)),
-      patience:   Math.max(0, Math.min(1, bt.patience   + (Math.random()-0.5)*0.18)),
-      grief:      Math.max(0, Math.min(1, bt.grief       + (Math.random()-0.5)*0.20)),
-      glory:      Math.max(0, Math.min(1, bt.glory       + (Math.random()-0.5)*0.22)),
+    const bt=moodTraits[activeJourneyMood]||moodTraits.descent;
+    CIN.knight.legend={
+      mood:activeJourneyMood,step:0,bossStep:JC.bossStep,
+      aggression:Math.max(0,Math.min(1,bt.aggression+(Math.random()-0.5)*0.22)),
+      patience:  Math.max(0,Math.min(1,bt.patience  +(Math.random()-0.5)*0.18)),
+      grief:     Math.max(0,Math.min(1,bt.grief     +(Math.random()-0.5)*0.20)),
+      glory:     Math.max(0,Math.min(1,bt.glory     +(Math.random()-0.5)*0.22)),
     };
-    CIN.knight.wounds = 0; CIN.knight.woundFlash = 0;
-    CIN.knight.journeyEndFired = false;
-    CIN.knight.bossBuildupT = 0; CIN.knight.bossAftermathT = 0;
+    CIN.knight.wounds=0; CIN.knight.woundFlash=0;
+    CIN.knight.journeyEndFired=false;
+    CIN.knight.bossBuildupT=0; CIN.knight.bossAftermathT=0;
   }
 
-  // ── Opening: seed the first chapter immediately ───────────────────
+  // Seed first chapter
   initAudio();
-  const firstChapter = JC_CHAPTERS[0];
-  const firstPreset  = getZone(firstChapter.floor);
-  if (!bpmLocked) barLength = (60 / firstPreset.bpm) * 4;
+  const firstChapter=JC_CHAPTERS[0];
+  const firstPreset=getZone(firstChapter.floor);
+  if(!bpmLocked) barLength=(60/firstPreset.bpm)*4;
   CE.onZoneChange(firstPreset);
-
-  const openScales = SCALE_MOODS[firstChapter.scale] || SCALE_MOODS.dark;
-  selectScale(openScales[Math.floor(rng() * openScales.length)]);
-
-  const phraseMap = { normal: PHRASE_SEQUENCES.normal, combat: PHRASE_SEQUENCES.combat, boss: PHRASE_SEQUENCES.boss };
-  phraseSeq = phraseMap[firstChapter.phrase] || PHRASE_SEQUENCES.normal;
-  phraseSeqIdx = 0;
-  currentPhrase = phraseSeq[0];
-  autoEvolution = true;
+  const openScales=SCALE_MOODS[firstChapter.scale]||SCALE_MOODS.dark;
+  selectScale(openScales[Math.floor(rng()*openScales.length)]);
+  phraseSeq=PHRASE_SEQUENCES.normal; phraseSeqIdx=0;
+  currentPhrase=phraseSeq[0]; autoEvolution=true;
   startPhraseEngine();
 
-  // Drone enters immediately — it is the seed everything grows from
-  layerOn['drone'] = true;
+  // Drone seeds immediately
+  layerOn['drone']=true;
   document.getElementById('btn-drone')?.classList.add('active');
   document.getElementById('pill-drone')?.classList.add('on');
-  startLayer('drone', firstPreset, 0.08, null);
+  startLayer('drone',firstPreset,0.08,null);
 
-  // Strings enter after 2 bars — they are the first thing the listener hears
-  // growing from the drone. Everything else waits until the conductor's
-  // reconcile loop decides the energy is right.
-  JC.timers.push(setTimeout(() => {
-    if (!JC.active || !isPlaying) return;
-    layerOn['strings'] = true;
+  // Strings enter after 2 bars
+  JC.timers.push(setTimeout(()=>{
+    if(!JC.active||!isPlaying) return;
+    layerOn['strings']=true;
     document.getElementById('btn-strings')?.classList.add('active');
     document.getElementById('pill-strings')?.classList.add('on');
-    startLayer('strings', firstPreset, 0.10, null);
+    startLayer('strings',firstPreset,0.10,null);
     JC.activeSet.add('drone'); JC.activeSet.add('strings');
-  }, barLength * 2 * 1000));
+  }, barLength*2*1000));
 
-  // Conductor tick is hooked into the bar clock — see tickBar() patch below
   setStatus(`🌑 Journey begins — ${firstChapter.label}`);
-  document.getElementById('randArchetypeLabel').textContent = firstChapter.label.toUpperCase();
-  logTimeline(`Journey start · ${activeJourneyMood} · ${JC.totalDurationMs / 1000 | 0}s planned`);
+  document.getElementById('randArchetypeLabel').textContent=firstChapter.label.toUpperCase();
+  logTimeline(`Journey start · ${activeJourneyMood} · ${JC.totalDurationMs/1000|0}s`);
 
-  // ── Outro — fade and stop at end of full arc ──────────────────────
-  const outroDur = 14; // seconds
-  JC.timers.push(setTimeout(() => {
-    if (!isPlaying) return;
-    journeyActive = false;
-    JC.active = false;
-    if (CIN.knight) CIN.knight.journeyEndFired = false;
-    const now2 = ctx.currentTime;
+  // Outro fade
+  const outroDur=14;
+  JC.timers.push(setTimeout(()=>{
+    if(!isPlaying) return;
+    journeyActive=false; JC.active=false;
+    if(CIN.knight) CIN.knight.journeyEndFired=false;
+    const now2=ctx.currentTime;
     masterGain.gain.cancelScheduledValues(now2);
-    masterGain.gain.setValueAtTime(masterGain.gain.value, now2);
-    masterGain.gain.linearRampToValueAtTime(0, now2 + outroDur);
+    masterGain.gain.setValueAtTime(masterGain.gain.value,now2);
+    masterGain.gain.linearRampToValueAtTime(0,now2+outroDur);
     setStatus('🌑 The void reclaims all...');
-    logTimeline('Journey end — fade out');
-    JC.timers.push(setTimeout(() => {
-      if (!isPlaying) return;
-      togglePlay();
-      masterGain.gain.value = 0.38;
-    }, (outroDur + 0.3) * 1000));
+    logTimeline('Journey end');
+    JC.timers.push(setTimeout(()=>{
+      if(!isPlaying) return;
+      togglePlay(); masterGain.gain.value=0.38;
+    },(outroDur+0.3)*1000));
   }, JC.totalDurationMs));
 }
 
@@ -4458,226 +4268,214 @@ function buildBass(preset, intensity, name) {
   tick();
 }
   
+// ══════════════════════════════════════════════════════════════
+// MELODIC PHRASE BRAIN (MP)
+// Shared state read by melody, cello, choir, and strings.
+// ══════════════════════════════════════════════════════════════
+
+const MP = {
+  contour:'arch', phraseLen:8, position:0, cadenceBar:6,
+  energy:0.3, lastDeg:0, callDone:false, phraseAge:0,
+  degreePath:[0,2,4,3,2,4,2,0],
+};
+
+const MP_CONTOURS = {
+  ascent:(len,e)=>{
+    const pk=Math.round(3+e*4);
+    return Array.from({length:len},(_,i)=>{const p=i/(len-1);return p<0.6?Math.round(p/0.6*pk):Math.round(pk*(1-(p-0.6)/0.4));});
+  },
+  descent:(len,e)=>{
+    const s=Math.round(4+e*3);
+    return Array.from({length:len},(_,i)=>Math.round(s*(1-Math.pow(i/(len-1),2))));
+  },
+  arch:(len,e)=>{
+    const pk=Math.round(3+e*4);
+    return Array.from({length:len},(_,i)=>Math.round(Math.sin(i/(len-1)*Math.PI)*pk));
+  },
+  question:(len,e)=>{
+    const end=e>0.5?6:1,pk=Math.round(2+e*3);
+    return Array.from({length:len},(_,i)=>{const p=i/(len-1);return p<0.7?Math.round(p/0.7*pk):Math.round(pk+(end-pk)*((p-0.7)/0.3));});
+  },
+  answer:(len,e)=>{
+    const s=e>0.5?6:1;
+    return Array.from({length:len},(_,i)=>{const p=i/(len-1);return p<0.2?Math.round(s+(e>0.5?1:-1)):Math.round(s*(1-(p-0.2)/0.8));});
+  },
+};
+
+function MP_selectContour(energy,age){
+  if(age%4>=2) return age%4===2?'question':'answer';
+  if(energy>0.72) return 'arch';
+  if(energy>0.45) return 'ascent';
+  if(energy<0.20) return 'descent';
+  return ['arch','ascent','descent'][Math.floor(Math.random()*3)];
+}
+
+function MP_nextPhrase(preset){
+  const e=JC.active?JC.energy:MP.energy;
+  MP.phraseAge++;
+  MP.contour=MP_selectContour(e,MP.phraseAge);
+  MP.position=0; MP.callDone=false;
+  MP.phraseLen=e>0.70?8:e>0.40?10:12+Math.floor(Math.random()*4);
+  MP.cadenceBar=MP.phraseLen-2;
+  const fn=MP_CONTOURS[MP.contour]||MP_CONTOURS.arch;
+  MP.degreePath=fn(MP.phraseLen,e);
+  if(MP.phraseAge%3===0){
+    const anch=ZONE_LEITMOTIFS[preset.name]||[0,2,4,2];
+    const bl=Math.min(anch.length,Math.floor(MP.phraseLen/2));
+    for(let i=0;i<bl;i++) MP.degreePath[i]=anch[i%anch.length];
+  }
+  MP.energy=e;
+}
+
+function MP_degreeAt(bar,isResponse){
+  if(bar>=MP.cadenceBar) return 0;
+  if(bar===MP.cadenceBar-1) return MP.energy>0.5?6:1;
+  const base=MP.degreePath[Math.min(bar,MP.degreePath.length-1)]||0;
+  if(isResponse) return base<=3?base+4:Math.max(0,base-3);
+  if(Math.random()<0.18) return Math.max(0,base+(Math.random()<0.5?1:-1));
+  return base;
+}
+
+function MP_choirOpenness(){
+  const e=JC.active?JC.energy:MP.energy;
+  const p=MP.phraseLen?MP.position/MP.phraseLen:0;
+  switch(MP.contour){
+    case 'arch':     return e*Math.sin(p*Math.PI);
+    case 'ascent':   return e*(p<0.6?p/0.6:1-(p-0.6)/0.4);
+    case 'descent':  return e*(1-p*p);
+    case 'question': return e*Math.min(1,p*1.4);
+    case 'answer':   return e*(p<0.3?p/0.3:1-(p-0.3)/0.7);
+    default:         return e;
+  }
+}
+
 function buildMelody(preset, intensity, name) {
-  const b = bus[name];
+  const b   = bus[name];
   const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
-  const motif = mutateMotif(preset);
-  let patIdx = 0;
-  let t = ctx.currentTime + 0.1;
-
-  // ── Cinematic instrument timbre — additive harmonic partial stacks ──
-  // Zone depth selects the instrument register:
-  //   Shallow (Ashen/Rotwood, intensity <0.35): oboe/cor anglais — nasal, piercing, mournful
-  //   Mid (Catacombs/Shadowmere/Veil, 0.35-0.65): solo violin sul tasto — warm, dark bow
-  //   Deep (Obsidian/Void/Infernal, >0.65): stopped horn / low brass — veiled, menacing
-  // All timbres built from sine partial sums — no raw sawtooth/triangle.
-  // This is what makes orchestral instruments sound like themselves.
-
-  const isWoodwind = intensity < 0.35;
-  const isBrass    = intensity > 0.65;
-
-  // Partial tables: each entry = { ratio, amplitude, decayFraction }
-  // decayFraction controls how much this harmonic decays during the note sustain
-  // (1.0 = stays at full amplitude; 0.15 = fades to near-zero by note end)
+  const energy = JC.active ? JC.energy : intensity;
+  const isWoodwind = energy < 0.35;
+  const isBrass    = energy > 0.65;
   const PARTIALS = {
-    woodwind: [ // oboe: odd harmonics dominate, nasal peak at 3rd
-      { r: 1,  a: 0.52, d: 1.00 },
-      { r: 2,  a: 0.10, d: 0.80 }, // even suppressed
-      { r: 3,  a: 0.36, d: 0.65 }, // 3rd peak — nasal character
-      { r: 4,  a: 0.07, d: 0.50 },
-      { r: 5,  a: 0.20, d: 0.38 }, // 5th secondary peak
-      { r: 6,  a: 0.05, d: 0.28 },
-      { r: 7,  a: 0.12, d: 0.20 }, // 7th — woody edge
-      { r: 8,  a: 0.03, d: 0.14 },
-    ],
-    strings: [ // violin sul tasto: full harmonic series, warm
-      { r: 1,  a: 0.48, d: 1.00 },
-      { r: 2,  a: 0.30, d: 0.88 }, // 2nd strong — violins shine here
-      { r: 3,  a: 0.24, d: 0.74 },
-      { r: 4,  a: 0.16, d: 0.58 },
-      { r: 5,  a: 0.11, d: 0.44 },
-      { r: 6,  a: 0.07, d: 0.32 },
-      { r: 7,  a: 0.05, d: 0.22 },
-      { r: 8,  a: 0.03, d: 0.14 },
-    ],
-    brass: [ // stopped horn: 2nd/3rd dominant, veiled by mute
-      { r: 1,  a: 0.38, d: 1.00 },
-      { r: 2,  a: 0.44, d: 0.90 }, // 2nd dominant — warmth
-      { r: 3,  a: 0.36, d: 0.76 }, // 3rd nearly equal
-      { r: 4,  a: 0.18, d: 0.60 },
-      { r: 5,  a: 0.14, d: 0.45 },
-      { r: 6,  a: 0.08, d: 0.30 },
-    ],
+    woodwind:[{r:1,a:0.52},{r:2,a:0.10},{r:3,a:0.36},{r:4,a:0.07},{r:5,a:0.20},{r:6,a:0.05},{r:7,a:0.12},{r:8,a:0.03}],
+    strings: [{r:1,a:0.48},{r:2,a:0.30},{r:3,a:0.24},{r:4,a:0.16},{r:5,a:0.11},{r:6,a:0.07},{r:7,a:0.05},{r:8,a:0.03}],
+    brass:   [{r:1,a:0.38},{r:2,a:0.44},{r:3,a:0.36},{r:4,a:0.18},{r:5,a:0.14},{r:6,a:0.08}],
   };
+  const timbre=isWoodwind?'woodwind':isBrass?'brass':'strings';
+  const partials=PARTIALS[timbre];
+  const atkTime=isWoodwind?0.012:isBrass?0.038:0.09+energy*0.045;
+  const vibHz=isWoodwind?5.5:isBrass?4.0:4.2;
+  const vibDepth=isWoodwind?1.8:isBrass?2.5:3.8;
+  if(MP.position===0&&MP.phraseAge===0) MP_nextPhrase(preset);
+  let t=ctx.currentTime+beat*0.5;
 
-  const timbre   = isWoodwind ? 'woodwind' : isBrass ? 'brass' : 'strings';
-  const partials = PARTIALS[timbre];
-
-  // Attack time per instrument family
-  const atkTime = isWoodwind ? 0.012 : isBrass ? 0.038 : 0.095 + intensity * 0.045;
-
-  // Vibrato characteristics per family
-  const vibHz    = isWoodwind ? 5.5  : isBrass ? 4.0  : 4.2;
-  const vibDepth = isWoodwind ? 1.8  : isBrass ? 2.5  : 3.8; // cents equiv — strings widest
-
-  function schedBar() {
-    const useMotif = (patIdx % 3 === 0);
-    let motifPat = useMotif
-      ? [...motif]
-      : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
-
-    if (rng() < 0.25) motifPat = [...motifPat].reverse();
-    else if (rng() < 0.2) motifPat = motifPat.map(d => d + 7);
-
-    const subdivisions = [0.25, 0.5, 0.75, 1.0];
-    let cursor = t;
-
-    for (let i = 0; i < motifPat.length; i++) {
-      const restChance = currentPhrase === 'climax' ? 0.18
-                       : currentPhrase === 'intro'   ? 0.55
-                       : currentPhrase === 'resolution' ? 0.50
-                       : preset.melodySkip + 0.15;
-      if (rng() < restChance) {
-        cursor += beat * subdivisions[Math.floor(rng() * 2)];
-        continue;
+  function playNote(bt,freq,noteDur){
+    const env=mkGain(0); env.connect(b); reg(name,env);
+    const vol=(0.04+energy*0.07)*(MP.position>=MP.cadenceBar?1.15:1.0);
+    env.gain.setValueAtTime(0,bt);
+    env.gain.linearRampToValueAtTime(vol*(isBrass?1.10:1.0),bt+atkTime);
+    if(isBrass) env.gain.linearRampToValueAtTime(vol*0.88,bt+atkTime+0.14);
+    env.gain.setValueAtTime(vol*0.92,bt+noteDur*0.65);
+    env.gain.linearRampToValueAtTime(0.001,bt+noteDur);
+    partials.forEach(({r,a})=>{
+      const o=mkOsc(Math.max(20,freq*r*(r>4?1+(r-4)*0.001:1)),'sine');
+      const g=mkGain(a); const pEnv=mkGain(1.0);
+      chain(o,g,pEnv,env);
+      pEnv.gain.setValueAtTime(1.0,bt); pEnv.gain.setValueAtTime(1.0,bt+atkTime*2.5);
+      pEnv.gain.linearRampToValueAtTime(r===1?0.96:r<=3?0.68:0.22,bt+noteDur*0.60);
+      if(r<=2&&noteDur>beat*0.4){
+        const vib=mkOsc(vibHz+Math.random()*0.3,'sine'); const vibG=mkGain(0);
+        chain(vib,vibG); vibG.connect(o.frequency);
+        const vi=bt+noteDur*0.28;
+        vibG.gain.setValueAtTime(0,vi);
+        vibG.gain.linearRampToValueAtTime(vibDepth+energy*vibDepth*0.5,vi+noteDur*0.35);
+        vib.start(bt); vib.stop(bt+noteDur+0.15); reg(name,vib,vibG);
       }
-
-      const bt   = cursor;
-      const deg  = motifPat[i];
-      const freq = CE.scaleStep(preset, preset.melodyOctave, deg);
-
-      // Strong bias toward long held notes — cinematic weight
-      const durChoice = rng();
-      const noteDur = durChoice < 0.20 ? beat * 0.18
-                    : durChoice < 0.50 ? beat * 0.80
-                    :                    beat * (1.6 + rng());
-
-      const isCombat = currentPhrase === 'climax' || currentPhrase === 'tension';
-      const subPool = isCombat ? [0.25, 0.25, 0.5] : subdivisions;
-      cursor += beat * subPool[Math.floor(rng() * subPool.length)];
-
-      // Master note envelope — all partials route through this
-      const env = mkGain(0);
-      env.connect(b);
-      reg(name, env);
-
-      const vol = 0.055 + intensity * 0.055;
-
-      env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol * (isBrass ? 1.10 : 1.0), bt + atkTime);
-      if (isBrass) env.gain.linearRampToValueAtTime(vol * 0.88, bt + atkTime + 0.14);
-      env.gain.setValueAtTime(vol * (isBrass ? 0.88 : 0.92), bt + noteDur * 0.65);
-      env.gain.linearRampToValueAtTime(0.001, bt + noteDur);
-
-      // Build each partial as a pure sine at the integer ratio
-      // High partials decay faster during sustain — gives the "opening up then darkening" feel
-      partials.forEach(({ r, a, d: partDecay }) => {
-        // Slight inharmonicity on high partials (real strings/wood are not perfect)
-        const inharm = r > 4 ? 1 + (r - 4) * 0.0010 : 1;
-        const o = mkOsc(Math.max(20, freq * r * inharm), 'sine');
-        const g = mkGain(a);
-
-        // Per-partial sustain decay envelope
-        const pEnv = mkGain(1.0);
-        chain(o, g, pEnv, env);
-        pEnv.gain.setValueAtTime(1.0, bt);
-        pEnv.gain.setValueAtTime(1.0, bt + atkTime * 2.5);
-        // Fundamental stays; high harmonics fade during sustain
-        const sustainTarget = r === 1 ? 0.96 : r <= 3 ? 0.68 : 0.22;
-        pEnv.gain.linearRampToValueAtTime(sustainTarget, bt + noteDur * 0.60);
-
-        // Vibrato — only on fundamental and 2nd partial, enters late
-        if (r <= 2 && noteDur > beat * 0.4) {
-          const vib  = mkOsc(vibHz + rng() * 0.3, 'sine');
-          const vibG = mkGain(0);
-          chain(vib, vibG);
-          vibG.connect(o.frequency);
-          const vibIn = bt + noteDur * 0.28;
-          vibG.gain.setValueAtTime(0, vibIn);
-          vibG.gain.linearRampToValueAtTime(vibDepth + intensity * vibDepth * 0.5, vibIn + noteDur * 0.35);
-          vib.start(bt); vib.stop(bt + noteDur + 0.15);
-          reg(name, vib, vibG);
-        }
-
-        o.start(bt); o.stop(bt + noteDur + 0.15);
-        reg(name, o, g, pEnv);
-      });
-
-      // Breath/bow noise — physical signature; without this it's a synth pad
-      const noiseLen = Math.min(Math.floor(ctx.sampleRate * (noteDur + 0.08)), ctx.sampleRate * 3);
-      const nBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
-      const nd = nBuf.getChannelData(0);
-      for (let j = 0; j < nd.length; j++) nd[j] = Math.random() * 2 - 1;
-      const nSrc  = ctx.createBufferSource(); nSrc.buffer = nBuf;
-      const nFilt = mkFilt(
-        isWoodwind ? 2800 : isBrass ? 650 : 1800,
-        'bandpass', isWoodwind ? 0.7 : 0.5
-      );
-      const nEnv = mkGain(0);
-      chain(nSrc, nFilt, nEnv, b);
-      const nVol = isWoodwind ? 0.006 + intensity * 0.004
-                 : isBrass    ? 0.003 + intensity * 0.003
-                 :              0.004 + intensity * 0.004;
-      nEnv.gain.setValueAtTime(nVol, bt);
-      nEnv.gain.linearRampToValueAtTime(nVol * 0.45, bt + noteDur * 0.3);
-      nEnv.gain.linearRampToValueAtTime(0.0001, bt + noteDur);
-      nSrc.start(bt); nSrc.stop(bt + noteDur + 0.05);
-      reg(name, nSrc, nFilt, nEnv);
-    }
-
-    t = cursor + beat * (rng() < 0.2 ? beat * 0.5 : 0);
-    patIdx++;
-    regT(name, setTimeout(schedBar, (beat * 3.7) * 1000));
+      o.start(bt); o.stop(bt+noteDur+0.15); reg(name,o,g,pEnv);
+    });
+    const nLen=Math.min(Math.floor(ctx.sampleRate*(noteDur+0.08)),ctx.sampleRate*3);
+    const nBuf=ctx.createBuffer(1,nLen,ctx.sampleRate); const nd=nBuf.getChannelData(0);
+    for(let j=0;j<nd.length;j++) nd[j]=Math.random()*2-1;
+    const nSrc=ctx.createBufferSource(); nSrc.buffer=nBuf;
+    const nFilt=mkFilt(isWoodwind?2800:isBrass?650:1800,'bandpass',isWoodwind?0.7:0.5);
+    const nEnv=mkGain(0); chain(nSrc,nFilt,nEnv,b);
+    const nVol=(isWoodwind?0.006:isBrass?0.003:0.004)+energy*0.004;
+    nEnv.gain.setValueAtTime(nVol,bt); nEnv.gain.linearRampToValueAtTime(nVol*0.4,bt+noteDur*0.3);
+    nEnv.gain.linearRampToValueAtTime(0.0001,bt+noteDur);
+    nSrc.start(bt); nSrc.stop(bt+noteDur+0.05); reg(name,nSrc,nFilt,nEnv);
   }
 
-  schedBar();
+  function schedNote(){
+    if(!layerOn[name]) return;
+    if(MP.position>=MP.phraseLen){
+      MP_nextPhrase(preset);
+      const restBars=energy>0.65?1:energy>0.35?2:3;
+      MP.callDone=true;
+      regT(name,setTimeout(schedNote,beat*4*restBars*1000));
+      return;
+    }
+    const bar=MP.position; MP.position++;
+    const isStrong=(bar===0||bar===Math.floor(MP.phraseLen/2));
+    const isCadence=(bar>=MP.cadenceBar);
+    const restChance=isCadence?0.0:isStrong?0.05:energy<0.25?0.60:energy<0.50?0.35:0.18;
+    if(Math.random()<restChance){
+      regT(name,setTimeout(schedNote,beat*(energy<0.35?1.0:0.5)*1000)); return;
+    }
+    const deg=MP_degreeAt(bar,false);
+    const oct=preset.melodyOctave+(energy>0.65?1:0);
+    const freq=CE.scaleStep(preset,oct,deg);
+    MP.lastDeg=deg;
+    const noteDur=isCadence?beat*(2.5+energy):isStrong?beat*(1.2+energy*0.8):beat*(0.5+energy*0.5);
+    playNote(t,freq,noteDur);
+    t+=noteDur*0.85+beat*0.15;
+    if(isCadence){MP.callDone=true;regT(name,setTimeout(schedNote,noteDur*1000+beat*2000));}
+    else{regT(name,setTimeout(schedNote,noteDur*0.82*1000));}
+  }
+  schedNote();
 }
 
 function buildChoir(preset, intensity, name) {
   const b = bus[name];
 
-  // 5 voices: 2 bass, 2 tenor/alto, 1 soprano — like a real choir section
+  // 5 voices — same as before but now phrase-aware
   const voices = [
-    { octMult: 0.5,  det: -4,  gv: 0.22, formF: [280, 550, 1100] }, // bass 1
-    { octMult: 0.5,  det:  5,  gv: 0.18, formF: [280, 550, 1100] }, // bass 2
-    { octMult: 1.0,  det: -3,  gv: 0.20, formF: [350, 900, 1800] }, // tenor/alto 1
-    { octMult: 1.0,  det:  4,  gv: 0.18, formF: [350, 900, 1800] }, // tenor/alto 2
-    { octMult: 2.0,  det:  0,  gv: 0.12, formF: [450, 1200, 2400] }, // soprano
+    { octMult:0.5,  det:-4, gv:0.22, formF:[280,550,1100]  },
+    { octMult:0.5,  det: 5, gv:0.18, formF:[280,550,1100]  },
+    { octMult:1.0,  det:-3, gv:0.20, formF:[350,900,1800]  },
+    { octMult:1.0,  det: 4, gv:0.18, formF:[350,900,1800]  },
+    { octMult:2.0,  det: 0, gv:0.12, formF:[450,1200,2400] },
   ];
 
-  // Collect osc refs for chord retune loop
   const choirOscs = [];
+  // Keep refs to F1 filters so we can modulate vowel from the retune loop
+  const f1Nodes   = [];
+  const masterGains = [];
 
   voices.forEach(({ octMult, det, gv, formF }, vi) => {
     const raw  = CE.chordTone('choir', 1, vi % 3);
     const freq = (raw && raw > 10 ? raw : preset.root * 2) * octMult;
-    const o = mkOsc(freq, 'sawtooth', det);
+    const o    = mkOsc(freq, 'sawtooth', det);
 
-    // Formant stack — 3 bandpass filters shape the vowel
     const f1 = mkFilt(formF[0], 'bandpass', 8);
     const f2 = mkFilt(formF[1], 'bandpass', 5);
     const f3 = mkFilt(formF[2], 'bandpass', 3);
-
-    const mixG = mkGain(gv);
+    // Master gain per voice — driven by MP_choirOpenness()
+    const mixG = mkGain(gv * 0.4); // start at 40% — opens with phrase
     o.connect(f1); o.connect(f2); o.connect(f3);
     f1.connect(mixG); f2.connect(mixG); f3.connect(mixG);
     mixG.connect(b);
 
-    // Vowel transition: /a/ on attack (higher F1 ~800) → /o/ on sustain (lower F1 ~450)
-    // This is what makes it sound like singers opening their mouths, not a synth pad
     const now = ctx.currentTime;
-    const aF1 = formF[0] * 1.15;  // /a/ — open mouth
-    const oF1 = formF[0] * 0.75;  // /o/ — lips rounded
-    f1.frequency.setValueAtTime(aF1, now);
-    f1.frequency.linearRampToValueAtTime(oF1, now + 1.8);  // morph over 1.8s
-    // Slow wander between /o/ and /u/ after settled
+    // Vowel: start closed /u/, open to /a/ as openness rises
+    const closedF1 = formF[0] * 0.60; // /u/
+    const openF1   = formF[0] * 1.15; // /a/
+    f1.frequency.setValueAtTime(closedF1, now);
+
     const fLfo  = mkOsc(0.035 + vi * 0.012, 'sine');
-    const fLfoG = mkGain(formF[0] * 0.08);
+    const fLfoG = mkGain(formF[0] * 0.05);
     chain(fLfo, fLfoG); fLfoG.connect(f1.frequency);
     fLfo.start();
 
-    // Vibrato — enters LATE (after 2.5s), like a real singer settling in
     const vib  = mkOsc(4.8 + vi * 0.2, 'sine');
     const vibG = mkGain(0);
     chain(vib, vibG); vibG.connect(o.frequency);
@@ -4687,61 +4485,82 @@ function buildChoir(preset, intensity, name) {
 
     o.start();
     reg(name, o, f1, f2, f3, mixG, fLfo, fLfoG, vib, vibG);
-    choirOscs.push({ osc: o, octMult, voiceIdx: vi % 3 });
+    choirOscs.push({ osc:o, octMult, voiceIdx:vi%3 });
+    f1Nodes.push({ f1, formF, mixG, gv });
   });
 
-  // Breath noise — essential. Without this it sounds like a synth, not a choir.
-  const breathBuf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+  // Breath noise
+  const breathBuf = ctx.createBuffer(1, ctx.sampleRate*4, ctx.sampleRate);
   const bd = breathBuf.getChannelData(0);
-  for (let i = 0; i < bd.length; i++) bd[i] = Math.random() * 2 - 1;
-  const breathSrc   = ctx.createBufferSource();
-  breathSrc.buffer  = breathBuf; breathSrc.loop = true;
-  const bFilt1 = mkFilt(2000, 'bandpass', 0.8); // breath sibilance
-  const bFilt2 = mkFilt(600,  'highpass', 0.5); // remove mud
-  const bG     = mkGain(0.012 + intensity * 0.008); // very quiet — just air
-  chain(breathSrc, bFilt1, bFilt2, bG, b);
+  for(let i=0;i<bd.length;i++) bd[i]=Math.random()*2-1;
+  const breathSrc = ctx.createBufferSource();
+  breathSrc.buffer = breathBuf; breathSrc.loop = true;
+  const bFilt1 = mkFilt(2000,'bandpass',0.8);
+  const bFilt2 = mkFilt(600,'highpass',0.5);
+  const bG     = mkGain(0.012+intensity*0.008);
+  chain(breathSrc,bFilt1,bFilt2,bG,b);
   breathSrc.start();
-  reg(name, breathSrc, bFilt1, bFilt2, bG);
+  reg(name,breathSrc,bFilt1,bFilt2,bG);
 
-  // Sub warmth — octave below, pure sine, fills the chest register
-  const subRaw  = CE.chordTone('choir', 0, 0);
-  const subFreq = (subRaw && subRaw > 10) ? subRaw : preset.root;
-  const subO    = mkOsc(subFreq, 'sine');
-  const subFilt = mkFilt(350, 'lowpass', 0.7);
-  const subG    = mkGain(0.08 + intensity * 0.05);
-  chain(subO, subFilt, subG, b);
+  const subRaw  = CE.chordTone('choir',0,0);
+  const subFreq = (subRaw&&subRaw>10)?subRaw:preset.root;
+  const subO    = mkOsc(subFreq,'sine');
+  const subFilt = mkFilt(350,'lowpass',0.7);
+  const subG    = mkGain(0.08+intensity*0.05);
+  chain(subO,subFilt,subG,b);
   subO.start();
-  reg(name, subO, subFilt, subG);
+  reg(name,subO,subFilt,subG);
 
-  // ── Choir chord retune loop — tracks CE every bar ────────────────
-  // Singers glide to new pitches over 0.8s — portamento, not instant snap.
-  // Mimics breath support adjusting pitch naturally.
   let choirLastChord = CE.currentChord.label;
+
   function retuneChoir() {
     if (!layerOn[name]) return;
+
+    // ── Chord tracking (unchanged) ────────────────────────────────
     const chord = CE.currentChord;
     if (chord.label !== choirLastChord) {
       choirLastChord = chord.label;
       const now2  = ctx.currentTime;
-      const glide = 0.8; // singers settle into new pitch — slower than strings
-      choirOscs.forEach(({ osc, octMult, voiceIdx }) => {
-        const newFreq = CE.chordTone('choir', 1, voiceIdx) * octMult;
-        if (!newFreq || newFreq < 10) return;
+      const glide = 0.8;
+      choirOscs.forEach(({osc,octMult,voiceIdx})=>{
+        const newFreq = CE.chordTone('choir',1,voiceIdx)*octMult;
+        if(!newFreq||newFreq<10) return;
         osc.frequency.cancelScheduledValues(now2);
-        osc.frequency.setValueAtTime(osc.frequency.value, now2);
-        osc.frequency.exponentialRampToValueAtTime(newFreq, now2 + glide);
+        osc.frequency.setValueAtTime(osc.frequency.value,now2);
+        osc.frequency.exponentialRampToValueAtTime(newFreq,now2+glide);
       });
-      // Sub also tracks root
-      const newSub = CE.chordTone('choir', 0, 0);
-      if (newSub && newSub > 10) {
+      const newSub = CE.chordTone('choir',0,0);
+      if(newSub&&newSub>10){
         subO.frequency.cancelScheduledValues(now2);
-        subO.frequency.setValueAtTime(subO.frequency.value, now2);
-        subO.frequency.exponentialRampToValueAtTime(newSub, now2 + glide * 1.2);
+        subO.frequency.setValueAtTime(subO.frequency.value,now2);
+        subO.frequency.exponentialRampToValueAtTime(newSub,now2+glide*1.2);
       }
     }
-    regT(name, setTimeout(retuneChoir, Math.max(200, (barLength || 2) * 1000)));
+
+    // ── MP phrase awareness — vowel and volume track phrase shape ──
+    // openness 0→1 drives: F1 freq (closed→open vowel) + voice gain
+    const openness = MP_choirOpenness();
+    const now3 = ctx.currentTime;
+    f1Nodes.forEach(({f1,formF,mixG,gv})=>{
+      const closedF1 = formF[0]*0.60;
+      const openF1   = formF[0]*1.15;
+      const targetF1 = closedF1 + (openF1-closedF1)*openness;
+      f1.frequency.setTargetAtTime(targetF1, now3, 0.4);
+      // Volume: cadence = full, tension peak = 85%, quiet = 35%
+      const targetGv = gv*(0.35+openness*0.65);
+      mixG.gain.setTargetAtTime(targetGv, now3, 0.6);
+    });
+
+    // Soprano only blooms at high openness — keeps it from washing the mix
+    const sopranoMixG = f1Nodes[4]?.mixG;
+    if (sopranoMixG) {
+      const sopranoTarget = openness>0.6 ? f1Nodes[4].gv*openness : 0.0;
+      sopranoMixG.gain.setTargetAtTime(sopranoTarget, now3, 0.8);
+    }
+
+    regT(name, setTimeout(retuneChoir, Math.max(200,(barLength||2)*1000)));
   }
-  regT(name, setTimeout(retuneChoir, (barLength || 2) * 1000));
+  regT(name, setTimeout(retuneChoir,(barLength||2)*1000));
 }
 
 function buildChaos(preset, intensity, name) {
@@ -6009,98 +5828,103 @@ function buildStrings(preset, intensity, name) {
   // swellGain is the target — never touches b.gain (fade system's domain).
   function doSwell() {
     if (!layerOn[name]) return;
+    // Swell target tracks JC.energy — strings breathe with the global arc
+    // High energy = full swell; low energy = gentle pulse
+    const e      = JC.active ? JC.energy : intensity;
     const now4   = ctx.currentTime;
     const bl     = barLength || 2;
-    const swIn   = bl * 6;
-    const hold   = bl * 6;
+    // Swell duration inversely scales with energy — peaks are shorter/tighter
+    const swIn   = bl * (e > 0.65 ? 3 : e > 0.35 ? 5 : 7);
+    const hold   = bl * (e > 0.65 ? 3 : 5);
     const swOut  = bl * 4;
     const total  = swIn + hold + swOut;
+    const peak   = 0.35 + e * 0.65; // quiet sections: 35%; peaks: 100%
 
     swellGain.gain.cancelScheduledValues(now4);
     swellGain.gain.setValueAtTime(swellGain.gain.value, now4);
-    swellGain.gain.linearRampToValueAtTime(1.0,  now4 + swIn);          // swell up
-    swellGain.gain.setValueAtTime(1.0,            now4 + swIn);
-    swellGain.gain.linearRampToValueAtTime(0.55,  now4 + swIn + hold);  // breathe down
-    swellGain.gain.linearRampToValueAtTime(0.82,  now4 + total);        // recover
+    swellGain.gain.linearRampToValueAtTime(peak,      now4 + swIn);
+    swellGain.gain.setValueAtTime(peak,               now4 + swIn);
+    swellGain.gain.linearRampToValueAtTime(peak*0.55, now4 + swIn + hold);
+    swellGain.gain.linearRampToValueAtTime(peak*0.80, now4 + total);
 
     regT(name, setTimeout(doSwell, total * 1000));
   }
-
-  // Stagger swell start so it doesn't peak immediately on entry
   regT(name, setTimeout(doSwell, (barLength * 2 || 4) * 1000));
 }
 
-// ── CELLO COUNTERMELODY ───────────────────────────────────────────
-// Plays a slower, lower counterpoint to the melody.
-// Long notes, wide vibrato, stays in cello register (octave below melody).
-// Never fights the melody — different rhythmic placement, different register.
+// ── CELLO — MP-aware response voice ──────────────────────────────
 function buildCello(preset, intensity, name) {
-  const b = bus[name];
+  const b    = bus[name];
   const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
-  // Cello motif — scale degrees biased toward lower, slower intervals
-  const motifPools = [
-    [0, 2, 3, 0, 4, 2],
-    [0, 3, 2, 4, 3, 0],
-    [4, 3, 2, 0, 2, 3],
-    [0, 0, 2, 0, 3, 2],  // lots of returns to root — cello grounds the harmony
+  const energy = JC.active ? JC.energy : intensity;
+
+  // Additive cello partials — warmer than sawtooth
+  const CEL_PARTIALS = [
+    {r:1,a:0.55},{r:2,a:0.28},{r:3,a:0.18},{r:4,a:0.10},{r:5,a:0.06},{r:6,a:0.03},
   ];
-  let motifIdx = 0;
-  let t = ctx.currentTime + beat * 1.5; // enter after melody, staggered
 
-  function schedNote() {
-    if (!layerOn[name]) return;
-    const motif = motifPools[motifIdx % motifPools.length];
-    motifIdx++;
-
-    motif.forEach((deg, i) => {
-      // Cello rests more than melody — intentional space between phrases
-      if (rng() < 0.40) return;
-
-      const bt   = t + i * beat * 1.2; // slower note spacing than melody
-      const freq = CE.scaleStep(preset, preset.melodyOctave - 1, deg); // octave BELOW melody
-      // Long notes dominate — short notes are the exception
-      const durChoice = rng();
-      const dur = durChoice < 0.20 ? beat * 0.45    // short — passing note
-                : durChoice < 0.55 ? beat * 1.1     // medium
-                :                    beat * 2.2;     // long held — signature cello sound
-
-      // Voice: sawtooth pair, heavy lowpass — warm and woody
-      const o1   = mkOsc(freq,         'sawtooth',  -3);
-      const o2   = mkOsc(freq * 0.998, 'sawtooth',   3); // very slight beating
-      const g1   = mkGain(0.42), g2 = mkGain(0.28);
-      const filt = mkFilt(800 + intensity * 600, 'lowpass', 0.8);
-      const env  = mkGain(0);
-      chain(o1, g1, filt); chain(o2, g2, filt); chain(filt, env, b);
-
-      const vol = 0.055 + intensity * 0.04;
-
-      // Bow attack — slower than melody, more legato
-      env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol, bt + 0.18);    // slower attack = bow feel
-      env.gain.setValueAtTime(vol * 0.80, bt + dur * 0.4);
-      env.gain.linearRampToValueAtTime(0.001, bt + dur);
-
-      // Vibrato — enters partway through note, wide and slow (cello character)
-      const vib  = mkOsc(4.2 + rng() * 0.5, 'sine');
-      const vibG = mkGain(0);
-      chain(vib, vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
-      vibG.gain.setValueAtTime(0, bt + 0.25);
-      vibG.gain.linearRampToValueAtTime(4.5 + intensity * 3, bt + dur * 0.5);
-
-      o1.start(bt); o1.stop(bt + dur + 0.15);
-      o2.start(bt); o2.stop(bt + dur + 0.15);
-      vib.start(bt); vib.stop(bt + dur + 0.15);
-      reg(name, o1, o2, g1, g2, filt, env, vib, vibG);
+  function playCelloNote(bt, freq, dur) {
+    const env = mkGain(0);
+    env.connect(b);
+    reg(name,env);
+    const vol = 0.045+energy*0.04;
+    env.gain.setValueAtTime(0,bt);
+    env.gain.linearRampToValueAtTime(vol,bt+0.18);
+    env.gain.setValueAtTime(vol*0.78,bt+dur*0.45);
+    env.gain.linearRampToValueAtTime(0.001,bt+dur);
+    CEL_PARTIALS.forEach(({r,a})=>{
+      const o=mkOsc(Math.max(20,freq*r),'sine');
+      const g=mkGain(a);
+      chain(o,g,env);
+      o.start(bt); o.stop(bt+dur+0.2);
+      reg(name,o,g);
     });
-
-    t += beat * motif.length * 1.2;
-    // Long gap between cello phrases — absence makes the next phrase land harder
-    const pauseBars = 1 + Math.floor(rng() * 2);
-    regT(name, setTimeout(schedNote, (beat * motif.length * 1.2 + beat * 4 * pauseBars) * 1000));
+    // Slow bow vibrato
+    const vib  = mkOsc(3.8+Math.random()*0.4,'sine');
+    const vibG = mkGain(0);
+    chain(vib,vibG); vibG.connect(env.gain);
+    vibG.gain.setValueAtTime(0,bt+0.3);
+    vibG.gain.linearRampToValueAtTime(0.008+energy*0.006,bt+dur*0.5);
+    vib.start(bt); vib.stop(bt+dur+0.2);
+    reg(name,vib,vibG);
+    // Bow rosin noise
+    const nLen=Math.min(Math.floor(ctx.sampleRate*dur),ctx.sampleRate*3);
+    const nBuf=ctx.createBuffer(1,nLen,ctx.sampleRate);
+    const nd=nBuf.getChannelData(0);
+    for(let i=0;i<nd.length;i++) nd[i]=Math.random()*2-1;
+    const nSrc=ctx.createBufferSource(); nSrc.buffer=nBuf;
+    const nFilt=mkFilt(1200,'bandpass',0.6);
+    const nEnv=mkGain(0.003+energy*0.002);
+    chain(nSrc,nFilt,nEnv,b);
+    nSrc.start(bt); nSrc.stop(bt+dur+0.05);
+    reg(name,nSrc,nFilt,nEnv);
   }
 
-  schedNote();
+  let t = ctx.currentTime + beat * 3;
+
+  function schedResponse() {
+    if (!layerOn[name]) return;
+    // Wait for melody call to finish
+    if (!MP.callDone && MP.position < MP.phraseLen-1) {
+      regT(name, setTimeout(schedResponse, beat*1000));
+      return;
+    }
+    // Build response: inversion of melody degree path
+    const responseLen = Math.min(MP.phraseLen, 6);
+    const oct = preset.melodyOctave - 1;
+    for (let i=0; i<responseLen; i++) {
+      const deg  = MP_degreeAt(Math.min(i,MP.degreePath.length-1), true);
+      const freq = CE.scaleStep(preset, oct, deg);
+      const isLast = i===responseLen-1;
+      const dur = isLast ? beat*2.8 : i<2 ? beat*1.6 : beat*(0.9+energy*0.6);
+      playCelloNote(t+i*beat*1.3, freq, dur);
+    }
+    t += beat*(responseLen*1.3+(2+Math.floor(Math.random()*3)));
+    MP.callDone = false;
+    regT(name, setTimeout(schedResponse, beat*(MP.phraseLen+2)*1000));
+  }
+  schedResponse();
 }
 
 const BUILDERS = {
@@ -6194,7 +6018,7 @@ function stopSynth() {
   journeyTimers.forEach(clearTimeout);
   journeyTimers = [];
   journeyActive = false;
-  if (JC.active) { JC.timers.forEach(clearTimeout); JC.timers = []; JC.active = false; JC.activeSet.clear(); }
+  if(JC.active){JC.timers.forEach(clearTimeout);JC.timers=[];JC.active=false;JC.activeSet.clear();}
   if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
   slider.value = 1;
 }
