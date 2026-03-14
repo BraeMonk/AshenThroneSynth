@@ -3391,16 +3391,24 @@ function buildDrone(preset, intensity, name) {
   const initFifth = initRoot * 1.5;
   const initOct   = initRoot * 2.0;
 
-  const voiceDefs = [
-    { freq: initRoot,  wave: 'sine',           det: 0,   gv: 0.38, role: 'root'  },
-    { freq: initRoot,  wave: preset.droneWave, det: -8,  gv: 0.18, role: 'root'  },
-    { freq: initRoot,  wave: preset.droneWave, det:  8,  gv: 0.18, role: 'root'  },
-    { freq: initFifth, wave: 'sine',           det: 0,   gv: 0.14, role: 'fifth' },
-    { freq: initOct,   wave: 'triangle',       det: 0,   gv: 0.10, role: 'oct'   },
+  // Cinematic orchestral drone — additive harmonic series (all sine).
+  // Raw sawtooth = synthwave. Summed sine partials = cello/organ/contrabass.
+  // Each partial is a integer multiple of the fundamental with its own gain.
+  // Slight detuning between paired partials creates organic beating (chorus).
+  const dronePartials = [
+    { freq: initRoot,        gv: 0.38, det:  0,  role: 'root'  }, // fundamental
+    { freq: initRoot * 2,    gv: 0.16, det: -3,  role: 'root'  }, // 2nd harmonic pair A
+    { freq: initRoot * 2,    gv: 0.16, det:  3,  role: 'root'  }, // 2nd harmonic pair B
+    { freq: initRoot * 3,    gv: 0.09, det:  0,  role: 'root'  }, // 3rd — body warmth
+    { freq: initRoot * 4,    gv: 0.05, det:  0,  role: 'root'  }, // 4th — felt not heard
+    { freq: initFifth,       gv: 0.14, det:  0,  role: 'fifth' }, // fifth — modal depth
+    { freq: initFifth * 2,   gv: 0.05, det:  2,  role: 'fifth' }, // fifth octave shimmer
+    { freq: initOct,         gv: 0.08, det:  0,  role: 'oct'   }, // octave — opens top
+    { freq: initOct * 1.5,   gv: 0.03, det:  0,  role: 'oct'   }, // 12th — air
   ];
 
-  const droneOscs = voiceDefs.map(({ freq, wave, det, gv, role }) => {
-    const o = mkOsc(freq, wave, det);
+  const droneOscs = dronePartials.map(({ freq, gv, det, role }) => {
+    const o = mkOsc(Math.max(15, freq), 'sine', det);
     const g = mkGain(gv);
     chain(o, g, warmFilt); o.start(); reg(name, o, g);
     return { osc: o, role };
@@ -4107,11 +4115,60 @@ function buildMelody(preset, intensity, name) {
   let patIdx = 0;
   let t = ctx.currentTime + 0.1;
 
-  // Soft waveshaper — warmth without smearing
-  const melodyShaper = ctx.createWaveShaper();
-  melodyShaper.curve = makeSatCurve(0.08);
-  melodyShaper.connect(b);
-  reg(name, melodyShaper);
+  // ── Cinematic instrument timbre — additive harmonic partial stacks ──
+  // Zone depth selects the instrument register:
+  //   Shallow (Ashen/Rotwood, intensity <0.35): oboe/cor anglais — nasal, piercing, mournful
+  //   Mid (Catacombs/Shadowmere/Veil, 0.35-0.65): solo violin sul tasto — warm, dark bow
+  //   Deep (Obsidian/Void/Infernal, >0.65): stopped horn / low brass — veiled, menacing
+  // All timbres built from sine partial sums — no raw sawtooth/triangle.
+  // This is what makes orchestral instruments sound like themselves.
+
+  const isWoodwind = intensity < 0.35;
+  const isBrass    = intensity > 0.65;
+
+  // Partial tables: each entry = { ratio, amplitude, decayFraction }
+  // decayFraction controls how much this harmonic decays during the note sustain
+  // (1.0 = stays at full amplitude; 0.15 = fades to near-zero by note end)
+  const PARTIALS = {
+    woodwind: [ // oboe: odd harmonics dominate, nasal peak at 3rd
+      { r: 1,  a: 0.52, d: 1.00 },
+      { r: 2,  a: 0.10, d: 0.80 }, // even suppressed
+      { r: 3,  a: 0.36, d: 0.65 }, // 3rd peak — nasal character
+      { r: 4,  a: 0.07, d: 0.50 },
+      { r: 5,  a: 0.20, d: 0.38 }, // 5th secondary peak
+      { r: 6,  a: 0.05, d: 0.28 },
+      { r: 7,  a: 0.12, d: 0.20 }, // 7th — woody edge
+      { r: 8,  a: 0.03, d: 0.14 },
+    ],
+    strings: [ // violin sul tasto: full harmonic series, warm
+      { r: 1,  a: 0.48, d: 1.00 },
+      { r: 2,  a: 0.30, d: 0.88 }, // 2nd strong — violins shine here
+      { r: 3,  a: 0.24, d: 0.74 },
+      { r: 4,  a: 0.16, d: 0.58 },
+      { r: 5,  a: 0.11, d: 0.44 },
+      { r: 6,  a: 0.07, d: 0.32 },
+      { r: 7,  a: 0.05, d: 0.22 },
+      { r: 8,  a: 0.03, d: 0.14 },
+    ],
+    brass: [ // stopped horn: 2nd/3rd dominant, veiled by mute
+      { r: 1,  a: 0.38, d: 1.00 },
+      { r: 2,  a: 0.44, d: 0.90 }, // 2nd dominant — warmth
+      { r: 3,  a: 0.36, d: 0.76 }, // 3rd nearly equal
+      { r: 4,  a: 0.18, d: 0.60 },
+      { r: 5,  a: 0.14, d: 0.45 },
+      { r: 6,  a: 0.08, d: 0.30 },
+    ],
+  };
+
+  const timbre   = isWoodwind ? 'woodwind' : isBrass ? 'brass' : 'strings';
+  const partials = PARTIALS[timbre];
+
+  // Attack time per instrument family
+  const atkTime = isWoodwind ? 0.012 : isBrass ? 0.038 : 0.095 + intensity * 0.045;
+
+  // Vibrato characteristics per family
+  const vibHz    = isWoodwind ? 5.5  : isBrass ? 4.0  : 4.2;
+  const vibDepth = isWoodwind ? 1.8  : isBrass ? 2.5  : 3.8; // cents equiv — strings widest
 
   function schedBar() {
     const useMotif = (patIdx % 3 === 0);
@@ -4119,16 +4176,13 @@ function buildMelody(preset, intensity, name) {
       ? [...motif]
       : preset.melodyPatterns[patIdx % preset.melodyPatterns.length];
 
-    // Occasional variation — reverse or transpose up an octave, never both
     if (rng() < 0.25) motifPat = [...motifPat].reverse();
     else if (rng() < 0.2) motifPat = motifPat.map(d => d + 7);
 
-    // Rhythmic grid — 16th note slots, each note picks a duration subdivision
-    const subdivisions = [0.25, 0.5, 0.75, 1.0]; // in beats
+    const subdivisions = [0.25, 0.5, 0.75, 1.0];
     let cursor = t;
 
     for (let i = 0; i < motifPat.length; i++) {
-      // Rest probability — generous rests create musical breathing room
       const restChance = currentPhrase === 'climax' ? 0.18
                        : currentPhrase === 'intro'   ? 0.55
                        : currentPhrase === 'resolution' ? 0.50
@@ -4142,75 +4196,86 @@ function buildMelody(preset, intensity, name) {
       const deg  = motifPat[i];
       const freq = CE.scaleStep(preset, preset.melodyOctave, deg);
 
-      // Duration — strong bias toward long/held notes for cinematic weight
-      // Short notes are grace notes, not the default
+      // Strong bias toward long held notes — cinematic weight
       const durChoice = rng();
-      const noteDur = durChoice < 0.22 ? beat * 0.18        // short — grace note
-                    : durChoice < 0.55 ? beat * 0.65        // medium — standard
-                    :                    beat * 1.4;         // long — HELD, cinematic swell
+      const noteDur = durChoice < 0.20 ? beat * 0.18
+                    : durChoice < 0.50 ? beat * 0.80
+                    :                    beat * (1.6 + rng());
 
-      // Advance cursor AFTER placing note — keeps melody on the rhythmic grid
-      // Combat biases toward short subdivisions to lock with perc/march
       const isCombat = currentPhrase === 'climax' || currentPhrase === 'tension';
       const subPool = isCombat ? [0.25, 0.25, 0.5] : subdivisions;
       cursor += beat * subPool[Math.floor(rng() * subPool.length)];
 
-      // Voice — single oscillator pair, tightly detuned, with character
-      // Use zone's wave type for identity — saw for dark zones, triangle for lighter
-      const waveA = preset.melodyWave === 'sine' ? 'triangle' : preset.melodyWave;
-      const o1  = mkOsc(freq,         waveA,      -4);
-      const o2  = mkOsc(freq * 1.003, 'triangle',  4); // triangle second voice — softens saw harshness
-      const g1  = mkGain(0.55), g2 = mkGain(0.28);
+      // Master note envelope — all partials route through this
+      const env = mkGain(0);
+      env.connect(b);
+      reg(name, env);
 
-      // Brightness filter — sweeps based on note length, not static
-      // Short notes stay bright; long notes bloom then darken
-      const filterStart = 800  + intensity * 1800;
-      const filterPeak  = 2400 + intensity * 3000;
-      const filterEnd   = 500  + intensity * 800;
+      const vol = 0.055 + intensity * 0.055;
 
-      const filt = mkFilt(filterStart, 'lowpass', 1.2);
-      const env  = mkGain(0);
-
-      chain(o1, g1, filt);
-      chain(o2, g2, filt);
-      chain(filt, env, melodyShaper);
-
-      const vol = 0.06 + intensity * 0.07;
-
-      // Amplitude envelope — fast attack, natural decay shape
       env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol, bt + 0.018);
-      env.gain.setValueAtTime(vol * 0.72, bt + noteDur * 0.35);
+      env.gain.linearRampToValueAtTime(vol * (isBrass ? 1.10 : 1.0), bt + atkTime);
+      if (isBrass) env.gain.linearRampToValueAtTime(vol * 0.88, bt + atkTime + 0.14);
+      env.gain.setValueAtTime(vol * (isBrass ? 0.88 : 0.92), bt + noteDur * 0.65);
       env.gain.linearRampToValueAtTime(0.001, bt + noteDur);
 
-      // Filter envelope — blooms open then closes, adds movement to each note
-      filt.frequency.setValueAtTime(filterStart, bt);
-      filt.frequency.linearRampToValueAtTime(filterPeak, bt + noteDur * 0.25);
-      filt.frequency.exponentialRampToValueAtTime(filterEnd, bt + noteDur * 0.9);
+      // Build each partial as a pure sine at the integer ratio
+      // High partials decay faster during sustain — gives the "opening up then darkening" feel
+      partials.forEach(({ r, a, d: partDecay }) => {
+        // Slight inharmonicity on high partials (real strings/wood are not perfect)
+        const inharm = r > 4 ? 1 + (r - 4) * 0.0010 : 1;
+        const o = mkOsc(Math.max(20, freq * r * inharm), 'sine');
+        const g = mkGain(a);
 
-      o1.start(bt); o1.stop(bt + noteDur + 0.06);
-      o2.start(bt); o2.stop(bt + noteDur + 0.06);
-      reg(name, o1, o2, g1, g2, filt, env);
+        // Per-partial sustain decay envelope
+        const pEnv = mkGain(1.0);
+        chain(o, g, pEnv, env);
+        pEnv.gain.setValueAtTime(1.0, bt);
+        pEnv.gain.setValueAtTime(1.0, bt + atkTime * 2.5);
+        // Fundamental stays; high harmonics fade during sustain
+        const sustainTarget = r === 1 ? 0.96 : r <= 3 ? 0.68 : 0.22;
+        pEnv.gain.linearRampToValueAtTime(sustainTarget, bt + noteDur * 0.60);
 
-      // Counter-melody — only on long notes, different octave, quieter
-      // Keeps it out of the way of the main voice
-      if (noteDur > beat * 0.6 && rng() < 0.35) {
-        const counterDeg  = motifPat[(i + 2) % motifPat.length];
-        const counterFreq = scaleFreq(preset, preset.melodyOctave + 1, counterDeg);
-        const co   = mkOsc(counterFreq, 'sine'); // always sine — stays transparent
-        const cFilt = mkFilt(1200 + intensity * 1000, 'lowpass', 0.9);
-        const cEnv = mkGain(0);
-        chain(co, cFilt, cEnv, melodyShaper);
-        const cVol = vol * 0.28;
-        cEnv.gain.setValueAtTime(0, bt + 0.04);
-        cEnv.gain.linearRampToValueAtTime(cVol, bt + 0.12);
-        cEnv.gain.linearRampToValueAtTime(0.001, bt + noteDur * 1.1);
-        co.start(bt + 0.04); co.stop(bt + noteDur * 1.2);
-        reg(name, co, cFilt, cEnv);
-      }
+        // Vibrato — only on fundamental and 2nd partial, enters late
+        if (r <= 2 && noteDur > beat * 0.4) {
+          const vib  = mkOsc(vibHz + rng() * 0.3, 'sine');
+          const vibG = mkGain(0);
+          chain(vib, vibG);
+          vibG.connect(o.frequency);
+          const vibIn = bt + noteDur * 0.28;
+          vibG.gain.setValueAtTime(0, vibIn);
+          vibG.gain.linearRampToValueAtTime(vibDepth + intensity * vibDepth * 0.5, vibIn + noteDur * 0.35);
+          vib.start(bt); vib.stop(bt + noteDur + 0.15);
+          reg(name, vib, vibG);
+        }
+
+        o.start(bt); o.stop(bt + noteDur + 0.15);
+        reg(name, o, g, pEnv);
+      });
+
+      // Breath/bow noise — physical signature; without this it's a synth pad
+      const noiseLen = Math.min(Math.floor(ctx.sampleRate * (noteDur + 0.08)), ctx.sampleRate * 3);
+      const nBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
+      const nd = nBuf.getChannelData(0);
+      for (let j = 0; j < nd.length; j++) nd[j] = Math.random() * 2 - 1;
+      const nSrc  = ctx.createBufferSource(); nSrc.buffer = nBuf;
+      const nFilt = mkFilt(
+        isWoodwind ? 2800 : isBrass ? 650 : 1800,
+        'bandpass', isWoodwind ? 0.7 : 0.5
+      );
+      const nEnv = mkGain(0);
+      chain(nSrc, nFilt, nEnv, b);
+      const nVol = isWoodwind ? 0.006 + intensity * 0.004
+                 : isBrass    ? 0.003 + intensity * 0.003
+                 :              0.004 + intensity * 0.004;
+      nEnv.gain.setValueAtTime(nVol, bt);
+      nEnv.gain.linearRampToValueAtTime(nVol * 0.45, bt + noteDur * 0.3);
+      nEnv.gain.linearRampToValueAtTime(0.0001, bt + noteDur);
+      nSrc.start(bt); nSrc.stop(bt + noteDur + 0.05);
+      reg(name, nSrc, nFilt, nEnv);
     }
 
-    t = cursor + beat * (rng() < 0.2 ? beat * 0.5 : 0); // occasional bar-end breath
+    t = cursor + beat * (rng() < 0.2 ? beat * 0.5 : 0);
     patIdx++;
     regT(name, setTimeout(schedBar, (beat * 3.7) * 1000));
   }
@@ -6033,7 +6098,7 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
   xfade.fromZone  = realFrom;
   xfade.toZone    = realTo;
   xfade.startBar  = totalBar;
-  xfade.totalBars = 12;
+  xfade.totalBars = 16; // extended to cover new breath-duck stagger (bars 5-13)
   xfade.bpmStart  = effectiveBpmStart;
   xfade.bpmEnd    = realTo.bpm;
   xfade.intensity = intensity;
@@ -6057,22 +6122,32 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
     });
   };
 
-  // Perc — bar 4 (earliest, rhythm needs to lock to new zone)
-  ['perc','wardrums','march','stomp','chains'].forEach(n => q(n, 4));
+  // ── Layer restart stagger — timed around the breath duck ──────────
+  // Bars 0-2: old layers still playing, master ducked to 35%
+  // Bar 3:   CE.onZoneChange fires (chord engine transitions)
+  // Bar 5:   master bus restores — new zone identity is already loaded
+  // Perc locks to new zone first (rhythm anchors the transition)
+  // Melodic layers enter after the duck lifts so they bloom into silence, not noise
 
-  // Bass — bar 6
+  // Perc — bar 5 (just as the duck lifts — new groove locks in)
+  ['perc','wardrums','march','stomp','chains'].forEach(n => q(n, 5));
+
+  // Bass — bar 6 (follows perc, underpins new harmony)
   q('bass', 6);
 
-  // Melodic — staggered one per bar from bar 7
-  ['choir','melody','lute','horn','bells','organ'].forEach((n, i) => q(n, 7 + i));
+  // Strings first — harmonic bed before melody enters
+  if (layerOn['strings']) q('strings', 7);
 
-  // Drone — bar 10, only if root pitch moves more than a minor third
+  // Melodic — staggered from bar 8, one per bar, bloom into the restored volume
+  ['choir','melody','lute','horn','bells','organ'].forEach((n, i) => q(n, 8 + i));
+
+  // Drone — bar 11, only if root pitch moves more than a minor third
   const semitones = Math.abs(12 * Math.log2(realTo.root / realFrom.root));
-  if (semitones > 1.5) q('drone', 10);
+  if (semitones > 1.5) q('drone', 11);
 
-  // Atmosphere — bar 11 onward
+  // Atmosphere — bar 12 onward
   ['wind','riser','firecrackle','heartbeat',
-   'chaos','whispers','ritualchant','glitch'].forEach((n, i) => q(n, 11 + i * 0.5 | 0));
+   'chaos','whispers','ritualchant','glitch'].forEach((n, i) => q(n, 12 + i * 0.5 | 0));
 
   // Zone name flip at bar 6 (midpoint of 12)
   pendingLayerChanges.push({
@@ -6083,7 +6158,29 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
     toZone:    realTo,
   });
 
-  CE.onZoneChange(realTo);
+  // ── Zone transition breath — cinematic silence before new identity enters ──
+  // Instead of CE.onZoneChange firing immediately (which snaps the chord engine
+  // to the new zone while old layers are still playing), we:
+  //   1. Duck the master bus to ~35% over 1.5 bars — the "held breath"
+  //   2. Fire CE.onZoneChange at bar 3 — chord engine transitions mid-duck
+  //   3. Restore master bus at bar 5 — new zone identity fills the silence
+  // This is how real film composers handle key changes and scene transitions.
+  if (ctx && masterGain) {
+    const now = ctx.currentTime;
+    const barSec = barLength || 4;
+    // Duck down — half a bar of fade, hold 2 bars, restore at bar 4
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+    masterGain.gain.linearRampToValueAtTime(0.35, now + barSec * 0.6);   // breath in
+    masterGain.gain.setValueAtTime(0.35, now + barSec * 2.5);            // hold
+    masterGain.gain.linearRampToValueAtTime(0.38, now + barSec * 4.5);   // bloom back
+  }
+
+  // Delay chord engine zone change to bar 3 so it transitions mid-duck
+  // (not while old layers are still at full volume)
+  const zoneChangeDelay = (barLength || 4) * 3 * 1000;
+  setTimeout(() => { CE.onZoneChange(realTo); }, zoneChangeDelay);
+
   logTimeline(`Crossfade → ${realTo.name}`);
 }
   
