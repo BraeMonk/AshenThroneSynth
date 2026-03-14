@@ -3593,43 +3593,46 @@ function buildBass(preset, intensity, name) {
 
     while (nextBarTime < ctx.currentTime + SCHED_AHEAD + barDur) {
       const barStart = nextBarTime;
-      const step     = beat * 0.5;
 
-      for (let i = 0; i < 8; i++) {
-        const deg = preset.bassPattern[i];
-        if (deg === 0 && i !== 0 && rng() < 0.32) continue; // more rests = less cluttered
+      const rootFreq = CE.chordTone('bass', 0, 0);
+      const fifthFreq = rootFreq * 1.5;
 
-        const t    = barStart + i * step;
-        const freq = CE.chordTone('bass', 0, i % Math.max(1, CE.currentChord.ratios.length));
-        const dur  = beat * 0.32; // slightly shorter = tighter, less mud
+      {
+        const t   = barStart;
+        const dur = beat * 1.6;
 
-        // Main tone — gentle saturation, not hard clip
-        const o      = mkOsc(freq, sessionVoices['bass'] || preset.bassWave);
-        const filt   = mkFilt(preset.bassFilterFreq + intensity * 180, 'lowpass', 1.2);
-        const shaper = ctx.createWaveShaper();
-        shaper.curve = makeSatCurve(0.08); // very subtle warmth
-        const env    = mkGain(0);
-        chain(o, filt, shaper, env, b);
+        const sub  = mkOsc(rootFreq * 0.5, 'sine');
+        const main = mkOsc(rootFreq,       'sine');
+        const filt = mkFilt(120, 'lowpass', 0.6);
+        const env  = mkGain(0);
+        chain(sub,  env, b);
+        chain(main, filt, env, b);
 
-        // Sub — shorter stop time so it doesn't blur into next note
-        const sub     = mkOsc(freq * 0.5, 'sine');
-        const subFilt = mkFilt(90, 'lowpass', 0.7);
-        const subEnv  = mkGain(0);
-        chain(sub, subFilt, subEnv, b);
-
-        const v = 0.20 + intensity * 0.10; // was 0.28 — noticeably lower
-
+        const v = 0.28 + intensity * 0.12;
         env.gain.setValueAtTime(0, t);
-        env.gain.linearRampToValueAtTime(v, t + 0.014);
+        env.gain.linearRampToValueAtTime(v, t + 0.025);
         env.gain.exponentialRampToValueAtTime(0.001, t + dur);
 
-        subEnv.gain.setValueAtTime(0, t);
-        subEnv.gain.linearRampToValueAtTime(v * 0.5, t + 0.02);
-        subEnv.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.75); // stops earlier — tighter low end
+        sub.start(t);  sub.stop(t + dur + 0.05);
+        main.start(t); main.stop(t + dur + 0.05);
+        reg(name, sub, main, filt, env);
+      }
 
-        o.start(t);   o.stop(t + dur + 0.04);
-        sub.start(t); sub.stop(t + dur * 0.85); // sub stops before main — prevents bloom
-        reg(name, o, filt, shaper, env, sub, subFilt, subEnv);
+      if (rng() > 0.30) {
+        const t   = barStart + beat * 2;
+        const dur = beat * 0.9;
+
+        const o   = mkOsc(fifthFreq * 0.5, 'sine');
+        const env = mkGain(0);
+        chain(o, env, b);
+
+        const v = 0.14 + intensity * 0.07;
+        env.gain.setValueAtTime(0, t);
+        env.gain.linearRampToValueAtTime(v, t + 0.02);
+        env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+        o.start(t); o.stop(t + dur + 0.04);
+        reg(name, o, env);
       }
 
       nextBarTime += barDur;
