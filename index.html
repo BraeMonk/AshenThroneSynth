@@ -3195,16 +3195,18 @@ function buildPercBufs(preset, voice) {
 
   // ── VOICE: GHOST — soft brushed drums, tension/stealth ─────────────
   if (mode === 'ghost') {
-    // Ghost kick — barely audible, almost subsonic rumble
     const kickLen = Math.floor(sr * 0.7);
     const kick = ctx.createBuffer(1, kickLen, sr);
     const kd = kick.getChannelData(0);
+    let ghPhase = 0, ghSubPhase = 0;
     for (let i = 0; i < kickLen; i++) {
       const t = i / sr;
       const freq = preset.kickFreq * 0.9 * Math.exp(-t * 8) + preset.kickFreq * 0.5;
-      kd[i] = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.6) * 0.5
-            + Math.sin(2 * Math.PI * 30 * t)    * Math.exp(-t / 0.9) * 0.3
-            + (Math.random() * 2 - 1) * Math.exp(-t / 0.04) * 0.06; // faint brush
+      ghPhase    += (2 * Math.PI * freq) / sr;
+      ghSubPhase += (2 * Math.PI * 30) / sr;
+      kd[i] = Math.sin(ghPhase)    * Math.exp(-t / 0.6) * 0.5
+            + Math.sin(ghSubPhase) * Math.exp(-t / 0.9) * 0.3
+            + (Math.random() * 2 - 1) * Math.exp(-t / 0.04) * 0.04;
     }
 
     // Ghost snare — brushed, almost pure noise, very soft
@@ -3243,23 +3245,22 @@ function buildPercBufs(preset, voice) {
 
   // ── VOICE: TAIKO — Japanese war drum, massive resonance ────────────
   if (mode === 'taiko') {
-    // Taiko kick — extremely deep, very long resonance, slow pitch drop
     const kickLen = Math.floor(sr * 2.2);
     const kick = ctx.createBuffer(1, kickLen, sr);
     const kd = kick.getChannelData(0);
+    let tkPhase = 0, tk2Phase = 0, subPhase = 0, rimPhase = 0;
     for (let i = 0; i < kickLen; i++) {
       const t = i / sr;
-      // Very slow pitch drop — taiko stays resonant for a long time
       const freq = preset.kickFreq * 0.55 * Math.exp(-t * 2.2) + preset.kickFreq * 0.38;
-      const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 1.4);
-      // Second partial — inharmonic characteristic of taiko skin
-      const partial2 = Math.sin(2 * Math.PI * freq * 1.49 * t) * Math.exp(-t / 0.7) * 0.22;
-      // Sub drone — deep supporting frequency
-      const sub = Math.sin(2 * Math.PI * 28 * t) * Math.exp(-t / 1.8) * 0.55;
-      // Mallet impact — soft felt mallet, not a sharp stick hit
-      const mallet = t < 0.018 ? (Math.random() * 2 - 1) * (1 - t / 0.018) * 0.28 : 0;
-      // Rim ring — subtle, dark
-      const rim = Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t / 0.12) * 0.05;
+      tkPhase  += (2 * Math.PI * freq) / sr;
+      tk2Phase += (2 * Math.PI * freq * 1.49) / sr;
+      subPhase += (2 * Math.PI * 28) / sr;
+      rimPhase += (2 * Math.PI * 180) / sr;
+      const body     = Math.sin(tkPhase)  * Math.exp(-t / 1.4);
+      const partial2 = Math.sin(tk2Phase) * Math.exp(-t / 0.7) * 0.22;
+      const sub      = Math.sin(subPhase) * Math.exp(-t / 1.8) * 0.55;
+      const mallet   = t < 0.018 ? (Math.random() * 2 - 1) * (1 - t / 0.018) * 0.28 : 0;
+      const rim      = Math.sin(rimPhase) * Math.exp(-t / 0.12) * 0.05;
       kd[i] = body * 0.45 + partial2 + sub + mallet + rim;
     }
 
@@ -3324,12 +3325,16 @@ function buildPercBufs(preset, voice) {
     const kickLen = Math.floor(sr * 1.1);
     const kick = ctx.createBuffer(1, kickLen, sr);
     const kd = kick.getChannelData(0);
+    let tbPhase = 0, tbMidPhase = 0, tbSubPhase = 0;
     for (let i = 0; i < kickLen; i++) {
       const t = i / sr;
       const freq = preset.kickFreq * 1.2 * Math.exp(-t * 9) + preset.kickFreq * 0.75;
-      const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.5);
-      const mid  = Math.sin(2 * Math.PI * freq * 1.8 * t) * Math.exp(-t / 0.18) * 0.3;
-      const sub  = Math.sin(2 * Math.PI * 40 * t) * Math.exp(-t / 0.65) * 0.38;
+      tbPhase    += (2 * Math.PI * freq) / sr;
+      tbMidPhase += (2 * Math.PI * freq * 1.8) / sr;
+      tbSubPhase += (2 * Math.PI * 40) / sr;
+      const body = Math.sin(tbPhase)    * Math.exp(-t / 0.5);
+      const mid  = Math.sin(tbMidPhase) * Math.exp(-t / 0.18) * 0.3;
+      const sub  = Math.sin(tbSubPhase) * Math.exp(-t / 0.65) * 0.38;
       const skin = t < 0.016 ? (Math.random() * 2 - 1) * (1 - t / 0.016) * 0.28 : 0;
       kd[i] = body * 0.44 + mid + sub + skin;
     }
@@ -3394,32 +3399,33 @@ function buildPercBufs(preset, voice) {
   for (let i = 0; i < kickLen; i++) {
     const t = i / sr;
 
-    // Sub boom — very deep, very slow pitch sweep (timpani characteristic)
-    // Starts at ~2× kickFreq and glides down to the fundamental
-    const subFreq = (preset.kickFreq * 1.6) * Math.exp(-t * 5) + preset.kickFreq * 0.6;
-    const subBoom = Math.sin(2 * Math.PI * subFreq * t) * Math.exp(-t / 0.75);
+    // All oscillators use phase integration — no phase discontinuity = no buzz
+    if (i === 0) { kd._subPhase = 0; kd._bodyPhase = 0; kd._punchPhase = 0; }
+  }
+  // Rebuild with proper phase integration
+  let subPhase = 0, bodyPhase = 0, punchPhase = 0;
+  for (let i = 0; i < kickLen; i++) {
+    const t = i / sr;
 
-    // Body resonance — the large drum head membrane ring
-    // Two slightly detuned sines create the beating "bloom" of a real drum
-    const bodyFreq = preset.kickFreq * 1.05;
-    const bodyA = Math.sin(2 * Math.PI * bodyFreq * t) * Math.exp(-t / 0.45);
-    const bodyB = Math.sin(2 * Math.PI * bodyFreq * 1.018 * t) * Math.exp(-t / 0.38);
+    // Sub boom — pitch sweeps down, phase integrated correctly
+    const subFreq = preset.kickFreq * 1.4 * Math.exp(-t * 6) + preset.kickFreq * 0.55;
+    subPhase += (2 * Math.PI * subFreq) / sr;
+    const subBoom = Math.sin(subPhase) * Math.exp(-t / 0.70);
 
-    // Mid punch — adds the chest-hit around 80–120 Hz
-    const punchFreq = 90 + (preset.kickFreq - 50) * 0.8;
-    const punch = Math.sin(2 * Math.PI * punchFreq * t) * Math.exp(-t / 0.16);
+    // Body — single sine, no detuning, clean resonance
+    const bodyFreq = preset.kickFreq * 1.02;
+    bodyPhase += (2 * Math.PI * bodyFreq) / sr;
+    const body = Math.sin(bodyPhase) * Math.exp(-t / 0.40);
 
-    // Impact transient — soft mallet on skin, not a sharp stick click
-    const stick = t < 0.014
-      ? (Math.random() * 2 - 1) * Math.pow(1 - t / 0.014, 2.0) * 0.30
-      : 0;
+    // Punch — mid thud, short decay
+    const punchFreq = 85 + (preset.kickFreq - 50) * 0.7;
+    punchPhase += (2 * Math.PI * punchFreq) / sr;
+    const punch = Math.sin(punchPhase) * Math.exp(-t / 0.14);
 
-    // Cinematic air — a faint high-passed noise tail simulating air displacement
-    // This is what separates "electronic kick" from "orchestral hit"
-    const airEnv = t < 0.003 ? t / 0.003 : Math.exp(-(t - 0.003) / 0.18);
-    const air = (Math.random() * 2 - 1) * airEnv * 0.06;
+    // Soft skin impact — very brief, low amplitude
+    const stick = t < 0.012 ? (Math.random() * 2 - 1) * (1 - t / 0.012) * 0.18 : 0;
 
-    kd[i] = subBoom * 0.52 + (bodyA + bodyB) * 0.22 + punch * 0.3 + stick * 0.85 + air;
+    kd[i] = subBoom * 0.55 + body * 0.28 + punch * 0.22 + stick;
   }
 
   // ── CINEMATIC SNARE — Hall crack + long noise decay like taiko/war drum
@@ -3583,7 +3589,7 @@ function buildPerc(preset, intensity, name, bufs) {
   const isTribal  = percVoice === 'tribal';
 
   // Crack frequency ceiling per voice — above this gets cut
-  const snareCrackCeiling = isTaiko ? 600 : isGhost ? 800 : isTribal ? 1800 : 2400;
+  const snareCrackCeiling = isTaiko ? 600 : isGhost ? 800 : isTribal ? 3200 : 2400;
   const snareGain         = isTaiko ? 0.72 : isGhost ? 0.55 : 0.82;
   const hatGainVal        = isTaiko ? 0.22 : isGhost ? 0.28 : isTribal ? 0.40 : 0.48;
   const kickShelfFreq     = isTaiko ? 80  : 120;
