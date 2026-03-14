@@ -3245,23 +3245,38 @@ function buildPercBufs(preset, voice) {
 
   // ── VOICE: TAIKO — Japanese war drum, massive resonance ────────────
   if (mode === 'taiko') {
-    const kickLen = Math.floor(sr * 2.2);
+    const kickLen = Math.floor(sr * 2.8);
     const kick = ctx.createBuffer(1, kickLen, sr);
     const kd = kick.getChannelData(0);
-    let tkPhase = 0, tk2Phase = 0, subPhase = 0, rimPhase = 0;
-    for (let i = 0; i < kickLen; i++) {
-      const t = i / sr;
-      const freq = preset.kickFreq * 0.55 * Math.exp(-t * 2.2) + preset.kickFreq * 0.38;
-      tkPhase  += (2 * Math.PI * freq) / sr;
-      tk2Phase += (2 * Math.PI * freq * 1.49) / sr;
-      subPhase += (2 * Math.PI * 28) / sr;
-      rimPhase += (2 * Math.PI * 180) / sr;
-      const body     = Math.sin(tkPhase)  * Math.exp(-t / 1.4);
-      const partial2 = Math.sin(tk2Phase) * Math.exp(-t / 0.7) * 0.22;
-      const sub      = Math.sin(subPhase) * Math.exp(-t / 1.8) * 0.55;
-      const mallet   = t < 0.018 ? (Math.random() * 2 - 1) * (1 - t / 0.018) * 0.28 : 0;
-      const rim      = Math.sin(rimPhase) * Math.exp(-t / 0.12) * 0.05;
-      kd[i] = body * 0.45 + partial2 + sub + mallet + rim;
+    {
+      const f0     = preset.kickFreq * 0.42;
+      const fSwing = f0 * 0.65;
+      const modes  = [
+        { fMult: 1.000, amp: 0.68, decayTC: 2.20 },
+        { fMult: 1.593, amp: 0.18, decayTC: 0.80 },
+        { fMult: 2.136, amp: 0.08, decayTC: 0.35 },
+      ];
+      const phases = modes.map(() => 0);
+      let subPhase = 0, shellPhase = 0, noiseLP = 0;
+      for (let i = 0; i < kickLen; i++) {
+        const t = i / sr;
+        const pitchEnv = fSwing * Math.exp(-t / 0.055) + fSwing * 0.2 * Math.exp(-t / 0.35);
+        let sample = 0;
+        modes.forEach((m, mi) => {
+          const freq = (f0 + pitchEnv) * m.fMult;
+          phases[mi] += (2 * Math.PI * freq) / sr;
+          sample += Math.sin(phases[mi]) * Math.exp(-t / m.decayTC) * m.amp;
+        });
+        subPhase   += (2 * Math.PI * 22) / sr;
+        shellPhase += (2 * Math.PI * f0 * 0.38) / sr;
+        sample += Math.sin(subPhase)   * Math.exp(-t / 2.8) * 0.48;
+        sample += Math.sin(shellPhase) * Math.exp(-t / 3.2) * 0.16;
+        const raw = Math.random() * 2 - 1;
+        noiseLP   = noiseLP * 0.88 + raw * 0.12;
+        const nEnv = t < 0.012 ? (t / 0.012) : Math.exp(-(t - 0.012) / 0.040);
+        sample += noiseLP * nEnv * 0.06;
+        kd[i] = sample * 0.85;
+      }
     }
 
     // Taiko snare (o-daiko accent hit) — no wires, just skin resonance + air
@@ -3321,22 +3336,37 @@ function buildPercBufs(preset, voice) {
 
   // ── VOICE: TRIBAL — tom-heavy, mid-range, primal groove ────────────
   if (mode === 'tribal') {
-    // Tribal kick — mid-weight, wooden + skin, not as deep as taiko
-    const kickLen = Math.floor(sr * 1.1);
+    // Tribal kick — mid-weight, wood + skin feel
+    const kickLen = Math.floor(sr * 1.2);
     const kick = ctx.createBuffer(1, kickLen, sr);
     const kd = kick.getChannelData(0);
-    let tbPhase = 0, tbMidPhase = 0, tbSubPhase = 0;
-    for (let i = 0; i < kickLen; i++) {
-      const t = i / sr;
-      const freq = preset.kickFreq * 1.2 * Math.exp(-t * 9) + preset.kickFreq * 0.75;
-      tbPhase    += (2 * Math.PI * freq) / sr;
-      tbMidPhase += (2 * Math.PI * freq * 1.8) / sr;
-      tbSubPhase += (2 * Math.PI * 40) / sr;
-      const body = Math.sin(tbPhase)    * Math.exp(-t / 0.5);
-      const mid  = Math.sin(tbMidPhase) * Math.exp(-t / 0.18) * 0.3;
-      const sub  = Math.sin(tbSubPhase) * Math.exp(-t / 0.65) * 0.38;
-      const skin = t < 0.016 ? (Math.random() * 2 - 1) * (1 - t / 0.016) * 0.28 : 0;
-      kd[i] = body * 0.44 + mid + sub + skin;
+    {
+      const f0     = preset.kickFreq * 0.78;
+      const fSwing = f0 * 0.45;
+      const modes  = [
+        { fMult: 1.000, amp: 0.60, decayTC: 0.70 },
+        { fMult: 1.593, amp: 0.20, decayTC: 0.25 },
+        { fMult: 2.136, amp: 0.10, decayTC: 0.12 },
+      ];
+      const phases = modes.map(() => 0);
+      let subPhase = 0, noiseLP = 0;
+      for (let i = 0; i < kickLen; i++) {
+        const t = i / sr;
+        const pitchEnv = fSwing * Math.exp(-t / 0.025) + fSwing * 0.15 * Math.exp(-t / 0.18);
+        let sample = 0;
+        modes.forEach((m, mi) => {
+          const freq = (f0 + pitchEnv) * m.fMult;
+          phases[mi] += (2 * Math.PI * freq) / sr;
+          sample += Math.sin(phases[mi]) * Math.exp(-t / m.decayTC) * m.amp;
+        });
+        subPhase += (2 * Math.PI * 38) / sr;
+        sample += Math.sin(subPhase) * Math.exp(-t / 0.90) * 0.38;
+        const raw = Math.random() * 2 - 1;
+        noiseLP   = noiseLP * 0.82 + raw * 0.18;
+        const nEnv = t < 0.006 ? (t / 0.006) : Math.exp(-(t - 0.006) / 0.030);
+        sample += noiseLP * nEnv * 0.10;
+        kd[i] = sample * 0.85;
+      }
     }
 
     // Tribal snare — tone-heavy, like a hand drum crack
@@ -3392,40 +3422,74 @@ function buildPercBufs(preset, voice) {
   }
 
   // ── VOICE: CINEMATIC (default) — orchestral hall drums ─────────────
-  // Three-layer architecture: sub boom + body thud + impact transient
-  const kickLen = Math.floor(sr * 1.4); // longer tail for hall decay
+  const kickLen = Math.floor(sr * 2.0);
   const kick = ctx.createBuffer(1, kickLen, sr);
   const kd = kick.getChannelData(0);
-  for (let i = 0; i < kickLen; i++) {
-    const t = i / sr;
+  {
+    // Physical model: drum head has a fundamental + inharmonic membrane modes
+    // Air coupling creates a secondary resonance slightly below the fundamental
+    // Pitch envelope: fast initial drop (head tension releasing) then slow settle
+    const f0      = preset.kickFreq * 0.85; // fundamental after settle
+    const fSwing  = f0 * 0.55;              // how much pitch drops from peak
+    const sweepTC = 0.035;                  // time constant of fast initial drop (35ms)
+    const slowTC  = 0.28;                   // slow settle after initial drop
 
-    // All oscillators use phase integration — no phase discontinuity = no buzz
-    if (i === 0) { kd._subPhase = 0; kd._bodyPhase = 0; kd._punchPhase = 0; }
-  }
-  // Rebuild with proper phase integration
-  let subPhase = 0, bodyPhase = 0, punchPhase = 0;
-  for (let i = 0; i < kickLen; i++) {
-    const t = i / sr;
+    // Inharmonic membrane modes (Bessel function zeros for circular membrane)
+    const modes = [
+      { fMult: 1.000, amp: 0.62, decayTC: 1.40 }, // fundamental
+      { fMult: 1.593, amp: 0.14, decayTC: 0.45 }, // 1st overtone
+      { fMult: 2.136, amp: 0.07, decayTC: 0.22 }, // 2nd overtone
+    ];
 
-    // Sub boom — pitch sweeps down, phase integrated correctly
-    const subFreq = preset.kickFreq * 1.4 * Math.exp(-t * 6) + preset.kickFreq * 0.55;
-    subPhase += (2 * Math.PI * subFreq) / sr;
-    const subBoom = Math.sin(subPhase) * Math.exp(-t / 0.70);
+    // Air resonance — slightly below fundamental, slower decay
+    const airF    = f0 * 0.72;
+    const airDecay = 1.80;
 
-    // Body — single sine, no detuning, clean resonance
-    const bodyFreq = preset.kickFreq * 1.02;
-    bodyPhase += (2 * Math.PI * bodyFreq) / sr;
-    const body = Math.sin(bodyPhase) * Math.exp(-t / 0.40);
+    // Phase accumulators
+    const phases = modes.map(() => 0);
+    let airPhase = 0;
 
-    // Punch — mid thud, short decay
-    const punchFreq = 85 + (preset.kickFreq - 50) * 0.7;
-    punchPhase += (2 * Math.PI * punchFreq) / sr;
-    const punch = Math.sin(punchPhase) * Math.exp(-t / 0.14);
+    // Low-frequency shell/body resonance
+    const shellF = f0 * 0.42;
+    let shellPhase = 0;
 
-    // Soft skin impact — very brief, low amplitude
-    const stick = t < 0.012 ? (Math.random() * 2 - 1) * (1 - t / 0.012) * 0.18 : 0;
+    // Noise envelope — skin texture, two stages: impact burst + residual air
+    let noiseLP = 0;
 
-    kd[i] = subBoom * 0.55 + body * 0.28 + punch * 0.22 + stick;
+    for (let i = 0; i < kickLen; i++) {
+      const t  = i / sr;
+
+      // Pitch envelope — nonlinear two-stage drop feels like real head tension
+      const pitchEnv = fSwing * Math.exp(-t / sweepTC)
+                     + fSwing * 0.18 * Math.exp(-t / slowTC);
+
+      let sample = 0;
+
+      // Modal synthesis — each mode tracks the pitch envelope proportionally
+      modes.forEach((m, mi) => {
+        const freq  = (f0 + pitchEnv) * m.fMult;
+        phases[mi] += (2 * Math.PI * freq) / sr;
+        sample += Math.sin(phases[mi]) * Math.exp(-t / m.decayTC) * m.amp;
+      });
+
+      // Air coupling resonance
+      airPhase += (2 * Math.PI * airF) / sr;
+      sample += Math.sin(airPhase) * Math.exp(-t / airDecay) * 0.32;
+
+      // Shell body — very low, very long
+      shellPhase += (2 * Math.PI * shellF) / sr;
+      sample += Math.sin(shellPhase) * Math.exp(-t / 2.20) * 0.18;
+
+      // Skin noise — two stage: sharp impact burst + long breathy tail
+      const raw  = Math.random() * 2 - 1;
+      noiseLP    = noiseLP * 0.85 + raw * 0.15; // light LP for texture not static
+      const nEnv = t < 0.008
+        ? (t / 0.008)                            // fast attack
+        : Math.exp(-(t - 0.008) / 0.055);        // short decay
+      sample += noiseLP * nEnv * 0.08;
+
+      kd[i] = sample * 0.88;
+    }
   }
 
   // ── CINEMATIC SNARE — Hall crack + long noise decay like taiko/war drum
