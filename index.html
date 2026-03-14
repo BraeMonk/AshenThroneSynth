@@ -2302,8 +2302,8 @@ function initAudio() {
   masterCompressor = ctx.createDynamicsCompressor();
   masterCompressor.threshold.value = -18;
   masterCompressor.knee.value = 10;
-  masterCompressor.ratio.value = 3.5;   // was 6 — much more gentle
-  masterCompressor.attack.value = 0.008;
+  masterCompressor.ratio.value = 3.5;
+  masterCompressor.attack.value = 0.002;  // 2ms — catches transients before they crack
   masterCompressor.release.value = 0.35;
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
@@ -3580,42 +3580,37 @@ function buildPerc(preset, intensity, name, bufs) {
   const percVoice = sessionVoices['perc'] || 'cinematic';
   const isTaiko   = percVoice === 'taiko';
   const isGhost   = percVoice === 'ghost';
+  const isTribal  = percVoice === 'tribal';
 
-  // ── Cinematic signal chain ──────────────────────────────────────────
-  // Kick bus — low-shelf to reinforce sub, then to master
-  const kickBus = ctx.createGain(); kickBus.gain.value = isTaiko ? 0.82 : 0.92;
+  // Crack frequency ceiling per voice — above this gets cut
+  const snareCrackCeiling = isTaiko ? 600 : isGhost ? 800 : isTribal ? 1800 : 2400;
+  const snareGain         = isTaiko ? 0.72 : isGhost ? 0.55 : 0.82;
+  const hatGainVal        = isTaiko ? 0.22 : isGhost ? 0.28 : isTribal ? 0.40 : 0.48;
+  const kickShelfFreq     = isTaiko ? 80  : 120;
+  const kickShelfGain     = isTaiko ? 6.0 : 4.5;
+
+  // ── Signal chain ──────────────────────────────────────────────────
+  const kickBus = ctx.createGain(); kickBus.gain.value = isTaiko ? 0.82 : 0.88;
   const kickLowShelf = ctx.createBiquadFilter();
   kickLowShelf.type = 'lowshelf';
-  kickLowShelf.frequency.value = isTaiko ? 80 : 120;   // taiko: deeper shelf
-  kickLowShelf.gain.value      = isTaiko ? 6.0 : 4.5;  // taiko: more sub weight
+  kickLowShelf.frequency.value = kickShelfFreq;
+  kickLowShelf.gain.value      = kickShelfGain;
   kickBus.connect(kickLowShelf); kickLowShelf.connect(b);
   reg(name, kickBus, kickLowShelf);
 
-  // Snare bus — taiko has no wire snare, treat as a deep skin hit
-  const snareBus = ctx.createGain(); snareBus.gain.value = isTaiko ? 0.72 : 0.88;
-  const snareHPF = mkFilt(
-    isTaiko ? 60  : 160,   // taiko: pass the low body, not the crack
-    'highpass',
-    isTaiko ? 0.4 : 0.7
-  );
-  const snareLPF = isTaiko ? mkFilt(600, 'lowpass', 0.5) : null; // taiko: cut the high crack
-  snareBus.connect(snareHPF);
-  if (snareLPF) { snareHPF.connect(snareLPF); snareLPF.connect(b); reg(name, snareLPF); }
-  else { snareHPF.connect(b); }
-  reg(name, snareBus, snareHPF);
+  // Snare bus — HPF removes mud, LPF cuts crack ceiling per voice
+  const snareBus = ctx.createGain(); snareBus.gain.value = snareGain;
+  const snareHPF = mkFilt(isGhost ? 100 : isTaiko ? 60 : 140, 'highpass', 0.5);
+  const snareLPF = mkFilt(snareCrackCeiling, 'lowpass', 0.6);
+  snareBus.connect(snareHPF); snareHPF.connect(snareLPF); snareLPF.connect(b);
+  reg(name, snareBus, snareHPF, snareLPF);
 
-  // Hat bus — taiko uses wooden clapper, much darker and quieter
-  const hatBus = ctx.createGain(); hatBus.gain.value = isTaiko ? 0.22 : (isGhost ? 0.35 : 0.55);
-  const hatHPF = mkFilt(
-    isTaiko ? 800  : preset.snareFilterFreq * 3.5,  // taiko: dark wood, not metallic
-    'highpass',
-    isTaiko ? 0.5  : 1.2
-  );
-  const hatLPF = isTaiko ? mkFilt(3000, 'lowpass', 0.6) : null; // taiko: remove harsh highs
-  hatBus.connect(hatHPF);
-  if (hatLPF) { hatHPF.connect(hatLPF); hatLPF.connect(b); reg(name, hatLPF); }
-  else { hatHPF.connect(b); }
-  reg(name, hatBus, hatHPF);
+  // Hat bus — voice-aware ceiling
+  const hatBus = ctx.createGain(); hatBus.gain.value = hatGainVal;
+  const hatHPF = mkFilt(isTaiko ? 800 : isGhost ? 600 : preset.snareFilterFreq * 3.5, 'highpass', isTaiko ? 0.5 : 1.0);
+  const hatLPF = mkFilt(isTaiko ? 3000 : isGhost ? 4000 : 8000, 'lowpass', 0.6);
+  hatBus.connect(hatHPF); hatHPF.connect(hatLPF); hatLPF.connect(b);
+  reg(name, hatBus, hatHPF, hatLPF);
 
   // Timpani / impact bus — dry, sub-heavy
   const timpBus = ctx.createGain(); timpBus.gain.value = 0.72 + intensity * 0.22;
