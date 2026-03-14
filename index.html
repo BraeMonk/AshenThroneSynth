@@ -2301,10 +2301,10 @@ function initAudio() {
   // Master compressor — gentle glue, not a limiter
   masterCompressor = ctx.createDynamicsCompressor();
   masterCompressor.threshold.value = -18;
-  masterCompressor.knee.value = 10;
-  masterCompressor.ratio.value = 3.5;
-  masterCompressor.attack.value = 0.002;  // 2ms — catches transients before they crack
-  masterCompressor.release.value = 0.35;
+  masterCompressor.knee.value = 12;
+  masterCompressor.ratio.value = 3.0;
+  masterCompressor.attack.value = 0.008;  // 8ms — fast enough to catch peaks, slow enough to let transients breathe
+  masterCompressor.release.value = 0.45;
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
@@ -2359,14 +2359,14 @@ function connectLayerReverb() {
 }
 
 function makeSatCurve(amount) {
-  const n = 256;
+  const n = 1024; // higher resolution = smoother curve = no quantization crackle
   const curve = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const x = (i * 2) / n - 1;
     if (amount < 0.01) {
       curve[i] = x; // pure bypass at zero
     } else {
-      const k = amount * 20; // was amount * 200 — much gentler
+      const k = amount * 18; // slightly gentler ceiling
       curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
     }
   }
@@ -2384,8 +2384,7 @@ function buildFXChain() {
   reverbNode = ctx.createConvolver();
   reverbNode.buffer = buildIR(_reverbSize);
   reverbWetGain = ctx.createGain(); reverbWetGain.gain.value = _reverbMix;
-  // fxInput feeds reverb for global wet; per-layer sends also feed reverbNode
-  fxInput.connect(reverbNode);
+  // Per-layer sendG feeds reverbNode — do NOT also route fxInput here (double-wet crackle)
   reverbNode.connect(reverbWetGain); reverbWetGain.connect(masterGain);
 
   delayNode = ctx.createDelay(2.0); delayNode.delayTime.value = _delayTime;
@@ -4346,16 +4345,18 @@ function buildFireCrackle(preset, intensity, name) {
     const count = 1 + (rng() < 0.4 + intensity * 0.3 ? 1 : 0) + (rng() < 0.2 ? 1 : 0);
     for (let i = 0; i < count; i++) {
       const offset  = i * (0.006 + rng() * 0.012);
-      const dur     = 0.008 + rng() * 0.035;
+      const dur     = 0.010 + rng() * 0.038;
       const crBuf   = ctx.createBuffer(1, Math.floor(sr * dur), sr);
       const cd      = crBuf.getChannelData(0);
+      const fadeIn  = Math.floor(sr * 0.002); // 2ms fade-in kills onset click
       for (let j = 0; j < cd.length; j++) {
         const tt = j / sr;
-        cd[j] = (Math.random() * 2 - 1) * Math.exp(-tt / (dur * 0.3));
+        const env = Math.min(1, j / fadeIn) * Math.exp(-tt / (dur * 0.3));
+        cd[j] = (Math.random() * 2 - 1) * env;
       }
       const src  = ctx.createBufferSource(); src.buffer = crBuf;
-      const filt = mkFilt(1200 + rng() * 4000, 'bandpass', 1.8);
-      const g    = mkGain(0.07 + rng() * 0.14 * (0.5 + intensity * 0.5));
+      const filt = mkFilt(800 + rng() * 2800, 'bandpass', 1.2); // narrower range, softer Q
+      const g    = mkGain(0.055 + rng() * 0.10 * (0.5 + intensity * 0.5));
       chain(src, filt, g, b);
       src.start(now + offset);
       reg(name, src, filt, g);
@@ -7041,9 +7042,9 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     if (e.deathT >= 0 || e.spawnT < 1 || e.deathT < 0) {
       const baseAlpha = e.deathT >= 0 ? Math.max(0, 1 - e.deathT * 1.4)
                       : Math.min(1, e.spawnT);
-      // Patrol: very dim silhouette (enemy unaware). Alert: partial. Aggro/retreat: full.
-      const stateFade = e.eState === 'patrol'  ? (0.10 + depthT * 0.20)
-                      : e.eState === 'alert'   ? (0.45 + depthT * 0.20)
+      // Patrol: visible silhouette (enemy unaware). Alert: clear. Aggro/retreat: full.
+      const stateFade = e.eState === 'patrol'  ? (0.28 + depthT * 0.22)
+                      : e.eState === 'alert'   ? (0.60 + depthT * 0.20)
                       : 1.0;
       const alpha = baseAlpha * stateFade;
       const es = s * e.scale;
@@ -7070,12 +7071,23 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         c.fillStyle = hfg; c.beginPath(); c.arc(0, -es*0.3, es*0.7, 0, Math.PI*2); c.fill();
       }
 
-      // Shared color palette — dark zone-tinted silhouette
-      const eR = Math.floor(R * 0.22 + 8);
-      const eG = Math.floor(G * 0.14 + 5);
-      const eB = Math.floor(B * 0.28 + 10);
-      const eFill = (a=0.92) => `rgba(${eR},${eG},${eB},${a})`;
-      const eAccent = (a=0.7) => `rgba(${R},${Math.floor(G*0.6)},${B},${a})`;
+      // Shared color palette — brighter zone-tinted silhouette with specular edge
+      const eR = Math.floor(R * 0.38 + 22);
+      const eG = Math.floor(G * 0.26 + 14);
+      const eB = Math.floor(B * 0.44 + 20);
+      // Rim / edge highlight color — brighter version for silhouette edges
+      const eRim = (a=0.5) => `rgba(${Math.floor(R*0.6+45)},${Math.floor(G*0.4+30)},${Math.floor(B*0.6+40)},${a})`;
+      const eFill = (a=0.94) => `rgba(${eR},${eG},${eB},${a})`;
+      const eAccent = (a=0.85) => `rgba(${R},${Math.floor(G*0.75)},${B},${a})`;
+      // Eye glow helper — enemies have glowing zone-colored eyes
+      const drawEye = (ex2, ey2, r=0.04) => {
+        const eg = c.createRadialGradient(ex2, ey2, 0, ex2, ey2, es*r*2.5);
+        eg.addColorStop(0, `rgba(${R},${Math.floor(G*0.8)},${B},${0.9 + CIN.smoothBass*0.1})`);
+        eg.addColorStop(0.4, `rgba(${R},${Math.floor(G*0.5)},${B},${0.5})`);
+        eg.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle=eg; c.beginPath(); c.arc(ex2,ey2,es*r*2.5,0,Math.PI*2); c.fill();
+        c.beginPath(); c.arc(ex2,ey2,es*r,0,Math.PI*2); c.fillStyle=eAccent(1.0); c.fill();
+      };
       const eAnim = e.anim;
       const eBob  = Math.sin(eAnim) * es * 0.015;
 
@@ -7130,9 +7142,17 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         c.fillStyle=`rgba(180,190,210,0.82)`; c.fill();
         c.beginPath(); c.roundRect(-es*0.1,-es*0.02,es*0.2,es*0.04,3); c.fillStyle=eFill(0.8); c.fill();
         c.restore(); c.restore();
-        // Head + helm
-        c.beginPath(); c.arc(0,-es*0.55+eBob,es*0.155,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
-        c.beginPath(); c.roundRect(-es*0.14,-es*0.5+eBob,es*0.28,es*0.07,2); c.fillStyle=eAccent(0.5); c.fill();
+        // Head + helm — brighter with glowing visor
+        c.beginPath(); c.arc(0,-es*0.55+eBob,es*0.155,0,Math.PI*2);
+        const eHelmG=c.createRadialGradient(eDir*es*0.05,-es*0.58+eBob,0,0,-es*0.55+eBob,es*0.155);
+        eHelmG.addColorStop(0,`rgba(${eR+18},${eG+12},${eB+22},1.0)`); eHelmG.addColorStop(1,eFill());
+        c.fillStyle=eHelmG; c.fill();
+        // Visor slit glow
+        c.beginPath(); c.roundRect(eDir*es*0.02,-es*0.555+eBob,es*0.1,es*0.036,1);
+        c.fillStyle=eAccent(0.75+CIN.smoothBass*0.2); c.fill();
+        drawEye(eDir*es*0.072,-es*0.537+eBob, 0.028);
+        // Helm cheek guards
+        c.beginPath(); c.roundRect(-es*0.14,-es*0.5+eBob,es*0.28,es*0.06,2); c.fillStyle=eFill(0.88); c.fill();
 
       } else if (enemyType === 'stalker') {
         // ── Hunched stalker — long arms, uneven gait ───────────────
@@ -7160,9 +7180,8 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         c.beginPath(); c.roundRect(-es*0.12,-es*0.42,es*0.24,es*0.44,4); c.fillStyle=eFill(); c.fill();
         // Head — low, between shoulders
         c.beginPath(); c.arc(eDir*es*0.04,-es*0.42,es*0.13,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
-        // Eyes
-        c.beginPath(); c.arc(eDir*es*0.09,-es*0.45,es*0.032,0,Math.PI*2);
-        c.fillStyle=eAccent(0.9); c.fill();
+        // Eyes — glowing
+        drawEye(eDir*es*0.09,-es*0.45, 0.034);
         c.restore();
 
       } else if (enemyType === 'revenant') {
@@ -7196,13 +7215,12 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
           c.strokeStyle=eFill(0.75); c.lineWidth=1.8; c.stroke();
           c.restore();
         }
-        // Skull
-        c.beginPath(); c.arc(0,-es*0.52,es*0.14,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
-        // Eye sockets — glow
-        for (let sd=-1;sd<=1;sd+=2) {
-          c.beginPath(); c.arc(sd*es*0.055,-es*0.54,es*0.038,0,Math.PI*2);
-          c.fillStyle=eAccent(0.85+Math.sin(eAnim*2)*0.1); c.fill();
-        }
+        // Skull — brighter gradient
+        const skG=c.createRadialGradient(0,-es*0.56,0,0,-es*0.52,es*0.14);
+        skG.addColorStop(0,`rgba(${eR+20},${eG+14},${eB+24},1.0)`); skG.addColorStop(1,eFill());
+        c.beginPath(); c.arc(0,-es*0.52,es*0.14,0,Math.PI*2); c.fillStyle=skG; c.fill();
+        // Eye sockets — glowing
+        for (let sd=-1;sd<=1;sd+=2) { drawEye(sd*es*0.055,-es*0.54, 0.038); }
         // Jaw
         c.beginPath(); c.roundRect(-es*0.09,-es*0.44,es*0.18,es*0.06,2);
         c.fillStyle=eFill(0.7); c.fill();
@@ -7236,12 +7254,9 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
           c.bezierCurveTo(sd*es*0.3,-es*0.2+tw2, sd*es*0.36,-es*0.05, sd*es*0.28,es*0.1);
           c.strokeStyle=eFill(0.55); c.lineWidth=es*0.045; c.stroke();
         }
-        // Face — hollow sockets
+        // Face — hollow sockets with glow
         c.beginPath(); c.arc(0,-es*0.52+eBob,es*0.13,0,Math.PI*2); c.fillStyle=eFill(0.75); c.fill();
-        for (let sd=-1;sd<=1;sd+=2) {
-          c.beginPath(); c.arc(sd*es*0.048,-es*0.54+eBob,es*0.036,0,Math.PI*2);
-          c.fillStyle=eAccent(0.8); c.fill();
-        }
+        for (let sd=-1;sd<=1;sd+=2) { drawEye(sd*es*0.048,-es*0.54+eBob, 0.038); }
         c.globalAlpha = alpha;
 
       } else if (enemyType === 'construct') {
@@ -7282,9 +7297,8 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         c.beginPath(); c.roundRect(-es*0.1,-es*0.1,es*0.2,es*0.2,2);
         c.fillStyle=eFill(); c.fill();
         c.strokeStyle=eAccent(0.7); c.lineWidth=1.2; c.stroke();
-        // Core light
-        c.beginPath(); c.arc(0,0,es*0.042,0,Math.PI*2);
-        c.fillStyle=eAccent(0.9+Math.sin(eAnim*3)*0.08); c.fill();
+        // Core light — pulsing eye
+        drawEye(0, 0, 0.05);
         c.restore();
 
       } else if (enemyType === 'darkknight') {
@@ -7330,18 +7344,25 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         dkbg.addColorStop(1,`rgba(${R},${G},${B},${0.4+CIN.smoothBass*0.3})`);
         c.beginPath(); c.roundRect(-es*0.022,-es*0.72,es*0.044,es*0.72,1); c.fillStyle=dkbg; c.fill();
         c.restore(); c.restore();
-        // Helm — full visor, imposing
-        c.beginPath(); c.arc(0,-es*0.56+eBob,es*0.17,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
+        // Helm — full visor, imposing — brighter radial highlight
+        const dkHG=c.createRadialGradient(eDir*es*0.05,-es*0.59+eBob,0,0,-es*0.56+eBob,es*0.17);
+        dkHG.addColorStop(0,`rgba(${eR+24},${eG+16},${eB+28},1.0)`); dkHG.addColorStop(1,eFill());
+        c.beginPath(); c.arc(0,-es*0.56+eBob,es*0.17,0,Math.PI*2); c.fillStyle=dkHG; c.fill();
+        // Helm rim
+        c.beginPath(); c.arc(0,-es*0.56+eBob,es*0.17,Math.PI*0.55,Math.PI*1.45);
+        c.strokeStyle=eRim(0.35+active*0.2); c.lineWidth=es*0.014; c.stroke();
         for (let sd=-1;sd<=1;sd+=2) {
           c.beginPath(); c.roundRect(sd*es*0.04,-es*0.64+eBob,es*0.1,es*0.13,2); c.fillStyle=eFill(0.88); c.fill();
         }
-        // Visor slit — glows opposing zone color
+        // Visor slit — glowing with drawEye
         c.beginPath(); c.roundRect(-eDir*es*0.02,-es*0.59+eBob,es*0.13,es*0.038,1);
-        c.fillStyle=eAccent(0.75+CIN.smoothBass*0.2); c.fill();
-        // Crest — taller on boss
-        const dkCH = es*(bossNow?0.32:0.22);
+        c.fillStyle=eAccent(0.55); c.fill();
+        drawEye(-eDir*es*0.065, -es*0.572+eBob, 0.032);
+        drawEye(-eDir*es*0.018, -es*0.572+eBob, 0.028);
+        // Crest — taller on boss, brighter
+        const dkCH = es*(bossNow?0.36:0.25);
         const dkCG=c.createLinearGradient(0,-es*0.7+eBob,0,-es*0.7-dkCH+eBob);
-        dkCG.addColorStop(0,eAccent(0.6)); dkCG.addColorStop(1,eAccent(0.9));
+        dkCG.addColorStop(0,eAccent(0.7)); dkCG.addColorStop(1,eAccent(1.0));
         c.beginPath(); c.moveTo(-es*0.07,-es*0.7+eBob);
         c.bezierCurveTo(-es*0.06,-es*0.7-dkCH*0.5+eBob,es*0.06,-es*0.7-dkCH*0.5+eBob,es*0.07,-es*0.7+eBob);
         c.closePath(); c.fillStyle=dkCG; c.fill();
@@ -7375,11 +7396,9 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
         }
         // Head — elongated skull
         c.beginPath(); c.ellipse(0,-es*0.72+eBob,es*0.11,es*0.18,0,0,Math.PI*2); c.fillStyle=eFill(); c.fill();
-        // Void eyes — three of them
+        // Void eyes — three of them, glowing
         for (let ei=0;ei<3;ei++) {
-          const exa = (ei-1)*es*0.072;
-          c.beginPath(); c.arc(exa,-es*0.73+eBob,es*0.028,0,Math.PI*2);
-          c.fillStyle=eAccent(0.85+Math.sin(eAnim*3+ei)*0.12); c.fill();
+          drawEye((ei-1)*es*0.072, -es*0.73+eBob, 0.030);
         }
 
       } else if (enemyType === 'daemon') {
@@ -7436,11 +7455,8 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
           c.bezierCurveTo(sd*es*0.26,-es*0.22, sd*es*0.28,-es*0.38, sd*es*0.18,-es*0.44);
           c.strokeStyle=eFill(0.88); c.lineWidth=es*0.065; c.stroke();
         }
-        // Eyes
-        for (let sd=-1;sd<=1;sd+=2) {
-          c.beginPath(); c.arc(sd*es*0.075,-es*0.02,es*0.04,0,Math.PI*2);
-          c.fillStyle=eAccent(0.9+Math.sin(eAnim*2.5)*0.08); c.fill();
-        }
+        // Eyes — blazing
+        for (let sd=-1;sd<=1;sd+=2) { drawEye(sd*es*0.075,-es*0.02, 0.044); }
         c.restore();
       }
 
@@ -7802,14 +7818,19 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
     const headTiltX  = leg.mood==='arcane' ? d * s * 0.012 : 0;
     const hx=bx+d*s*0.04+headTiltX, hy=by-s*0.47+headBow-headLift;
     // Neck gorget
-    c.beginPath(); c.roundRect(hx-s*0.056,hy+s*0.1,s*0.112,s*0.1,2); fill('rgba(24,22,36,0.96)');
-    // Helm — slightly different shade per mood
-    const helmBright = leg.mood==='triumphant' ? 62 : leg.mood==='tragic' ? 44 : 56;
-    const hg2=c.createRadialGradient(hx+d*s*0.04,hy-s*0.05,0,hx,hy,s*0.168);
-    hg2.addColorStop(0,`rgba(${helmBright},${helmBright-4},${helmBright+12},0.98)`); hg2.addColorStop(1,'rgba(22,20,36,0.96)');
+    c.beginPath(); c.roundRect(hx-s*0.056,hy+s*0.1,s*0.112,s*0.1,2); fill('rgba(28,26,40,0.96)');
+    // Helm — boosted radial highlight, mood-tinted
+    const helmBright = leg.mood==='triumphant' ? 80 : leg.mood==='tragic' ? 56 : 70;
+    const hg2=c.createRadialGradient(hx+d*s*0.05,hy-s*0.06,0,hx,hy,s*0.168);
+    hg2.addColorStop(0,`rgba(${helmBright+10},${helmBright+6},${helmBright+20},1.0)`);
+    hg2.addColorStop(0.45,`rgba(${helmBright},${helmBright-4},${helmBright+12},0.98)`);
+    hg2.addColorStop(1,'rgba(22,20,36,0.96)');
     c.beginPath(); c.arc(hx,hy,s*0.168,0,Math.PI*2); c.fillStyle=hg2; c.fill();
+    // Helm rim light — bright edge highlight
+    c.beginPath(); c.arc(hx,hy,s*0.168,Math.PI*0.6,Math.PI*1.4);
+    c.strokeStyle=`rgba(${Math.floor(R*0.4+50)},${Math.floor(G*0.3+38)},${Math.floor(B*0.5+50)},${0.28+active*0.18})`; c.lineWidth=s*0.016; c.stroke();
     // Cheeks
-    for(let sd=-1;sd<=1;sd+=2){c.beginPath();c.roundRect(hx+sd*s*0.1,hy-s*0.08,s*0.072,s*0.12,2);fill('rgba(30,28,44,0.9)');}
+    for(let sd=-1;sd<=1;sd+=2){c.beginPath();c.roundRect(hx+sd*s*0.1,hy-s*0.08,s*0.072,s*0.12,2);fill('rgba(36,34,50,0.92)');}
     // Wound dents — scratches accumulate on helm from stagger damage
     if (k.wounds > 0) {
       c.save(); c.translate(hx, hy);
@@ -7827,39 +7848,45 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
       c.restore();
     }
     // Bevor
-    c.beginPath(); c.roundRect(hx-s*0.155,hy+s*0.04,s*0.31,s*0.1,3); fill('rgba(24,22,38,0.96)');
-    // Visor — glows with zone color in combat; dims with grief; blazes for knightBoss/glory
+    c.beginPath(); c.roundRect(hx-s*0.155,hy+s*0.04,s*0.31,s*0.1,3); fill('rgba(28,26,42,0.96)');
+    // Visor — boosted glow intensity, wider slit
     const inCombat = k.state==='run'||k.state==='combat'||k.state==='strike';
-    const visorBase = inCombat ? 0.68 + CIN.smoothBass*0.28 : 0.38;
-    const visorGlory = isKnightBoss ? 0.22 : (leg.glory||0.3) * 0.12;
-    const visorGrief = (leg.grief||0.3) * 0.08;
-    const vi = Math.max(0.22, visorBase + visorGlory - visorGrief);
-    // Tragic: visor dims toward amber-grey. Triumphant: stays zone-pure.
+    const visorBase = inCombat ? 0.82 + CIN.smoothBass*0.18 : 0.55; // was 0.68 / 0.38
+    const visorGlory = isKnightBoss ? 0.22 : (leg.glory||0.3) * 0.14;
+    const visorGrief = (leg.grief||0.3) * 0.06;
+    const vi = Math.max(0.38, visorBase + visorGlory - visorGrief);
     const moodTint = leg.mood === 'tragic'   ? 0.42
                    : leg.mood === 'meditative'? 0.55
                    : leg.mood === 'arcane'    ? 0.72
                    : 1.0;
-    const vR = inCombat ? R*moodTint+(1-moodTint)*55 : R*0.7+55;
-    const vG = inCombat ? Math.floor(G*0.78*moodTint+(1-moodTint)*28) : Math.floor(G*0.52+28);
-    const vB = inCombat ? B*moodTint+(1-moodTint)*18 : B*0.72+18;
-    c.beginPath(); c.roundRect(hx+d*s*0.02,hy-s*0.026,s*0.124,s*0.04,1); fill(`rgba(${Math.floor(vR)},${Math.floor(vG)},${Math.floor(vB)},${vi})`);
-    // Radial glow — knightBoss makes it blaze regardless of run state
-    if(inCombat || isKnightBoss){
-      const glowR = isKnightBoss ? s*0.32 : s*0.22;
-      const glowA = isKnightBoss ? 0.36+CIN.smoothBass*0.3 : 0.22+CIN.smoothBass*0.22;
+    const vR = inCombat ? R*moodTint+(1-moodTint)*55 : R*0.85+55;
+    const vG = inCombat ? Math.floor(G*0.78*moodTint+(1-moodTint)*28) : Math.floor(G*0.65+28);
+    const vB = inCombat ? B*moodTint+(1-moodTint)*18 : B*0.85+18;
+    c.beginPath(); c.roundRect(hx+d*s*0.02,hy-s*0.028,s*0.124,s*0.044,1); fill(`rgba(${Math.floor(vR)},${Math.floor(vG)},${Math.floor(vB)},${vi})`);
+    // Visor core bloom
+    {
+      const vcore=c.createRadialGradient(hx+d*s*0.076,hy-s*0.006,0,hx+d*s*0.076,hy,s*0.07);
+      vcore.addColorStop(0,`rgba(${Math.floor(vR)},${Math.floor(vG)},${Math.floor(vB)},${vi*0.9})`);
+      vcore.addColorStop(1,'rgba(0,0,0,0)');
+      c.fillStyle=vcore; c.beginPath(); c.arc(hx+d*s*0.076,hy,s*0.07,0,Math.PI*2); c.fill();
+    }
+    // Radial glow halo — always present at rest too (ambient glow), blazes in combat
+    {
+      const glowR = isKnightBoss ? s*0.36 : inCombat ? s*0.28 : s*0.18;
+      const glowA = isKnightBoss ? 0.45+CIN.smoothBass*0.3 : inCombat ? 0.32+CIN.smoothBass*0.22 : 0.14+CIN.smoothBass*0.12;
       const vbg=c.createRadialGradient(hx+d*s*0.08,hy,0,hx+d*s*0.08,hy,glowR);
       vbg.addColorStop(0,`rgba(${R},${G},${B},${glowA})`);
       vbg.addColorStop(1,'rgba(0,0,0,0)');
       c.fillStyle=vbg;c.beginPath();c.arc(hx+d*s*0.08,hy,glowR,0,Math.PI*2);c.fill();
     }
-    // Crest — height driven by glory + depth + boss. Tragic knights have a shorter, heavier crest.
-    const gloryH  = (leg.glory||0.3) * 0.06 + depthT * 0.04;
-    const bossH   = isKnightBoss ? CIN.smoothBass*0.09 : 0;
-    const cH = s*(0.18 + gloryH + bossH + (inCombat ? CIN.smoothBass*0.04 : 0));
-    const cWave = isMoving ? Math.sin(k.anim*1.6)*s*(0.03 + (leg.glory||0.3)*0.025) : 0;
+    // Crest — taller, brighter, more dramatic
+    const gloryH  = (leg.glory||0.3) * 0.08 + depthT * 0.05;
+    const bossH   = isKnightBoss ? CIN.smoothBass*0.10 : 0;
+    const cH = s*(0.22 + gloryH + bossH + (inCombat ? CIN.smoothBass*0.05 : 0));
+    const cWave = isMoving ? Math.sin(k.anim*1.6)*s*(0.035 + (leg.glory||0.3)*0.03) : 0;
     const crg2=c.createLinearGradient(hx,hy-s*0.14,hx+cWave,hy-s*0.14-cH);
-    crg2.addColorStop(0,`rgba(${Math.floor(R*0.62+25)},${Math.floor(G*0.42+14)},${Math.floor(B*0.52+12)},0.76)`);
-    crg2.addColorStop(1,`rgba(${R},${G},${B},${0.52 + (leg.glory||0.3)*0.28 + (isKnightBoss?CIN.smoothBass*0.3:0)})`);
+    crg2.addColorStop(0,`rgba(${Math.floor(R*0.65+30)},${Math.floor(G*0.45+18)},${Math.floor(B*0.55+15)},0.82)`);
+    crg2.addColorStop(1,`rgba(${R},${G},${B},${0.65 + (leg.glory||0.3)*0.28 + (isKnightBoss?CIN.smoothBass*0.3:0)})`);
     c.beginPath(); c.moveTo(hx-s*0.07,hy-s*0.14); c.bezierCurveTo(hx-s*0.06,hy-s*0.14-cH*0.5,hx+cWave+s*0.04,hy-s*0.14-cH*0.9,hx+cWave,hy-s*0.14-cH); c.bezierCurveTo(hx+cWave-s*0.03,hy-s*0.14-cH*0.85,hx+s*0.02,hy-s*0.14-cH*0.5,hx+s*0.07,hy-s*0.14); c.closePath(); c.fillStyle=crg2; c.fill();
   }
 }
@@ -7886,17 +7913,17 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
   // ── 1. SKY FILL — motion blur persistence
   // Resting: slower decay = dreamier trails. Active: faster = sharper
-  c.fillStyle = `rgba(0,0,0,${0.10 + active * 0.07})`;
+  c.fillStyle = `rgba(0,0,0,${0.06 + active * 0.05})`;
   c.fillRect(0, 0, W, H);
 
   // ── 2. SKY GRADIENT — horizon atmospheric glow
   const horizonY = H * (0.58 + rest * 0.04);
   const skyGrd = c.createLinearGradient(0, 0, 0, horizonY + 60);
-  // Resting: deeper black sky, barely any color. Active: vibrant.
-  const skyMul = 0.05 + active * 0.30;
-  skyGrd.addColorStop(0,   `rgba(2,1,6,1)`);
-  skyGrd.addColorStop(0.45,`rgba(${Math.floor(R*skyMul*0.6)},${Math.floor(G*skyMul*0.4)},${Math.floor(B*skyMul*0.7)},0.9)`);
-  skyGrd.addColorStop(1,   `rgba(${Math.floor(R*skyMul)},${Math.floor(G*skyMul*0.7)},${Math.floor(B*skyMul*0.8)},0.55)`);
+  // Boosted sky — was too dark to see anything. Active: vibrant. Rest: deep but visible.
+  const skyMul = 0.10 + active * 0.38;
+  skyGrd.addColorStop(0,   `rgba(4,2,10,1)`);
+  skyGrd.addColorStop(0.45,`rgba(${Math.floor(R*skyMul*0.7)},${Math.floor(G*skyMul*0.45)},${Math.floor(B*skyMul*0.8)},0.95)`);
+  skyGrd.addColorStop(1,   `rgba(${Math.floor(R*skyMul*1.1)},${Math.floor(G*skyMul*0.8)},${Math.floor(B*skyMul*0.9)},0.65)`);
   c.fillStyle = skyGrd;
   c.fillRect(0, 0, W, horizonY + 80);
 
@@ -7920,79 +7947,105 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     }
   }
 
-  // ── 4. HORIZON BLOOM — bass pulse
+  // ── 4. HORIZON BLOOM — bass pulse — brighter base
   const bassBloom = CIN.smoothBass;
-  const bloomR = W * (0.4 + active * 0.2);
+  const bloomR = W * (0.45 + active * 0.25);
   const bloomGrd = c.createRadialGradient(W/2, horizonY, 0, W/2, horizonY, bloomR);
-  bloomGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.55)},${Math.floor(B*0.45)},${0.04 + bassBloom * 0.22 + active * 0.06})`);
+  bloomGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.55)},${Math.floor(B*0.45)},${0.08 + bassBloom * 0.30 + active * 0.10})`);
   bloomGrd.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = bloomGrd;
   c.fillRect(0, horizonY - H*0.4, W, H*0.55);
 
-  // ── 5. MOON / ORB — resting: gentle breathing. Active: blazing.
+  // ── 5. MOON / ORB — brighter, more presence
   CIN.moonFlicker += (Math.random() - 0.5) * (0.02 + active * 0.05);
-  CIN.moonFlicker = Math.max(0.7, Math.min(1.0, CIN.moonFlicker));
+  CIN.moonFlicker = Math.max(0.78, Math.min(1.0, CIN.moonFlicker));
   const breathe = 1 + rest * 0.06 * Math.sin(t * 0.018);
   const moonX = W * 0.72, moonY = H * 0.15;
-  const moonR = Math.min(W, H) * (0.038 + active * 0.018) * CIN.moonFlicker * breathe;
+  const moonR = Math.min(W, H) * (0.042 + active * 0.020) * CIN.moonFlicker * breathe;
   const [mr, mg, mb] = atmo.moonTint;
   const moonGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 4);
-  moonGrd.addColorStop(0,   `rgba(${mr},${mg},${mb},${(0.5 + active * 0.35) * CIN.moonFlicker})`);
-  moonGrd.addColorStop(0.25,`rgba(${Math.floor(mr*0.6)},${Math.floor(mg*0.4)},${Math.floor(mb*0.8)},${(0.2 + active * 0.15) * CIN.moonFlicker})`);
+  moonGrd.addColorStop(0,   `rgba(${mr},${mg},${mb},${(0.65 + active * 0.30) * CIN.moonFlicker})`);
+  moonGrd.addColorStop(0.25,`rgba(${Math.floor(mr*0.6)},${Math.floor(mg*0.4)},${Math.floor(mb*0.8)},${(0.28 + active * 0.18) * CIN.moonFlicker})`);
   moonGrd.addColorStop(1,   'rgba(0,0,0,0)');
   c.fillStyle = moonGrd;
   c.fillRect(0, 0, W, H * 0.5);
-  // Hard orb core
+  // Hard orb core — brighter
   c.beginPath();
-  c.arc(moonX, moonY, moonR * 0.45, 0, Math.PI * 2);
-  c.fillStyle = `rgba(${mr},${mg},${mb},${(0.35 + active * 0.4) * CIN.moonFlicker})`;
+  c.arc(moonX, moonY, moonR * 0.5, 0, Math.PI * 2);
+  c.fillStyle = `rgba(${mr},${mg},${mb},${(0.55 + active * 0.38) * CIN.moonFlicker})`;
   c.fill();
 
-  // ── 6. PARALLAX TERRAIN LAYERS ──────────────────────────────────
+  // ── 6. PARALLAX TERRAIN LAYERS — mountains react to frequency bands ─
   if (CIN.terrainParallax && CIN.terrainParallax.length) {
     CIN.terrainParallax.forEach((layer, li) => {
-      // True parallax: far layers (li=0) move slowest, near layers fastest
-      // Parallax depth fraction: 0.08 (far) → 0.55 (near)
       const parallaxFrac = 0.08 + li * 0.16;
-      // Also keep the gentle organic sway on top of real scroll
       const organicSway = Math.sin(t * 0.00018 * layer.speed) * W * 0.004 * (li + 1);
       const scrollX = -(CIN.camX * parallaxFrac) + organicSway;
-      const bassLift = CIN.smoothBass * H * 0.025 * (li * 0.5 + 0.3);
 
-      // Terrain points are built once for [0..W]; repeat tiles either side for infinite scroll
+      // ── Frequency-reactive mountain lift ──────────────────────────
+      // Each point samples a slice of the FFT so peaks in the music
+      // cause mountain silhouettes to heave upward like a spectrum.
+      // Far layers react to low bass (slow, massive swells).
+      // Near layers react to mids (tighter, more percussive).
+      const fftBinCount = freqData.length;
+      const freqReactScale = [0.055, 0.040, 0.028, 0.018][li]; // far layers swell most
+      const bandStart = [0, 0.04, 0.10, 0.20][li]; // bass → mid → upper-mid → presence
+      const bandEnd   = [0.08, 0.18, 0.35, 0.60][li];
+
       const tileW = W;
-      const offset = ((scrollX % tileW) + tileW) % tileW; // always positive wrap
+      const offset = ((scrollX % tileW) + tileW) % tileW;
 
       const depthDark = li / 3.5;
-      const fillR = Math.floor(R * (0.12 - depthDark * 0.12));
-      const fillG = Math.floor(G * (0.07 - depthDark * 0.07));
-      const fillB = Math.floor(B * (0.15 - depthDark * 0.15));
+      // Slightly brighter base — more visible mountains
+      const fillR = Math.floor(R * (0.18 - depthDark * 0.14) + (active * R * 0.06));
+      const fillG = Math.floor(G * (0.11 - depthDark * 0.09) + (active * G * 0.04));
+      const fillB = Math.floor(B * (0.22 - depthDark * 0.18) + (active * B * 0.08));
 
-      // Draw two copies side by side so the seam never shows
       for (let copy = -1; copy <= 1; copy++) {
         const dx = copy * tileW - offset;
         c.beginPath();
         c.moveTo(dx, H);
         layer.pts.forEach((p, i) => {
           const px = p.x + dx;
-          const py = p.y - bassLift;
+          // Per-point frequency sample — maps horizontal position to frequency band
+          const tNorm  = i / Math.max(1, layer.pts.length - 1);
+          const binIdx = Math.floor((bandStart + tNorm * (bandEnd - bandStart)) * fftBinCount);
+          const binVal = (freqData[Math.min(fftBinCount - 1, binIdx)] || 0) / 255;
+          // Smooth the freq lift with the global bass/energy for organic feel
+          const freqLift = binVal * H * freqReactScale * (active * 0.85 + 0.15);
+          const bassLift = CIN.smoothBass * H * 0.022 * (li * 0.5 + 0.3);
+          const py = p.y - bassLift - freqLift;
           i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
         });
         c.lineTo(layer.pts[layer.pts.length - 1].x + dx, H);
         c.lineTo(dx, H);
         c.closePath();
-        c.fillStyle = `rgba(${fillR},${fillG},${fillB},${layer.alpha})`;
+
+        // Gradient fill — adds depth glow at ridge line when active
+        const ridgeY = layer.pts.reduce((mn, p) => Math.min(mn, p.y), H) - CIN.smoothBass * H * 0.022;
+        const mGrd = c.createLinearGradient(0, ridgeY - H * 0.05, 0, H);
+        const edgeGlow = active * 0.06 + CIN.smoothBass * 0.10;
+        mGrd.addColorStop(0,   `rgba(${fillR + Math.floor(R*edgeGlow)},${fillG + Math.floor(G*edgeGlow*0.6)},${fillB + Math.floor(B*edgeGlow)},${layer.alpha})`);
+        mGrd.addColorStop(0.4, `rgba(${fillR},${fillG},${fillB},${layer.alpha})`);
+        mGrd.addColorStop(1,   `rgba(${fillR},${fillG},${fillB},${layer.alpha})`);
+        c.fillStyle = mGrd;
         c.fill();
 
+        // Ridge line — glows brighter on bass hits for the near two layers
         if (li <= 1) {
           c.beginPath();
           layer.pts.forEach((p, i) => {
+            const tNorm  = i / Math.max(1, layer.pts.length - 1);
+            const binIdx = Math.floor((bandStart + tNorm * (bandEnd - bandStart)) * fftBinCount);
+            const binVal = (freqData[Math.min(fftBinCount - 1, binIdx)] || 0) / 255;
+            const freqLift = binVal * H * freqReactScale * (active * 0.85 + 0.15);
+            const bassLift = CIN.smoothBass * H * 0.022 * (li * 0.5 + 0.3);
             const px = p.x + dx;
-            const py = p.y - bassLift;
+            const py = p.y - bassLift - freqLift;
             i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
           });
-          c.strokeStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${0.04 + CIN.smoothBass * 0.14 + active * 0.06})`;
-          c.lineWidth = 1;
+          c.strokeStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${0.06 + CIN.smoothBass * 0.22 + active * 0.10})`;
+          c.lineWidth = 1 + CIN.smoothBass * 1.5;
           c.stroke();
         }
       }
@@ -8020,35 +8073,13 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     });
   }
 
-  // ── 8. WAVEFORM as ground energy / mist ─────────────────────────
+  // ── 8. WAVEFORM — ground energy (invisible line, knight still roots to it) ────
   const waveSlice = Math.min(waveData.length, 512);
   const waveFloor = H * (0.86 + rest * 0.02);
   // Resting: small gentle wave. Active: large energy wave.
   const waveAmpMul = 0.04 + active * 0.09;
   const waveAmp = H * waveAmpMul;
-  c.beginPath();
-  c.moveTo(0, H);
-  for (let i = 0; i < waveSlice; i++) {
-    const x = (i / waveSlice) * W;
-    const sample = (waveData[i] / 128.0) - 1.0;
-    const y = waveFloor + sample * waveAmp;
-    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
-  }
-  c.lineTo(W, H); c.lineTo(0, H); c.closePath();
-  const wGrd = c.createLinearGradient(0, waveFloor - waveAmp, 0, H);
-  wGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.5)},${B},${0.12 + active * 0.18 + CIN.smoothEnergy * 0.12})`);
-  wGrd.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = wGrd; c.fill();
-  // Waveform line
-  c.beginPath();
-  for (let i = 0; i < waveSlice; i++) {
-    const x = (i / waveSlice) * W;
-    const y = waveFloor + ((waveData[i] / 128.0) - 1.0) * waveAmp;
-    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
-  }
-  c.strokeStyle = `rgba(${R},${G},${B},${0.25 + active * 0.45 + CIN.smoothHigh * 0.2})`;
-  c.lineWidth = active > 0.3 ? 1.5 : 0.8;
-  c.stroke();
+  // Waveform fill and line are intentionally hidden — knight grounds to this silently
 
   // ── 8.5. KNIGHT — stands on waveform ─────────────────────────────
   cinDrawKnight(c, W, H, zone, t, rest, waveData, waveFloor, waveAmp);
@@ -8254,20 +8285,30 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   }
   CIN.whispers = CIN.whispers.filter(w => !(w.phase === 'out' && w.alpha <= 0.008));
   CIN.whispers.forEach(w => {
-    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.007); if (w.alpha >= 1) w.phase = 'hold'; }
+    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.008); if (w.alpha >= 1) w.phase = 'hold'; }
     if (w.phase === 'hold') { w.heldFor++; if (w.heldFor >= w.holdFrames) w.phase = 'out'; }
-    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.004); }
+    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.005); }
     c.font = w.italic
       ? `italic 400 ${w.size}px 'IM Fell English', serif`
       : `400 ${w.size}px 'Cinzel', serif`;
     c.textAlign = 'center';
-    // Shadow
-    c.fillStyle = `rgba(0,0,0,${w.alpha * 0.6})`;
-    c.fillText(w.text, w.x + 1, w.y + 1);
-    // Text — brighter during rest
-    const wAlpha = w.alpha * (0.3 + rest * 0.18);
-    c.fillStyle = `rgba(${R},${Math.floor(G*0.82)},${B},${wAlpha})`;
+    // Glow halo behind text for readability
+    const wAlpha = w.alpha * (0.72 + rest * 0.22); // was 0.30+rest*0.18 — much brighter
+    c.shadowColor = `rgba(0,0,0,${wAlpha * 0.9})`;
+    c.shadowBlur = 14;
+    c.fillStyle = `rgba(0,0,0,${wAlpha * 0.75})`;
+    c.fillText(w.text, w.x + 1.5, w.y + 1.5);
+    c.shadowBlur = 0;
+    // Text — zone-tinted, clearly readable
+    const tR = Math.floor(Math.min(255, R * 0.55 + 165));
+    const tG = Math.floor(Math.min(255, G * 0.45 + 145));
+    const tB = Math.floor(Math.min(255, B * 0.55 + 155));
+    // Subtle glow pass
+    c.shadowColor = `rgba(${R},${Math.floor(G*0.7)},${B},${wAlpha * 0.4})`;
+    c.shadowBlur = 8;
+    c.fillStyle = `rgba(${tR},${tG},${tB},${wAlpha})`;
     c.fillText(w.text, w.x, w.y);
+    c.shadowBlur = 0;
   });
 
   // ── 19. NARRATIVE TITLE CARDS — zone entry cinematic reveal
