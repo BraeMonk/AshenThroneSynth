@@ -3256,10 +3256,10 @@ function buildPercBufs(preset, voice) {
       const partial2 = Math.sin(2 * Math.PI * freq * 1.49 * t) * Math.exp(-t / 0.7) * 0.22;
       // Sub drone — deep supporting frequency
       const sub = Math.sin(2 * Math.PI * 28 * t) * Math.exp(-t / 1.8) * 0.55;
-      // Mallet impact — broader/softer than cinematic, felt not heard
-      const mallet = t < 0.012 ? (Math.random() * 2 - 1) * (1 - t / 0.012) * 0.6 : 0;
-      // Rim ring — the wooden rim vibrates after impact (very characteristic)
-      const rim = Math.sin(2 * Math.PI * 280 * t) * Math.exp(-t / 0.15) * 0.08;
+      // Mallet impact — soft felt mallet, not a sharp stick hit
+      const mallet = t < 0.018 ? (Math.random() * 2 - 1) * (1 - t / 0.018) * 0.28 : 0;
+      // Rim ring — subtle, dark
+      const rim = Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t / 0.12) * 0.05;
       kd[i] = body * 0.45 + partial2 + sub + mallet + rim;
     }
 
@@ -3276,16 +3276,16 @@ function buildPercBufs(preset, voice) {
       sd[i] = tone * 0.42 + body * 0.28 + air + transient * 0.75;
     }
 
-    // Taiko hihat — no hihats, use a wooden clapper / hyoshigi sound
-    const hhLen = Math.floor(sr * 0.12);
+    // Taiko hihat — soft wooden clapper, dark and short
+    const hhLen = Math.floor(sr * 0.08);
     const hihat = ctx.createBuffer(1, hhLen, sr);
     const hd = hihat.getChannelData(0);
     for (let i = 0; i < hhLen; i++) {
       const t = i / sr;
-      // Wooden click — clack of sticks, bandpassed noise + tone
-      hd[i] = (Math.sin(2 * Math.PI * 1800 * t) * 0.4
-             + Math.sin(2 * Math.PI * 2600 * t) * 0.2
-             + (Math.random() * 2 - 1) * 0.4) * Math.exp(-t / 0.025);
+      // Dark wood resonance — lower tones, minimal high-end
+      hd[i] = (Math.sin(2 * Math.PI * 820 * t) * 0.5
+             + Math.sin(2 * Math.PI * 1240 * t) * 0.25
+             + (Math.random() * 2 - 1) * 0.22) * Math.exp(-t / 0.018);
     }
 
     // Taiko timpani — the o-daiko big hit
@@ -3330,7 +3330,7 @@ function buildPercBufs(preset, voice) {
       const body = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 0.5);
       const mid  = Math.sin(2 * Math.PI * freq * 1.8 * t) * Math.exp(-t / 0.18) * 0.3;
       const sub  = Math.sin(2 * Math.PI * 40 * t) * Math.exp(-t / 0.65) * 0.38;
-      const skin = t < 0.009 ? (Math.random() * 2 - 1) * (1 - t / 0.009) * 0.7 : 0;
+      const skin = t < 0.016 ? (Math.random() * 2 - 1) * (1 - t / 0.016) * 0.28 : 0;
       kd[i] = body * 0.44 + mid + sub + skin;
     }
 
@@ -3343,8 +3343,8 @@ function buildPercBufs(preset, voice) {
       const tone1 = Math.sin(2 * Math.PI * 160 * t) * Math.exp(-t / 0.1);
       const tone2 = Math.sin(2 * Math.PI * 310 * t) * Math.exp(-t / 0.045);
       const noise = (Math.random() * 2 - 1) * Math.exp(-t / 0.12) * 0.5;
-      const crack = t < 0.004 ? (Math.random() * 2 - 1) * (1 - t / 0.004) : 0;
-      sd[i] = tone1 * 0.38 + tone2 * 0.22 + noise + crack * 0.7;
+      const crack = t < 0.010 ? (Math.random() * 2 - 1) * (1 - t / 0.010) * 0.32 : 0;
+      sd[i] = tone1 * 0.38 + tone2 * 0.22 + noise + crack;
     }
 
     // Tribal hihat — hollowed wood slit drum sound
@@ -3409,10 +3409,9 @@ function buildPercBufs(preset, voice) {
     const punchFreq = 90 + (preset.kickFreq - 50) * 0.8;
     const punch = Math.sin(2 * Math.PI * punchFreq * t) * Math.exp(-t / 0.16);
 
-    // Impact transient — short noise burst with high-mid content, the "stick on skin"
-    // Very short (< 6ms) to stay out of the way of the body
-    const stick = t < 0.006
-      ? (Math.random() * 2 - 1) * Math.pow(1 - t / 0.006, 2.5) * 0.9
+    // Impact transient — soft mallet on skin, not a sharp stick click
+    const stick = t < 0.014
+      ? (Math.random() * 2 - 1) * Math.pow(1 - t / 0.014, 2.0) * 0.30
       : 0;
 
     // Cinematic air — a faint high-passed noise tail simulating air displacement
@@ -3448,8 +3447,8 @@ function buildPercBufs(preset, voice) {
     const roomEnv = Math.exp(-t / 0.38);
     const roomNoise = (Math.random() * 2 - 1) * roomNoise_env(t);
 
-    // Hard transient — pure noise burst at the very start (< 3ms)
-    const hardCrack = t < 0.003 ? (Math.random() * 2 - 1) * (1 - t / 0.003) : 0;
+    // Soft attack transient — skin impact, not a digital crack
+    const hardCrack = t < 0.010 ? (Math.random() * 2 - 1) * (1 - t / 0.010) * 0.35 : 0;
 
     sd[i] = crackTone1 * 0.28
           + crackTone2 * 0.22
@@ -3457,7 +3456,7 @@ function buildPercBufs(preset, voice) {
           + wireNoise  * 0.45
           + wireTone   * 0.20
           + (Math.random() * 2 - 1) * Math.exp(-t / 0.3) * 0.12  // hall tail
-          + hardCrack  * 0.85;
+          + hardCrack;
   }
 
   // Helper used inline above
@@ -3578,24 +3577,44 @@ function makeSchedLoop(name, schedFn) {
 function buildPerc(preset, intensity, name, bufs) {
   const b = bus[name];
 
+  const percVoice = sessionVoices['perc'] || 'cinematic';
+  const isTaiko   = percVoice === 'taiko';
+  const isGhost   = percVoice === 'ghost';
+
   // ── Cinematic signal chain ──────────────────────────────────────────
   // Kick bus — low-shelf to reinforce sub, then to master
-  const kickBus = ctx.createGain(); kickBus.gain.value = 0.92;
+  const kickBus = ctx.createGain(); kickBus.gain.value = isTaiko ? 0.82 : 0.92;
   const kickLowShelf = ctx.createBiquadFilter();
-  kickLowShelf.type = 'lowshelf'; kickLowShelf.frequency.value = 120; kickLowShelf.gain.value = 4.5;
+  kickLowShelf.type = 'lowshelf';
+  kickLowShelf.frequency.value = isTaiko ? 80 : 120;   // taiko: deeper shelf
+  kickLowShelf.gain.value      = isTaiko ? 6.0 : 4.5;  // taiko: more sub weight
   kickBus.connect(kickLowShelf); kickLowShelf.connect(b);
   reg(name, kickBus, kickLowShelf);
 
-  // Snare bus — preserve crack frequencies
-  const snareBus = ctx.createGain(); snareBus.gain.value = 0.88;
-  const snareHPF = mkFilt(160, 'highpass', 0.7);
-  snareBus.connect(snareHPF); snareHPF.connect(b);
+  // Snare bus — taiko has no wire snare, treat as a deep skin hit
+  const snareBus = ctx.createGain(); snareBus.gain.value = isTaiko ? 0.72 : 0.88;
+  const snareHPF = mkFilt(
+    isTaiko ? 60  : 160,   // taiko: pass the low body, not the crack
+    'highpass',
+    isTaiko ? 0.4 : 0.7
+  );
+  const snareLPF = isTaiko ? mkFilt(600, 'lowpass', 0.5) : null; // taiko: cut the high crack
+  snareBus.connect(snareHPF);
+  if (snareLPF) { snareHPF.connect(snareLPF); snareLPF.connect(b); reg(name, snareLPF); }
+  else { snareHPF.connect(b); }
   reg(name, snareBus, snareHPF);
 
-  // Hat bus — bright and controlled
-  const hatBus = ctx.createGain(); hatBus.gain.value = 0.55;
-  const hatHPF = mkFilt(preset.snareFilterFreq * 3.5, 'highpass', 1.2);
-  hatBus.connect(hatHPF); hatHPF.connect(b);
+  // Hat bus — taiko uses wooden clapper, much darker and quieter
+  const hatBus = ctx.createGain(); hatBus.gain.value = isTaiko ? 0.22 : (isGhost ? 0.35 : 0.55);
+  const hatHPF = mkFilt(
+    isTaiko ? 800  : preset.snareFilterFreq * 3.5,  // taiko: dark wood, not metallic
+    'highpass',
+    isTaiko ? 0.5  : 1.2
+  );
+  const hatLPF = isTaiko ? mkFilt(3000, 'lowpass', 0.6) : null; // taiko: remove harsh highs
+  hatBus.connect(hatHPF);
+  if (hatLPF) { hatHPF.connect(hatLPF); hatLPF.connect(b); reg(name, hatLPF); }
+  else { hatHPF.connect(b); }
   reg(name, hatBus, hatHPF);
 
   // Timpani / impact bus — dry, sub-heavy
