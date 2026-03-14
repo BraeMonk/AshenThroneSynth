@@ -2325,9 +2325,35 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   // Master volume: slow ride to new energy level — 8 bars, no dip
   const now = ctx.currentTime;
   const targetVol = 0.14 + JC.energy * 0.28;
-  masterGain.gain.cancelScheduledValues(now);
-  masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-  masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * 8);
+
+  // ── THE ONE TRUE SILENCE ─────────────────────────────────────────────
+  // Step 5 is the peak of the Journey arc — the boss threshold, the moment
+  // everything has been building toward. We drop the master to near-silence
+  // for exactly 2 bars (the held breath), then slam back to full volume.
+  // This is the physiological chills mechanism: the auditory system registers
+  // near-absence, then the impact arrives into that vacuum.
+  // This fires ONCE per Journey. No other transition does this.
+  const isPeakTransition = (JC.step === 5);
+  if (isPeakTransition) {
+    const silenceBars   = 2;
+    const silenceLevel  = 0.018; // not total silence — the drone and strings breathe here
+    const bloomDur      = bl * 3; // 3 bars to return to full — fast but not instant
+
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+    // Fall to near-silence over half a bar
+    masterGain.gain.linearRampToValueAtTime(silenceLevel, now + bl * 0.5);
+    // Hold
+    masterGain.gain.setValueAtTime(silenceLevel, now + bl * silenceBars);
+    // SLAM back — this is the hit. The rate of return is as important as the silence.
+    // Fast attack, then settle — like a film score orchestra hit.
+    masterGain.gain.linearRampToValueAtTime(targetVol * 1.12, now + bl * silenceBars + bloomDur * 0.3);
+    masterGain.gain.linearRampToValueAtTime(targetVol,        now + bl * silenceBars + bloomDur);
+  } else {
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+    masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * 8);
+  }
 
   // UI update after 1 bar
   JC.timers.push(setTimeout(()=>{
@@ -4436,60 +4462,117 @@ function buildBass(preset, intensity, name) {
   const b = bus[name];
   let nextBarTime = ctx.currentTime + 0.05;
 
+  // ── PEDAL POINT STATE ─────────────────────────────────────────────
+  // During 'tension' phrase, the bass locks to the tonic pedal note —
+  // it IGNORES chord changes above it. The harmonic clash between the
+  // static bass and moving upper voices IS the musical definition of tension.
+  // When 'climax' arrives, the bass releases and follows the chord again.
+  // This is one of the most powerful tools in orchestral writing.
+  let pedalFreq    = null;  // locked frequency during pedal
+  let pedalActive  = false;
+  let barsSincePedal = 0;
+
+  // Passing tone memory — bass sometimes walks chromatically to the next root
+  // for a moment of melodic bass movement. Only outside pedal mode.
+  let lastRootFreq = null;
+
   function tick() {
     if (!layerOn[name]) return;
     const bpm    = isBoss ? preset.bpm + 22 : preset.bpm;
     const beat   = 60 / bpm;
     const barDur = beat * 4;
+    const phrase = currentPhrase || 'intro';
 
     while (nextBarTime < ctx.currentTime + SCHED_AHEAD + barDur) {
       const barStart = nextBarTime;
 
-      // Cinematic sub-bass: root on beat 1, optional 5th on beat 3
-      // Always sine — no sawtooth/triangle, no arpeggios, no climbs
-      const rootFreq = CE.chordTone('bass', 0, 0);   // root of current chord
-      const fifthFreq = rootFreq * 1.5;               // perfect 5th above
+      // ── Pedal point logic ─────────────────────────────────────────
+      const enteringTension = (phrase === 'tension' && !pedalActive);
+      const leavingTension  = (phrase !== 'tension' && pedalActive);
 
-      // Beat 1 — root, long sustain
+      if (enteringTension) {
+        // Lock to the current tonic — the root of the zone, not the chord root.
+        // This is the pedal note. It will clash deliberately with tension chords.
+        pedalFreq   = preset.root * 0.5; // sub-octave for maximum weight
+        pedalActive = true;
+        barsSincePedal = 0;
+      }
+      if (leavingTension) {
+        pedalActive = false;
+        pedalFreq   = null;
+      }
+
+      const rootFreq  = pedalActive ? pedalFreq : CE.chordTone('bass', 0, 0);
+      const fifthFreq = rootFreq * 1.5;
+
+      // ── Beat 1 — root or pedal, always plays ─────────────────────
       {
         const t   = barStart;
-        const dur = beat * 1.6;
+        // During pedal: long sustain — the note presses and holds like a cello on a gut string.
+        // During normal: shorter, rhythmic.
+        // On climax arrival after pedal: STRONG attack — the release of all that tension.
+        const isClimax      = (phrase === 'climax' && !pedalActive && lastRootFreq !== null);
+        const dur = pedalActive  ? barDur * 1.1  // slightly overlong — smooth bow
+                  : isClimax     ? beat * 2.2    // climax: punchy
+                  :                beat * 1.6;
 
-        const sub  = mkOsc(rootFreq * 0.5, 'sine');   // one octave below root — true sub
-        const main = mkOsc(rootFreq,       'sine');   // root fundamental
-        const filt = mkFilt(120, 'lowpass', 0.6);
+        const vol = pedalActive ? (0.32 + intensity * 0.14)   // pedal: heavier
+                  : isClimax    ? (0.42 + intensity * 0.12)   // climax release: loud
+                  :               (0.28 + intensity * 0.12);
+
+        // Sub oscillator — one octave below, adds physical weight
+        const sub  = mkOsc(rootFreq * 0.5, 'sine');
+        const main = mkOsc(rootFreq,       'sine');
+        const filt = mkFilt(pedalActive ? 90 : 120, 'lowpass', pedalActive ? 0.8 : 0.6);
         const env  = mkGain(0);
         chain(sub,  env, b);
         chain(main, filt, env, b);
 
-        const v = 0.28 + intensity * 0.12;
+        // Pedal: very slow attack/decay — the note breathes like a held bow stroke
+        const atk = pedalActive ? 0.08 : 0.025;
+        const dec = pedalActive ? barDur * 0.95 : dur;
         env.gain.setValueAtTime(0, t);
-        env.gain.linearRampToValueAtTime(v, t + 0.025);
-        env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        env.gain.linearRampToValueAtTime(vol, t + atk);
+        // Mid-note swell for pedal — same bow-pressure idea as melody
+        if (pedalActive) {
+          env.gain.linearRampToValueAtTime(vol * 1.06, t + barDur * 0.45);
+          env.gain.linearRampToValueAtTime(vol * 0.9,  t + barDur * 0.80);
+          env.gain.linearRampToValueAtTime(0.001,      t + dec);
+        } else {
+          env.gain.exponentialRampToValueAtTime(0.001, t + dec);
+        }
 
-        sub.start(t);  sub.stop(t + dur + 0.05);
-        main.start(t); main.stop(t + dur + 0.05);
+        sub.start(t);  sub.stop(t + dec + 0.1);
+        main.start(t); main.stop(t + dec + 0.1);
         reg(name, sub, main, filt, env);
+
+        lastRootFreq = rootFreq;
       }
 
-      // Beat 3 — 5th, shorter, softer (skip ~30% of bars for breathing room)
-      if (rng() > 0.30) {
+      // ── Beat 3 — 5th or passing tone (not during pedal) ──────────
+      if (!pedalActive && rng() > 0.30) {
         const t   = barStart + beat * 2;
-        const dur = beat * 0.9;
 
-        const o   = mkOsc(fifthFreq * 0.5, 'sine');
+        // Occasionally walk chromatically — a passing tone between root and 5th
+        // makes the bass feel like it has a melodic opinion, not just support
+        const usePassingTone = (rng() < 0.22 && lastRootFreq !== null);
+        const noteFreq = usePassingTone
+          ? rootFreq * Math.pow(2, 2/12) // major 2nd above root — common passing tone
+          : fifthFreq * 0.5;
+
+        const dur = beat * 0.9;
+        const o   = mkOsc(noteFreq, 'sine');
         const env = mkGain(0);
         chain(o, env, b);
-
-        const v = 0.14 + intensity * 0.07;
+        const v = (0.12 + intensity * 0.07) * (usePassingTone ? 0.65 : 1.0);
         env.gain.setValueAtTime(0, t);
         env.gain.linearRampToValueAtTime(v, t + 0.02);
         env.gain.exponentialRampToValueAtTime(0.001, t + dur);
-
         o.start(t); o.stop(t + dur + 0.04);
         reg(name, o, env);
       }
 
+      barsSincePedal += pedalActive ? 1 : 0;
       nextBarTime += barDur;
     }
 
@@ -4600,40 +4683,91 @@ function buildMelody(preset, intensity, name) {
   if(MP.position===0&&MP.phraseAge===0) MP_nextPhrase(preset);
   let t=ctx.currentTime+beat*0.5;
 
-  function playNote(bt,freq,noteDur){
-    const env=mkGain(0); env.connect(b); reg(name,env);
-    const vol=(0.04+energy*0.07)*(MP.position>=MP.cadenceBar?1.15:1.0);
-    env.gain.setValueAtTime(0,bt);
-    env.gain.linearRampToValueAtTime(vol*(isBrass?1.10:1.0),bt+atkTime);
-    if(isBrass) env.gain.linearRampToValueAtTime(vol*0.88,bt+atkTime+0.14);
-    env.gain.setValueAtTime(vol*0.92,bt+noteDur*0.65);
-    env.gain.linearRampToValueAtTime(0.001,bt+noteDur);
-    partials.forEach(({r,a})=>{
-      const o=mkOsc(Math.max(20,freq*r*(r>4?1+(r-4)*0.001:1)),'sine');
-      const g=mkGain(a); const pEnv=mkGain(1.0);
-      chain(o,g,pEnv,env);
-      pEnv.gain.setValueAtTime(1.0,bt); pEnv.gain.setValueAtTime(1.0,bt+atkTime*2.5);
-      pEnv.gain.linearRampToValueAtTime(r===1?0.96:r<=3?0.68:0.22,bt+noteDur*0.60);
-      if(r<=2&&noteDur>beat*0.4){
-        const vib=mkOsc(vibHz+Math.random()*0.3,'sine'); const vibG=mkGain(0);
-        chain(vib,vibG); vibG.connect(o.frequency);
-        const vi=bt+noteDur*0.28;
-        vibG.gain.setValueAtTime(0,vi);
-        vibG.gain.linearRampToValueAtTime(vibDepth+energy*vibDepth*0.5,vi+noteDur*0.35);
-        vib.start(bt); vib.stop(bt+noteDur+0.15); reg(name,vib,vibG);
+  function playNote(bt, freq, noteDur, opts = {}) {
+    // ── MICRO-TIMING HUMANISATION ─────────────────────────────────────
+    // Real players never hit exactly on the grid. Strong beats anticipate
+    // slightly (lean in), weak beats are slightly late (laid back).
+    // Phrase peaks get a tiny tenuto — held just a hair longer.
+    const isStrongBeat = opts.isStrong || false;
+    const isPeak       = opts.isPeak   || false;
+    const microShift   = isStrongBeat
+      ? -(0.008 + Math.random() * 0.012)   // strong: 8-20ms early
+      :  (0.006 + Math.random() * 0.016);  // weak:   6-22ms late
+    const humanBt = bt + microShift;
+
+    // Velocity variation — ±15% of base volume, correlated with phrase position
+    // so the phrase has a natural swell shape rather than uniform loudness
+    const velVariation = 0.85 + Math.random() * 0.30;
+    const baseVol = (0.04 + energy * 0.07) * velVariation;
+    const vol = baseVol * (isPeak ? 1.22 : isStrongBeat ? 1.10 : 1.0);
+
+    // Tenuto on phrase peaks — note held slightly longer, decays more slowly
+    const tenuto = isPeak ? 1.18 : 1.0;
+    const humanDur = noteDur * tenuto;
+
+    const env = mkGain(0); env.connect(b); reg(name, env);
+
+    // ── NOTE SWELL — the heart of the alive-note feeling ─────────────
+    // Instead of attack → hold → decay, the note breathes:
+    //   attack → swell to peak at 55% → gentle settle → release
+    // The swell mimics bow pressure / breath pressure increasing mid-note.
+    // On strong beats the swell is more pronounced (more bow weight).
+    const swellPeak = vol * (isBrass ? 1.10 : isStrongBeat ? 1.14 : 1.06);
+    env.gain.setValueAtTime(0, humanBt);
+    env.gain.linearRampToValueAtTime(swellPeak, humanBt + atkTime);
+    if (isBrass) {
+      // Brass: quick bloom then settle — "tonguing" attack character
+      env.gain.linearRampToValueAtTime(vol * 0.88, humanBt + atkTime + 0.14);
+      env.gain.setValueAtTime(vol * 0.88, humanBt + humanDur * 0.60);
+    } else {
+      // Strings/woodwind: swell continues to 55% then gentle release
+      env.gain.linearRampToValueAtTime(swellPeak * 1.04, humanBt + humanDur * 0.40);
+      env.gain.linearRampToValueAtTime(vol * 0.88,       humanBt + humanDur * 0.60);
+    }
+    env.gain.linearRampToValueAtTime(0.001, humanBt + humanDur);
+
+    // Partials — same as before but routed through the humanised envelope
+    partials.forEach(({ r, a }) => {
+      const o    = mkOsc(Math.max(20, freq * r * (r > 4 ? 1 + (r - 4) * 0.001 : 1)), 'sine');
+      const g    = mkGain(a);
+      const pEnv = mkGain(1.0);
+      chain(o, g, pEnv, env);
+      pEnv.gain.setValueAtTime(1.0, humanBt);
+      pEnv.gain.setValueAtTime(1.0, humanBt + atkTime * 2.5);
+      pEnv.gain.linearRampToValueAtTime(r === 1 ? 0.96 : r <= 3 ? 0.68 : 0.22, humanBt + humanDur * 0.60);
+      if (r <= 2 && humanDur > beat * 0.4) {
+        const vib  = mkOsc(vibHz + Math.random() * 0.3, 'sine');
+        const vibG = mkGain(0);
+        chain(vib, vibG); vibG.connect(o.frequency);
+        // Vibrato enters late — after the note is established, never at the attack
+        const viStart = humanBt + humanDur * (isPeak ? 0.22 : 0.30);
+        vibG.gain.setValueAtTime(0, viStart);
+        vibG.gain.linearRampToValueAtTime(
+          vibDepth + energy * vibDepth * 0.5 + (isPeak ? vibDepth * 0.3 : 0),
+          viStart + humanDur * 0.35
+        );
+        vib.start(humanBt); vib.stop(humanBt + humanDur + 0.2);
+        reg(name, vib, vibG);
       }
-      o.start(bt); o.stop(bt+noteDur+0.15); reg(name,o,g,pEnv);
+      o.start(humanBt); o.stop(humanBt + humanDur + 0.2);
+      reg(name, o, g, pEnv);
     });
-    const nLen=Math.min(Math.floor(ctx.sampleRate*(noteDur+0.08)),ctx.sampleRate*3);
-    const nBuf=ctx.createBuffer(1,nLen,ctx.sampleRate); const nd=nBuf.getChannelData(0);
-    for(let j=0;j<nd.length;j++) nd[j]=Math.random()*2-1;
-    const nSrc=ctx.createBufferSource(); nSrc.buffer=nBuf;
-    const nFilt=mkFilt(isWoodwind?2800:isBrass?650:1800,'bandpass',isWoodwind?0.7:0.5);
-    const nEnv=mkGain(0); chain(nSrc,nFilt,nEnv,b);
-    const nVol=(isWoodwind?0.006:isBrass?0.003:0.004)+energy*0.004;
-    nEnv.gain.setValueAtTime(nVol,bt); nEnv.gain.linearRampToValueAtTime(nVol*0.4,bt+noteDur*0.3);
-    nEnv.gain.linearRampToValueAtTime(0.0001,bt+noteDur);
-    nSrc.start(bt); nSrc.stop(bt+noteDur+0.05); reg(name,nSrc,nFilt,nEnv);
+
+    // Breath/bow noise — same envelope shape as the note swell
+    const nLen = Math.min(Math.floor(ctx.sampleRate * (humanDur + 0.08)), ctx.sampleRate * 3);
+    const nBuf = ctx.createBuffer(1, nLen, ctx.sampleRate);
+    const nd   = nBuf.getChannelData(0);
+    for (let j = 0; j < nd.length; j++) nd[j] = Math.random() * 2 - 1;
+    const nSrc  = ctx.createBufferSource(); nSrc.buffer = nBuf;
+    const nFilt = mkFilt(isWoodwind ? 2800 : isBrass ? 650 : 1800, 'bandpass', isWoodwind ? 0.7 : 0.5);
+    const nEnv  = mkGain(0);
+    chain(nSrc, nFilt, nEnv, b);
+    const nVol = (isWoodwind ? 0.006 : isBrass ? 0.003 : 0.004) + energy * 0.004;
+    nEnv.gain.setValueAtTime(nVol, humanBt);
+    nEnv.gain.linearRampToValueAtTime(nVol * 0.4, humanBt + humanDur * 0.3);
+    nEnv.gain.linearRampToValueAtTime(0.0001, humanBt + humanDur);
+    nSrc.start(humanBt); nSrc.stop(humanBt + humanDur + 0.05);
+    reg(name, nSrc, nFilt, nEnv);
   }
 
   function schedNote(){
@@ -4647,6 +4781,7 @@ function buildMelody(preset, intensity, name) {
     }
     const bar=MP.position; MP.position++;
     const isStrong=(bar===0||bar===Math.floor(MP.phraseLen/2));
+    const isPeak  =(bar===Math.floor(MP.phraseLen*0.45)); // near phrase apex
     const isCadence=(bar>=MP.cadenceBar);
     const restChance=isCadence?0.0:isStrong?0.05:energy<0.25?0.60:energy<0.50?0.35:0.18;
     if(Math.random()<restChance){
@@ -4657,7 +4792,7 @@ function buildMelody(preset, intensity, name) {
     const freq=CE.scaleStep(preset,oct,deg);
     MP.lastDeg=deg;
     const noteDur=isCadence?beat*(2.5+energy):isStrong?beat*(1.2+energy*0.8):beat*(0.5+energy*0.5);
-    playNote(t,freq,noteDur);
+    playNote(t, freq, noteDur, { isStrong, isPeak, isCadence });
     t+=noteDur*0.85+beat*0.15;
     if(isCadence){MP.callDone=true;regT(name,setTimeout(schedNote,noteDur*1000+beat*2000));}
     else{regT(name,setTimeout(schedNote,noteDur*0.82*1000));}
