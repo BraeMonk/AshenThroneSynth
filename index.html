@@ -1247,7 +1247,7 @@ function tickBar() {
   // double-advance and land on chord 2 before the listener hears chord 1.
   if (phraseBar > 1) {
     CE.tick(journeyActive || JC.active
-      ? getZone((JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).floor)
+      ? getZone((JC_chapter(JC.step) || JC_CHAPTERS[0]).floor)
       : getZone(parseInt(slider.value)));
   }
   if(JC.active && journeyActive) JC.tick();
@@ -2296,6 +2296,15 @@ const JC_CHAPTERS = [
     phraseArc: ['resolution','build','tension','resolution','build','resolution','intro','resolution'] },
 ];
 
+// Resolve current chapter using per-journey scrambled order when active.
+// Falls back to linear order if _chapterOrder isn't set (e.g. non-journey play).
+function JC_chapter(step) {
+  const idx = (JC._chapterOrder && JC._chapterOrder[step] != null)
+    ? JC._chapterOrder[step]
+    : step;
+  return JC_CHAPTERS[Math.min(idx, JC_CHAPTERS.length - 1)] || JC_CHAPTERS[0];
+}
+
 JC.evalEnergy = function(progress) {
   const curve = (JC._energyCurve && JC._energyCurve.length) ? JC._energyCurve : (JC_ENERGY_CURVES[JC.mood] || JC_ENERGY_CURVES.descent);
   const scaled = Math.max(0, Math.min(0.9999, progress)) * (curve.length - 1);
@@ -2802,9 +2811,17 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   // Use the chapter's own phrase arc — not a global sequence.
   // The JC phrase engine drives from this arc, cycling through it
   // until the next chapter transition.
-  phraseSeq     = generatePhraseArc(toChapter, JC.step, JC.mood);
-  phraseSeqIdx  = 0;
-  currentPhrase = phraseSeq[0];
+  phraseSeq = generatePhraseArc(toChapter, JC.step, JC.mood);
+  // Per-run chapter opener: find this phrase in the arc and start there,
+  // so the same chapter can open on tension one run and build the next.
+  const _opener = JC._chapterOpeners && JC._chapterOpeners[JC.step];
+  if (_opener) {
+    const _openerIdx = phraseSeq.indexOf(_opener);
+    phraseSeqIdx  = _openerIdx >= 0 ? _openerIdx : 0;
+  } else {
+    phraseSeqIdx  = 0;
+  }
+  currentPhrase = phraseSeq[phraseSeqIdx];
   stopPhraseEngine(); startPhraseEngine();
 
   // Master volume: slow ride to new energy level — 8 bars, no dip
@@ -2862,7 +2879,7 @@ JC.tick = function() {
     JC.step = newStep;
     journeyDepth = JC.step;
     if(CIN.knight?.legend) CIN.knight.legend.step=JC.step;
-    const toChapter   = JC_CHAPTERS[JC.step];
+    const toChapter   = JC_chapter(JC.step);
     // Vary the target floor ±4 within the chapter's zone — changes the tonal root,
     // sub frequency, and chord offset for the entire chapter
     const floorJitter = Math.floor(rng() * 9) - 4; // -4 to +4
@@ -2873,7 +2890,7 @@ JC.tick = function() {
   }
 
   // Floor crawl — update slider AND visual labels so UI stays in sync
-  const chapter = JC_CHAPTERS[JC.step]||JC_CHAPTERS[JC.totalSteps-1];
+  const chapter = JC_chapter(JC.step)||JC_CHAPTERS[JC.totalSteps-1];
   const cur = parseInt(slider.value);
   if(Math.abs(cur-chapter.floor)>1){
     const dir=chapter.floor>cur?1:-1;
@@ -3026,7 +3043,7 @@ function startRandomJourney() {
   // ignoring the mood's scaleArc. Build a per-journey resolved scale arc:
   // each chapter gets a concrete scale name drawn from its mood scaleArc entry,
   // with a small chance of a neighbour-mood substitution for colour.
-  const moodScaleArc = moodObj.scaleArc || ['dark','dark','eerie','dark','dread','dread','eerie','dark'];
+  const moodScaleArc = (JOURNEY_MOODS[activeJourneyMood] || JOURNEY_MOODS.descent).scaleArc || ['dark','dark','eerie','dark','dread','dread','eerie','dark'];
   const scaleMoodNeighbours = { dark:['dark','eerie'], eerie:['eerie','dread','arcane'], dread:['dread','eerie'], epic:['epic','dread'], arcane:['arcane','eerie'] };
   JC._scaleArc = moodScaleArc.map((moodName, i) => {
     // 15% chance: substitute a neighbouring mood scale for this chapter
@@ -3053,6 +3070,31 @@ function startRandomJourney() {
   JC._groupOffsets = {};
   JC_LAYER_GROUPS.forEach(g => {
     JC._groupOffsets[g.id] = (rng() - 0.5) * 0.20; // ±0.10
+  });
+
+  // ── PER-JOURNEY CHAPTER OPENING VARIATION ────────────────────────────────
+  // Chapter order stays linear (0→7) — scrambling it was too jarring because
+  // each chapter's identity is tightly coupled to the energy arc shape.
+  // Instead: vary the *opening phrase* of each chapter transition per-run.
+  // generatePhraseArc already handles internal variation; this seeds which
+  // phrase the chapter *starts* on, so the same chapter can open tense one
+  // run and start building the next.
+  JC._chapterOrder   = null; // null = linear JC_CHAPTERS[step]
+  JC._chapterOpeners = JC_CHAPTERS.map((ch, i) => {
+    // Each chapter has a weighted pool of valid opening phrases.
+    // Early chapters bias toward intro/build; late chapters bias toward tension/climax.
+    const pools = [
+      ['intro','intro','build'],                        // ch 0
+      ['build','build','intro','tension'],              // ch 1
+      ['tension','build','tension'],                    // ch 2
+      ['build','tension','tension','climax'],           // ch 3
+      ['tension','climax','climax'],                    // ch 4
+      ['climax','climax','tension'],                    // ch 5
+      ['climax','climax','climax','tension'],           // ch 6
+      ['resolution','resolution','build'],              // ch 7
+    ];
+    const pool = pools[i] || ['build'];
+    return pool[Math.floor(rng() * pool.length)];
   });
 
   // Modal offset for composed score — shifts all melody degrees by 0, 1, or 2
@@ -3128,11 +3170,12 @@ function startRandomJourney() {
   )];
   selectScale(allMoodScales[Math.floor(rng() * allMoodScales.length)]);
 
-  // Opening phrase: 70% 'intro', 30% 'build' — avoids always starting from scratch
-  const openPhrase = rng() < 0.70 ? 'intro' : 'build';
+  // Opening phrase: use the per-run opener for chapter 0, so different runs
+  // of the same mood can start tense, building, or from scratch.
+  const openPhrase = (JC._chapterOpeners && JC._chapterOpeners[0]) || (rng() < 0.70 ? 'intro' : 'build');
   phraseSeq    = firstChapter.phraseArc;
-  phraseSeqIdx = openPhrase === 'build' ? 2 : 0; // start mid-arc if build
-  currentPhrase = openPhrase;
+  phraseSeqIdx = Math.max(0, phraseSeq.indexOf(openPhrase));
+  currentPhrase = phraseSeq[phraseSeqIdx] || openPhrase;
   autoEvolution = true;
   startPhraseEngine();
 
@@ -5807,7 +5850,7 @@ const MP = {
 
 function MP_getScore() {
   const label = (journeyActive || JC.active)
-    ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label
+    ? (JC_chapter(JC.step) || JC_CHAPTERS[0]).label
     : null;
   const score = (label && COMPOSED_SCORE[label]) || SCORE_FALLBACK;
 
@@ -5898,7 +5941,7 @@ function MP_getScore() {
 
 function MP_getCelloLine() {
   const label = (journeyActive || JC.active)
-    ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label
+    ? (JC_chapter(JC.step) || JC_CHAPTERS[0]).label
     : null;
   const score = (label && COMPOSED_SCORE[label]) || SCORE_FALLBACK;
   const base  = score.celline;
@@ -6029,7 +6072,7 @@ function buildMelody(preset, intensity, name) {
 
   // Keep MP fields in sync so choir/cello openness still reads them correctly
   const chapterLabel = (journeyActive || JC.active)
-    ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label : null;
+    ? (JC_chapter(JC.step) || JC_CHAPTERS[0]).label : null;
   MP_resetForChapter(chapterLabel);
 
   // ── makeSustainedVoice ─────────────────────────────────────────────────────
@@ -7043,80 +7086,170 @@ function buildStomp(preset, intensity, name) {
 
 
 function buildLute(preset, intensity, name) {
-  const b = bus[name];
-  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const b    = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
-  let patIdx = 0, t = ctx.currentTime + 0.1;
 
-  function schedBar() {
-    const pat = preset.melodyPatterns[patIdx++ % preset.melodyPatterns.length];
+  // ── CELTIC PHRASE ENGINE ───────────────────────────────────────────────────
+  // Three phrase modes responding to currentPhrase:
+  //   air   → intro/resolution: slow ornamented melody, long notes, space
+  //   jig   → build/tension:    lilting triplet-feel patterns, 2+1 groupings
+  //   reel  → climax:           driving 8th runs, ascending/descending modal
+  //
+  // Each mode is a sequence of [scaleDeg, subdivMultiplier, restSubdivs].
+  // subdivMultiplier is in units of beat*0.25 (16th notes) for reels/jigs,
+  // or beat*0.5 (8th notes) for airs.
+  //
+  // Celtic modal character: favour stepwise motion (±1 degree), avoid leaps
+  // larger than a 3rd except at phrase peaks. Ornaments fire on strong notes.
+  // ──────────────────────────────────────────────────────────────────────────
 
-    for (let i = 0; i < pat.length; i++) {
-      if (rng() < 0.28) continue;
+  // Phrase library — [scaleDeg, durationMult, restMult]
+  // For airs: mult is in half-beats. For jigs/reels: mult is in quarter-beats.
+  const LUTE_PHRASES = {
+    // Slow ornamented airs — stepwise, lots of space, hauntingly modal
+    air: [
+      // A — falling phrase, ends on root
+      [[4,3,0],[3,2,0],[2,3,1],[1,2,0],[0,4,2]],
+      // B — rising then settling
+      [[0,2,0],[1,2,0],[2,3,0],[4,2,1],[3,2,0],[2,4,2]],
+      // C — staying high then dropping
+      [[5,3,0],[4,2,0],[5,3,1],[3,2,0],[2,3,0],[0,4,2]],
+    ],
+    // Jig feel — triplet groupings, lilting, modal steps
+    jig: [
+      // A — classic jig cell: 3-2-1-2-3-4-3-2-1
+      [[3,2,0],[2,1,0],[1,2,0],[2,1,0],[3,2,0],[4,1,0],[3,2,0],[2,1,0],[1,3,1]],
+      // B — high-register jig with leap
+      [[5,2,0],[4,1,0],[3,2,0],[5,1,0],[4,2,0],[3,1,0],[2,2,0],[1,1,0],[0,3,1]],
+      // C — syncopated jig, off-beat emphasis
+      [[2,1,0],[3,2,0],[2,1,0],[4,2,1],[3,1,0],[2,2,0],[1,1,0],[2,2,0],[0,3,1]],
+    ],
+    // Reel — fast even 8ths, modal runs ascending and descending
+    reel: [
+      // A — ascending scale run then tumble down
+      [[0,1,0],[1,1,0],[2,1,0],[3,1,0],[4,1,0],[3,1,0],[2,1,0],[1,1,0],
+       [2,1,0],[3,1,0],[4,1,0],[5,1,0],[4,1,0],[3,1,0],[2,1,0],[0,2,1]],
+      // B — two-octave sweep (stays in range via scaleStep clamping)
+      [[4,1,0],[5,1,0],[6,1,0],[5,1,0],[4,1,0],[3,1,0],[2,1,0],[1,1,0],
+       [0,1,0],[1,1,0],[2,1,0],[3,1,0],[2,1,0],[1,1,0],[0,2,1]],
+      // C — pentatonic-flavoured reel (skips 1 and 5)
+      [[0,1,0],[2,1,0],[3,1,0],[4,1,0],[2,1,0],[0,1,0],[3,1,0],[4,1,0],
+       [6,1,0],[4,1,0],[3,1,0],[2,1,0],[0,2,1]],
+    ],
+  };
 
-      const bt   = t + i * beat * 0.5;
-      const freq = CE.scaleStep(preset, preset.melodyOctave + 1, pat[i]);
-      const dur  = beat * (0.12 + rng() * 0.18); // short pluck decay
-
-      // Main pluck — two detuned saws shaped into a pluck envelope
-      const o1   = mkOsc(freq,         'sawtooth', -5);
-      const o2   = mkOsc(freq,         'sawtooth',  5);
-      const o3   = mkOsc(freq * 2,     'sine',      0); // octave harmonic
-      const g1   = mkGain(0.5), g2 = mkGain(0.35), g3 = mkGain(0.15);
-
-      // Bright pluck filter that closes fast — the signature lute sound
-      const filt = mkFilt(freq * 8, 'lowpass', 0.7);
-      const env  = mkGain(0);
-      chain(o1, g1, filt); chain(o2, g2, filt); chain(o3, g3, filt);
-      chain(filt, env, b);
-
-      const vol = 0.1 + intensity * 0.1;
-      env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol, bt + 0.004);
-      env.gain.exponentialRampToValueAtTime(0.001, bt + dur);
-
-      // Filter closes over the pluck duration — brightness decays like a real string
-      filt.frequency.setValueAtTime(freq * 8, bt);
-      filt.frequency.exponentialRampToValueAtTime(freq * 1.5, bt + dur * 0.7);
-
-      o1.start(bt); o1.stop(bt + dur + 0.05);
-      o2.start(bt); o2.stop(bt + dur + 0.05);
-      o3.start(bt); o3.stop(bt + dur + 0.05);
-      reg(name, o1, o2, o3, g1, g2, g3, filt, env);
-
-      // Body resonance — short filtered noise burst mimics the instrument body
-      const bodyBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.04), ctx.sampleRate);
-      const bd = bodyBuf.getChannelData(0);
-      for (let j = 0; j < bd.length; j++) {
-        const tt = j / ctx.sampleRate;
-        bd[j] = (Math.random() * 2 - 1) * Math.exp(-tt / 0.012);
-      }
-      const bodySrc  = ctx.createBufferSource(); bodySrc.buffer = bodyBuf;
-      const bodyFilt = mkFilt(freq * 2.5, 'bandpass', 4);
-      const bodyG    = mkGain(0.04 + intensity * 0.03);
-      chain(bodySrc, bodyFilt, bodyG, b);
-      bodySrc.start(bt);
-      reg(name, bodySrc, bodyFilt, bodyG);
-
-      // Sympathetic string overtone — ghostly ring that follows the pluck
-      if (rng() < 0.45) {
-        const sympFreq = freq * (rng() < 0.5 ? 1.5 : 2.0);
-        const sympO    = mkOsc(sympFreq, 'sine');
-        const sympEnv  = mkGain(0);
-        chain(sympO, sympEnv, b);
-        sympEnv.gain.setValueAtTime(0, bt + 0.01);
-        sympEnv.gain.linearRampToValueAtTime(0.012 + intensity * 0.008, bt + 0.04);
-        sympEnv.gain.exponentialRampToValueAtTime(0.0001, bt + dur * 2.5);
-        sympO.start(bt + 0.01); sympO.stop(bt + dur * 3);
-        reg(name, sympO, sympEnv);
-      }
-    }
-
-    t += beat * 4;
-    regT(name, setTimeout(schedBar, beat * 3.6 * 1000));
+  // Pick phrase type from currentPhrase
+  function getPhraseType() {
+    const p = currentPhrase || 'build';
+    if (p === 'intro' || p === 'resolution') return 'air';
+    if (p === 'climax') return 'reel';
+    return 'jig';
   }
 
-  schedBar();
+  // Per-journey pick which A/B/C variant to use — consistent with scoreVariant
+  const variantIdx = (JC.active && JC._scoreVariant != null) ? JC._scoreVariant : Math.floor(rng() * 3);
+
+  // ── pluckNote: synthesize one lute note ───────────────────────────────────
+  // Kept from original builder — bright pluck, fast filter close, body thump.
+  function pluckNote(bt, freq, dur, vel) {
+    if (!freq || freq < 60 || !layerOn[name]) return;
+    const o1   = mkOsc(freq,     'sawtooth', -5);
+    const o2   = mkOsc(freq,     'sawtooth',  5);
+    const o3   = mkOsc(freq * 2, 'sine',      0);
+    const g1   = mkGain(0.50), g2 = mkGain(0.35), g3 = mkGain(0.15);
+    const filt = mkFilt(freq * 8, 'lowpass', 0.7);
+    const env  = mkGain(0);
+    chain(o1, g1, filt); chain(o2, g2, filt); chain(o3, g3, filt);
+    chain(filt, env, b);
+    const v = vel * (0.82 + rng() * 0.18);
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(v, bt + 0.004);
+    env.gain.exponentialRampToValueAtTime(0.001, bt + dur);
+    filt.frequency.setValueAtTime(freq * 8, bt);
+    filt.frequency.exponentialRampToValueAtTime(freq * 1.5, bt + dur * 0.7);
+    o1.start(bt); o1.stop(bt + dur + 0.05);
+    o2.start(bt); o2.stop(bt + dur + 0.05);
+    o3.start(bt); o3.stop(bt + dur + 0.05);
+    reg(name, o1, o2, o3, g1, g2, g3, filt, env);
+
+    // Body thump
+    const bodyBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.04), ctx.sampleRate);
+    const bd = bodyBuf.getChannelData(0);
+    for (let j = 0; j < bd.length; j++) bd[j] = (Math.random()*2-1) * Math.exp(-j/ctx.sampleRate/0.012);
+    const bodySrc = ctx.createBufferSource(); bodySrc.buffer = bodyBuf;
+    const bodyF = mkFilt(freq * 2.5, 'bandpass', 4);
+    const bodyG = mkGain(0.04 + intensity * 0.03);
+    chain(bodySrc, bodyF, bodyG, b); bodySrc.start(bt);
+    reg(name, bodySrc, bodyF, bodyG);
+
+    // Sympathetic overtone
+    if (rng() < 0.40) {
+      const sf = freq * (rng() < 0.5 ? 1.5 : 2.0);
+      const so = mkOsc(sf, 'sine');
+      const se = mkGain(0);
+      chain(so, se, b);
+      se.gain.setValueAtTime(0, bt + 0.01);
+      se.gain.linearRampToValueAtTime(0.011 + intensity * 0.007, bt + 0.04);
+      se.gain.exponentialRampToValueAtTime(0.0001, bt + dur * 2.5);
+      so.start(bt + 0.01); so.stop(bt + dur * 3);
+      reg(name, so, se);
+    }
+  }
+
+  // ── ornament: grace note (very fast pre-note a step above) ────────────────
+  function graceNote(bt, freq, dur) {
+    const graceFreq = CE.scaleStep(preset, preset.melodyOctave + 1, 1) * (freq / CE.scaleStep(preset, preset.melodyOctave + 1, 0));
+    // Approximate: grace is always one scale step up from the main note
+    const gf = freq * 1.059; // roughly one semitone — keeps it quick without CE lookup
+    pluckNote(bt - 0.04, gf, 0.03, (0.06 + intensity * 0.04));
+  }
+
+  // ── schedPhrase: schedule one complete phrase then recurse ───────────────
+  let phraseT = ctx.currentTime + beat * 0.25;
+
+  function schedPhrase() {
+    if (!layerOn[name]) return;
+
+    const pType   = getPhraseType();
+    const pool    = LUTE_PHRASES[pType];
+    const phrase  = pool[variantIdx % pool.length];
+
+    // Subdivision unit: airs use half-beats, jigs/reels use quarter-beats
+    const subdiv  = pType === 'air' ? beat * 0.5 : beat * 0.25;
+    const baseVol = 0.08 + intensity * 0.09;
+    const oct     = preset.melodyOctave + 1;
+
+    let localT = phraseT;
+
+    phrase.forEach(([deg, durM, restM], i) => {
+      const noteDur  = subdiv * durM * (0.88 + rng() * 0.12); // slight humanise
+      const restDur  = subdiv * restM;
+      const freq     = CE.scaleStep(preset, oct, deg);
+      // Strong-beat notes are louder
+      const isStrong = (i === 0 || i === Math.floor(phrase.length * 0.5));
+      const vel      = isStrong ? baseVol * 1.3 : baseVol * (0.7 + rng() * 0.3);
+
+      // Grace note on strong beats of jig/reel at moderate+ intensity
+      if (isStrong && pType !== 'air' && intensity > 0.3 && rng() < 0.45) {
+        graceNote(localT, freq, noteDur);
+      }
+
+      pluckNote(localT, freq, noteDur, vel);
+      localT += noteDur + restDur;
+    });
+
+    // Rest between phrases — longer for airs, shorter for reels
+    const phraseTotalDur = localT - phraseT;
+    const interPhrase    = pType === 'air'  ? beat * 3
+                         : pType === 'jig'  ? beat * 1
+                         :                    beat * 0.5;
+    phraseT = localT + interPhrase;
+
+    regT(name, setTimeout(schedPhrase, (phraseTotalDur + interPhrase - beat * 0.1) * 1000));
+  }
+
+  schedPhrase();
 }
 
 function buildHorn(preset, intensity, name) {
