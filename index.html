@@ -2032,6 +2032,51 @@ const JOURNEY_MOODS = {
     layerArc:  ['choral','choral','arcane','choral','arcane','choral','choral','desolate'],
     scaleArc:  ['arcane','arcane','arcane','eerie','arcane','arcane','dark','dark'],
   },
+
+  // ── NEW MOODS ──────────────────────────────────────────────────────────────
+
+  ritual: {
+    label: 'Ritual',
+    desc: 'Hypnotic and ceremonial — war drums and chanting hold steady for a long time before anything shifts',
+    // Percussion leads from the start. Energy stays low and locked for 5 chapters
+    // then a single violent peak and immediate collapse back to chanting.
+    layerArc:  ['marching','marching','choral','marching','marching','nightmare','choral','desolate'],
+    scaleArc:  ['dark','dark','eerie','dark','dread','dread','eerie','dark'],
+  },
+
+  paranoia: {
+    label: 'Paranoia',
+    desc: 'Twitchy and wrong — glitch and chaos early, energy never quite peaks, resolution never arrives',
+    layerArc:  ['arcane','combat','nightmare','combat','arcane','combat','nightmare','arcane'],
+    scaleArc:  ['eerie','dread','eerie','eerie','dread','eerie','dread','eerie'],
+  },
+
+  elegy: {
+    label: 'Elegy',
+    desc: 'A slow funeral — strings and choir throughout, never reaches combat, resolves into open silence',
+    // Strings and choir carry everything. No percussion ever.
+    // Slow, deliberate energy arc. Like a procession that keeps walking.
+    layerArc:  ['choral','choral','choral','choral','choral','choral','choral','desolate'],
+    scaleArc:  ['dark','dark','dark','eerie','dark','dark','eerie','dark'],
+  },
+
+  siege: {
+    label: 'Siege',
+    desc: 'All combat, no mercy — peaks early and stays there, no resolution',
+    // Marching from bar 1, reaches full force by chapter 3 and holds.
+    // The grind. No cooldown.
+    layerArc:  ['marching','combat','nightmare','nightmare','combat','nightmare','combat','marching'],
+    scaleArc:  ['epic','dread','dread','dread','epic','dread','dread','epic'],
+  },
+
+  awakening: {
+    label: 'Awakening',
+    desc: 'Inverted — starts at the peak and slowly dissolves into ash, like waking in the aftermath',
+    // Energy arc runs in reverse: high at the start, decaying through all 8 chapters.
+    // Starts with nightmare texture, strips back layer by layer to desolate silence.
+    layerArc:  ['nightmare','combat','marching','choral','marching','choral','desolate','desolate'],
+    scaleArc:  ['dread','dread','epic','dark','eerie','dark','dark','arcane'],
+  },
 };
 
 let activeJourneyMood = 'descent';
@@ -2079,11 +2124,17 @@ const JC = {
 };
 
 const JC_ENERGY_CURVES = {
-  descent:    [0.08,0.18,0.32,0.52,0.72,0.90,0.75,0.22], // ch8 raised so resolution breathes
-  tragic:     [0.20,0.35,0.50,0.70,0.55,0.30,0.22,0.18], // raised floor so choir+melody survive into ch8
+  descent:    [0.08,0.18,0.32,0.52,0.72,0.90,0.75,0.22],
+  tragic:     [0.20,0.35,0.50,0.70,0.55,0.30,0.22,0.18],
   triumphant: [0.25,0.45,0.65,0.85,1.00,0.88,0.70,0.40],
   arcane:     [0.12,0.22,0.38,0.30,0.55,0.40,0.28,0.10],
-  meditative: [0.10,0.15,0.22,0.18,0.25,0.18,0.20,0.16], // raised floor so resolution has texture
+  meditative: [0.10,0.15,0.22,0.18,0.25,0.18,0.20,0.16],
+  // New moods
+  ritual:     [0.22,0.24,0.26,0.28,0.28,0.92,0.30,0.15], // flat plateau → violent spike → back to ritual
+  paranoia:   [0.28,0.45,0.38,0.52,0.42,0.58,0.48,0.35],
+  elegy:      [0.15,0.22,0.30,0.38,0.42,0.38,0.28,0.16], // slow gentle arc, soft peak, long decay
+  siege:      [0.45,0.72,0.90,0.95,0.95,0.90,0.85,0.55], // peaks fast, stays high, grinds
+  awakening:  [0.90,0.78,0.62,0.45,0.35,0.25,0.18,0.10], // inverted — starts high, decays to silence
 };
 
 // Layer groups define when instruments enter and leave as energy rises 0→1.
@@ -2116,6 +2167,12 @@ const JC_MOOD_SUPPRESS = {
   arcane:     new Set(['rhythm_2','rhythm_3','chains_tex']),
   tragic:     new Set(['horn_acc','chaos_peak']),
   triumphant: new Set(['chaos_peak','ritual']),
+  // New moods
+  ritual:     new Set(['chaos_peak','bells_det','organ_col']),         // no chaos/bells — just drums and chant
+  paranoia:   new Set(['horn_acc','bells_det']),                       // no heroic brass or delicate bells
+  elegy:      new Set(['rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak','horn_acc']), // no drums ever
+  siege:      new Set(['bells_det','organ_col','atmosphere','ritual']), // no delicate/atmospheric — pure force
+  awakening:  new Set(['ritual','chains_tex']),                        // starts full, strips naturally via energy
 };
 
 // ── CHAPTER PHRASE ARCS ───────────────────────────────────────────────
@@ -2168,18 +2225,45 @@ JC.evalEnergy = function(progress) {
 
 JC.computeTargetSet = function() {
   const e        = JC.energy;
-  const suppress = JC_MOOD_SUPPRESS[JC.mood] || new Set();
+  const suppress = new Set(JC_MOOD_SUPPRESS[JC.mood] || []);
   const target   = new Set();
+
+  // ── layerArc archetype bias ────────────────────────────────────────────────
+  // Read the mood's layerArc for the current chapter step and apply
+  // archetype-specific suppressions + forced inclusions.
+  // This is what differentiates 'tragic' from 'triumphant' at a texture level.
+  const moodObj   = JOURNEY_MOODS[JC.mood] || JOURNEY_MOODS.descent;
+  const archetype = (moodObj.layerArc || [])[JC.step] || 'combat';
+
+  // Archetype suppressions — added on top of mood-level suppressions
+  const ARCHETYPE_SUPPRESS = {
+    desolate:  ['rhythm_1','rhythm_2','rhythm_3','chains_tex','horn_acc'],
+    choral:    ['rhythm_1','rhythm_2','rhythm_3','chains_tex'],
+    marching:  ['organ_col','bells_det','choir_bed'],
+    combat:    [],
+    nightmare: ['bells_det','organ_col'],
+    arcane:    ['rhythm_2','rhythm_3','chains_tex'],
+  };
+  // Archetype threshold offsets — shift enter thresholds so some groups come in earlier
+  const ARCHETYPE_EARLY = {
+    choral:    ['choir_bed','cello_cnt','harmonic'],  // choir enters earlier
+    marching:  ['rhythm_2','rhythm_3','rhythm_1'],    // drums enter earlier
+    nightmare: ['chaos_peak'],                        // chaos enters earlier
+    arcane:    ['solo_voice','bells_det','organ_col'], // melody/bells enter earlier
+  };
+  const earlySet = new Set(ARCHETYPE_EARLY[archetype] || []);
+
+  (ARCHETYPE_SUPPRESS[archetype] || []).forEach(id => suppress.add(id));
+
   JC_LAYER_GROUPS.forEach(g => {
     if (suppress.has(g.id)) return;
-    // Layer is active when:
-    //   energy >= enter threshold  (has entered)
-    //   AND (no exit ceiling  OR  energy < exit ceiling)  (hasn't left yet)
-    // exit:-1 means "never exits once entered"
-    // exit:0.65 means "present from enter until energy reaches 0.65, then gone"
-    const active = e >= g.enter && (g.exit < 0 || e < g.exit);
+    const baseEnter   = earlySet.has(g.id) ? g.enter * 0.65 : g.enter;
+    const jOffset     = (JC._groupOffsets && JC._groupOffsets[g.id]) || 0;
+    const enterThresh = Math.max(0, baseEnter + jOffset);
+    const active = e >= enterThresh && (g.exit < 0 || e < g.exit);
     if (active) g.layers.forEach(l => target.add(l));
   });
+
   if (JC.step === JC.bossStep) {
     target.add('chaos'); target.add('wardrums');
     target.add('march'); target.add('stomp');
@@ -2392,6 +2476,33 @@ JC.applyMasterVolume = function() {
   masterGain.gain.linearRampToValueAtTime(targetGain, now + (barLength||4) * 16);
 };
 
+// Generate a varied phraseArc for a chapter, seeded per journey+step
+function generatePhraseArc(chapter, step, mood) {
+  const base = [...chapter.phraseArc];
+  // Seed a local rng so the arc is deterministic per (journey × step)
+  let s = (_sessionSeed ^ (JC.startTime & 0xFFFF)) ^ (step * 2311) ^ (mood.charCodeAt(0) * 47);
+  const lr = () => { s = Math.imul(s^s>>>15,s|1); s^=s+Math.imul(s^s>>>7,61|s); return ((s^s>>>14)>>>0)/4294967296; };
+
+  // Pool of phrases valid for each chapter range
+  const earlyPhrases  = ['intro','intro','build','build','tension'];     // ch 1-3
+  const midPhrases    = ['build','tension','tension','climax','build'];   // ch 4-6
+  const latePhrases   = ['climax','climax','tension','climax','tension']; // ch 6-7
+  const endPhrases    = ['resolution','build','resolution','intro','resolution']; // ch 8
+
+  const pool = step <= 2 ? earlyPhrases : step <= 5 ? midPhrases : step <= 6 ? latePhrases : endPhrases;
+
+  // Build varied arc: 70% from base, 30% from pool substitution
+  const varied = base.map((p, i) => {
+    // Always keep the last phrase (cadence/resolution end)
+    if (i === base.length - 1) return p;
+    return lr() < 0.30 ? pool[Math.floor(lr() * pool.length)] : p;
+  });
+
+  // Ensure chapter 8 always resolves
+  if (step === 7) varied[varied.length - 1] = 'resolution';
+  return varied;
+}
+
 JC.doSceneTransition = function(toChapter, preset, intensity) {
   if(!ctx||!masterGain) return;
   // If a transition is already in flight, cancel only its clear-timer and proceed.
@@ -2419,7 +2530,7 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   // Use the chapter's own phrase arc — not a global sequence.
   // The JC phrase engine drives from this arc, cycling through it
   // until the next chapter transition.
-  phraseSeq     = toChapter.phraseArc;
+  phraseSeq     = generatePhraseArc(toChapter, JC.step, JC.mood);
   phraseSeqIdx  = 0;
   currentPhrase = phraseSeq[0];
   stopPhraseEngine(); startPhraseEngine();
@@ -2502,11 +2613,13 @@ JC.tick = function() {
     JC.step = newStep;
     journeyDepth = JC.step;
     if(CIN.knight?.legend) CIN.knight.legend.step=JC.step;
-    const toChapter = JC_CHAPTERS[JC.step];
-    const toPreset  = getZone(toChapter.floor);
-    logTimeline(`Chapter ${JC.step+1}: ${toChapter.label} · Floor ${toChapter.floor}`);
-    // Always call doSceneTransition — it now force-clears any in-flight
-    // transition rather than silently dropping the chapter advance.
+    const toChapter   = JC_CHAPTERS[JC.step];
+    // Vary the target floor ±4 within the chapter's zone — changes the tonal root,
+    // sub frequency, and chord offset for the entire chapter
+    const floorJitter = Math.floor(rng() * 9) - 4; // -4 to +4
+    const targetFloor = Math.max(toChapter.floor, Math.min(toChapter.floor + 11, toChapter.floor + floorJitter));
+    const toPreset    = getZone(targetFloor);
+    logTimeline(`Chapter ${JC.step+1}: ${toChapter.label} · Floor ${targetFloor}`);
     JC.doSceneTransition(toChapter, toPreset, Math.min(1,JC.energy+0.15));
   }
 
@@ -2609,20 +2722,44 @@ function startRandomJourney() {
   JC.active=true; JC.progress=0; JC.energy=0; JC.step=0;
   JC.mood=activeJourneyMood; JC.startTime=Date.now();
   JC.sceneTransition=false;
-  JC.bossStep=4+Math.floor(rng()*3);
+  // Awakening starts at peak — boss fires early. Siege has no boss (pure grind).
+  // Other moods: boss in chapters 4-6 (the normal peak zone).
+  if (activeJourneyMood === 'awakening') {
+    JC.bossStep = Math.floor(rng() * 2); // chapter 0 or 1
+  } else if (activeJourneyMood === 'siege') {
+    JC.bossStep = 2 + Math.floor(rng() * 2); // chapter 2 or 3 — early
+  } else {
+    JC.bossStep = 4 + Math.floor(rng() * 3); // chapters 4-6 — normal
+  }
   JC._reconcileBar=0;
   _leitmotifReturnFired=false;
+
+  // Per-journey threshold scatter — each layer group gets ±0.05 offset
+  // so the texture build has a different shape every run
+  JC._groupOffsets = {};
+  JC_LAYER_GROUPS.forEach(g => {
+    JC._groupOffsets[g.id] = (rng() - 0.5) * 0.10; // ±0.05
+  });
+
+  // Modal offset for composed score — shifts all melody degrees by 0, 1, or 2
+  // so the same composed lines sound tonally different each journey
+  JC._scoreOffset = Math.floor(rng() * 3); // 0, 1, or 2 scale degrees up
 
   journeyActive=true; journeyDepth=0;
 
   // Knight legend
   if(CIN.knight){
     const moodTraits={
-      descent:   {aggression:0.5,patience:0.6,grief:0.3,glory:0.2},
-      tragic:    {aggression:0.2,patience:0.8,grief:0.9,glory:0.1},
+      descent:   {aggression:0.5, patience:0.6,grief:0.3,glory:0.2},
+      tragic:    {aggression:0.2, patience:0.8,grief:0.9,glory:0.1},
       triumphant:{aggression:0.85,patience:0.3,grief:0.1,glory:0.95},
       arcane:    {aggression:0.15,patience:0.9,grief:0.4,glory:0.3},
       meditative:{aggression:0.05,patience:1.0,grief:0.5,glory:0.1},
+      ritual:    {aggression:0.55,patience:0.95,grief:0.2,glory:0.6},
+      paranoia:  {aggression:0.7, patience:0.2,grief:0.6,glory:0.1},
+      elegy:     {aggression:0.05,patience:0.85,grief:0.95,glory:0.15},
+      siege:     {aggression:0.98,patience:0.1,grief:0.0,glory:0.8},
+      awakening: {aggression:0.3, patience:0.7,grief:0.7,glory:0.4},
     };
     const bt=moodTraits[activeJourneyMood]||moodTraits.descent;
     CIN.knight.legend={
@@ -2637,17 +2774,42 @@ function startRandomJourney() {
     CIN.knight.bossBuildupT=0; CIN.knight.bossAftermathT=0;
   }
 
-  // Seed first chapter — use its own phrase arc
+  // Re-pick all session voices — new perc, strings, organ timbre each journey
+  pickSessionVoices();
+
+  // ── VARIED INTRO SEED ─────────────────────────────────────────────────────
+  // The intro was always identical: Chapter 1, floor 1, 'intro' phrase, dark scale.
+  // Now we vary all the meaningful dimensions while keeping the chapter arc intact:
+  //   - Opening floor: random within Chapter 1's range (floors 1–12)
+  //   - Opening phrase: weighted toward 'intro' but can be 'build'
+  //   - Opening scale: any scale from the mood's full scale arc, not just chapter 1
+  //   - Opening energy: slight variance (0.05–0.12) so layer density differs
+  //   - Chord progression start offset: already handled by jSeed in CE.onZoneChange
   initAudio();
-  const firstChapter=JC_CHAPTERS[0];
-  const firstPreset=getZone(firstChapter.floor);
+  const firstChapter = JC_CHAPTERS[0];
+
+  // Randomise opening floor within chapter 1 range — changes chord root and sub frequency
+  const ch1Floors   = Array.from({length:12},(_,i)=>i+1); // floors 1–12
+  const openFloor   = ch1Floors[Math.floor(rng() * ch1Floors.length)];
+  const firstPreset = getZone(openFloor);
+  slider.value = openFloor;
+  updateFloorUI();
+
   if(!bpmLocked) barLength=(60/firstPreset.bpm)*4;
   CE.onZoneChange(firstPreset);
-  const openScales=SCALE_MOODS[firstChapter.scale]||SCALE_MOODS.dark;
-  selectScale(openScales[Math.floor(rng()*openScales.length)]);
+
+  // Scale: pull from the mood's full scaleArc, not just chapter 1's scale mood
+  const moodObj      = JOURNEY_MOODS[activeJourneyMood] || JOURNEY_MOODS.descent;
+  const allMoodScales = [...new Set(
+    (moodObj.scaleArc || ['dark']).flatMap(m => SCALE_MOODS[m] || SCALE_MOODS.dark)
+  )];
+  selectScale(allMoodScales[Math.floor(rng() * allMoodScales.length)]);
+
+  // Opening phrase: 70% 'intro', 30% 'build' — avoids always starting from scratch
+  const openPhrase = rng() < 0.70 ? 'intro' : 'build';
   phraseSeq    = firstChapter.phraseArc;
-  phraseSeqIdx = 0;
-  currentPhrase = phraseSeq[0];
+  phraseSeqIdx = openPhrase === 'build' ? 2 : 0; // start mid-arc if build
+  currentPhrase = openPhrase;
   autoEvolution = true;
   startPhraseEngine();
 
@@ -2667,21 +2829,25 @@ function startRandomJourney() {
     masterGain.gain.linearRampToValueAtTime(0.38, now1 + barLength * 2);
   }
 
-  // Compute opening layer set at low energy so we don't blast everything at once
-  JC.energy = 0.08;
+  // Compute opening layer set — energy varies per run (0.05–0.18) so some
+  // journeys open sparse (just drone), others already have strings+bass from bar 1
+  const openEnergy = 0.05 + rng() * 0.13;
+  JC.energy = openEnergy;
   const openingSet = JC.computeTargetSet();
   JC.energy = 0;
 
   // Stagger order and delays — layers bloom in together, not sequentially
   // Each pair enters within half a bar of the previous, so by bar 2
   // the full opening texture is established
+  // Stagger timing varies ±15% per run so the bloom never feels templated
+  const _sv = () => 1.0 + (rng() - 0.5) * 0.3;
   const openStagger = [
     { layers: ['drone'],              bars: 0.0 },
-    { layers: ['strings', 'wind'],    bars: 0.3 },
-    { layers: ['heartbeat', 'bass'],  bars: 0.7 },
-    { layers: ['choir', 'organ'],     bars: 1.1 },
-    { layers: ['melody', 'bells'],    bars: 1.6 },
-    { layers: ['cello', 'lute'],      bars: 2.0 },
+    { layers: ['strings', 'wind'],    bars: 0.3  * _sv() },
+    { layers: ['heartbeat', 'bass'],  bars: 0.7  * _sv() },
+    { layers: ['choir', 'organ'],     bars: 1.1  * _sv() },
+    { layers: ['melody', 'bells'],    bars: 1.6  * _sv() },
+    { layers: ['cello', 'lute'],      bars: 2.0  * _sv() },
   ];
 
   openStagger.forEach(({ layers: lnames, bars }) => {
@@ -2898,6 +3064,7 @@ const ZONES = [
     droneWave:'sine', droneFilterFreq:280, droneFilterQ:1.2,
     droneLfoRate:0.04, droneLfoDepth:80, droneAmpLfo:0.06,
     kickFreq:52, kickDecay:0.55, snareDecay:0.18, snareFilterFreq:900,
+    // Zone 1: kick on 1 only, snare on 2&4, no hihat — maximum space
     kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
     bassWave:'sine', bassFilterFreq:180, bassPattern:[0,0,0,0,0,0,2,0],
     melodyWave:'triangle', melodyOctave:0, melodySkip:0.45,
@@ -2915,7 +3082,8 @@ const ZONES = [
     droneWave:'sawtooth', droneFilterFreq:320, droneFilterQ:2.5,
     droneLfoRate:0.07, droneLfoDepth:140, droneAmpLfo:0.08,
     kickFreq:55, kickDecay:0.38, snareDecay:0.14, snareFilterFreq:1100,
-    kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,0,0,1,0,0,0],
+    // Zone 2: kick 1+3, snare 2&4 (FIXED from 1.5&3.5), hihat on 1+3
+    kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,0,0,1,0,0,0],
     bassWave:'sine', bassFilterFreq:210, bassPattern:[0,0,2,0,0,0,2,0],
     melodyWave:'triangle', melodyOctave:0, melodySkip:0.32,
     melodyPatterns:[[0,1,3,1,0,3,1,0],[3,1,0,1,3,5,3,1]],
@@ -2932,7 +3100,8 @@ const ZONES = [
     droneWave:'sawtooth', droneFilterFreq:260, droneFilterQ:3.5,
     droneLfoRate:0.06, droneLfoDepth:260, droneAmpLfo:0.11,
     kickFreq:48, kickDecay:0.65, snareDecay:0.20, snareFilterFreq:700,
-    kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+    // Zone 3: kick 1+3, snare 2&4, hihat on 8th notes
+    kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
     bassWave:'sawtooth', bassFilterFreq:170, bassPattern:[0,0,0,4,0,0,2,0],
     melodyWave:'square', melodyOctave:0, melodySkip:0.22,
     melodyPatterns:[[0,2,4,2,0,4,2,0],[5,4,2,0,2,4,2,0]],
@@ -2949,7 +3118,8 @@ const ZONES = [
     droneWave:'sawtooth', droneFilterFreq:360, droneFilterQ:4.5,
     droneLfoRate:0.10, droneLfoDepth:380, droneAmpLfo:0.13,
     kickFreq:50, kickDecay:0.40, snareDecay:0.15, snareFilterFreq:1500,
-    kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+    // Zone 4: kick 1+syncopated 2.5+3, snare 2&4, 8th hihat
+    kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
     bassWave:'sawtooth', bassFilterFreq:240, bassPattern:[0,0,4,0,2,0,4,0],
     melodyWave:'triangle', melodyOctave:0, melodySkip:0.18,
     melodyPatterns:[[0,1,4,2,5,4,1,0],[4,5,4,2,1,2,4,5],[0,4,5,4,2,4,5,2]],
@@ -2967,7 +3137,8 @@ const ZONES = [
     droneWave:'triangle', droneFilterFreq:480, droneFilterQ:5.5,
     droneLfoRate:0.15, droneLfoDepth:520, droneAmpLfo:0.16,
     kickFreq:52, kickDecay:0.30, snareDecay:0.11, snareFilterFreq:1900,
-    kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,1,0,0,1,0,0], hihatPattern:[1,0,1,0,1,1,0,1],
+    // Zone 5: aggressive kick with syncopation, snare on 2&4 + backbeat accent, near-16th hihat
+    kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,0,0,1,0,0,1], hihatPattern:[1,0,1,0,1,1,0,1],
     bassWave:'triangle', bassFilterFreq:340, bassPattern:[0,3,0,4,2,0,4,6],
     melodyWave:'sine', melodyOctave:1, melodySkip:0.10,
     melodyPatterns:[[0,2,4,6,4,2,5,3],[6,5,4,2,0,2,4,5],[0,4,2,6,5,3,2,4]],
@@ -2985,7 +3156,8 @@ const ZONES = [
     droneWave:'sawtooth', droneFilterFreq:540, droneFilterQ:4.0,
     droneLfoRate:0.20, droneLfoDepth:660, droneAmpLfo:0.19,
     kickFreq:46, kickDecay:0.42, snareDecay:0.16, snareFilterFreq:1700,
-    kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,1,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
+    // Zone 6 (climax): kick 1+e+3+and, snare 2&4+additional, near-full hihat
+    kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,0,0,1,0,1,1], hihatPattern:[1,1,1,0,1,1,0,1],
     bassWave:'sawtooth', bassFilterFreq:310, bassPattern:[0,0,4,2,0,5,4,0],
     melodyWave:'square', melodyOctave:1, melodySkip:0.08,
     melodyPatterns:[[0,2,4,5,4,2,5,6],[5,4,2,0,2,4,5,4],[0,5,4,2,6,5,3,0]],
@@ -3005,6 +3177,7 @@ const ZONES = [
     droneWave:'sine', droneFilterFreq:380, droneFilterQ:2.0,
     droneLfoRate:0.08, droneLfoDepth:500, droneAmpLfo:0.14,
     kickFreq:44, kickDecay:0.55, snareDecay:0.22, snareFilterFreq:1200,
+    // Zone 7 (void spire): kick 1+3, snare 2&4, no hihat — stripped back
     kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
     bassWave:'sine', bassFilterFreq:280, bassPattern:[0,0,0,4,0,0,0,4],
     melodyWave:'sine', melodyOctave:1, melodySkip:0.25,
@@ -3025,6 +3198,7 @@ const ZONES = [
     droneWave:'sine', droneFilterFreq:260, droneFilterQ:0.8,
     droneLfoRate:0.03, droneLfoDepth:180, droneAmpLfo:0.06,
     kickFreq:42, kickDecay:0.80, snareDecay:0.28, snareFilterFreq:600,
+    // Zone 8 (resolution): kick on 1 only, no snare, no hihat — near silence
     kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
     bassWave:'sine', bassFilterFreq:200, bassPattern:[0,0,0,0,2,0,0,0],
     melodyWave:'sine', melodyOctave:0, melodySkip:0.55,
@@ -4600,16 +4774,39 @@ function getGroove(preset, intensity) {
   }
   grooveAge++;
   if (grooveAge % GROOVE_LIFE === 0) {
-    // Mutate one hit in each pattern at most
-    const mutate = (pat) => {
+    // Mutate patterns but PRESERVE the backbone:
+    //   Kick:  beat 1 (index 0, 8) always stays — it's the anchor
+    //   Snare: beats 2&4 (index 4, 12) always stay — they ARE the groove
+    //   Hihat: free to vary — density variation is fine
+    const mutateKick = (pat) => {
       const copy = [...pat];
-      const idx = Math.floor(rng() * copy.length);
-      if (rng() < 0.5) copy[idx] = copy[idx] ? 0 : 1;
+      // Only toggle non-anchor 16th positions (not 0 or 8)
+      const candidates = [1,2,3,5,6,7,9,10,11,13,14,15];
+      const idx = candidates[Math.floor(rng() * candidates.length)];
+      copy[idx] = copy[idx] ? 0 : 1;
+      // Never put a kick on the 16th directly before snare (3,11) — sounds wrong
+      copy[3] = 0; copy[11] = 0;
       return copy;
     };
-    if (rng() < 0.4) currentGroove.kick  = mutate(currentGroove.kick);
-    if (rng() < 0.3) currentGroove.snare = mutate(currentGroove.snare);
-    if (rng() < 0.2) currentGroove.hihat = mutate(currentGroove.hihat);
+    const mutateSnare = (pat) => {
+      const copy = [...pat];
+      // Backbone: always keep 2&4 (indices 4 and 12)
+      copy[4] = 1; copy[12] = 1;
+      // Optionally add ghost notes on non-backbone positions
+      const candidates = [1,2,3,5,6,7,9,10,11,13,14,15];
+      const idx = candidates[Math.floor(rng() * candidates.length)];
+      if (rng() < 0.35) copy[idx] = copy[idx] ? 0 : 1;
+      return copy;
+    };
+    const mutateHihat = (pat) => {
+      const copy = [...pat];
+      const idx = Math.floor(rng() * copy.length);
+      copy[idx] = copy[idx] ? 0 : 1;
+      return copy;
+    };
+    if (rng() < 0.4) currentGroove.kick  = mutateKick(currentGroove.kick);
+    if (rng() < 0.3) currentGroove.snare = mutateSnare(currentGroove.snare);
+    if (rng() < 0.2) currentGroove.hihat = mutateHihat(currentGroove.hihat);
   }
   return currentGroove;
 }
@@ -5103,8 +5300,15 @@ function MP_getScore() {
   // Play 2+: procedural variation seeded from _playCount + journey startTime
   //   so every run sounds different but is internally consistent
   const pc = MP._playCount;
-  if (pc === 0) return score.primary;
-  if (pc === 1) return score.development;
+  // Apply per-journey modal transposition to any score we return
+  const applyOffset = (phrases) => {
+    const off = (JC.active && JC._scoreOffset) || 0;
+    if (!off) return phrases;
+    return phrases.map(([d, dur, rest]) => [Math.min(6, d + off), dur, rest]);
+  };
+
+  if (pc === 0) return applyOffset(score.primary);
+  if (pc === 1) return applyOffset(score.development);
 
   // Pick base from primary/development alternately, then transform
   const base = (pc % 2 === 0) ? score.primary : score.development;
@@ -5123,7 +5327,7 @@ function MP_getScore() {
   switch(variant) {
     case 0: {
       // Retrograde — play the phrase backwards
-      return [...base].reverse().map(([d,dur,rest]) => [d, dur, rest]);
+      return applyOffset([...base].reverse().map(([d,dur,rest]) => [d, dur, rest]));
     }
     case 1: {
       // Degree inversion — mirror degrees around axis 3 (mid-scale)
@@ -5899,88 +6103,82 @@ function buildFireCrackle(preset, intensity, name) {
 function buildWarDrums(preset, intensity, name) {
   const b  = bus[name];
   const sr = ctx.sampleRate;
+  const voice = sessionVoices[name] || 'lowTom';
 
   const makeDrum = (freq, decay, tone, crackMix) => {
     const len = Math.floor(sr * (decay * 3.5 + 0.25));
     const buf = ctx.createBuffer(1, len, sr);
     const d   = buf.getChannelData(0);
-
-    // Membrane modes — real drums have multiple inharmonic resonances
-    // Ratios approximate actual circular membrane Bessel function zeros
     const modes = [
-      { ratio: 1.000, amp: 1.00, decay: decay },
-      { ratio: 1.593, amp: 0.28, decay: decay * 0.45 },
-      { ratio: 2.136, amp: 0.14, decay: decay * 0.28 },
-      { ratio: 2.296, amp: 0.10, decay: decay * 0.22 },
+      { ratio:1.000, amp:1.00, decay },
+      { ratio:1.593, amp:0.28, decay:decay*0.45 },
+      { ratio:2.136, amp:0.14, decay:decay*0.28 },
+      { ratio:2.296, amp:0.10, decay:decay*0.22 },
     ];
-
-    // Pre-integrate phases
-    const phases = modes.map(() => 0);
+    const phases = modes.map(()=>0);
     let noiseLP = 0;
-
     for (let i = 0; i < d.length; i++) {
-      const t   = i / sr;
-      // Pitch envelope — fast initial drop, settles to fundamental
+      const t = i / sr;
       const pitchEnv = 1 + tone * Math.exp(-t * 18);
-      let   sample   = 0;
-
-      modes.forEach((m, mi) => {
+      let sample = 0;
+      modes.forEach((m,mi)=>{
         const mFreq = freq * m.ratio * pitchEnv;
         phases[mi] += (2 * Math.PI * mFreq) / sr;
         sample += Math.sin(phases[mi]) * m.amp * Math.exp(-t / m.decay);
       });
-
-      // Shell resonance noise — low-passed, decays quickly
-      const raw  = Math.random() * 2 - 1;
-      noiseLP = noiseLP * 0.72 + raw * 0.28;
+      const raw = Math.random()*2-1;
+      noiseLP = noiseLP*0.72 + raw*0.28;
       const noise = noiseLP * crackMix * Math.exp(-t / 0.022);
-
-      // Air compression thud — very low freq, very short
-      const thud = Math.sin(2 * Math.PI * freq * 0.28 * t) * Math.exp(-t / 0.055) * 0.4;
-
-      d[i] = (sample * 0.65 + noise + thud) * 0.88;
+      const thud  = Math.sin(2*Math.PI*freq*0.28*t) * Math.exp(-t/0.055) * 0.4;
+      d[i] = (sample*0.65 + noise + thud) * 0.88;
     }
     return buf;
   };
 
-  // Three drums tuned to feel like a large ensemble
   const lowTom   = makeDrum(preset.root * 0.52, 1.05, 0.5, 0.18);
   const highTom  = makeDrum(preset.root * 0.82, 0.60, 0.4, 0.14);
   const floorTom = makeDrum(preset.root * 0.35, 1.35, 0.6, 0.22);
 
-  const lowPat   = [1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0];
-  const highPat  = [0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0];
-  const floorPat = [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0];
+  // ── War drum patterns lock to the groove ─────────────────────────────────
+  // Floor tom: lands on every kick — doubles the kick with more body
+  // Low tom:   lands on the AND of beat 2 (after snare) and beat 4 — call/response
+  // High tom:  fills on beats where neither kick nor snare land — colour, not clutter
+  // This means war drums always feel like they belong to the same groove as perc.
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
-    const mutate = (pat) => pat.map((v, i) => (rng() < 0.08 && i !== 0) ? (v ? 0 : (rng() < 0.4 ? 1 : 0)) : v);
-    const lp = mutate(lowPat);
-    const hp = mutate(highPat);
-    const fp = intensity > 0.5 ? mutate(floorPat) : floorPat;
+    const groove = currentGroove || { kick:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0] };
+    const kick  = groove.kick;
+    const snare = groove.snare;
+    const hum   = () => (rng()-0.5)*0.011;
 
     for (let i = 0; i < 16; i++) {
       const t = barStart + i * step;
-      // Slight humanise — tiny random timing offset
-      const hum = (rng() - 0.5) * 0.011;
 
-      if (lp[i]) {
-        const s = ctx.createBufferSource(); s.buffer = lowTom;
-        const g = mkGain(0.68 + intensity * 0.16);
-        const lp1 = mkFilt(320, 'lowpass', 0.55);
-        chain(s, lp1, g, b); s.start(t + hum); reg(name, s, g, lp1);
-      }
-      if (hp[i] && intensity > 0.15) {
-        const s = ctx.createBufferSource(); s.buffer = highTom;
-        const g = mkGain(0.44 + intensity * 0.18);
-        const lp2 = mkFilt(380, 'lowpass', 0.55);
-        chain(s, lp2, g, b); s.start(t + hum); reg(name, s, g, lp2);
-      }
-      if (fp[i] && intensity > 0.4) {
+      // Floor tom — doubles every kick hit for extra mass
+      if (kick[i] && rng() > 0.12) {
         const s = ctx.createBufferSource(); s.buffer = floorTom;
-        const g = mkGain(0.74 + intensity * 0.12);
-        const lp3 = mkFilt(220, 'lowpass', 0.45);
-        chain(s, lp3, g, b); s.start(t + hum); reg(name, s, g, lp3);
+        const g = mkGain(0.68 + intensity * 0.18);
+        const lp = mkFilt(260, 'lowpass', 0.5);
+        chain(s, lp, g, b); s.start(t + hum()); reg(name, s, g, lp);
+      }
+
+      // Low tom — lands on the 16th after each snare hit (beat 2.25 and 4.25)
+      // This is the "war response" — snare declares, low tom answers
+      if (snare[i] && i < 15 && !kick[i+1] && intensity > 0.2) {
+        const s = ctx.createBufferSource(); s.buffer = lowTom;
+        const g = mkGain(0.52 + intensity * 0.18);
+        const lp = mkFilt(320, 'lowpass', 0.55);
+        chain(s, lp, g, b); s.start(t + step + hum()); reg(name, s, g, lp);
+      }
+
+      // High tom — fills sparse 16th positions that have no kick or snare
+      // Only fires at higher intensity (energy > 0.45) and with low probability
+      if (!kick[i] && !snare[i] && intensity > 0.45 && rng() < 0.08) {
+        const s = ctx.createBufferSource(); s.buffer = highTom;
+        const g = mkGain(0.28 + intensity * 0.14);
+        const lp = mkFilt(420, 'lowpass', 0.6);
+        chain(s, lp, g, b); s.start(t + hum()); reg(name, s, g, lp);
       }
     }
   });
@@ -5990,63 +6188,65 @@ function buildChains(preset, intensity, name) {
   const b  = bus[name];
   const sr = ctx.sampleRate;
 
-  // Three chain types — short rattle, long drag, heavy impact
   const makeChainBuf = (dur, freqBase, decayRate) => {
     const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
     const d   = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
       const t  = i / sr;
-      const n  = Math.random() * 2 - 1;
-      const m1 = Math.sin(2 * Math.PI * freqBase       * t);
-      const m2 = Math.sin(2 * Math.PI * freqBase * 1.7 * t);
-      d[i] = (n * 0.6 + m1 * 0.25 + m2 * 0.15) * Math.exp(-t / decayRate);
+      const n  = Math.random()*2-1;
+      const m1 = Math.sin(2*Math.PI*freqBase      *t);
+      const m2 = Math.sin(2*Math.PI*freqBase*1.7  *t);
+      d[i] = (n*0.6 + m1*0.25 + m2*0.15) * Math.exp(-t/decayRate);
     }
     return buf;
   };
 
-  const chainShort  = makeChainBuf(0.08,  2600, 0.014);
-  const chainLong   = makeChainBuf(0.22,  1800, 0.045);
-  const chainHeavy  = makeChainBuf(0.35,  900,  0.08);
+  const chainShort = makeChainBuf(0.08, 2600, 0.014);
+  const chainLong  = makeChainBuf(0.22, 1800, 0.045);
+  const chainHeavy = makeChainBuf(0.35,  900, 0.080);
 
-  // Base pattern + accent hits
-  const basePat   = [0,0,1,0,0,0,1,0,0,1,0,0,0,1,0,0];
-  const accentPat = [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0]; // heavy hit mid-bar
+  // ── Chains lock to off-beats of the groove ────────────────────────────────
+  // Chains are a texture instrument — they fill the GAPS in the groove.
+  // Rule: chains play on 16th positions where NEITHER kick NOR snare land.
+  // Heavy chain: on the beat-and (position 2, 6, 10, 14) if sparse there
+  // Short rattle: on random sparse 16ths for texture
+  // This ensures chains never compete with or muddy the kick/snare.
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
-
-    // Mutate base pattern slightly
-    const pat = basePat.map((v, i) =>
-      (rng() < 0.12 && i > 0) ? (v ? 0 : (rng() < 0.35 ? 1 : 0)) : v
-    );
+    const groove = currentGroove || { kick:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0] };
+    const kick  = groove.kick;
+    const snare = groove.snare;
 
     for (let i = 0; i < 16; i++) {
       const t = barStart + i * step;
+      // Only play where there's no kick or snare
+      if (kick[i] || snare[i]) continue;
 
-      if (pat[i]) {
-        // Alternate between short rattle and long drag
-        const buf  = rng() < 0.65 ? chainShort : chainLong;
-        const filt = mkFilt(2200 + rng() * 1200, 'highpass', 1.2);
-        const g    = mkGain(0.25 + intensity * 0.2 + rng() * 0.08);
+      // Beat-and positions (2,6,10,14) get the heavy chain drag
+      const isAnd = (i % 4 === 2);
+      if (isAnd && rng() < 0.55 + intensity * 0.25) {
+        const buf  = rng() < 0.5 ? chainHeavy : chainLong;
+        const filt = mkFilt(900 + rng()*400, 'bandpass', 1.4);
+        const g    = mkGain(0.30 + intensity * 0.22);
         const s    = ctx.createBufferSource(); s.buffer = buf;
         chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
-
-        // Occasional rattle ghost — very quiet, slightly offset
-        if (rng() < 0.3) {
-          const gs  = ctx.createBufferSource(); gs.buffer = chainShort;
-          const gg  = mkGain(0.06 + rng() * 0.04);
-          const gf  = mkFilt(3000, 'highpass', 0.8);
-          chain(gs, gf, gg, b);
-          gs.start(t + 0.018 + rng() * 0.015);
-          reg(name, gs, gf, gg);
-        }
       }
 
-      if (accentPat[i] && intensity > 0.3) {
-        const s    = ctx.createBufferSource(); s.buffer = chainHeavy;
-        const filt = mkFilt(800, 'bandpass', 1.5);
-        const g    = mkGain(0.45 + intensity * 0.3);
+      // Other sparse 16ths get short rattles — subtle texture
+      if (!isAnd && rng() < 0.15 + intensity * 0.12) {
+        const filt = mkFilt(2200 + rng()*1200, 'highpass', 1.2);
+        const g    = mkGain(0.12 + intensity * 0.10 + rng()*0.06);
+        const s    = ctx.createBufferSource(); s.buffer = chainShort;
         chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
+
+        // Ghost rattle slightly offset — physically realistic chain sound
+        if (rng() < 0.35) {
+          const gs = ctx.createBufferSource(); gs.buffer = chainShort;
+          const gg = mkGain(0.05 + rng()*0.04);
+          const gf = mkFilt(3000, 'highpass', 0.8);
+          chain(gs, gf, gg, b); gs.start(t + 0.016 + rng()*0.014); reg(name, gs, gf, gg);
+        }
       }
     }
   });
@@ -6056,49 +6256,69 @@ function buildMarch(preset, intensity, name) {
   const b  = bus[name];
   const sr = ctx.sampleRate;
 
-  // Snare body — tonal component gives it a wood/skin feel
   const makeSnare = (toneFreq, noiseMix) => {
     const dur = 0.18;
     const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
     const d   = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
       const t     = i / sr;
-      const tone  = Math.sin(2 * Math.PI * toneFreq * t) * Math.exp(-t / 0.035);
-      const tone2 = Math.sin(2 * Math.PI * toneFreq * 1.6 * t) * Math.exp(-t / 0.02);
-      const noise = (Math.random() * 2 - 1) * Math.exp(-t / 0.055);
-      const crack = t < 0.004 ? (Math.random() * 2 - 1) * Math.exp(-t / 0.001) : 0;
-      d[i] = (tone * (1 - noiseMix) * 0.5 + tone2 * 0.2 + noise * noiseMix + crack * 0.6);
+      const tone  = Math.sin(2*Math.PI*toneFreq    *t) * Math.exp(-t/0.035);
+      const tone2 = Math.sin(2*Math.PI*toneFreq*1.6*t) * Math.exp(-t/0.020);
+      const noise = (Math.random()*2-1) * Math.exp(-t/0.055);
+      const crack = t < 0.004 ? (Math.random()*2-1) * Math.exp(-t/0.001) : 0;
+      d[i] = tone*(1-noiseMix)*0.5 + tone2*0.2 + noise*noiseMix + crack*0.6;
     }
     return buf;
   };
 
-  const mainSnare = makeSnare(220, 0.6);  // main — balanced
-  const rimShot   = makeSnare(380, 0.35); // rim — tighter, higher pitched
+  const mainSnare = makeSnare(220, 0.6);
+  const rimShot   = makeSnare(380, 0.35);
+  const ghostSnare = makeSnare(180, 0.8); // softer, more noise — ghost hits
 
-  // Classic military snare pattern — dotted feel
-  const mainPat = [1,0,0,1,0,0,1,0,1,0,0,1,0,0,1,0];
-  const rimPat  = [0,0,1,0,1,0,0,1,0,0,1,0,1,0,0,1];
+  // ── March pattern locks to groove snare ──────────────────────────────────
+  // March snare plays WITH the groove snare (reinforces it) plus adds
+  // military subdivisions between kicks — the "diddle" feel.
+  // Rule: always hit on snare positions, add marching subdivisions in gaps.
+  // Never on kick positions — march snare and kick never overlap.
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
+    const groove = currentGroove || { kick:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0] };
+    const kick  = groove.kick;
+    const snare = groove.snare;
 
     for (let i = 0; i < 16; i++) {
-      const t      = barStart + i * step;
-      const accent = (i % 8 === 0); // strong beats get accent
+      const t = barStart + i * step;
 
-      if (mainPat[i]) {
-        const s    = ctx.createBufferSource(); s.buffer = mainSnare;
+      // Strong hit on every groove snare position — march reinforces the backbeat
+      if (snare[i]) {
+        const s = ctx.createBufferSource(); s.buffer = mainSnare;
         const filt = mkFilt(1600, 'bandpass', 2.2);
-        const hpf  = mkFilt(200,  'highpass', 0.8);
-        const g    = mkGain((accent ? 0.65 : 0.42) + intensity * 0.28);
+        const hpf  = mkFilt(200, 'highpass', 0.8);
+        const g    = mkGain(0.58 + intensity * 0.30);
         chain(s, filt, hpf, g, b); s.start(t); reg(name, s, filt, hpf, g);
       }
 
-      if (rimPat[i] && intensity > 0.2) {
-        const s = ctx.createBufferSource(); s.buffer = rimShot;
-        const g = mkGain(0.28 + intensity * 0.2);
-        const f = mkFilt(2800, 'highpass', 1.5);
-        chain(s, f, g, b); s.start(t); reg(name, s, f, g);
+      // Military subdivisions — on 16ths between kicks, not on kick positions
+      // These are the "marching" hits that give it forward momentum
+      if (!kick[i] && !snare[i]) {
+        // e and a of each beat get rim shots at low-to-mid intensity
+        const isE = (i % 4 === 1); // the "e" of each beat
+        const isA = (i % 4 === 3); // the "a" of each beat
+
+        if (isE && intensity > 0.35 && rng() < 0.55) {
+          const s = ctx.createBufferSource(); s.buffer = rimShot;
+          const g = mkGain(0.22 + intensity * 0.18);
+          const f = mkFilt(2800, 'highpass', 1.5);
+          chain(s, f, g, b); s.start(t); reg(name, s, f, g);
+        }
+        if (isA && intensity > 0.55 && rng() < 0.45) {
+          // Ghost note — the quiet "a" subdivision creates the march shuffle
+          const s = ctx.createBufferSource(); s.buffer = ghostSnare;
+          const g = mkGain(0.12 + intensity * 0.12);
+          const f = mkFilt(1400, 'bandpass', 1.8);
+          chain(s, f, g, b); s.start(t); reg(name, s, f, g);
+        }
       }
     }
   });
@@ -6113,55 +6333,60 @@ function buildStomp(preset, intensity, name) {
     const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
     const d   = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
-      const t    = i / sr;
-      const tone = Math.sin(2 * Math.PI * freq * Math.exp(-t * 4) * t) * Math.exp(-t / 0.09);
-      const sub  = Math.sin(2 * Math.PI * freq * 0.5 * t) * Math.exp(-t / 0.15);
-      const thud = (Math.random() * 2 - 1) * Math.exp(-t / 0.02) * (1 - bodyMix);
-      d[i] = (tone * 0.5 + sub * bodyMix * 0.4 + thud * 0.3);
+      const t   = i / sr;
+      const tone = Math.sin(2*Math.PI*freq*Math.exp(-t*4)*t) * Math.exp(-t/0.09);
+      const sub  = Math.sin(2*Math.PI*freq*0.5*t) * Math.exp(-t/0.15);
+      const thud = (Math.random()*2-1) * Math.exp(-t/0.02) * (1-bodyMix);
+      d[i] = tone*0.5 + sub*bodyMix*0.4 + thud*0.3;
     }
     return buf;
   };
 
-  const heavyStomp = makeStomp(55,  0.8); // floor stomp — deep and roomy
-  const lightStomp = makeStomp(80,  0.5); // offbeat — less sub
-  const stompAccent = makeStomp(45, 1.0); // boss accent — pure sub
+  const heavyStomp  = makeStomp(55,  0.8);
+  const lightStomp  = makeStomp(80,  0.5);
+  const stompAccent = makeStomp(45,  1.0);
 
-  // Quarter notes with occasional syncopation
-  const basePat = [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0];
-  const offPat  = [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0]; // offbeat layer at higher intensity
+  // ── Stomp locks to kick positions ────────────────────────────────────────
+  // Stomp is a low-frequency body percussive — it should land WITH the kick,
+  // not independently. Think of it as the kick's physical weight made visible.
+  // Heavy stomp: on every kick — same positions, slightly louder
+  // Light stomp: on beat-AND positions (2,6,10,14) that have no kick — breath
+  // Accent stomp: beat 1 only at high intensity — the downbeat anchor
+  // Never on snare positions — kick and stomp are the low layer, snare is mid.
 
   makeSchedLoop(name, (barStart, beat) => {
     const step = beat * 0.25;
-
-    // Occasional syncopation — shift one hit slightly
-    const pat = basePat.map((v, i) => {
-      if (v && rng() < 0.15 && i > 0 && i < 14) return 0; // drop a beat
-      return v;
-    });
-    // Sometimes add a syncopated anticipation hit
-    if (rng() < 0.25 + intensity * 0.2) pat[14] = 1;
+    const groove = currentGroove || { kick:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], snare:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0] };
+    const kick  = groove.kick;
+    const snare = groove.snare;
 
     for (let i = 0; i < 16; i++) {
-      const t      = barStart + i * step;
-      const accent = (i === 0 || i === 8);
+      const t = barStart + i * step;
 
-      if (pat[i]) {
-        const buf  = (accent && intensity > 0.6) ? stompAccent : heavyStomp;
-        const filt = mkFilt(180, 'lowpass', 1.5);
-        const g    = mkGain((accent ? 0.85 : 0.65) + intensity * 0.2);
+      // Stomp WITH the kick — same positions
+      if (kick[i]) {
+        const isDownbeat = (i === 0 || i === 8);
+        const buf  = (isDownbeat && intensity > 0.6) ? stompAccent : heavyStomp;
+        const filt = mkFilt(160, 'lowpass', 1.4);
+        // Downbeat is louder; other kick positions follow at 75%
+        const g    = mkGain((isDownbeat ? 0.88 : 0.62) + intensity * 0.18);
         const s    = ctx.createBufferSource(); s.buffer = buf;
         chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
       }
 
-      if (offPat[i] && intensity > 0.45) {
+      // Light stomp on beat-ANDs with no kick or snare — the in-between breath
+      // Only at moderate intensity and with low probability so it stays subtle
+      const isAnd = (i % 4 === 2);
+      if (isAnd && !kick[i] && !snare[i] && intensity > 0.4 && rng() < 0.40) {
+        const filt = mkFilt(240, 'lowpass', 1.2);
+        const g    = mkGain(0.28 + intensity * 0.14);
         const s    = ctx.createBufferSource(); s.buffer = lightStomp;
-        const filt = mkFilt(250, 'lowpass', 1.2);
-        const g    = mkGain(0.4 + intensity * 0.2);
         chain(s, filt, g, b); s.start(t); reg(name, s, filt, g);
       }
     }
   });
 }
+
 
 function buildLute(preset, intensity, name) {
   const b = bus[name];
