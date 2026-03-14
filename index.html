@@ -1209,6 +1209,8 @@ function tickBar() {
   }
 
   CE.tick(getZone(parseInt(slider.value)));
+  // Journey Conductor heartbeat — evaluates global progress and reconciles layers
+  if (JC.active && journeyActive) JC.tick();
   updatePhraseUI();
   updateDebug();
 
@@ -1603,6 +1605,13 @@ function stopSongGen() {
   journeyTimers.forEach(clearTimeout);
   journeyTimers = [];
   journeyActive = false;
+  // Stop Journey Conductor if running
+  if (JC.active) {
+    JC.timers.forEach(clearTimeout);
+    JC.timers = [];
+    JC.active = false;
+    JC.activeSet.clear();
+  }
   journeyDepth = 0;
   if (CIN.knight?.legend) CIN.knight.legend = null;
   if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
@@ -2014,15 +2023,378 @@ function crawlToFloor(targetFloor, durationMs, onComplete) {
   }, stepMs);
 }
 
+// ══════════════════════════════════════════════════════════════════
+// JOURNEY CONDUCTOR
+// ──────────────────────────────────────────────────────────────────
+// Replaces the old step-based journey system with a single global arc
+// that shapes energy, density, harmony, and emotion across the full run.
+//
+// Core insight: a film score doesn't loop 8 independent cues.
+// It has ONE arc with a single energy curve from bar 1 to bar N.
+// Every decision — what layers play, how loud, which scale, when to
+// enter or exit — is made relative to global progress (0→1), not
+// relative to which "step" we're on.
+//
+// Architecture:
+//   JC.progress    — 0→1 across the full journey (~7 min)
+//   JC.energy      — evaluated from JC.progress via mood curve
+//   JC.targetLayers — what SHOULD be playing right now
+//   JC.tick()      — called every bar, reconciles actual vs target
+//   Scene transitions — composed moments, not raw crossfades
+// ══════════════════════════════════════════════════════════════════
+
+const JC = {
+  active:        false,
+  progress:      0,       // 0→1 across full run
+  energy:        0,       // 0→1, driven by curve below
+  step:          0,       // which of 8 chapters we're in
+  totalSteps:    8,
+  mood:          'descent',
+  startTime:     0,       // Date.now() at journey start
+  totalDurationMs: 0,     // total planned journey length in ms
+  stepDurations:   [],    // ms per step (sum = totalDurationMs)
+  stepStartTimes:  [],    // cumulative ms offset for each step
+  sceneTransition: false, // true during a cross-chapter moment
+  peakStep:        5,     // step index where energy peaks (set at start)
+  bossStep:        -1,    // step where boss fires
+  timers:          [],    // all setTimeout IDs so we can cancel cleanly
+
+  // Global layer density state — what's ON right now
+  activeSet: new Set(),
+};
+
+// ── Energy curves per mood ────────────────────────────────────────
+// Each curve is [value at step 0..7].
+// Interpolated smoothly by JC.evalEnergy(progress).
+// This is the "shape of the piece" — the emotional arc.
+const JC_ENERGY_CURVES = {
+  descent:    [0.08, 0.18, 0.32, 0.52, 0.72, 0.90, 0.75, 0.15],
+  tragic:     [0.20, 0.35, 0.50, 0.70, 0.55, 0.30, 0.12, 0.06],
+  triumphant: [0.25, 0.45, 0.65, 0.85, 1.00, 0.88, 0.70, 0.40],
+  arcane:     [0.12, 0.22, 0.38, 0.30, 0.55, 0.40, 0.28, 0.10],
+  meditative: [0.10, 0.15, 0.22, 0.18, 0.25, 0.18, 0.12, 0.06],
+};
+
+// ── Layer density tables ──────────────────────────────────────────
+// Per mood, what layers are available at each energy threshold.
+// Layers are grouped: foundation → texture → rhythm → melodic → chaos.
+// The conductor enables/disables groups based on JC.energy, not step.
+// Each group has an energy threshold to enter and one to exit.
+const JC_LAYER_GROUPS = [
+  // Foundation — always present, energy ≥ 0
+  { id: 'foundation', layers: ['drone'],
+    enter: 0.00, exit: -1 },          // never exits
+  // Harmonic bed — enters early, stays through peak
+  { id: 'harmonic',   layers: ['strings'],
+    enter: 0.08, exit: -1 },
+  // Bass weight — enters with first rhythm pulse
+  { id: 'bass_line',  layers: ['bass'],
+    enter: 0.22, exit: 0.06 },
+  // Atmosphere — low energy texture, fades when rhythm takes over
+  { id: 'atmosphere', layers: ['wind', 'heartbeat'],
+    enter: 0.10, exit: 0.65 },
+  // Fire / riser — tension layer, mid energy
+  { id: 'tension_fx', layers: ['riser'],
+    enter: 0.35, exit: 0.15 },
+  // First percussion — enters at medium energy
+  { id: 'rhythm_1',   layers: ['perc'],
+    enter: 0.30, exit: 0.12 },
+  // War drums — enters heavier
+  { id: 'rhythm_2',   layers: ['wardrums'],
+    enter: 0.50, exit: 0.18 },
+  // March / stomp — full combat density
+  { id: 'rhythm_3',   layers: ['march', 'stomp'],
+    enter: 0.68, exit: 0.25 },
+  // Choir — emotional heart, enters at mid+ energy
+  { id: 'choir_bed',  layers: ['choir'],
+    enter: 0.28, exit: 0.08 },
+  // Melody — solo voice, enters after choir establishes
+  { id: 'solo_voice', layers: ['melody'],
+    enter: 0.20, exit: 0.06 },
+  // Cello — countermelody, layered with melody
+  { id: 'cello_cnt',  layers: ['cello'],
+    enter: 0.38, exit: 0.12 },
+  // Organ — harmonic colour, arcane character
+  { id: 'organ_col',  layers: ['organ'],
+    enter: 0.18, exit: 0.06 },
+  // Bells — high detail layer, only at mid energy
+  { id: 'bells_det',  layers: ['bells'],
+    enter: 0.22, exit: 0.55 },        // exits mid-journey (too delicate for peak)
+  // Horn — heroic accent, peak energy only
+  { id: 'horn_acc',   layers: ['horn'],
+    enter: 0.58, exit: 0.20 },
+  // Chains — dark texture, mid+ energy
+  { id: 'chains_tex', layers: ['chains'],
+    enter: 0.42, exit: 0.15 },
+  // Chaos / glitch — peak energy or boss
+  { id: 'chaos_peak', layers: ['chaos', 'glitch'],
+    enter: 0.75, exit: 0.30 },
+  // Ritual chant — boss/nightmare texture
+  { id: 'ritual',     layers: ['ritualchant', 'whispers'],
+    enter: 0.60, exit: 0.20 },
+];
+
+// Mood overrides — some moods suppress certain groups entirely
+const JC_MOOD_SUPPRESS = {
+  meditative: new Set(['rhythm_2','rhythm_3','chains_tex','chaos_peak','ritual','horn_acc']),
+  arcane:     new Set(['rhythm_2','rhythm_3','chains_tex']),
+  tragic:     new Set(['horn_acc','chaos_peak']),
+  triumphant: new Set(['chaos_peak','ritual']),
+};
+
+// ── Scene chapter definitions ─────────────────────────────────────
+// Each chapter has a floor, a phrase shape, and a scale mood.
+// Chapters are NOT independent cues — they're waypoints on one arc.
+const JC_CHAPTERS = [
+  { floor:  1, scale: 'dark',   phrase: 'normal',  label: 'The Awakening'    },
+  { floor: 13, scale: 'dark',   phrase: 'normal',  label: 'Rotwood Descent'  },
+  { floor: 25, scale: 'eerie',  phrase: 'normal',  label: 'The Catacombs'    },
+  { floor: 37, scale: 'eerie',  phrase: 'normal',  label: 'Shadowmere'       },
+  { floor: 49, scale: 'arcane', phrase: 'combat',  label: "The Veil Breaks"  },
+  { floor: 61, scale: 'dread',  phrase: 'combat',  label: 'Obsidian Keep'    },
+  { floor: 73, scale: 'dread',  phrase: 'boss',    label: 'The Void Spire'   },
+  { floor: 85, scale: 'dread',  phrase: 'normal',  label: 'Infernal Core'    },
+];
+
+// ── Evaluate energy from global progress ──────────────────────────
+// progress = 0→1 across full journey. Returns 0→1 energy value.
+// Interpolates between the 8 curve keyframes using cosine smoothing.
+JC.evalEnergy = function(progress) {
+  const curve = JC_ENERGY_CURVES[JC.mood] || JC_ENERGY_CURVES.descent;
+  const scaled = Math.max(0, Math.min(0.9999, progress)) * (curve.length - 1);
+  const lo = Math.floor(scaled);
+  const hi = Math.min(curve.length - 1, lo + 1);
+  const t  = scaled - lo;
+  // Cosine interpolation — smoother than linear
+  const tc = (1 - Math.cos(t * Math.PI)) / 2;
+  return curve[lo] + (curve[hi] - curve[lo]) * tc;
+};
+
+// ── Compute target layer set from current energy ───────────────────
+JC.computeTargetSet = function() {
+  const e       = JC.energy;
+  const suppress = JC_MOOD_SUPPRESS[JC.mood] || new Set();
+  const target  = new Set();
+
+  JC_LAYER_GROUPS.forEach(group => {
+    if (suppress.has(group.id)) return;
+    const shouldBeOn = e >= group.enter && (group.exit < 0 || e > group.exit);
+    if (shouldBeOn) group.layers.forEach(l => target.add(l));
+  });
+
+  // Boss step — inject boss layer and chaos unconditionally
+  if (JC.step === JC.bossStep) {
+    target.add('chaos'); target.add('wardrums');
+    target.add('march'); target.add('stomp');
+  }
+
+  return target;
+};
+
+// ── Reconcile active layers toward target ─────────────────────────
+// Layers that should be on but aren't → fade in.
+// Layers that should be off but are → fade out.
+// This runs every bar so transitions are gradual, not instant.
+// At most 2 layers change per tick to prevent overwhelming the mix.
+JC.reconcile = function(preset, intensity) {
+  const target  = JC.computeTargetSet();
+  const percBufs = buildPercBufs(preset, sessionVoices['perc']);
+
+  // Layer entry order — determines which 2 we process first
+  const ORDER = ['drone','strings','bass','choir','organ','heartbeat','wind',
+                 'melody','cello','lute','bells','horn','perc','wardrums',
+                 'march','stomp','chains','riser','ritualchant','whispers',
+                 'chaos','glitch','firecrackle'];
+
+  let entrances = 0, exits = 0;
+
+  ORDER.forEach(name => {
+    if (!(name in layerOn)) return;
+    const shouldBeOn = target.has(name);
+    const isOn = layerOn[name];
+
+    if (shouldBeOn && !isOn && entrances < 2) {
+      entrances++;
+      layerOn[name] = true;
+      document.getElementById('btn-' + name)?.classList.add('active');
+      document.getElementById('pill-' + name)?.classList.add('on');
+      startLayer(name, preset, intensity,
+        PERC_BUF_LAYERS.has(name) ? percBufs : null);
+      JC.activeSet.add(name);
+    }
+
+    if (!shouldBeOn && isOn && exits < 2) {
+      exits++;
+      layerOn[name] = false;
+      document.getElementById('btn-' + name)?.classList.remove('active');
+      document.getElementById('pill-' + name)?.classList.remove('on');
+      stopLayer(name);
+      JC.activeSet.delete(name);
+    }
+  });
+};
+
+// ── Master volume curve driven by global progress ─────────────────
+// The overall volume follows the energy curve so the piece has a
+// single dynamic arc. Peak energy = full volume; quiet sections
+// are physically quieter, not just sparser.
+JC.applyMasterVolume = function() {
+  if (!ctx || !masterGain) return;
+  // Map energy 0→1 to gain 0.12→0.42
+  // (0.38 is the default master; we allow ±0.04 either side)
+  const targetGain = 0.12 + JC.energy * 0.30;
+  const now = ctx.currentTime;
+  masterGain.gain.cancelScheduledValues(now);
+  masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+  // Slow ramp — 8 bars. Volume changes feel tidal, not mechanical.
+  masterGain.gain.linearRampToValueAtTime(targetGain, now + (barLength || 4) * 8);
+};
+
+// ── Scene transition — the composed moment between chapters ───────
+// Instead of a raw crossfade, each chapter boundary is a distinct event:
+//   1. Two-bar diminuendo — the "held breath" before the scene cuts
+//   2. CE.onZoneChange fires mid-silence (harmony shifts in the quiet)
+//   3. New layers bloom in from silence — the scene arrives
+// This is what makes chapter changes feel like film cues, not playlists.
+JC.doSceneTransition = function(fromChapter, toChapter, preset, intensity) {
+  if (!ctx || !masterGain || JC.sceneTransition) return;
+  JC.sceneTransition = true;
+
+  const bl  = barLength || 4;
+  const now = ctx.currentTime;
+
+  // ── Act 1: Diminuendo — pull back to near-silence ────────────────
+  // Duration scales with how big the energy jump is (bigger jump = longer breath)
+  const energyJump = Math.abs(
+    JC.evalEnergy((JC.step) / JC.totalSteps) -
+    JC.evalEnergy((JC.step - 1) / JC.totalSteps)
+  );
+  const breathBars = energyJump > 0.3 ? 3 : energyJump > 0.15 ? 2 : 1;
+  const breathDur  = bl * breathBars;
+  const silenceGain = JC.energy > 0.6 ? 0.06 : 0.14; // deeper breath at peaks
+
+  masterGain.gain.cancelScheduledValues(now);
+  masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+  masterGain.gain.linearRampToValueAtTime(silenceGain, now + breathDur * 0.7);
+  masterGain.gain.setValueAtTime(silenceGain, now + breathDur);
+
+  // ── Act 2: Zone and harmony shift (mid-silence) ──────────────────
+  const zoneChangeMs = breathDur * 1000 * 0.5;
+  const t2 = JC.timers.length;
+  JC.timers.push(setTimeout(() => {
+    if (!JC.active || !isPlaying) return;
+    CE.onZoneChange(preset);
+    if (!bpmLocked) barLength = (60 / preset.bpm) * 4;
+    // Update scale
+    const chapter = toChapter;
+    const moodScales = SCALE_MOODS[chapter.scale] || SCALE_MOODS.dark;
+    selectScale(moodScales[Math.floor(rng() * moodScales.length)]);
+    // Update phrase sequence for new chapter
+    const phraseMap = { normal: PHRASE_SEQUENCES.normal, combat: PHRASE_SEQUENCES.combat, boss: PHRASE_SEQUENCES.boss };
+    phraseSeq = phraseMap[chapter.phrase] || PHRASE_SEQUENCES.normal;
+    phraseSeqIdx = 0;
+    currentPhrase = phraseSeq[0];
+    stopPhraseEngine();
+    startPhraseEngine();
+  }, zoneChangeMs));
+
+  // ── Act 3: Bloom — new identity fills the silence ────────────────
+  // Restore master volume slowly as new layers enter
+  const bloomStart = breathDur + bl * 0.5;
+  const bloomDur   = bl * 4;
+  const targetGain = 0.12 + JC.energy * 0.30;
+
+  masterGain.gain.linearRampToValueAtTime(targetGain, now + bloomStart + bloomDur);
+
+  // Scene transition flag clears when bloom completes
+  JC.timers.push(setTimeout(() => {
+    JC.sceneTransition = false;
+  }, (bloomStart + bloomDur + bl) * 1000));
+
+  // Zone name UI update
+  const zEl = document.getElementById('zoneName');
+  JC.timers.push(setTimeout(() => {
+    if (zEl) {
+      zEl.classList.add('changing');
+      setTimeout(() => {
+        zEl.textContent = preset.name;
+        zEl.classList.remove('changing');
+      }, 150);
+    }
+    document.getElementById('ciZone').textContent  = preset.name;
+    document.getElementById('ciFloor').textContent = `Void Floor ${toChapter.floor}`;
+    setStatus(`${toChapter.label} — ${preset.desc}`);
+    document.getElementById('randArchetypeLabel').textContent = toChapter.label.toUpperCase();
+  }, zoneChangeMs));
+};
+
+// ── Per-bar tick — the conductor's heartbeat ──────────────────────
+// Called by the existing bar clock. Updates progress, energy, and
+// reconciles layers. Everything else flows from these three values.
+JC.tick = function() {
+  if (!JC.active || !isPlaying) return;
+
+  // Global progress — where are we in the full journey
+  const elapsed = Date.now() - JC.startTime;
+  JC.progress   = Math.min(1, elapsed / JC.totalDurationMs);
+
+  // Which chapter are we in
+  const newStep = Math.min(JC.totalSteps - 1,
+    JC.stepStartTimes.findLastIndex(t => elapsed >= t));
+  const stepChanged = newStep !== JC.step && newStep > JC.step;
+
+  // Energy from curve
+  JC.energy = JC.evalEnergy(JC.progress);
+
+  // Floor crawl — smooth floor number advance toward chapter floor
+  const chapter = JC_CHAPTERS[JC.step] || JC_CHAPTERS[JC.totalSteps - 1];
+  const currentFloor = parseInt(slider.value);
+  if (Math.abs(currentFloor - chapter.floor) > 1) {
+    const dir = chapter.floor > currentFloor ? 1 : -1;
+    const targetF = Math.max(1, Math.min(99, currentFloor + dir));
+    slider.value = targetF;
+    slider.style.setProperty('--pct', ((targetF - 1) / 98 * 100).toFixed(1) + '%');
+    document.getElementById('floorNum').textContent = targetF;
+  }
+
+  const preset    = getZone(chapter.floor);
+  const intensity = Math.min(1, JC.energy + 0.15); // energy drives intensity, with a floor
+
+  // Chapter boundary — fire scene transition
+  if (stepChanged) {
+    JC.step = newStep;
+    journeyDepth = JC.step;
+    if (CIN.knight?.legend) CIN.knight.legend.step = JC.step;
+
+    const fromChapter = JC_CHAPTERS[JC.step - 1] || JC_CHAPTERS[0];
+    const toChapter   = JC_CHAPTERS[JC.step];
+    const toPreset    = getZone(toChapter.floor);
+
+    logTimeline(`Chapter ${JC.step + 1}: ${toChapter.label} · Floor ${toChapter.floor}`);
+    JC.doSceneTransition(fromChapter, toChapter, toPreset, intensity);
+  }
+
+  // Reconcile layers every bar — gradual, never jarring
+  if (!JC.sceneTransition) {
+    JC.reconcile(preset, intensity);
+    JC.applyMasterVolume();
+  }
+};
+
+// ── Main entry point ──────────────────────────────────────────────
 function startRandomJourney() {
   if (!isPlaying) togglePlay();
 
-  // Pick a random mood for this journey run
+  // Pick mood
   const moodKeys = Object.keys(JOURNEY_MOODS);
   activeJourneyMood = moodKeys[Math.floor(Math.random() * moodKeys.length)];
   selectJourneyMood(activeJourneyMood);
 
-  // Clear all layers — archetype controls the opening, not leftover state
+  // Clear all timers and layers from previous run
+  JC.timers.forEach(clearTimeout);
+  JC.timers = [];
+  journeyTimers.forEach(clearTimeout);
+  journeyTimers = [];
   Object.keys(layerOn).forEach(name => {
     if (layerOn[name]) {
       layerOn[name] = false;
@@ -2031,14 +2403,44 @@ function startRandomJourney() {
       stopLayer(name);
     }
   });
+  JC.activeSet.clear();
 
-  const JOURNEY_STEPS = 8;
-  const startFloor = parseInt(slider.value);
-  let step = 0;
+  // ── Step durations — the time budget per chapter ──────────────────
+  // Earlier chapters are longer (world-building); peak chapters shorter
+  // (intensity); final chapter holds, then fades.
+  // Total ~7 minutes = 420 seconds.
+  const BASE_STEP_MS = [
+    62000,  // ch0 — sparse opening, let it breathe
+    58000,  // ch1 — first movement growing
+    54000,  // ch2 — building toward mid
+    50000,  // ch3 — mid-journey pivot
+    46000,  // ch4 — intensity rising fast
+    40000,  // ch5 — peak zone
+    38000,  // ch6 — boss / climax
+    34000,  // ch7 — final chapter, holds then fades
+  ];
+  // Add small random variance (±8s) so each run feels different
+  JC.stepDurations = BASE_STEP_MS.map(d => d + (rng() - 0.5) * 16000);
+  JC.totalDurationMs = JC.stepDurations.reduce((a, b) => a + b, 0);
+  JC.stepStartTimes  = [];
+  let cumulative = 0;
+  JC.stepDurations.forEach(d => { JC.stepStartTimes.push(cumulative); cumulative += d; });
 
-  // Build the knight's legend for this run — personality + secret boss step
+  // ── Conductor state init ──────────────────────────────────────────
+  JC.active    = true;
+  JC.progress  = 0;
+  JC.energy    = 0;
+  JC.step      = 0;
+  JC.mood      = activeJourneyMood;
+  JC.startTime = Date.now();
+  JC.sceneTransition = false;
+  JC.bossStep  = 4 + Math.floor(rng() * 3); // boss at step 4, 5, or 6
+
+  journeyActive = true;
+  journeyDepth  = 0;
+
+  // ── Knight legend ─────────────────────────────────────────────────
   if (CIN.knight) {
-    const bossStep = 4 + Math.floor(Math.random() * 3); // step 4, 5, or 6
     const moodTraits = {
       descent:    { aggression: 0.5, patience: 0.6, grief: 0.3, glory: 0.2 },
       tragic:     { aggression: 0.2, patience: 0.8, grief: 0.9, glory: 0.1 },
@@ -2046,129 +2448,78 @@ function startRandomJourney() {
       arcane:     { aggression: 0.15, patience: 0.9, grief: 0.4, glory: 0.3 },
       meditative: { aggression: 0.05, patience: 1.0, grief: 0.5, glory: 0.1 },
     };
-    const baseTraits = moodTraits[activeJourneyMood] || moodTraits.descent;
-    // Sprinkle per-run variance so same mood still feels different each time
+    const bt = moodTraits[activeJourneyMood] || moodTraits.descent;
     CIN.knight.legend = {
-      mood:       activeJourneyMood,
-      step:       0,
-      bossStep,
-      aggression: Math.max(0, Math.min(1, baseTraits.aggression + (Math.random()-0.5)*0.22)),
-      patience:   Math.max(0, Math.min(1, baseTraits.patience   + (Math.random()-0.5)*0.18)),
-      grief:      Math.max(0, Math.min(1, baseTraits.grief       + (Math.random()-0.5)*0.20)),
-      glory:      Math.max(0, Math.min(1, baseTraits.glory       + (Math.random()-0.5)*0.22)),
+      mood: activeJourneyMood, step: 0, bossStep: JC.bossStep,
+      aggression: Math.max(0, Math.min(1, bt.aggression + (Math.random()-0.5)*0.22)),
+      patience:   Math.max(0, Math.min(1, bt.patience   + (Math.random()-0.5)*0.18)),
+      grief:      Math.max(0, Math.min(1, bt.grief       + (Math.random()-0.5)*0.20)),
+      glory:      Math.max(0, Math.min(1, bt.glory       + (Math.random()-0.5)*0.22)),
     };
-    CIN.knight.wounds          = 0;
-    CIN.knight.woundFlash      = 0;
+    CIN.knight.wounds = 0; CIN.knight.woundFlash = 0;
     CIN.knight.journeyEndFired = false;
-    CIN.knight.bossBuildupT    = 0;
-    CIN.knight.bossAftermathT  = 0;
+    CIN.knight.bossBuildupT = 0; CIN.knight.bossAftermathT = 0;
   }
 
-  journeyActive = true;
-  
-  function journeyStep() {
+  // ── Opening: seed the first chapter immediately ───────────────────
+  initAudio();
+  const firstChapter = JC_CHAPTERS[0];
+  const firstPreset  = getZone(firstChapter.floor);
+  if (!bpmLocked) barLength = (60 / firstPreset.bpm) * 4;
+  CE.onZoneChange(firstPreset);
+
+  const openScales = SCALE_MOODS[firstChapter.scale] || SCALE_MOODS.dark;
+  selectScale(openScales[Math.floor(rng() * openScales.length)]);
+
+  const phraseMap = { normal: PHRASE_SEQUENCES.normal, combat: PHRASE_SEQUENCES.combat, boss: PHRASE_SEQUENCES.boss };
+  phraseSeq = phraseMap[firstChapter.phrase] || PHRASE_SEQUENCES.normal;
+  phraseSeqIdx = 0;
+  currentPhrase = phraseSeq[0];
+  autoEvolution = true;
+  startPhraseEngine();
+
+  // Drone enters immediately — it is the seed everything grows from
+  layerOn['drone'] = true;
+  document.getElementById('btn-drone')?.classList.add('active');
+  document.getElementById('pill-drone')?.classList.add('on');
+  startLayer('drone', firstPreset, 0.08, null);
+
+  // Strings enter after 2 bars — they are the first thing the listener hears
+  // growing from the drone. Everything else waits until the conductor's
+  // reconcile loop decides the energy is right.
+  JC.timers.push(setTimeout(() => {
+    if (!JC.active || !isPlaying) return;
+    layerOn['strings'] = true;
+    document.getElementById('btn-strings')?.classList.add('active');
+    document.getElementById('pill-strings')?.classList.add('on');
+    startLayer('strings', firstPreset, 0.10, null);
+    JC.activeSet.add('drone'); JC.activeSet.add('strings');
+  }, barLength * 2 * 1000));
+
+  // Conductor tick is hooked into the bar clock — see tickBar() patch below
+  setStatus(`🌑 Journey begins — ${firstChapter.label}`);
+  document.getElementById('randArchetypeLabel').textContent = firstChapter.label.toUpperCase();
+  logTimeline(`Journey start · ${activeJourneyMood} · ${JC.totalDurationMs / 1000 | 0}s planned`);
+
+  // ── Outro — fade and stop at end of full arc ──────────────────────
+  const outroDur = 14; // seconds
+  JC.timers.push(setTimeout(() => {
     if (!isPlaying) return;
-    
-    const JOURNEY_FLOORS = [1, 13, 25, 37, 49, 61, 73, 85];
-    const floor = JOURNEY_FLOORS[step] ?? 85;
-    
-    const mood = JOURNEY_MOODS[activeJourneyMood] || JOURNEY_MOODS.descent;
-    const archetypeName = mood.layerArc[step] || 'nightmare';
-    
-    const cfg = LAYER_ARCHETYPES[archetypeName];
-    if (!cfg) return;
-    initAudio();
-    CE.onZoneChange(getZone(floor));
-    const preset = getZone(floor);
-    const rawIntensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
-    const intensity = Math.max(0.3, rawIntensity);
-    const percBufs = buildPercBufs(preset, sessionVoices['perc']);
-
-    const availablePool = step >= 4 && cfg.latePool ? [...cfg.pool, ...cfg.latePool] : cfg.pool;
-    const picked    = coherentPoolPick(cfg.required, availablePool, cfg.max);
-    const toEnable  = new Set([...cfg.required, ...picked]);
-
-    // Step 0 starts immediately, subsequent steps snap to bar boundary
-    const now = ctx.currentTime;
-    const toNextBar = step === 0 ? 0.05 : barLength - (now % barLength) + barLength;
-
-    setTimeout(() => {
-      const newBpm = preset.bpm;
-      const oldFloor = JOURNEY_FLOORS[step - 1] ?? floor;
-      const oldBpm = getZone(oldFloor).bpm;
-      if (!bpmLocked && Math.abs(oldBpm - newBpm) > 4) {
-        barLength = (60 / newBpm) * 4;
-      }
-
-      Object.keys(layerOn).forEach(name => {
-        if (name === 'drone' || name === 'bass') return;
-        if (layerOn[name] && !toEnable.has(name)) {
-          layerOn[name] = false;
-          document.getElementById('btn-' + name)?.classList.remove('active');
-          document.getElementById('pill-' + name)?.classList.remove('on');
-          stopLayer(name);
-        }
-      });
-    
-      const layerOrder = ['drone','strings','bass','heartbeat','organ','choir','cello','lute','melody','bells','whispers','riser','wind','firecrackle','perc','wardrums','march','stomp','chains','horn','ritualchant'];
-      const toStartList = [...toEnable].sort((a, b) => layerOrder.indexOf(a) - layerOrder.indexOf(b)).filter(name => name in layerOn && !layerOn[name]);
-      toStartList.forEach((name, i) => {
-        setTimeout(() => {
-          if (!isPlaying) return;
-          layerOn[name] = true;
-          document.getElementById('btn-' + name)?.classList.add('active');
-          document.getElementById('pill-' + name)?.classList.add('on');
-          startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
-        }, i * barLength * 1000);
-      });
-    }, toNextBar * 1000);
-
-    phraseSeq = { desolate: PHRASE_SEQUENCES.normal, marching: PHRASE_SEQUENCES.combat, choral: PHRASE_SEQUENCES.normal, combat: PHRASE_SEQUENCES.combat, arcane: PHRASE_SEQUENCES.normal, nightmare: PHRASE_SEQUENCES.boss }[archetypeName] || PHRASE_SEQUENCES.normal;
-    phraseSeqIdx = 0;
-    currentPhrase = phraseSeq[0];
-    autoEvolution = true;
-    startPhraseEngine();
-
-    const scaleMood = mood.scaleArc[step] || 'dread';
-    const moodScales = SCALE_MOODS[scaleMood];
-    const newScale = moodScales[Math.floor(rng() * moodScales.length)];
-    selectScale(newScale);
-    
-    setStatus(`🌑 Journey · ${archetypeName} · Floor ${floor}`);
-    logTimeline(`Journey step ${step + 1}: ${archetypeName} · Floor ${floor}`);
-    document.getElementById('randArchetypeLabel').textContent = archetypeName.toUpperCase();
-
-    step++;
-    journeyDepth = step;
-    if (CIN.knight?.legend) CIN.knight.legend.step = step;
-    if (step < JOURNEY_STEPS) {
-      const dur = step < 4 ? 55000 + rng() * 10000 : 38000 + rng() * 8000;
-      crawlToFloor(floor, dur * 0.6, null);
-      journeyTimers.push(setTimeout(journeyStep, dur));
-
-    } else {
-      journeyActive = false;
-      // Signal knight to play his journey-end moment
-      if (CIN.knight) CIN.knight.journeyEndFired = false; // will trigger once in draw loop
-      const holdMs = barLength * 6 * 1000;
-      const fadeDur = 12;
-      setTimeout(() => {
-        if (!isPlaying) return;
-        const now = ctx.currentTime;
-        masterGain.gain.cancelScheduledValues(now);
-        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-        masterGain.gain.linearRampToValueAtTime(0, now + fadeDur);
-        setStatus('🌑 The void reclaims all...');
-        setTimeout(() => {
-          if (!isPlaying) return;
-          togglePlay();
-          masterGain.gain.value = 0.38;
-        }, (fadeDur + 0.2) * 1000);
-      }, holdMs);
-    }
-  }
-  
-  journeyStep();
+    journeyActive = false;
+    JC.active = false;
+    if (CIN.knight) CIN.knight.journeyEndFired = false;
+    const now2 = ctx.currentTime;
+    masterGain.gain.cancelScheduledValues(now2);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now2);
+    masterGain.gain.linearRampToValueAtTime(0, now2 + outroDur);
+    setStatus('🌑 The void reclaims all...');
+    logTimeline('Journey end — fade out');
+    JC.timers.push(setTimeout(() => {
+      if (!isPlaying) return;
+      togglePlay();
+      masterGain.gain.value = 0.38;
+    }, (outroDur + 0.3) * 1000));
+  }, JC.totalDurationMs));
 }
 
 // ── Event system ──────────────────────────────────────────────────
@@ -5843,6 +6194,7 @@ function stopSynth() {
   journeyTimers.forEach(clearTimeout);
   journeyTimers = [];
   journeyActive = false;
+  if (JC.active) { JC.timers.forEach(clearTimeout); JC.timers = []; JC.active = false; JC.activeSet.clear(); }
   if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
   slider.value = 1;
 }
