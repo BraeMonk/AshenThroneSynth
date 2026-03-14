@@ -2089,6 +2089,38 @@ const JOURNEY_MOODS = {
     layerArc:  ['arcane','arcane','nightmare','arcane','nightmare','arcane','arcane','arcane'],
     scaleArc:  ['arcane','eerie','dread','eerie','dread','eerie','arcane','eerie'],
   },
+
+  // ── GENRE MOODS ───────────────────────────────────────────────────────────
+
+  gregorian: {
+    label: 'Gregorian',
+    desc: 'Unaccompanied sacred chant — only voices and silence, no rhythm, no melody instruments',
+    // Pure choral throughout; only the final chapter gets any instrumental weight
+    layerArc:  ['choral','choral','choral','choral','choral','choral','choral','desolate'],
+    scaleArc:  ['dark','dark','dark','eerie','dark','dread','dark','dark'],
+  },
+
+  industrial: {
+    label: 'Industrial',
+    desc: 'Grinding iron and percussion — no melody, no brass, just rhythm and noise building to collapse',
+    layerArc:  ['marching','marching','combat','nightmare','nightmare','nightmare','combat','marching'],
+    scaleArc:  ['dread','dread','dread','dread','eerie','dread','dread','dread'],
+  },
+
+  celtic: {
+    label: 'Celtic',
+    desc: 'Modal and lilting — lute and bells lead, no war drums or chaos, never fully dark',
+    // Arcane (lute/melody/organ) throughout with choral swells; no combat
+    layerArc:  ['arcane','arcane','choral','arcane','choral','arcane','arcane','desolate'],
+    scaleArc:  ['arcane','arcane','arcane','eerie','arcane','arcane','dark','arcane'],
+  },
+
+  ambient: {
+    label: 'Ambient',
+    desc: 'Near-static texture — drone and strings only, movement measured in minutes not beats',
+    layerArc:  ['desolate','desolate','arcane','desolate','arcane','desolate','desolate','desolate'],
+    scaleArc:  ['arcane','arcane','arcane','arcane','eerie','arcane','arcane','dark'],
+  },
 };
 
 let activeJourneyMood = 'descent';
@@ -2150,6 +2182,11 @@ const JC_ENERGY_CURVES = {
   // New moods
   catharsis:  [0.12,0.20,0.45,0.38,0.62,0.85,0.78,0.45], // late peak — earns it slowly, stays warm
   void:       [0.18,0.30,0.28,0.42,0.38,0.45,0.35,0.28], // jagged mid-range, never peaks, never settles
+  // Genre moods
+  gregorian:  [0.10,0.14,0.18,0.22,0.28,0.24,0.18,0.12], // almost flat — chant has no drama arc, just presence
+  industrial: [0.35,0.55,0.75,0.90,0.95,0.88,0.70,0.40], // fast ramp to brutal peak, hard grind
+  celtic:     [0.18,0.28,0.40,0.52,0.48,0.38,0.30,0.20], // gentle arch, never fully peaks, lilting
+  ambient:    [0.08,0.10,0.14,0.12,0.16,0.12,0.10,0.08], // barely moves — just breathes
 };
 
 // Layer groups define when instruments enter and leave as energy rises 0→1.
@@ -2190,6 +2227,33 @@ const JC_MOOD_SUPPRESS = {
   awakening:  new Set(['ritual','chains_tex']),
   catharsis:  new Set(['chaos_peak','chains_tex']),       // no chaos — grief is clean
   void:       new Set(['horn_acc','ritual','chains_tex']),// no heroic brass, no ritual — pure alien
+  // Genre moods — suppress defines the genre's "no-go" palette
+  gregorian:  new Set([
+    // No rhythm at all, no melody instruments, no chaos
+    'rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak',
+    'solo_voice','horn_acc','bass_line','atmosphere',
+    // Keep: choir_bed, organ_col, foundation, harmonic, bells_det (used as distant shimmer)
+  ]),
+  industrial: new Set([
+    // No delicate instruments, no melody, no brass, no chant, no atmosphere
+    'solo_voice','horn_acc','bells_det','organ_col','cello_cnt',
+    'atmosphere','ritual',
+    // Keep: all rhythm groups, chaos_peak, chains_tex, bass_line, foundation
+  ]),
+  celtic: new Set([
+    // No war machinery, no chaos, no choir (too gothic), no sustained dread layers
+    'rhythm_2','rhythm_3','chains_tex','chaos_peak',
+    'ritual','horn_acc',
+    // Keep: solo_voice (lute/melody), bells_det, organ_col (as drone replacement),
+    //        choir_bed at low energy only (controlled by enter threshold)
+  ]),
+  ambient: new Set([
+    // Almost everything suppressed — only texture, no rhythm, no melody spikes
+    'rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak',
+    'horn_acc','ritual','bass_line','cello_cnt',
+    // Keep: foundation (drone), harmonic (strings), atmosphere (wind/heartbeat),
+    //        bells_det (distant shimmer), solo_voice (ethereal melody only)
+  ]),
 };
 
 // ── CHAPTER PHRASE ARCS ───────────────────────────────────────────────
@@ -2233,7 +2297,7 @@ const JC_CHAPTERS = [
 ];
 
 JC.evalEnergy = function(progress) {
-  const curve = JC_ENERGY_CURVES[JC.mood] || JC_ENERGY_CURVES.descent;
+  const curve = (JC._energyCurve && JC._energyCurve.length) ? JC._energyCurve : (JC_ENERGY_CURVES[JC.mood] || JC_ENERGY_CURVES.descent);
   const scaled = Math.max(0, Math.min(0.9999, progress)) * (curve.length - 1);
   const lo = Math.floor(scaled), hi = Math.min(curve.length-1, lo+1);
   const tc = (1-Math.cos((scaled-lo)*Math.PI))/2;
@@ -2250,7 +2314,7 @@ JC.computeTargetSet = function() {
   // archetype-specific suppressions + forced inclusions.
   // This is what differentiates 'tragic' from 'triumphant' at a texture level.
   const moodObj   = JOURNEY_MOODS[JC.mood] || JOURNEY_MOODS.descent;
-  const archetype = (moodObj.layerArc || [])[JC.step] || 'combat';
+  const archetype = ((JC._scrambledLayerArc && JC._scrambledLayerArc.length) ? JC._scrambledLayerArc : (moodObj.layerArc || []))[JC.step] || 'combat';
 
   // Archetype suppressions — added on top of mood-level suppressions
   const ARCHETYPE_SUPPRESS = {
@@ -2671,19 +2735,37 @@ function generatePhraseArc(chapter, step, mood) {
   let s = (_sessionSeed ^ (JC.startTime & 0xFFFF)) ^ (step * 2311) ^ (mood.charCodeAt(0) * 47);
   const lr = () => { s = Math.imul(s^s>>>15,s|1); s^=s+Math.imul(s^s>>>7,61|s); return ((s^s>>>14)>>>0)/4294967296; };
 
-  // Pool of phrases valid for each chapter range
-  const earlyPhrases  = ['intro','intro','build','build','tension'];     // ch 1-3
-  const midPhrases    = ['build','tension','tension','climax','build'];   // ch 4-6
-  const latePhrases   = ['climax','climax','tension','climax','tension']; // ch 6-7
-  const endPhrases    = ['resolution','build','resolution','intro','resolution']; // ch 8
+  // Each phrase type has a swap-family: phrases can only swap with others
+  // in the same dramatic class so the arc doesn't break the mood contract.
+  // e.g. a 'tension' slot can become 'build' or 'climax' but never 'intro'.
+  const swapFamily = {
+    intro:      ['intro','intro','build'],
+    build:      ['build','build','tension','intro'],
+    tension:    ['tension','tension','build','climax'],
+    climax:     ['climax','climax','tension'],
+    resolution: ['resolution','resolution','build'],
+  };
+
+  // Pool of phrases valid for each chapter range (for full swaps)
+  const earlyPhrases  = ['intro','intro','build','build','tension'];
+  const midPhrases    = ['build','tension','tension','climax','build'];
+  const latePhrases   = ['climax','climax','tension','climax','tension'];
+  const endPhrases    = ['resolution','build','resolution','intro','resolution'];
 
   const pool = step <= 2 ? earlyPhrases : step <= 5 ? midPhrases : step <= 6 ? latePhrases : endPhrases;
 
-  // Build varied arc: 70% from base, 30% from pool substitution
+  // Build varied arc: 55% keep base, 30% swap within family, 15% full pool sub
   const varied = base.map((p, i) => {
-    // Always keep the last phrase (cadence/resolution end)
-    if (i === base.length - 1) return p;
-    return lr() < 0.30 ? pool[Math.floor(lr() * pool.length)] : p;
+    if (i === base.length - 1) return p; // always keep cadence/end phrase
+    const roll = lr();
+    if (roll < 0.45) return p; // keep original
+    if (roll < 0.85) {
+      // Swap within dramatic family — tonally coherent variation
+      const family = swapFamily[p] || [p];
+      return family[Math.floor(lr() * family.length)];
+    }
+    // Full pool substitution — bigger departure
+    return pool[Math.floor(lr() * pool.length)];
   });
 
   // Ensure chapter 8 always resolves
@@ -2712,7 +2794,9 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
 
   CE.onZoneChange(preset);
   if(!bpmLocked) barLength=(60/preset.bpm)*4;
-  const moodScales=SCALE_MOODS[toChapter.scale]||SCALE_MOODS.dark;
+  // Use the per-run scale arc if available, else fall back to chapter's static scale
+  const _chapterScaleName = (JC._scaleArc && JC._scaleArc[JC.step]) || toChapter.scale;
+  const moodScales = SCALE_MOODS[_chapterScaleName] || SCALE_MOODS.dark;
   selectScale(moodScales[Math.floor(rng()*moodScales.length)]);
 
   // Use the chapter's own phrase arc — not a global sequence.
@@ -2894,25 +2978,89 @@ function startRandomJourney() {
   } else if (activeJourneyMood === 'siege') {
     JC.bossStep = 2 + Math.floor(rng() * 2);
   } else if (activeJourneyMood === 'catharsis') {
-    JC.bossStep = 5 + Math.floor(rng() * 2); // chapters 5-6 — the earned peak
+    JC.bossStep = 5 + Math.floor(rng() * 2);
   } else if (activeJourneyMood === 'void') {
-    JC.bossStep = 3 + Math.floor(rng() * 2); // chapters 3-4 — alien intrusion mid-journey
+    JC.bossStep = 3 + Math.floor(rng() * 2);
+  } else if (activeJourneyMood === 'gregorian') {
+    JC.bossStep = -1; // no boss — sacred music has no combat climax
+  } else if (activeJourneyMood === 'industrial') {
+    JC.bossStep = 3 + Math.floor(rng() * 2); // boss hits early and hard
+  } else if (activeJourneyMood === 'celtic') {
+    JC.bossStep = -1; // no boss — the conflict is internal, not violent
+  } else if (activeJourneyMood === 'ambient') {
+    JC.bossStep = -1; // no boss — ambient has no dramatic confrontation
   } else {
     JC.bossStep = 4 + Math.floor(rng() * 3);
   }
   JC._reconcileBar=0;
   _leitmotifReturnFired=false;
 
-  // Per-journey threshold scatter — each layer group gets ±0.05 offset
-  // so the texture build has a different shape every run
+  // ── PER-RUN LAYER ARC SCRAMBLE ────────────────────────────────────────────
+  // The mood's layerArc defines which archetype plays each chapter, but it's
+  // identical every run. Scramble it: swap 2–3 chapter slots (respecting mood
+  // contract: never put 'nightmare' in chapters 7-8, never put 'desolate' in 1-3).
+  // The result: same mood identity, wildly different chapter ordering.
+  const moodArcBase = (JOURNEY_MOODS[activeJourneyMood]||JOURNEY_MOODS.descent).layerArc;
+  const scrambledArc = [...moodArcBase];
+  // Safe swap zones: chapters 1-3 can swap among themselves; 4-6 among themselves.
+  // Ch 7-8 are protected (peak/resolution must land correctly).
+  const earlySlots = [0,1,2], midSlots = [3,4,5];
+  function maybeSwap(slots) {
+    if (rng() < 0.60) { // 60% chance of a swap in this zone
+      const i = slots[Math.floor(rng()*slots.length)];
+      const j = slots[Math.floor(rng()*slots.length)];
+      if (i !== j) [scrambledArc[i], scrambledArc[j]] = [scrambledArc[j], scrambledArc[i]];
+    }
+  }
+  maybeSwap(earlySlots);
+  maybeSwap(midSlots);
+  // 25% chance: also swap one mid slot with a late slot (ch 6↔5 swap)
+  if (rng() < 0.25) {
+    const mi = midSlots[Math.floor(rng()*midSlots.length)];
+    [scrambledArc[mi], scrambledArc[6]] = [scrambledArc[6], scrambledArc[mi]];
+  }
+  JC._scrambledLayerArc = scrambledArc;
+
+  // ── PER-RUN SCALE ARC ─────────────────────────────────────────────────────
+  // Chapter transitions use toChapter.scale (fixed per chapter), completely
+  // ignoring the mood's scaleArc. Build a per-journey resolved scale arc:
+  // each chapter gets a concrete scale name drawn from its mood scaleArc entry,
+  // with a small chance of a neighbour-mood substitution for colour.
+  const moodScaleArc = moodObj.scaleArc || ['dark','dark','eerie','dark','dread','dread','eerie','dark'];
+  const scaleMoodNeighbours = { dark:['dark','eerie'], eerie:['eerie','dread','arcane'], dread:['dread','eerie'], epic:['epic','dread'], arcane:['arcane','eerie'] };
+  JC._scaleArc = moodScaleArc.map((moodName, i) => {
+    // 15% chance: substitute a neighbouring mood scale for this chapter
+    const useMood = rng() < 0.15
+      ? (scaleMoodNeighbours[moodName] || [moodName])[Math.floor(rng() * (scaleMoodNeighbours[moodName]?.length || 1))]
+      : moodName;
+    const pool = SCALE_MOODS[useMood] || SCALE_MOODS.dark;
+    return pool[Math.floor(rng() * pool.length)];
+  });
+
+  // ── PER-RUN ENERGY CURVE MUTATION ────────────────────────────────────────
+  // The base energy curve is fixed per mood — same arc every run.
+  // Mutate each chapter's energy by ±0.12 (clamped 0–1) so the
+  // density and drama shape varies meaningfully between runs.
+  const baseCurve = JC_ENERGY_CURVES[activeJourneyMood] || JC_ENERGY_CURVES.descent;
+  JC._energyCurve = baseCurve.map((e, i) => {
+    // Protect endpoints slightly — chapter 1 stays quiet-ish, ch 7 stays loud-ish
+    const maxDelta = (i === 0 || i === 7) ? 0.07 : 0.14;
+    return Math.max(0.04, Math.min(1.0, e + (rng() - 0.5) * maxDelta * 2));
+  });
+
+  // Per-journey threshold scatter — widened to ±0.10 (was ±0.05)
+  // so layer entry timing is noticeably different run to run
   JC._groupOffsets = {};
   JC_LAYER_GROUPS.forEach(g => {
-    JC._groupOffsets[g.id] = (rng() - 0.5) * 0.10; // ±0.05
+    JC._groupOffsets[g.id] = (rng() - 0.5) * 0.20; // ±0.10
   });
 
   // Modal offset for composed score — shifts all melody degrees by 0, 1, or 2
   // so the same composed lines sound tonally different each journey
-  JC._scoreOffset = Math.floor(rng() * 3); // 0, 1, or 2 scale degrees up
+  JC._scoreOffset  = Math.floor(rng() * 3); // 0, 1, or 2 scale degrees up
+  // Score variant — picks A (0), B (1), or C (2) from each chapter's variants
+  // array, held constant for the whole journey so the character is consistent
+  JC._scoreVariant = Math.floor(rng() * 3);
 
   journeyActive=true; journeyDepth=0;
 
@@ -2931,6 +3079,10 @@ function startRandomJourney() {
       awakening: {aggression:0.3, patience:0.7,grief:0.7,glory:0.4},
       catharsis: {aggression:0.1, patience:0.9,grief:0.8,glory:0.6},
       void:      {aggression:0.2, patience:0.5,grief:0.3,glory:0.0},
+      gregorian: {aggression:0.0, patience:1.0,grief:0.6,glory:0.2},
+      industrial:{aggression:0.95,patience:0.05,grief:0.1,glory:0.5},
+      celtic:    {aggression:0.2, patience:0.8,grief:0.4,glory:0.5},
+      ambient:   {aggression:0.0, patience:1.0,grief:0.3,glory:0.0},
     };
     const bt=moodTraits[activeJourneyMood]||moodTraits.descent;
     CIN.knight.legend={
@@ -4245,8 +4397,11 @@ const CE = (() => {
   function onZoneChange(zone) {
     _zone     = zone;
     // Offset progression start by a seeded amount per journey — same chords,
-    // different entry point each run so the harmonic cycle feels fresh
-    const jSeed = JC.active ? (JC.startTime & 0xF) : 0;
+    // different entry point each run so the harmonic cycle feels fresh.
+    // Use a wide hash of startTime so all 4 chord slots are reachable.
+    const jSeed = JC.active
+      ? (Math.imul(JC.startTime ^ 0xDEADBEEF, 0x9E3779B9) >>> 0)
+      : 0;
     _chordIdx = jSeed % Math.max(1, (getProgression(zone)?.length || 4));
     if (!_eventOverride) {
       const prog      = getProgression(zone);
@@ -5293,10 +5448,43 @@ function buildBass(preset, intensity, name) {
 //   - Rests are placed at phrase peaks to let the note speak
 
 const COMPOSED_SCORE = {
-  // Chapter 1 — The Awakening. Sparse. The melody enters hesitantly.
-  // Leitmotif cell: [0,2,0,3,2,0] — falling minor third, weight of loss
+  // ── FORMAT ────────────────────────────────────────────────────────────────
+  // Each note: [scaleDeg, beatDuration, restAfter]
+  //   scaleDeg 0–6 = scale degrees; beatDuration in beats; restAfter = silence after
+  // Each chapter now has three primary variants (A/B/C) plus development + celline.
+  //   variant A: original primary — the "home" reading of this chapter
+  //   variant B: different leitmotif cell, same emotional register, busier rhythm
+  //   variant C: sparse, longer note values, emphasises space over motion
+  // On journey start, JC._scoreVariant (0/1/2) is picked once and held for the
+  // whole journey, so every chapter plays its A, B, or C consistently.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Chapter 1 — The Awakening. Sparse. Hesitant entrance.
+  // Leitmotif A: [0,2,0,3,2,0]   — falling minor third, weight of loss
+  // Leitmotif B: [0,3,2,4,2,0]   — wider reach, more questioning
+  // Leitmotif C: [0,2,4,2,0]     — slow ascent then retreat, barely there
   'The Awakening': {
-    primary: [
+    variants: [
+      // A — original primary
+      [
+        [0,2,0.5], [2,1,0],   [0,1.5,0.5], [3,1,0],   [2,2,1],
+        [0,1,0],   [2,0.5,0], [4,1,0.5],   [3,1,0],   [2,3,2],
+        [0,1.5,0], [1,1,0],   [0,2,1],
+      ],
+      // B — wider intervals, more yearning; peaks at deg 5 then settles
+      [
+        [0,1.5,0.5],[3,1,0],  [2,1,0.5],   [4,1,0],   [2,2,1],
+        [3,1,0],   [1,0.5,0], [3,1,0.5],   [5,1,0],   [3,2,2],
+        [1,1.5,0], [2,1,0],   [0,2,1],
+      ],
+      // C — bare bones; long held notes, more silence than sound
+      [
+        [0,3,1],   [2,2,1],   [3,3,1.5],
+        [2,2,0.5], [0,1.5,0], [4,2,1.5],
+        [2,1,0],   [0,4,2],
+      ],
+    ],
+    primary: [   // kept for fallback / procedural base
       [0,2,0.5], [2,1,0],   [0,1.5,0.5], [3,1,0],   [2,2,1],
       [0,1,0],   [2,0.5,0], [4,1,0.5],   [3,1,0],   [2,3,2],
       [0,1.5,0], [1,1,0],   [0,2,1],
@@ -5312,9 +5500,31 @@ const COMPOSED_SCORE = {
     ],
   },
 
-  // Chapter 2 — Rotwood Descent. Chromatic unease enters. Faster.
-  // Leitmotif: [0,1,2,3,2,1] — chromatic ascent, stalking quality
+  // Chapter 2 — Rotwood Descent. Chromatic unease. Stalking.
+  // Leitmotif A: [0,1,2,3,2,1]   — chromatic ascent
+  // Leitmotif B: [0,2,1,3,1,0]   — zigzag chromatic, more anxious
+  // Leitmotif C: [0,1,3,1,2,0]   — uneven steps, limping gait
   'Rotwood Descent': {
+    variants: [
+      // A — original primary
+      [
+        [0,1,0],   [1,0.5,0], [2,0.5,0],   [3,1,0.5], [2,1,0],
+        [1,1,0],   [3,2,0.5], [2,1,0],     [4,1,0],   [3,2,1],
+        [1,1,0],   [0,1,0],   [2,0.5,0],   [0,2,1],
+      ],
+      // B — zigzag chromatic, shorter note values, more agitated
+      [
+        [0,0.5,0], [2,0.5,0], [1,0.5,0],   [3,1,0.5], [1,0.5,0],
+        [2,1,0],   [4,1,0.5], [2,0.5,0],   [3,1,0],   [5,2,1],
+        [3,0.5,0], [2,0.5,0], [1,0.5,0],   [0,2,1],
+      ],
+      // C — limping uneven steps, syncopated rests create unease
+      [
+        [0,1.5,0.5],[1,1,0],  [3,0.5,0.5], [1,1,0],   [2,1.5,1],
+        [0,0.5,0], [3,1.5,0], [1,1,0.5],   [2,2,1],
+        [1,1,0],   [0,2.5,2],
+      ],
+    ],
     primary: [
       [0,1,0],   [1,0.5,0], [2,0.5,0],   [3,1,0.5], [2,1,0],
       [1,1,0],   [3,2,0.5], [2,1,0],     [4,1,0],   [3,2,1],
@@ -5331,9 +5541,28 @@ const COMPOSED_SCORE = {
     ],
   },
 
-  // Chapter 3 — The Catacombs. Heavy. Tritone leaps. Space between notes.
-  // Leitmotif: [0,6,0,5,4,0] — tritone leap + approach, dread
+  // Chapter 3 — The Catacombs. Heavy. Tritone leaps. Dread.
+  // Leitmotif A: [0,6,0,5,4,0]   — tritone leap + approach
+  // Leitmotif B: [0,5,6,4,0]     — reversed approach, more wrong
+  // Leitmotif C: [0,6,5,0]       — just the tritone, nothing else
   'The Catacombs': {
+    variants: [
+      // A — original primary
+      [
+        [0,2,1],   [6,1,0],   [0,1,0.5],   [5,1,0],   [4,2,1],
+        [0,1.5,0], [2,1,0],   [4,2,1],     [0,3,2],
+      ],
+      // B — reversed approach; 5→6 instead of 6→5, more disorienting
+      [
+        [0,2,1],   [5,1,0],   [6,1,0.5],   [4,1,0],   [0,2,1],
+        [6,1.5,0], [4,1,0],   [2,1,0.5],   [0,3,2],
+      ],
+      // C — minimal; just the leap, enormous rests, maximum dread
+      [
+        [0,3,2],   [6,2,1],   [0,2,1.5],
+        [5,2,1],   [4,3,2],   [0,4,3],
+      ],
+    ],
     primary: [
       [0,2,1],   [6,1,0],   [0,1,0.5],   [5,1,0],   [4,2,1],
       [0,1.5,0], [2,1,0],   [4,2,1],     [0,3,2],
@@ -5348,9 +5577,31 @@ const COMPOSED_SCORE = {
     ],
   },
 
-  // Chapter 4 — Shadowmere. Yearning. The melody reaches upward then falls.
-  // Leitmotif: [0,2,4,3,2,0] — rise and fall, longing
+  // Chapter 4 — Shadowmere. Yearning. Rise and fall.
+  // Leitmotif A: [0,2,4,3,2,0]   — arc of longing
+  // Leitmotif B: [0,3,5,4,3,0]   — higher peak, greater reach
+  // Leitmotif C: [2,4,3,2,4,0]   — starts mid-air, no grounding
   'Shadowmere': {
+    variants: [
+      // A — original primary
+      [
+        [0,1,0],   [2,1,0],   [4,1.5,0.5], [3,1,0],   [2,2,0.5],
+        [4,1,0],   [5,1,0],   [6,2,1],     [4,1,0],   [3,1,0],
+        [2,2,0.5], [0,1,0],   [2,0.5,0],   [0,3,2],
+      ],
+      // B — peaks a step higher (deg 6 becomes the mid, deg 5 the cadence point)
+      [
+        [0,1,0],   [3,1,0],   [5,1.5,0.5], [4,1,0],   [3,2,0.5],
+        [5,1,0],   [6,1,0],   [5,2,1],     [3,1,0],   [2,1,0],
+        [4,2,0.5], [1,1,0],   [2,0.5,0],   [0,3,2],
+      ],
+      // C — starts unmoored (deg 2), creates a floating, suspended feeling
+      [
+        [2,1.5,0.5],[4,1,0],  [3,1.5,0.5], [2,2,1],
+        [4,1,0],   [6,1.5,0], [5,2,1],
+        [3,1,0],   [2,1.5,0], [0,3,2],
+      ],
+    ],
     primary: [
       [0,1,0],   [2,1,0],   [4,1.5,0.5], [3,1,0],   [2,2,0.5],
       [4,1,0],   [5,1,0],   [6,2,1],     [4,1,0],   [3,1,0],
@@ -5367,9 +5618,31 @@ const COMPOSED_SCORE = {
     ],
   },
 
-  // Chapter 5 — The Veil Breaks. Faster. Wide leaps. Unstable.
-  // Leitmotif: [0,5,1,4,2,0] — wide leaps, arcane instability
+  // Chapter 5 — The Veil Breaks. Wide leaps. Arcane instability.
+  // Leitmotif A: [0,5,1,4,2,0]   — chaotic wide leaps
+  // Leitmotif B: [0,6,2,5,1,0]   — even wider, more alien
+  // Leitmotif C: [0,4,6,4,0]     — slower, more deliberate arc of strangeness
   "The Veil Breaks": {
+    variants: [
+      // A — original primary
+      [
+        [0,1,0],   [5,0.5,0], [1,0.5,0],   [4,1,0.5], [2,1,0],
+        [0,0.5,0], [4,1,0],   [6,1,0.5],   [5,1,0],   [4,2,0.5],
+        [2,0.5,0], [0,1,0],   [2,0.5,0],   [0,2,1],
+      ],
+      // B — wider leaps, more alien; 6 appears earlier and more often
+      [
+        [0,0.5,0], [6,0.5,0], [2,0.5,0],   [5,1,0.5], [1,0.5,0],
+        [4,1,0],   [0,0.5,0], [6,1,0.5],   [4,1,0],   [5,2,0.5],
+        [1,0.5,0], [2,0.5,0], [0,1,0],     [0,2,1],
+      ],
+      // C — slower; the weirdness is in the intervals not the speed
+      [
+        [0,1.5,0.5],[4,1.5,0],[6,2,0.5],   [4,1,0],
+        [1,1.5,0.5],[5,1,0],  [4,2,1],
+        [2,1,0],   [0,3,2],
+      ],
+    ],
     primary: [
       [0,1,0],   [5,0.5,0], [1,0.5,0],   [4,1,0.5], [2,1,0],
       [0,0.5,0], [4,1,0],   [6,1,0.5],   [5,1,0],   [4,2,0.5],
@@ -5387,8 +5660,29 @@ const COMPOSED_SCORE = {
   },
 
   // Chapter 6 — Obsidian Keep. March feel. Fourth-based. Relentless.
-  // Leitmotif: [0,3,0,4,3,0] — fourth-based march cell
+  // Leitmotif A: [0,3,0,4,3,0]   — fourth march
+  // Leitmotif B: [0,4,3,5,4,0]   — rising fourths, more insistent
+  // Leitmotif C: [0,3,5,3,0]     — stripped to the bones of the march
   'Obsidian Keep': {
+    variants: [
+      // A — original primary
+      [
+        [0,1,0],   [3,1,0],   [0,0.5,0],   [4,1,0],   [3,1,0.5],
+        [0,1,0],   [3,0.5,0], [5,1,0],     [4,1,0.5], [3,1,0],
+        [0,2,0.5], [4,1,0],   [3,0.5,0],   [0,2,1],
+      ],
+      // B — fourths push higher; deg 5 becomes the tension peak
+      [
+        [0,1,0],   [4,1,0],   [3,0.5,0],   [5,1,0],   [4,1,0.5],
+        [3,1,0],   [4,0.5,0], [6,1,0],     [5,1,0.5], [4,1,0],
+        [3,1,0.5], [5,1,0],   [4,0.5,0],   [0,2,1],
+      ],
+      // C — stripped; only the essential march notes, heavy with rests
+      [
+        [0,1.5,0.5],[3,1.5,0],[0,1,0.5],   [4,2,1],
+        [3,1,0],   [5,2,0.5], [3,1,0],     [0,3,2],
+      ],
+    ],
     primary: [
       [0,1,0],   [3,1,0],   [0,0.5,0],   [4,1,0],   [3,1,0.5],
       [0,1,0],   [3,0.5,0], [5,1,0],     [4,1,0.5], [3,1,0],
@@ -5406,8 +5700,30 @@ const COMPOSED_SCORE = {
   },
 
   // Chapter 7 — The Void Spire. Dissonant. No clear home. Alien.
-  // Leitmotif: [0,6,1,5,0,2] — dissonant, no clear home
+  // Leitmotif A: [0,6,1,5,0,2]   — dissonant zigzag, no landing
+  // Leitmotif B: [0,6,5,6,1,0]   — clusters around the tritone, more wrong
+  // Leitmotif C: [6,1,6,0,6]     — tritone obsession, barely moves
   'The Void Spire': {
+    variants: [
+      // A — original primary
+      [
+        [0,1,0.5], [6,1,0],   [1,1,0.5],   [5,1,0],   [0,1.5,0.5],
+        [2,1,0],   [6,0.5,0], [4,1,0],     [5,2,1],
+        [0,1,0],   [1,0.5,0], [0,2,1],
+      ],
+      // B — clusters tight around 5/6; the harmony never opens up
+      [
+        [0,1,0.5], [6,1,0],   [5,0.5,0],   [6,1,0.5], [1,1,0],
+        [6,0.5,0.5],[5,1,0],  [6,1,0],     [4,2,1],
+        [1,1,0],   [0,1,0],   [0,2,1],
+      ],
+      // C — near-static; the tritone (deg 6) just sits there, barely moving
+      [
+        [6,2,1],   [1,1,0.5], [6,2,0.5],   [0,1.5,1],
+        [6,2,0.5], [5,1,0],   [6,3,2],
+        [0,1,0],   [0,3,2],
+      ],
+    ],
     primary: [
       [0,1,0.5], [6,1,0],   [1,1,0.5],   [5,1,0],   [0,1.5,0.5],
       [2,1,0],   [6,0.5,0], [4,1,0],     [5,2,1],
@@ -5425,8 +5741,29 @@ const COMPOSED_SCORE = {
   },
 
   // Chapter 8 — Infernal Core. Descending. Inevitable. Final.
-  // Leitmotif: [6,5,4,3,2,1] — inexorable descent
+  // Leitmotif A: [6,5,4,3,2,1]   — inexorable descent
+  // Leitmotif B: [6,4,5,3,4,0]   — descent with anguished back-steps
+  // Leitmotif C: [6,5,3,0]       — the collapse, nothing held back
   'Infernal Core': {
+    variants: [
+      // A — original primary
+      [
+        [6,1,0],   [5,1,0],   [4,1,0.5],   [3,1,0],   [2,2,0.5],
+        [1,1,0],   [0,1.5,0], [2,1,0],     [1,2,1],
+        [0,3,2],
+      ],
+      // B — descent with anguished back-steps; tries to climb, fails
+      [
+        [6,1,0],   [4,1,0],   [5,1,0.5],   [3,1,0],   [4,1.5,0.5],
+        [2,1,0],   [3,1,0],   [1,1.5,0],   [2,1,0.5], [0,2,1],
+        [0,3,2],
+      ],
+      // C — total collapse; four notes, long silences, no hope of recovery
+      [
+        [6,2,1],   [5,3,1.5],
+        [3,2,1],   [0,5,3],
+      ],
+    ],
     primary: [
       [6,1,0],   [5,1,0],   [4,1,0.5],   [3,1,0],   [2,2,0.5],
       [1,1,0],   [0,1.5,0], [2,1,0],     [1,2,1],
@@ -5479,21 +5816,35 @@ function MP_getScore() {
   // Play 2+: procedural variation seeded from _playCount + journey startTime
   //   so every run sounds different but is internally consistent
   const pc = MP._playCount;
-  // Apply per-journey modal transposition to any score we return
+  // Apply per-journey modal transposition — wrap rather than clamp so
+  // high-degree notes cycle through the scale instead of piling up at degree 6
   const applyOffset = (phrases) => {
     const off = (JC.active && JC._scoreOffset) || 0;
     if (!off) return phrases;
-    return phrases.map(([d, dur, rest]) => [Math.min(6, d + off), dur, rest]);
+    return phrases.map(([d, dur, rest]) => [(d + off) % 7, dur, rest]);
   };
 
-  if (pc === 0) return applyOffset(score.primary);
+  if (pc === 0) {
+    // Play 0: pick the per-journey variant (A/B/C) — first hearing of this chapter
+    const vIdx = (JC.active && JC._scoreVariant != null) ? JC._scoreVariant : 0;
+    const vArr = score.variants;
+    const chosen = (vArr && vArr[vIdx]) ? vArr[vIdx] : score.primary;
+    return applyOffset(chosen);
+  }
   if (pc === 1) return applyOffset(score.development);
 
-  // Pick base from primary/development alternately, then transform
-  const base = (pc % 2 === 0) ? score.primary : score.development;
+  // Play 2+: procedural variation — use the journey's variant as the base
+  // so the procedural transforms start from the right melodic character
+  const vIdx2  = (JC.active && JC._scoreVariant != null) ? JC._scoreVariant : 0;
+  const vArr2  = score.variants;
+  const variantBase = (vArr2 && vArr2[vIdx2]) ? vArr2[vIdx2] : score.primary;
+  const base = (pc % 2 === 0) ? variantBase : score.development;
 
-  // Use a deterministic-but-varied seed per (chapter × playCount × journey)
-  const seed = (_sessionSeed ^ (JC.startTime & 0xFFFF)) ^ (pc * 1337) ^ (label ? label.charCodeAt(0) * 17 : 0);
+  // Wide-entropy seed: full 32-bit startTime hash XOR'd with playCount and label
+  const _rawSeed = JC.active
+    ? (Math.imul(JC.startTime ^ 0xC0FFEE, 0x9E3779B9) >>> 0) ^ (pc * 1337)
+    : pc * 1337;
+  const seed = _rawSeed ^ (label ? label.charCodeAt(0) * 17 : 0);
   let s = seed | 1;
   const lrng = () => {
     s = Math.imul(s ^ s >>> 15, s | 1);
@@ -5550,7 +5901,30 @@ function MP_getCelloLine() {
     ? (JC_CHAPTERS[JC.step] || JC_CHAPTERS[0]).label
     : null;
   const score = (label && COMPOSED_SCORE[label]) || SCORE_FALLBACK;
-  return score.celline;
+  const base  = score.celline;
+
+  // Apply the same modal transposition as the melody so they stay in sync
+  const off = (JC.active && JC._scoreOffset) || 0;
+  const shifted = off ? base.map(([d, dur, rest]) => [(d + off) % 7, dur, rest]) : base;
+
+  // After playCount > 1, apply a light variation so the cello line isn't
+  // identical every phrase repeat: 40% chance of rhythmic augmentation,
+  // 30% of a degree inversion around the midpoint, else as-written.
+  const pc = MP._playCount;
+  if (pc <= 1) return shifted;
+
+  const vs = (Math.imul((JC.startTime >>> 0) ^ 0xBEEF, 0x9E3779B9) >>> 0) ^ (pc * 997);
+  const vr = ((vs ^ vs >>> 14) >>> 0) / 4294967296;
+
+  if (vr < 0.40) {
+    // Rhythmic augmentation: stretch durations, adds breathing space
+    return shifted.map(([d, dur, rest]) => [d, dur * 1.35, rest * 1.2]);
+  }
+  if (vr < 0.70) {
+    // Contour inversion: mirror degrees around scale midpoint (3)
+    return shifted.map(([d, dur, rest]) => [Math.max(0, Math.min(6, 6 - d)), dur, rest]);
+  }
+  return shifted;
 }
 
 function MP_resetForChapter(label) {
