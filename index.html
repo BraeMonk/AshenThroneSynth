@@ -621,7 +621,7 @@ canvas {
   align-items: center; justify-content: center;
 }
 #cinematicOverlay.active { display: flex; }
-#cinematicCanvas { width: 100vw; height: 100vh; display: block; }
+#cinematicCanvas { position: absolute; inset: 0; display: block; }
 .cinematic-exit {
   position: absolute; top: 14px; right: 14px;
   font-family: 'Cinzel', serif; font-size: clamp(8px,1.5vw,10px); letter-spacing: .2em;
@@ -12553,10 +12553,57 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
 function drawCinematic() {
   const canvas = document.getElementById('cinematicCanvas');
-  const W = canvas.width  = window.innerWidth;
-  const H = canvas.height = window.innerHeight;
   const c = canvas.getContext('2d');
   const zone = getZone(parseInt(slider.value));
+
+  // ── Resize detection ────────────────────────────────────────────────────────
+  // Strategy: track logical CSS pixels (innerWidth/H) separately from the buffer
+  // (which is logical * dpr). Compare logical pixels for change detection so we
+  // don't spuriously rebuild on every frame at non-integer dpr displays.
+  // Set canvas.style.width/height to exactly match logical dimensions so the
+  // browser never CSS-scales the buffer — the canvas IS the overlay, pixel-perfect.
+  const dpr  = window.devicePixelRatio || 1;
+  const logW = window.innerWidth;
+  const logH = window.innerHeight;
+  const newW = Math.round(logW * dpr);
+  const newH = Math.round(logH * dpr);
+  const dimsChanged = (canvas.width !== newW || canvas.height !== newH);
+  if (dimsChanged) {
+    // oldW/H in buffer pixels for knight rescale ratio
+    const oldW = canvas.width  || newW;
+    const oldH = canvas.height || newH;
+
+    // Set buffer size
+    canvas.width  = newW;
+    canvas.height = newH;
+    // Lock CSS display size to logical pixels — prevents any browser CSS scaling
+    canvas.style.width  = logW + 'px';
+    canvas.style.height = logH + 'px';
+
+    // Rescale knight absolute positions (stored in buffer pixels) proportionally
+    if (CIN.knight) {
+      const sx = newW / oldW, sy = newH / oldH;
+      CIN.knight.x         *= sx;
+      CIN.knight.y         *= sy;
+      CIN.knight.campfireX *= sx;
+      CIN.knight.campfireY *= sy;
+      CIN.knight.targetX   *= sx;
+      if (CIN.knight.combatTarget != null) CIN.knight.combatTarget *= sx;
+      if (Array.isArray(CIN.knight.bloodPuffs))
+        CIN.knight.bloodPuffs.forEach(p => { p.x *= sx; p.y *= sy; });
+      if (Array.isArray(CIN.knight.puffs))
+        CIN.knight.puffs.forEach(p => { p.x *= sx; p.y *= sy; });
+    }
+
+    // Rebuild W/H-baked systems at new buffer dimensions
+    cinBuildTerrain(zone, newW, newH);
+    cinBuildRunes(zone, newW, newH);
+    cinInitFog(zone, newW, newH);
+    // Embers/particles self-respawn using W/H passed into cinDrawScene — no rebuild needed
+  }
+
+  const W = canvas.width;
+  const H = canvas.height;
 
   // ── Zone change — rebuild all systems + trigger chapter reveal ──
   if (zone.name !== CIN.lastZone) {
@@ -12565,16 +12612,13 @@ function drawCinematic() {
     cinInitEmbers(zone, W, H);
     cinBuildRunes(zone, W, H);
     cinInitFog(zone, W, H);
-    CIN.camX   = 0;   // reset scroll on new zone
+    CIN.camX   = 0;
     CIN.camVel = 0;
     CIN.whispers = [];
     CIN.whisperCooldown = 90;
-    // Preserve legend across zone reset — it belongs to the journey, not the zone
     const savedLegend = CIN.knight?.legend || null;
-    CIN.knight = null; // re-init at new zone's ground level
-    // Re-attach legend immediately after null so cinInitKnight can find it
+    CIN.knight = null;
     CIN._pendingLegend = savedLegend;
-    // Chapter reveal title card
     const subtitles = ZONE_SUBTITLES[zone.name] || [''];
     CIN.chapterReveal = {
       zoneName: zone.name,
