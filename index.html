@@ -3724,7 +3724,11 @@ JC.tick = function() {
       if (saturationNode) {
         const targetSat = 0.15 + JC.energy * 0.45;
         _saturation = _saturation + (targetSat - _saturation) * 0.3;
-        saturationNode.curve = makeSatCurve(_saturation);
+        // Defer curve swap to avoid click — same pattern as manual handler
+        clearTimeout(satDebounce);
+        satDebounce = setTimeout(() => {
+          if (saturationNode) saturationNode.curve = makeSatCurve(_saturation);
+        }, 80);
         const satEl = document.getElementById('saturation');
         if (satEl) {
           satEl.value = Math.round(_saturation * 100);
@@ -4699,9 +4703,13 @@ function applyPhraseFX(phrase) {
   if (delayNode) {
     _delayTime = dt.time;
     _delayFb   = dt.fb;
-    delayNode.delayTime.setTargetAtTime(dt.time, now, ramp * 0.5);
-    delayFbGain.gain.setTargetAtTime(dt.fb, now, ramp * 0.5);
-    delayWetGain.gain.setTargetAtTime(dt.wet, now, ramp * 0.5);
+    // Briefly mute delay wet during time change to prevent pitch-sweep artifact
+    delayWetGain.gain.cancelScheduledValues(now);
+    delayWetGain.gain.setValueAtTime(delayWetGain.gain.value, now);
+    delayWetGain.gain.linearRampToValueAtTime(0, now + 0.08);
+    delayNode.delayTime.setTargetAtTime(dt.time, now + 0.1, ramp * 0.5);
+    delayFbGain.gain.setTargetAtTime(dt.fb, now + 0.1, ramp * 0.5);
+    delayWetGain.gain.linearRampToValueAtTime(dt.wet, now + ramp);
     // Update UI
     const dtEl = document.getElementById('delayTime');
     if (dtEl) { dtEl.value = Math.round(dt.time / 1.2 * 100); dtEl.style.setProperty('--pct', Math.round(dt.time/1.2*100)+'%'); document.getElementById('delayTimeVal').textContent = dt.time.toFixed(2)+'s'; }
@@ -4741,11 +4749,15 @@ function applyPhraseFX(phrase) {
   const targetSat = SAT_TARGETS[phrase] ?? 0.22;
   // Blend toward target — don't override Journey auto-FX if it's active
   const blendedSat = JC.active
-    ? _saturation + (targetSat - _saturation) * 0.4   // Journey does the heavy lifting
+    ? _saturation + (targetSat - _saturation) * 0.4
     : targetSat;
-  if (saturationNode) {
+  if (saturationNode && Math.abs(blendedSat - _saturation) > 0.02) {
     _saturation = blendedSat;
-    saturationNode.curve = makeSatCurve(_saturation);
+    // Defer curve swap by 80ms — avoids click from hot-swapping WaveShaper curve
+    // while signal is present. Small delay is inaudible at phrase boundaries.
+    setTimeout(() => {
+      if (saturationNode) saturationNode.curve = makeSatCurve(_saturation);
+    }, 80);
     const satEl = document.getElementById('saturation');
     if (satEl) {
       satEl.value = Math.round(_saturation * 100);
