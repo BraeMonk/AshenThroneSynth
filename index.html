@@ -1049,7 +1049,8 @@ let _chorusRate = 0.30, _chorusDepth = 0.004, _chorusMix = 0.25;
 let _phaserRate = 0.20, _phaserDepth = 0.50, _phaserMix = 0.0;
 let _phaserNodes = null; // { lfo, lfoG, allpass[], wetG, dryG }
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
-let _moodLayerBias = {}; // per-layer gain multiplier driven by mood
+let _moodLayerBias  = {}; // per-layer gain multiplier driven by mood
+let _foundationThin = 1.0; // 1.0=normal, 0.18=whisper — driven by Conductor solo moments
 let _saturation = 0.14;
 
 // BPM Lock
@@ -1609,7 +1610,7 @@ const SessionScorer = (() => {
     // Per-phrase density preference — drifts toward ideal
     densityBias: { intro:0, build:0, tension:0, climax:0, resolution:0 },
     // How much to trust rules vs learned prefs (0=all rules, 1=all learned)
-    learningRate: 0.0,  // starts at 0, grows over session
+    learningRate: 0.0,  // starts at 0, grows over session — capped low to avoid drift
   };
 
   const history = []; // last N bar scores
@@ -1648,7 +1649,7 @@ const SessionScorer = (() => {
     if (history.length > MAX_HISTORY) history.shift();
 
     // Grow learning rate over session — trust learned prefs more over time
-    prefs.learningRate = Math.min(0.6, prefs.learningRate + 0.004);
+    prefs.learningRate = Math.min(0.25, prefs.learningRate + 0.002); // slower growth, lower cap
 
     // Update layer pair preferences based on score
     if (barScore > 0.65) {
@@ -1683,7 +1684,7 @@ const SessionScorer = (() => {
       if ((a === name && layerOn[b]) || (b === name && layerOn[a])) {
         const key = a+'+'+b;
         const w = prefs.layerPairs[key] || 1.0;
-        bias += (w - 1.0) * 0.15 * prefs.learningRate;
+        bias += (w - 1.0) * 0.06 * prefs.learningRate; // was 0.15 — much gentler nudge
       }
     });
 
@@ -1877,6 +1878,21 @@ const Conductor = (() => {
       }
     }
 
+    // Dynamic thinning — during intro/resolution at bar 1, 30% chance
+    if (!_thinActive && (currentPhrase === 'intro' || currentPhrase === 'resolution')) {
+      if (phraseBar === 1 && Math.random() < 0.30) {
+        fireThinning(preset, energy);
+      }
+    }
+
+    // Solo moment — between phrases, during resolution at bar 2, 20% chance
+    // Only when not already in a solo and energy is below 0.7
+    if (!_soloActive && currentPhrase === 'resolution' && energy < 0.70) {
+      if (phraseBar === 2 && Math.random() < 0.20) {
+        fireSoloMoment(preset, energy);
+      }
+    }
+
     // Cadential descending flourish at end of tension
     if (currentPhrase === 'tension' && barsLeft === 1 && Math.random() < 0.7) {
       const descMotif = (ZONE_LEITMOTIFS[preset.name] || baseMotif).slice().reverse();
@@ -1909,7 +1925,73 @@ const Conductor = (() => {
     _lastNextPhrase = null;
   }
 
-  return { onBar, schedule, reset, fireMotifFragment, fireCallAndResponse };
+  // ── Dynamic thinning — pull foundation to near-whisper for 1-2 bars ────────
+  // Used during intro/resolution to create breathing space.
+  let _thinActive = false;
+  function fireThinning(preset, energy) {
+    if (_thinActive || !ctx || !isPlaying) return;
+    _thinActive = true;
+    const thinLevel  = 0.18 + (1 - energy) * 0.12; // quieter at low energy
+    const thinBars   = 1 + Math.floor(Math.random() * 2); // 1-2 bars
+    const barMs      = (barLength || 4) * 1000;
+
+    // Ramp down
+    _foundationThin = thinLevel;
+    logTimeline('Conductor: foundation thin');
+
+    // Ramp back up after thinBars
+    setTimeout(() => {
+      _foundationThin = 1.0;
+      _thinActive = false;
+      logTimeline('Conductor: foundation restore');
+    }, barMs * thinBars);
+  }
+
+  // ── Solo moment — clear non-foundation layers for 1 bar, then rebuild ──────
+  // Creates the feeling of a held breath before the next phrase enters.
+  let _soloActive = false;
+  function fireSoloMoment(preset, energy) {
+    if (_soloActive || !ctx || !isPlaying) return;
+    _soloActive = true;
+    const now    = ctx.currentTime;
+    const barSec = barLength || 4;
+    const SOLO_LAYERS = ['perc','wardrums','melody','choir','horn','cello',
+                         'lute','flute','harp','bells','organ','oud','taiko',
+                         'duduk','viola','guitar','riser','chains'];
+
+    // Fade non-foundation layers down slowly — 2 bars not 0.8s, floor at 0.04 not 0.005
+    SOLO_LAYERS.forEach(n => {
+      const b = bus[n];
+      if (b && layerOn[n]) {
+        b.gain.cancelScheduledValues(now);
+        b.gain.setValueAtTime(b.gain.value, now);
+        b.gain.linearRampToValueAtTime(0.04, now + barSec * 1.2); // slow fade over 1.2 bars
+      }
+    });
+
+    logTimeline('Conductor: solo moment');
+
+    // Rebuild after 1 bar
+    setTimeout(() => {
+      if (!isPlaying) { _soloActive = false; return; }
+      const now2 = ctx.currentTime;
+      const intensity = JC.active ? JC.energy : getIntensity(parseInt(slider?.value ?? '1'));
+      SOLO_LAYERS.forEach(n => {
+        const b = bus[n];
+        if (b && layerOn[n]) {
+          b.gain.cancelScheduledValues(now2);
+          b.gain.setValueAtTime(b.gain.value, now2);
+          b.gain.linearRampToValueAtTime(
+            adaptiveMixTarget(n, intensity),
+            now2 + barSec * 1.5 + Math.random() * barSec // staggered re-entry
+          );
+        }
+      });
+      _soloActive = false;
+    }, barSec * 1000);
+  }
+
+  return { onBar, schedule, reset, fireMotifFragment, fireCallAndResponse, fireThinning, fireSoloMoment };
 })();
 
 let sessionStartTime = null;
@@ -2945,7 +3027,7 @@ function fireLeitmotifReturn(preset, energy) {
           const now2 = ctx.currentTime;
           b.gain.cancelScheduledValues(now2);
           b.gain.setValueAtTime(b.gain.value, now2);
-          b.gain.linearRampToValueAtTime(busTarget(layerName, intensity), now2 + 2.0);
+          b.gain.linearRampToValueAtTime(busTarget(layerName, intensity), now2 + 3.5 + Math.random() * 2.0); // staggered bloom
         }
       }
     }
@@ -3506,15 +3588,17 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   currentPhrase = phraseSeq[phraseSeqIdx];
   stopPhraseEngine(); startPhraseEngine();
 
-  // Master volume: slow ride to new energy level — 8 bars, no dip
+  // Master volume: slow ride to new energy level — 8 bars, no jump
   const now = ctx.currentTime;
-  const targetVol = 0.28 + JC.energy * 0.44;
-
-  // Peak transition — no silence, just a fast swell into the climax
-  // The music itself carries the impact; we don't need to hollow it out first.
-  masterGain.gain.cancelScheduledValues(now);
-  masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-  masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * 8);
+  // Wider dynamic range — calm chapters breathe, peak chapters are present but not slamming
+  const targetVol = 0.30 + JC.energy * 0.32; // max 0.62 instead of 0.72
+  // Only move if meaningfully different — avoids micro-pumping on small energy changes
+  const currentVol = masterGain.gain.value;
+  if (Math.abs(currentVol - targetVol) > 0.04) {
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(currentVol, now);
+    masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * 10); // 10 bars — barely perceptible
+  }
 
   // UI update after 1 bar
   JC.timers.push(setTimeout(()=>{
@@ -3764,6 +3848,7 @@ function startRandomJourney() {
   JC._reconcileBar=0;
   _leitmotifReturnFired=false;
   Conductor.reset();
+  _foundationThin = 1.0;
 
   // ── PER-RUN LAYER ARC SCRAMBLE ────────────────────────────────────────────
   // The mood's layerArc defines which archetype plays each chapter, but it's
@@ -4356,7 +4441,7 @@ const ZONES = [
 ];
 
 function getZone(f)      { return ZONES.find(z => f >= z.range[0] && f <= z.range[1]) || ZONES[ZONES.length-1]; }
-function getIntensity(f) { return Math.min(1, (f - 1) / 50); }
+function getIntensity(f) { return Math.min(1, Math.pow((f - 1) / 98, 0.65)); } // log curve — gentler ramp, no hard ceiling at floor 50
 function getScale(preset) {
   if (activeScaleId === 'zone') return preset.scale;
   const s = SCALES.find(s => s.id === activeScaleId);
@@ -4428,7 +4513,7 @@ function initAudio() {
 
   // Makeup gain — saturation compresses RMS, we need this back
   const satMakeup = ctx.createGain();
-  satMakeup.gain.value = 1.10; // light makeup — don't over-compensate
+  satMakeup.gain.value = 1.0; // unity — new ceilings are already calibrated
   saturationNode.connect(satMakeup);
 
   // Mood filter — wide open by default so harmonics breathe
@@ -4461,7 +4546,15 @@ function initAudio() {
   satMakeup.connect(moodFilter);
   moodFilter.connect(masterHighShelf);
   masterHighShelf.connect(masterCompressor);
-  masterCompressor.connect(analyser);
+  // Brick-wall limiter — catches anything the compressor lets through
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -1.0;   // just below 0dBFS
+  limiter.knee.value      = 0.0;    // hard knee — true limiting
+  limiter.ratio.value     = 20.0;   // near-infinite ratio
+  limiter.attack.value    = 0.001;  // 1ms — catches transients
+  limiter.release.value   = 0.10;
+  masterCompressor.connect(limiter);
+  limiter.connect(analyser);
   analyser.connect(ctx.destination);
 
   try {
@@ -5148,25 +5241,27 @@ function killLayer(name) {
 
 // Absolute gain ceiling per layer
 const MIX_CEILING = {
-  // Foundation — pulled back to give headroom
-  drone:       0.55,  strings:     0.65,  bass:        0.60,
+  // Ceilings designed so 6-8 simultaneous layers sum to ~0.85,
+  // worst-case climax (14 layers) sums to ~1.55 — compressor handles the rest.
+  // Foundation — always on, so kept low
+  drone:       0.14,  strings:     0.16,  bass:        0.13,
   // Harmonic inner voice
-  viola:       0.48,
-  // Melodic lead — melody sits clearly but not blasting
-  melody:      0.72,  choir:       0.70,  horn:        0.62,
-  cello:       0.60,  duduk:       0.56,
+  viola:       0.08,
+  // Melodic lead
+  melody:      0.13,  choir:       0.12,  horn:        0.10,
+  cello:       0.10,  duduk:       0.09,
   // Melodic colour
-  lute:        0.42,  bells:       0.44,  guitar:      0.42,
-  flute:       0.48,  harp:        0.46,  oud:         0.44,
-  organ:       0.48,
-  // Rhythmic — perc still punchy but not overwhelming
-  perc:        0.75,  wardrums:    0.72,  march:       0.68,
-  stomp:       0.64,  taiko:       0.68,  chains:      0.40,
+  lute:        0.07,  bells:       0.08,  guitar:      0.07,
+  flute:       0.09,  harp:        0.08,  oud:         0.07,
+  organ:       0.09,
+  // Rhythmic
+  perc:        0.14,  wardrums:    0.12,  march:       0.11,
+  stomp:       0.10,  taiko:       0.11,  chains:      0.07,
   // Pulse
-  heartbeat:   0.52,  ritualchant: 0.52,  boss:        0.65,
+  heartbeat:   0.09,  ritualchant: 0.09,  boss:        0.12,
   // Texture
-  wind:        0.34,  riser:       0.42,  firecrackle: 0.24,
-  whispers:    0.26,  glitch:      0.30,  chaos:       0.40,
+  wind:        0.06,  riser:       0.07,  firecrackle: 0.05,
+  whispers:    0.05,  glitch:      0.06,  chaos:       0.07,
 };
 
 // Role membership — 7 roles
@@ -5308,7 +5403,11 @@ function adaptiveMixTarget(name, intensity) {
   const raw = ceiling * relation * siblingScale * depthScale * bossLift * phraseDepth * phraseLift;
   const moodBias    = _moodLayerBias[name] ?? 1.0;
   const sessionBias = (typeof SessionScorer !== 'undefined') ? SessionScorer.getLayerBias(name) : 1.0;
-  return Math.min(ceiling, Math.max(0.04, raw * moodBias * sessionBias));
+  // sessionBias is applied as a gentle nudge on the raw value before ceiling clamp.
+  // Clamped to 0.85-1.10 so it can never drive gains more than ±15% from the mix target.
+  const clampedBias  = Math.max(0.85, Math.min(1.10, sessionBias));
+  const foundationMult = (role === 'foundation') ? _foundationThin : 1.0;
+  return Math.min(ceiling, Math.max(0.04, raw * moodBias * clampedBias * foundationMult));
 }
 
 // Legacy shim — called on layer start for initial gain
@@ -8147,52 +8246,90 @@ function buildRiser(preset, intensity, name) {
   const duration = 16;
   const sr = ctx.sampleRate;
 
-  // Noise sweep — 8s buffer to avoid loop click
+  // Pink-ish noise — filter white noise through a cascade to reduce harshness
   const bufLen = sr * 8;
   const buf    = ctx.createBuffer(1, bufLen, sr);
   const d      = buf.getChannelData(0);
-  for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+  // Shape the noise buffer toward pink (simple first-order filter in buffer)
+  let prev = 0;
+  for (let i = 0; i < bufLen; i++) {
+    const white = Math.random() * 2 - 1;
+    prev = prev * 0.98 + white * 0.02; // integrate toward pink
+    d[i] = white * 0.6 + prev * 0.4;  // blend white + integrated
+  }
 
   const src  = ctx.createBufferSource();
   src.buffer = buf; src.loop = true;
-  const filt = mkFilt(80, 'bandpass', 2.5);
+
+  // Softer filter stack — LP + bandpass instead of raw bandpass
+  const lp   = mkFilt(800, 'lowpass', 0.6);   // cut harshness above 800Hz initially
+  const bp   = mkFilt(200, 'bandpass', 1.2);  // gentle body — lower Q = less resonant
   const g    = mkGain(0);
-  chain(src, filt, g, b);
+
+  src.connect(bp); bp.connect(lp); chain(lp, g, b);
   src.start(ctx.currentTime + 0.01);
 
   function sweep() {
     const now = ctx.currentTime;
-    // Noise sweep
-    filt.frequency.cancelScheduledValues(now);
-    filt.frequency.setValueAtTime(80, now);
-    filt.frequency.exponentialRampToValueAtTime(5000, now + duration * 0.72);
+
+    // Noise sweep — LP opens gradually rather than bandpass screaming
+    lp.frequency.cancelScheduledValues(now);
+    lp.frequency.setValueAtTime(300, now);
+    lp.frequency.exponentialRampToValueAtTime(3200, now + duration * 0.80);
+    bp.frequency.cancelScheduledValues(now);
+    bp.frequency.setValueAtTime(120, now);
+    bp.frequency.exponentialRampToValueAtTime(1800, now + duration * 0.75);
+
+    // Gentler gain envelope — fades in slower, out earlier
     g.gain.cancelScheduledValues(now);
     g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.12 + intensity * 0.18, now + duration * 0.45);
-    g.gain.linearRampToValueAtTime(0, now + duration * 0.96);
+    g.gain.linearRampToValueAtTime(0.06 + intensity * 0.10, now + duration * 0.55);
+    g.gain.linearRampToValueAtTime(0, now + duration * 0.88);
 
-    // Tone riser — starts from current chord root, sweeps up 3 octaves
-    // Using CE.currentChord.root ensures it's harmonically grounded
-    const toneDelay  = duration * 0.22;
-    const chordRoot  = CE.currentChord.root || preset.root;
-    const toneO      = mkOsc(Math.max(20, chordRoot * 0.5), 'sawtooth');
-    const toneFilt   = mkFilt(200, 'lowpass', 3);
-    const toneG      = mkGain(0);
-    chain(toneO, toneFilt, toneG, b);
+    // Tone riser — sine + detuned octave instead of harsh sawtooth
+    const toneDelay = duration * 0.28;
+    const chordRoot = CE.currentChord.root || preset.root;
+    const startFreq = Math.max(20, chordRoot * 0.5);
+    const endFreq   = Math.max(20, chordRoot * 6);
+
+    // Fundamental sine
+    const toneO  = mkOsc(startFreq, 'sine');
+    const toneG  = mkGain(0);
+    // Octave above, softer
+    const toneO2 = mkOsc(startFreq * 2, 'sine');
+    const toneG2 = mkGain(0);
+    // Gentle LP so they don't get harsh at top of sweep
+    const toneLp = mkFilt(2400, 'lowpass', 0.8);
+
+    toneO.connect(toneG);  toneG.connect(toneLp);
+    toneO2.connect(toneG2); toneG2.connect(toneLp);
+    toneLp.connect(b);
+
     toneO.start(now + toneDelay);
-    toneO.frequency.setValueAtTime(Math.max(20, chordRoot * 0.5), now + toneDelay);
-    toneO.frequency.exponentialRampToValueAtTime(Math.max(20, chordRoot * 8), now + duration * 0.85);
+    toneO.frequency.setValueAtTime(startFreq, now + toneDelay);
+    toneO.frequency.exponentialRampToValueAtTime(endFreq, now + duration * 0.88);
+    toneO2.start(now + toneDelay);
+    toneO2.frequency.setValueAtTime(startFreq * 2, now + toneDelay);
+    toneO2.frequency.exponentialRampToValueAtTime(endFreq * 2, now + duration * 0.88);
+
+    // Tone envelope — slow swell, fade before noise does
+    const tVol = 0.05 + intensity * 0.06;
     toneG.gain.setValueAtTime(0, now + toneDelay);
-    toneG.gain.linearRampToValueAtTime(0.07 + intensity * 0.07, now + toneDelay + duration * 0.2);
-    toneG.gain.linearRampToValueAtTime(0, now + duration * 0.96);
-    toneO.stop(now + duration);
-    reg(name, toneO, toneFilt, toneG);
+    toneG.gain.linearRampToValueAtTime(tVol, now + toneDelay + duration * 0.25);
+    toneG.gain.linearRampToValueAtTime(0, now + duration * 0.92);
+    toneG2.gain.setValueAtTime(0, now + toneDelay);
+    toneG2.gain.linearRampToValueAtTime(tVol * 0.45, now + toneDelay + duration * 0.30);
+    toneG2.gain.linearRampToValueAtTime(0, now + duration * 0.92);
+
+    toneO.stop(now + duration + 0.1);
+    toneO2.stop(now + duration + 0.1);
+    reg(name, toneO, toneG, toneO2, toneG2, toneLp);
 
     regT(name, setTimeout(sweep, duration * 1000));
   }
 
   sweep();
-  reg(name, src, filt, g);
+  reg(name, src, lp, bp, g);
 }
 
 function buildFireCrackle(preset, intensity, name) {
@@ -8950,16 +9087,27 @@ function buildOrgan(preset, intensity, name) {
 
   function schedPhrase() {
     const dense      = currentPhrase === 'climax' || isBoss;
-    const playBars   = dense ? 3 : 2;
-    const restBars   = dense ? 1 : 2;
-    const cycleBars  = playBars + restBars;
     const phraseBars = PHRASE_DURATIONS[currentPhrase] || 8;
-    const cycles     = Math.floor(phraseBars / cycleBars);
     const phraseDur  = phraseBars * beat * 4;
 
-    let t = ctx.currentTime + beat * 0.5;
-    for (let c = 0; c < cycles; c++) {
-      playChord(t + c * cycleBars * beat * 4, playBars);
+    // Organic timing — vary play/rest lengths each phrase instead of rigid cycle
+    let t = ctx.currentTime + beat * (0.25 + rng() * 0.75); // staggered entry
+    let bar = 0;
+    while (bar < phraseBars - 1) {
+      // Play length: 1-3 bars, weighted toward 2
+      const playBars = dense
+        ? 2 + Math.floor(rng() * 2)
+        : 1 + Math.floor(rng() * 3);
+      // Rest length: longer at low intensity, shorter at high
+      const restBars = Math.max(1, Math.round(1.5 + (1 - intensity) * 1.5 + rng() * 1.0));
+
+      if (bar + playBars <= phraseBars) {
+        // Random entry offset per chord — feels like a player breathing in
+        const entryJitter = beat * (rng() * 0.18 - 0.09);
+        playChord(t + entryJitter, playBars);
+      }
+      t   += (playBars + restBars) * beat * 4;
+      bar += playBars + restBars;
     }
 
     regT(name, setTimeout(schedPhrase, (phraseDur - beat * 0.2) * 1000));
@@ -11224,14 +11372,13 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
   //   3. Restore master bus at bar 5 — new zone identity fills the silence
   // This is how real film composers handle key changes and scene transitions.
   if (ctx && masterGain) {
-    const now = ctx.currentTime;
+    const now    = ctx.currentTime;
     const barSec = barLength || 4;
-    // Duck down — half a bar of fade, hold 2 bars, restore at bar 4
+    const floor  = parseInt(slider?.value ?? '1');
+    const targetVol = 0.38 + getIntensity(floor) * 0.28; // calm continuous ride, no duck
     masterGain.gain.cancelScheduledValues(now);
     masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    masterGain.gain.linearRampToValueAtTime(0.52, now + barSec * 1.0);   // breath in — gentle dip
-    masterGain.gain.setValueAtTime(0.52, now + barSec * 4.0);            // hold through pattern swap
-    masterGain.gain.linearRampToValueAtTime(0.60, now + barSec * 7.0);   // bloom back slowly
+    masterGain.gain.linearRampToValueAtTime(targetVol, now + barSec * 6.0); // slow drift
   }
 
   // Delay chord engine zone change to bar 4 so it transitions mid-dip
