@@ -10014,59 +10014,166 @@ function buildLute(preset, intensity, name) {
   // Per-journey pick which A/B/C variant to use — consistent with scoreVariant
   const variantIdx = (JC.active && JC._scoreVariant != null) ? JC._scoreVariant : Math.floor(rng() * 3);
 
-  // ── pluckNote: synthesize one lute note ───────────────────────────────────
-  // Kept from original builder — bright pluck, fast filter close, body thump.
+  // ── pluckNote: natural lute string physics ────────────────────────────────
+  // A lute string has four acoustic layers:
+  //   1. Attack transient — finger-nail/flesh catch: very short noise burst
+  //   2. Bright fundamental — fast-decaying high harmonics (the "pluck" click)
+  //   3. Sustaining body — warm filtered fundamental that rings on
+  //   4. Double-course shimmer — lute strings are paired, slightly detuned
+  //      creating the characteristic beating/chorus that makes it sound alive
+  //
+  // Synthesis approach:
+  //   - Karplus-Strong-inspired: bright onset filtered down sharply, not slowly
+  //   - Two paired oscillators (course A + B) detuned by ~4–8 cents
+  //   - Harmonic series: fundamental + 2nd + 3rd partials at natural ratios
+  //   - Filter closes in 15–40ms (not 70% of note length)
+  //   - Body resonance bandpass tuned to string's natural body mode (~1.2× freq)
+  //   - Finger noise: 8ms noise burst at attack, bandpass at 2–4kHz
+  //   - Sympathetic: 5th (×1.5) and octave (×2) at low level, longer decay
+
   function pluckNote(bt, freq, dur, vel) {
     if (!freq || freq < 60 || !layerOn[name]) return;
-    const o1   = mkOsc(freq,     'sawtooth', -5);
-    const o2   = mkOsc(freq,     'sawtooth',  5);
-    const o3   = mkOsc(freq * 2, 'sine',      0);
-    const g1   = mkGain(0.50), g2 = mkGain(0.35), g3 = mkGain(0.15);
-    const filt = mkFilt(freq * 8, 'lowpass', 0.7);
-    const env  = mkGain(0);
-    chain(o1, g1, filt); chain(o2, g2, filt); chain(o3, g3, filt);
-    chain(filt, env, b);
-    const v = vel * (0.82 + rng() * 0.18);
+
+    const sr = ctx.sampleRate;
+
+    // ── Double-course detuning — the soul of the lute ─────────────────────
+    // Course A: slightly flat, Course B: slightly sharp.
+    // Beat frequency: ~0.8–2 Hz at low frequencies, ~3–6 Hz at high.
+    // This creates the shimmer that distinguishes lute from harpsichord.
+    const detuneHz  = 0.6 + rng() * 1.8;          // beating rate in Hz
+    const detuneCent = Math.round(1200 * Math.log2(1 + detuneHz / freq));
+    const detA = -detuneCent * 0.5;
+    const detB =  detuneCent * 0.5;
+
+    // ── Partial mix — natural string harmonic series ──────────────────────
+    // Fundamental dominates, each upper partial at roughly 1/n amplitude.
+    // Triangle wave for partials gives odd-harmonic emphasis (nasal warmth).
+    const partials = [
+      { mult: 1.0, wave: 'triangle', gv: 0.55, detA,     detB     },
+      { mult: 2.0, wave: 'sine',     gv: 0.20, detA: -2, detB:  2 },
+      { mult: 3.0, wave: 'sine',     gv: 0.10, detA:  1, detB: -1 },
+      { mult: 4.0, wave: 'sine',     gv: 0.05, detA:  0, detB:  0 },
+    ];
+
+    // Master envelope — fast attack, natural exponential decay
+    // Real plucked strings: attack ~2ms, decay varies with string/fret
+    const env = mkGain(0);
+    env.connect(b);
+    const v = vel * (0.80 + rng() * 0.20);
     env.gain.setValueAtTime(0, bt);
-    env.gain.linearRampToValueAtTime(v, bt + 0.004);
-    env.gain.exponentialRampToValueAtTime(0.001, bt + dur);
-    filt.frequency.setValueAtTime(freq * 8, bt);
-    filt.frequency.exponentialRampToValueAtTime(freq * 1.5, bt + dur * 0.7);
-    o1.start(bt); o1.stop(bt + dur + 0.05);
-    o2.start(bt); o2.stop(bt + dur + 0.05);
-    o3.start(bt); o3.stop(bt + dur + 0.05);
-    reg(name, o1, o2, o3, g1, g2, g3, filt, env);
+    env.gain.linearRampToValueAtTime(v, bt + 0.002);           // 2ms attack
+    env.gain.setValueAtTime(v * 0.92, bt + 0.008);             // immediate partial drop
+    env.gain.exponentialRampToValueAtTime(v * 0.35, bt + 0.06);// fast initial decay (string physics)
+    env.gain.exponentialRampToValueAtTime(0.0008, bt + dur);    // long tail
+    reg(name, env);
 
-    // Body thump
-    const bodyBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.04), ctx.sampleRate);
-    const bd = bodyBuf.getChannelData(0);
-    for (let j = 0; j < bd.length; j++) bd[j] = (Math.random()*2-1) * Math.exp(-j/ctx.sampleRate/0.012);
-    const bodySrc = ctx.createBufferSource(); bodySrc.buffer = bodyBuf;
-    const bodyF = mkFilt(freq * 2.5, 'bandpass', 4);
-    const bodyG = mkGain(0.04 + intensity * 0.03);
-    chain(bodySrc, bodyF, bodyG, b); bodySrc.start(bt);
-    reg(name, bodySrc, bodyF, bodyG);
+    // Brightness filter — closes FAST like a real string (not 70% of dur)
+    // High Q gives the "ping" quality of gut/nylon string
+    const bright = mkFilt(Math.min(18000, freq * 14), 'lowpass', 1.2);
+    bright.connect(env);
+    bright.frequency.setValueAtTime(freq * 14, bt);
+    // Closes to 2.5× fundamental in ~25ms — the snap of a pluck
+    bright.frequency.exponentialRampToValueAtTime(freq * 2.5, bt + 0.025);
+    // Slow final close follows the body resonance
+    bright.frequency.exponentialRampToValueAtTime(freq * 1.8, bt + dur * 0.5);
+    reg(name, bright);
 
-    // Sympathetic overtone
-    if (rng() < 0.40) {
-      const sf = freq * (rng() < 0.5 ? 1.5 : 2.0);
-      const so = mkOsc(sf, 'sine');
-      const se = mkGain(0);
-      chain(so, se, b);
-      se.gain.setValueAtTime(0, bt + 0.01);
-      se.gain.linearRampToValueAtTime(0.011 + intensity * 0.007, bt + 0.04);
-      se.gain.exponentialRampToValueAtTime(0.0001, bt + dur * 2.5);
-      so.start(bt + 0.01); so.stop(bt + dur * 3);
-      reg(name, so, se);
+    // Build paired oscillators per partial
+    partials.forEach(({ mult, wave, gv, detA: dA, detB: dB }) => {
+      const f = freq * mult;
+      if (f > 16000) return; // above hearing, skip
+      const oA = mkOsc(f, wave, dA);
+      const oB = mkOsc(f, wave, dB);
+      const gA = mkGain(gv * 0.55);
+      const gB = mkGain(gv * 0.45);
+      chain(oA, gA, bright);
+      chain(oB, gB, bright);
+      oA.start(bt); oA.stop(bt + dur + 0.15);
+      oB.start(bt); oB.stop(bt + dur + 0.15);
+      reg(name, oA, oB, gA, gB);
+    });
+
+    // ── Body resonance — the wooden box ──────────────────────────────────
+    // Two bandpass filters at body modes: ~1.2× and ~2.1× the string freq.
+    // These give the warm "thock" underneath the bright pluck.
+    const body1 = mkFilt(freq * 1.2, 'bandpass', 5);
+    const body2 = mkFilt(freq * 2.1, 'bandpass', 3);
+    const bodyEnv = mkGain(0);
+    body1.connect(bodyEnv); body2.connect(bodyEnv);
+    bodyEnv.connect(b);
+    const bodyVol = (0.12 + intensity * 0.08) * v;
+    bodyEnv.gain.setValueAtTime(0, bt);
+    bodyEnv.gain.linearRampToValueAtTime(bodyVol, bt + 0.003);
+    bodyEnv.gain.exponentialRampToValueAtTime(bodyVol * 0.4, bt + 0.04);
+    bodyEnv.gain.exponentialRampToValueAtTime(0.0004, bt + dur * 0.8);
+    reg(name, body1, body2, bodyEnv);
+
+    // Route a copy of the fundamental oscillator through the body filters
+    const bodyOsc = mkOsc(freq, 'triangle', 0);
+    const bodyG   = mkGain(1.0);
+    chain(bodyOsc, bodyG, body1);
+    bodyOsc.connect(body2);
+    bodyOsc.start(bt); bodyOsc.stop(bt + dur + 0.1);
+    reg(name, bodyOsc, bodyG);
+
+    // ── Finger noise — the attack transient ──────────────────────────────
+    // 8ms of bandpass noise at 2–4kHz gives the nail/flesh catch on the string.
+    // This is what separates a live recording from a synthesizer.
+    const noiseDur = 0.008;
+    const noiseSamples = Math.floor(sr * noiseDur);
+    const noiseBuf = ctx.createBuffer(1, noiseSamples, sr);
+    const nd = noiseBuf.getChannelData(0);
+    for (let i = 0; i < noiseSamples; i++) {
+      nd[i] = (Math.random() * 2 - 1) * Math.exp(-i / noiseSamples * 4);
+    }
+    const noiseSrc = ctx.createBufferSource();
+    noiseSrc.buffer = noiseBuf;
+    const noiseF = mkFilt(2800 + rng() * 1200, 'bandpass', 2.5);
+    const noiseG = mkGain((0.06 + intensity * 0.04) * v);
+    chain(noiseSrc, noiseF, noiseG, b);
+    noiseSrc.start(bt);
+    reg(name, noiseSrc, noiseF, noiseG);
+
+    // ── Sympathetic resonance — open strings ringing in sympathy ─────────
+    // Fire on ~55% of notes (higher chance than before — it's central to lute character).
+    // 5th (×1.5) rings longer than the octave (×2) — mirrors real string physics.
+    if (rng() < 0.55) {
+      const sympFreqs = rng() < 0.6
+        ? [{ f: freq * 1.5, dur: dur * 2.8, vol: 0.018 }]
+        : [{ f: freq * 2.0, dur: dur * 2.0, vol: 0.014 }, { f: freq * 1.5, dur: dur * 3.2, vol: 0.010 }];
+      sympFreqs.forEach(({ f, dur: sd, vol: sv }) => {
+        if (f > 14000) return;
+        const so  = mkOsc(f, 'sine');
+        const soB = mkOsc(f, 'sine', 2); // slight detune on sympathetic too
+        const se  = mkGain(0);
+        chain(so,  se, b);
+        chain(soB, se, b);
+        const sympVol = sv * (0.8 + rng() * 0.2) * v;
+        se.gain.setValueAtTime(0, bt + 0.005);
+        se.gain.linearRampToValueAtTime(sympVol, bt + 0.025);
+        se.gain.exponentialRampToValueAtTime(0.00005, bt + sd);
+        so.start(bt + 0.005);  so.stop(bt + sd + 0.1);
+        soB.start(bt + 0.005); soB.stop(bt + sd + 0.1);
+        reg(name, so, soB, se);
+      });
     }
   }
 
-  // ── ornament: grace note (very fast pre-note a step above) ────────────────
-  function graceNote(bt, freq, dur) {
-    const graceFreq = CE.scaleStep(preset, preset.melodyOctave + 1, 1) * (freq / CE.scaleStep(preset, preset.melodyOctave + 1, 0));
-    // Approximate: grace is always one scale step up from the main note
-    const gf = freq * 1.059; // roughly one semitone — keeps it quick without CE lookup
-    pluckNote(bt - 0.04, gf, 0.03, (0.06 + intensity * 0.04));
+  // ── ornament: grace note — proper scale step above, not fixed semitone ────
+  function graceNote(bt, freq, dur, vel) {
+    // One scale step up: find the ratio between consecutive scale degrees
+    const scale = (typeof getScale === 'function') ? getScale(preset) : preset.scale;
+    const oct  = preset.melodyOctave + 1;
+    const root = preset.root * Math.pow(2, oct);
+    const ratio = freq / root;
+    let nearestIdx = 0, minDist = Infinity;
+    scale.forEach((r, i) => {
+      const d = Math.abs(r - ratio);
+      if (d < minDist) { minDist = d; nearestIdx = i; }
+    });
+    const graceRatio = scale[Math.min(nearestIdx + 1, scale.length - 1)];
+    const graceFreq  = root * graceRatio;
+    pluckNote(bt - 0.032, graceFreq, 0.028, vel * 0.55);
   }
 
   // ── schedPhrase: schedule one complete phrase then recurse ───────────────
@@ -10096,7 +10203,7 @@ function buildLute(preset, intensity, name) {
 
       // Grace note on strong beats of jig/reel at moderate+ intensity
       if (isStrong && pType !== 'air' && intensity > 0.3 && rng() < 0.45) {
-        graceNote(localT, freq, noteDur);
+        graceNote(localT, freq, noteDur, vel);
       }
 
       pluckNote(localT, freq, noteDur, vel);
