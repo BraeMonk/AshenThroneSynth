@@ -8477,7 +8477,102 @@ function buildGuitar(preset, intensity, name) {
     }
   }
 
-  schedArp();
+  // ── Oscillator-based sustained note for halo voice ───────────────────────
+  // Fundamental-heavy tone with controlled harmonics, soft attack, tremolo.
+  function playHaloNote(freq, duration) {
+    if (!freq || !layerOn[name]) return;
+    const now2   = ctx.currentTime;
+    const attack = 0.12;
+    const rel    = Math.min(duration * 0.35, 1.4);
+    const vol    = 0.32 + intensity * 0.14;
+
+    // Fundamental — square wave emphasises odd harmonics like a single-coil pickup
+    const fund = ctx.createOscillator();
+    fund.type = 'square';
+    fund.frequency.value = freq;
+
+    // Octave sub mixed in quietly for body
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.value = freq * 0.5;
+    const subG = ctx.createGain(); subG.gain.value = 0.18;
+
+    // Slight second harmonic for warmth
+    const harm2 = ctx.createOscillator();
+    harm2.type = 'sine';
+    harm2.frequency.value = freq * 2;
+    const harm2G = ctx.createGain(); harm2G.gain.value = 0.10;
+
+    // Merge into single gain
+    const merge = ctx.createGain(); merge.gain.value = 1;
+    fund.connect(merge);
+    sub.connect(subG); subG.connect(merge);
+    harm2.connect(harm2G); harm2G.connect(merge);
+
+    // Heavy LP — cuts squareness down to guitar-like warmth, cutoff ~1.8kHz
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 1800; lp.Q.value = 0.8;
+
+    // Subtle presence peak — string attack character
+    const pres = ctx.createBiquadFilter();
+    pres.type = 'peaking'; pres.frequency.value = 1400; pres.gain.value = 3; pres.Q.value = 2.0;
+
+    // Slow tremolo — O'Donnell signature, ~4Hz, very subtle
+    const trem    = ctx.createOscillator();
+    const tremG   = ctx.createGain();
+    trem.frequency.value = 3.8 + Math.random() * 0.4;
+    tremG.gain.value = 0.04;
+    trem.connect(tremG);
+
+    // Amplitude envelope
+    const env = ctx.createGain(); env.gain.setValueAtTime(0, now2);
+    env.gain.linearRampToValueAtTime(vol, now2 + attack);
+    env.gain.setValueAtTime(vol, now2 + duration - rel);
+    env.gain.linearRampToValueAtTime(0, now2 + duration);
+    tremG.connect(env.gain); // tremolo modulates envelope gain
+
+    const body = makeBodyFilter(name, 'guitar_electric');
+    body.output.connect(b);
+    chain(merge, lp, pres, env, body.input);
+
+    fund.start(now2); fund.stop(now2 + duration + 0.1);
+    sub.start(now2);  sub.stop(now2 + duration + 0.1);
+    harm2.start(now2); harm2.stop(now2 + duration + 0.1);
+    trem.start(now2);  trem.stop(now2 + duration + 0.1);
+    reg(name, fund, sub, subG, harm2, harm2G, merge, lp, pres, env, trem, tremG);
+  }
+
+  function schedHalo() {
+    if (!layerOn[name]) return;
+
+    const currentChordLabel = CE.currentChord.label;
+    if (currentChordLabel !== guitarLastChord) {
+      guitarLastChord = currentChordLabel;
+    }
+
+    const pat    = ARPS_HALO[patIdx % ARPS_HALO.length];
+    const step   = pat[arpStep % pat.length];
+    const vIdx   = step[0];
+    const octM   = step[1];
+    const freq   = CE.chordTone('guitar', octM, vIdx % Math.max(1, CE.currentChord.ratios.length));
+    const isBass = step[2] === 'bass';
+
+    const base    = isBass ? beat * vc.timingBass : beat * vc.timingTreb;
+    const stepDur = base * (0.95 + Math.random() * vc.jitter * 2);
+    const noteDur = stepDur * 2.8; // notes overlap — key to sustained feel
+
+    playHaloNote(freq, noteDur);
+
+    t += stepDur;
+    arpStep++;
+    regT(name, setTimeout(schedHalo, stepDur * 1000));
+  }
+
+  if (voice === 'halo') {
+    schedHalo();
+  } else {
+    schedArp();
+  }
 }
 // ── FLUTE ─────────────────────────────────────────────────────────────────────
 // Three voices: concert (bright, airy), breathy (heavy breath noise, slightly
