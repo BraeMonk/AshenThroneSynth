@@ -15960,33 +15960,42 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
   } else if (cfg.terrainStyle === 'skyline') {
     // Neon: procedural city skyline — geometric building silhouettes
-    const scrollX = -(CIN.camX * 0.35);
+    // bi is derived from world-space tile index so heights are always seed-stable
     const buildingRng = (s) => { let x = Math.sin(s * 47.3 + 12.1) * 43758.5; return x - Math.floor(x); };
     const buildingCount = 32;
     const bW = W / buildingCount;
     // Far layer — small distant buildings
-    for (let bi = -2; bi < buildingCount + 2; bi++) {
-      const sx = bi * bW + ((scrollX * 0.4) % bW);
+    // worldOff = how many full tiles the camera has scrolled (far parallax 0.4)
+    const farWorldX = CIN.camX * 0.35 * 0.4;
+    const farTileOff = Math.floor(farWorldX / bW);
+    const farPxOff   = farWorldX % bW;
+    for (let si = -2; si < buildingCount + 2; si++) {
+      const bi = si + farTileOff;          // stable world-space index -> stable seed
+      const sx = si * bW - farPxOff;
       const bh = H * (0.15 + buildingRng(bi * 3.1) * 0.22);
       const by = horizonY - bh;
       const fillVal = Math.floor(18 + buildingRng(bi) * 12);
       c.fillStyle = `rgb(${fillVal},${fillVal},${Math.floor(fillVal * 1.8)})`;
       c.fillRect(sx, by, bW * (0.55 + buildingRng(bi * 2) * 0.35), bh);
-      // Windows
+      // Windows - lit state keyed to world index only, never flicker on scroll
       const winRows = Math.floor(bh / 8), winCols = 2;
       for (let wr = 0; wr < winRows; wr++) {
         for (let wc = 0; wc < winCols; wc++) {
-          const wLit = buildingRng(bi * 13 + wr * 7 + wc * 3 + Math.floor(t / 120)) > 0.45;
-          if (!wLit) continue;
+          if (buildingRng(bi * 13 + wr * 7 + wc * 3) <= 0.45) continue;
           const wx = sx + 3 + wc * 7, wy = by + 4 + wr * 7;
           c.fillStyle = buildingRng(bi + wr) > 0.6 ? 'rgba(0,229,255,0.5)' : 'rgba(255,45,120,0.35)';
           c.fillRect(wx, wy, 4, 4);
         }
       }
     }
-    // Near layer — taller buildings with bass-reactive antenna glow
-    for (let bi = -1; bi < 14; bi++) {
-      const sx2 = bi * bW * 2.1 + ((scrollX * 0.7) % (bW * 2));
+    // Near layer - taller buildings with bass-reactive antenna glow
+    const nearBW = bW * 2.1;
+    const nearWorldX = CIN.camX * 0.35 * 0.7;
+    const nearTileOff = Math.floor(nearWorldX / nearBW);
+    const nearPxOff   = nearWorldX % nearBW;
+    for (let si = -1; si < 14; si++) {
+      const bi = si + nearTileOff;
+      const sx2 = si * nearBW - nearPxOff;
       const bh2 = H * (0.28 + buildingRng(bi * 5.3 + 100) * 0.32);
       const by2 = horizonY - bh2;
       const bwn = bW * (0.8 + buildingRng(bi * 2 + 200) * 0.8);
@@ -16051,14 +16060,18 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
         }
       });
     }
-    // Near bamboo silhouette layer
-    const bambooScroll = -(CIN.camX * 0.62) % W;
-    for (let bi = -2; bi < 18; bi++) {
-      const bx = bi * W/15 + ((bambooScroll) % (W/15));
+    // Near bamboo silhouette layer — world-space indexed so stalks never pop/reset
+    const bambooSpacing = W / 15;
+    const bambooWorldX  = CIN.camX * 0.62;
+    const bambooTileOff = Math.floor(bambooWorldX / bambooSpacing);
+    const bambooPxOff   = bambooWorldX % bambooSpacing;
+    for (let si = -2; si < 18; si++) {
+      const bi = si + bambooTileOff;       // stable world index -> stable Math.sin seed
+      const bx = si * bambooSpacing - bambooPxOff;
       const bh = H * (0.22 + Math.sin(bi * 7.3) * 0.08);
       const by = horizonY - bh * 0.65;
       const stemW = Math.max(1.5, Math.min(W,H) * 0.006 + Math.sin(bi * 3.1) * Math.min(W,H) * 0.002);
-      // Sway with bass
+      // Sway keyed to world index so sway phase is also stable
       const sway = Math.sin(t * 0.02 + bi * 1.7) * (3 + CIN.smoothBass * 8);
       c.save(); c.translate(bx + sway, 0);
       c.fillStyle = 'rgba(30,15,25,0.85)';
@@ -16125,9 +16138,9 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     // Void: corrupted grid geometry with glitch tears
     const gridCols = 24, gridRows = 16;
     const scrollX3 = -(CIN.camX * 0.3);
-    for (let gc = 0; gc < gridCols; gc++) {
+    for (let gc = -1; gc < gridCols; gc++) {
       for (let gr = 0; gr < gridRows; gr++) {
-        const gx = (gc / gridCols) * W + ((scrollX3) % (W/gridCols));
+        const gx = (gc / gridCols) * W + (((scrollX3) % (W/gridCols) + W/gridCols) % (W/gridCols));
         const gy = horizonY * 0.2 + (gr / gridRows) * horizonY * 0.8;
         const corrupt = Math.sin(gc * 7.3 + gr * 11.1 + t * 0.015) > 0.88;
         const gAlpha = corrupt ? (0.12 + active * 0.18) : (0.025 + active * 0.04);
