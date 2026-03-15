@@ -249,6 +249,20 @@ input[type=range].mood-slider::-webkit-slider-thumb {
   background: radial-gradient(circle at 35% 32%, #309090, var(--teal));
   box-shadow: 0 0 9px rgba(22,80,80,.65);
 }
+input[type=range].chorus-slider {
+  background: linear-gradient(90deg, #1a6640 var(--pct,0%), var(--seam) var(--pct,0%));
+}
+input[type=range].chorus-slider::-webkit-slider-thumb {
+  background: radial-gradient(circle at 35% 32%, #2ea860, #1a6640);
+  box-shadow: 0 0 9px rgba(26,102,64,.65);
+}
+input[type=range].phaser-slider {
+  background: linear-gradient(90deg, var(--ember-hi) var(--pct,0%), var(--seam) var(--pct,0%));
+}
+input[type=range].phaser-slider::-webkit-slider-thumb {
+  background: radial-gradient(circle at 35% 32%, var(--gold), var(--ember-hi));
+  box-shadow: 0 0 9px rgba(170,52,24,.65);
+}
 
 /* ── ZONE BAR ─────────────────────────────────────────────── */
 .zone-bar { display: flex; gap: 2px; margin-top: 10px; }
@@ -862,6 +876,24 @@ canvas {
           <div class="fx-label-row"><span class="fx-label">Saturation</span><span class="fx-value" id="saturationVal">28%</span></div>
           <div class="fx-desc">Tube warmth / harmonic grit</div>
           <input type="range" class="fx-slider" id="saturationSlider" min="0" max="100" value="28" style="--pct:28%" oninput="onSaturation(this)"/>
+          <div class="fx-label-row" style="margin-top:14px"><span class="fx-label">Chorus Rate</span><span class="fx-value" id="chorusRateVal">0.30Hz</span></div>
+          <div class="fx-desc">LFO speed — slow=lush, fast=shimmer</div>
+          <input type="range" class="fx-slider chorus-slider" id="chorusRate" min="1" max="100" value="15" style="--pct:15%" oninput="onChorusRate(this)"/>
+          <div class="fx-label-row"><span class="fx-label">Chorus Depth</span><span class="fx-value" id="chorusDepthVal">40%</span></div>
+          <div class="fx-desc">Modulation amount — width and movement</div>
+          <input type="range" class="fx-slider chorus-slider" id="chorusDepth" min="0" max="100" value="40" style="--pct:40%" oninput="onChorusDepth(this)"/>
+          <div class="fx-label-row"><span class="fx-label">Chorus Mix</span><span class="fx-value" id="chorusMixVal">25%</span></div>
+          <div class="fx-desc">Wet/dry blend</div>
+          <input type="range" class="fx-slider chorus-slider" id="chorusMix" min="0" max="100" value="25" style="--pct:25%" oninput="onChorusMix(this)"/>
+          <div class="fx-label-row" style="margin-top:14px"><span class="fx-label">Phaser Rate</span><span class="fx-value" id="phaserRateVal">0.20Hz</span></div>
+          <div class="fx-desc">Sweep speed — slow=breath, fast=spin</div>
+          <input type="range" class="fx-slider phaser-slider" id="phaserRate" min="1" max="100" value="10" style="--pct:10%" oninput="onPhaserRate(this)"/>
+          <div class="fx-label-row"><span class="fx-label">Phaser Depth</span><span class="fx-value" id="phaserDepthVal">50%</span></div>
+          <div class="fx-desc">Notch sweep range</div>
+          <input type="range" class="fx-slider phaser-slider" id="phaserDepth" min="0" max="100" value="50" style="--pct:50%" oninput="onPhaserDepth(this)"/>
+          <div class="fx-label-row"><span class="fx-label">Phaser Mix</span><span class="fx-value" id="phaserMixVal">0%</span></div>
+          <div class="fx-desc">Wet/dry blend</div>
+          <input type="range" class="fx-slider phaser-slider" id="phaserMix" min="0" max="100" value="0" style="--pct:0%" oninput="onPhaserMix(this)"/>
         </div>
       </div>
     </div>
@@ -1013,9 +1045,12 @@ let delayNode = null, delayFbGain = null, delayWetGain = null;
 let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF = null, masterHighShelf = null;
 
 let _reverbSize = 0.65, _reverbMix = 0.46, _delayTime = 0.0, _delayFb = 0.0;
+let _chorusRate = 0.30, _chorusDepth = 0.004, _chorusMix = 0.25;
+let _phaserRate = 0.20, _phaserDepth = 0.50, _phaserMix = 0.0;
+let _phaserNodes = null; // { lfo, lfoG, allpass[], wetG, dryG }
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
 let _moodLayerBias = {}; // per-layer gain multiplier driven by mood
-let _saturation = 0.28;
+let _saturation = 0.14;
 
 // BPM Lock
 let bpmLocked = false;
@@ -1287,7 +1322,7 @@ function tickBar() {
   const phraseDur = PHRASE_DURATIONS[currentPhrase] || 8;
 
   // Conductor lookahead + motif callbacks
-  Conductor.onBar(phraseBar, phraseDur, currentPhrase, phraseSeq, phraseSeqIdx);
+  try { Conductor.onBar(phraseBar, phraseDur, currentPhrase, phraseSeq, phraseSeqIdx); } catch(e) {}
 
   if (phraseBar >= phraseDur) {
     phraseBar = 0;
@@ -1305,6 +1340,8 @@ function advancePhrase() {
     // Draw a fresh duration for this phrase — asymmetric, organic
     _currentPhraseDur = getPhraseDur(next);
     tensionSilenceActive = false;
+    // Record how the last phrase went before moving on
+    try { SessionScorer.recordTransition(currentPhrase, next, SessionScorer.lastPhraseWasGood()); } catch(e) {}
     CE.onPhrase(currentPhrase, getZone(parseInt(slider.value)));
     // Mutate the zone leitmotif on each phrase transition — keeps melodic identity
     // but prevents exact repetition. mutateMotif was defined but never called before.
@@ -1442,6 +1479,262 @@ let timelineEvents = [];
 // ── CONDUCTOR ─────────────────────────────────────────────────────────────────
 // Lookahead brain — watches phrase sequence, schedules FX prep and motif
 // callbacks so musical moments feel set up, not just reactive.
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MUSICAL BRAIN — Curriculum + Session Scorer
+// Two systems working together:
+//   1. MusicalRules — hardcoded compositional knowledge, consulted before decisions
+//   2. SessionScorer — scores each bar in real-time, biases future decisions
+// ══════════════════════════════════════════════════════════════════════════════
+
+const MusicalRules = {
+
+  // ── What we know about good composition ────────────────────────────────────
+
+  // Resolution needs space. After climax, at least 2 bars of sparse texture
+  // before any dense layer (perc/wardrums/chaos) re-enters.
+  minSparseBarsAfterClimax: 2,
+
+  // Melody should never compete with more than 2 other melodic leads at once.
+  // Beyond that it becomes a wall of sound — no one voice stands out.
+  maxConcurrentMelodicLeads: 2,
+
+  // These chord qualities are REST points — harmonic breathing room.
+  // The system should treat them as emotional exhales, not just chord changes.
+  restChordQualities: new Set(['openFifth','sus2','sus4','min']),
+
+  // These chord qualities are TENSION points — use sparingly, earn them.
+  tensionChordQualities: new Set(['hdim7','dim7','tritone','phrygian','minMaj7']),
+
+  // Layer combinations that sound good together (affinity pairs)
+  affinityPairs: [
+    ['strings','choir'],    // harmonic bed + voice = full
+    ['harp','flute'],       // delicate shimmer pair
+    ['drone','viola'],      // dark sustained texture
+    ['melody','cello'],     // lead + countermelody
+    ['duduk','strings'],    // lonely lead over bed
+    ['horn','wardrums'],    // heroic/martial
+    ['bells','harp'],       // crystalline colour
+    ['organ','choir'],      // cathedral power
+    ['bass','perc'],        // rhythmic foundation
+    ['lute','flute'],       // folk/celtic colour
+  ],
+
+  // Layer combinations that clash (anti-affinity — avoid simultaneous)
+  clashPairs: [
+    ['melody','horn'],      // two bright melodic leads fight for space
+    ['melody','duduk'],     // similar register, both expressive — muddy
+    ['flute','melody'],     // flute and melody overlap in frequency
+    ['chaos','flute'],      // glitch + delicate = jarring
+    ['ritualchant','melody'], // two vocal layers at full volume = cluttered
+  ],
+
+  // Phrase sequence rules — what should follow what
+  goodTransitions: {
+    intro:      ['build','resolution'],
+    build:      ['tension','climax','intro'],
+    tension:    ['build','resolution','climax'],
+    climax:     ['resolution','tension'],
+    resolution: ['intro','build'],
+  },
+
+  // Density targets per phrase — how many layers is "right"
+  idealLayerCount: {
+    intro:      { min:2, max:4  },
+    build:      { min:3, max:6  },
+    tension:    { min:4, max:7  },
+    climax:     { min:6, max:10 },
+    resolution: { min:2, max:4  },
+  },
+
+  // How consonant each chord quality is (1=pure, 0=maximally dissonant)
+  chordConsonance: {
+    openFifth:0.95, sus2:0.88, sus4:0.85, maj:0.90, min:0.82,
+    maj7:0.78, min7:0.72, dom7:0.65, minMaj7:0.55,
+    dim:0.45, hdim7:0.38, dim7:0.30, phrygian:0.25, tritone:0.10,
+  },
+
+  // Score a chord quality (0-1)
+  scoreChord(quality) {
+    return this.chordConsonance[quality] ?? 0.5;
+  },
+
+  // Score a set of active layers for affinity/clash (0-1)
+  scoreLayers(activeLayerNames) {
+    const active = new Set(activeLayerNames);
+    let score = 0.5;
+    let checks = 0;
+    this.affinityPairs.forEach(([a,b]) => {
+      if (active.has(a) && active.has(b)) { score += 0.08; checks++; }
+    });
+    this.clashPairs.forEach(([a,b]) => {
+      if (active.has(a) && active.has(b)) { score -= 0.12; checks++; }
+    });
+    return Math.max(0, Math.min(1, score));
+  },
+
+  // Score a phrase transition (0-1)
+  scoreTransition(from, to) {
+    const good = this.goodTransitions[from] || [];
+    return good.includes(to) ? 1.0 : 0.3;
+  },
+
+  // Is this layer count appropriate for the phrase?
+  scoreDensity(phrase, count) {
+    const ideal = this.idealLayerCount[phrase];
+    if (!ideal) return 0.5;
+    if (count < ideal.min) return 0.3 + (count / ideal.min) * 0.4;
+    if (count > ideal.max) return Math.max(0.1, 1 - (count - ideal.max) * 0.15);
+    return 1.0;
+  },
+
+  // Would adding this layer violate the melodic lead cap?
+  wouldExceedMelodicLeads(layerName, activeLayerNames) {
+    const MELODIC_LEADS = new Set(['melody','choir','horn','cello','duduk','flute','viola']);
+    if (!MELODIC_LEADS.has(layerName)) return false;
+    const currentLeads = activeLayerNames.filter(n => MELODIC_LEADS.has(n)).length;
+    return currentLeads >= this.maxConcurrentMelodicLeads;
+  },
+};
+
+// ── Session Scorer ────────────────────────────────────────────────────────────
+// Observes the music every bar, scores it, and adjusts preferences over time.
+const SessionScorer = (() => {
+  // Running preference weights — start neutral, drift toward what sounds good
+  const prefs = {
+    // Phrase transition weights — [from][to] = weight (higher = more likely to pick)
+    phraseTransitions: {},
+    // Layer pair weights — 'a+b' = weight
+    layerPairs: {},
+    // Per-phrase density preference — drifts toward ideal
+    densityBias: { intro:0, build:0, tension:0, climax:0, resolution:0 },
+    // How much to trust rules vs learned prefs (0=all rules, 1=all learned)
+    learningRate: 0.0,  // starts at 0, grows over session
+  };
+
+  const history = []; // last N bar scores
+  const MAX_HISTORY = 32;
+
+  // Score the current bar and update preferences
+  function scorebar() {
+    if (!isPlaying || !ctx) return;
+
+    const activeNames  = Object.keys(layerOn).filter(n => layerOn[n]);
+    const phrase       = currentPhrase || 'intro';
+    const chordQuality = CE?.currentChord?.quality || 'min';
+    const energy       = CIN?.smoothEnergy ?? 0;
+    const bass         = CIN?.smoothBass   ?? 0;
+    const mid          = CIN?.smoothMid    ?? 0;
+
+    // Component scores
+    const chordScore   = MusicalRules.scoreChord(chordQuality);
+    const layerScore   = MusicalRules.scoreLayers(activeNames);
+    const densityScore = MusicalRules.scoreDensity(phrase, activeNames.length);
+
+    // Energy coherence — is the audio energy appropriate for the phrase?
+    const PHRASE_ENERGY_TARGET = { intro:0.2, build:0.4, tension:0.6, climax:0.85, resolution:0.25 };
+    const targetE    = PHRASE_ENERGY_TARGET[phrase] ?? 0.5;
+    const energyScore = 1 - Math.abs(energy - targetE);
+
+    // Weighted composite bar score
+    const barScore = (
+      chordScore   * 0.25 +
+      layerScore   * 0.30 +
+      densityScore * 0.25 +
+      energyScore  * 0.20
+    );
+
+    history.push({ phrase, barScore, activeNames: [...activeNames], chordQuality });
+    if (history.length > MAX_HISTORY) history.shift();
+
+    // Grow learning rate over session — trust learned prefs more over time
+    prefs.learningRate = Math.min(0.6, prefs.learningRate + 0.004);
+
+    // Update layer pair preferences based on score
+    if (barScore > 0.65) {
+      // Positive reinforcement — boost pairs that are active
+      MusicalRules.affinityPairs.forEach(([a,b]) => {
+        if (layerOn[a] && layerOn[b]) {
+          const key = a+'+'+b;
+          prefs.layerPairs[key] = Math.min(2.0, (prefs.layerPairs[key] || 1.0) + 0.05);
+        }
+      });
+    } else if (barScore < 0.35) {
+      // Negative reinforcement — reduce weight of active clash pairs
+      MusicalRules.clashPairs.forEach(([a,b]) => {
+        if (layerOn[a] && layerOn[b]) {
+          const key = a+'+'+b;
+          prefs.layerPairs[key] = Math.max(0.1, (prefs.layerPairs[key] || 1.0) - 0.08);
+        }
+      });
+    }
+
+    return barScore;
+  }
+
+  // Get a bias multiplier for a layer given current context
+  // Used by adaptiveMixTarget to subtly adjust gains
+  function getLayerBias(name) {
+    const activeNames = Object.keys(layerOn).filter(n => layerOn[n] && n !== name);
+    let bias = 1.0;
+
+    // Check affinity — boost if good partner is active
+    MusicalRules.affinityPairs.forEach(([a,b]) => {
+      if ((a === name && layerOn[b]) || (b === name && layerOn[a])) {
+        const key = a+'+'+b;
+        const w = prefs.layerPairs[key] || 1.0;
+        bias += (w - 1.0) * 0.15 * prefs.learningRate;
+      }
+    });
+
+    // Check clash — cut if bad partner is active
+    MusicalRules.clashPairs.forEach(([a,b]) => {
+      if ((a === name && layerOn[b]) || (b === name && layerOn[a])) {
+        const key = a+'+'+b;
+        const w = prefs.layerPairs[key] || 1.0;
+        bias -= (1.0 - w) * 0.20 * prefs.learningRate;
+      }
+    });
+
+    // Melodic lead cap — if we're over the cap, cut this layer's gain
+    if (MusicalRules.wouldExceedMelodicLeads(name, activeNames)) {
+      bias *= 0.55;
+    }
+
+    return Math.max(0.1, Math.min(1.8, bias));
+  }
+
+  // Bias a phrase transition — called by generatePhraseArc
+  function biasPhrase(from, to) {
+    const ruleScore    = MusicalRules.scoreTransition(from, to);
+    const learnedKey   = from + '>' + to;
+    const learnedScore = prefs.phraseTransitions[learnedKey] || ruleScore;
+    // Blend rules and learned — learning rate controls the mix
+    return ruleScore * (1 - prefs.learningRate) + learnedScore * prefs.learningRate;
+  }
+
+  // Record a phrase transition outcome — called after each phrase completes
+  function recordTransition(from, to, wasGood) {
+    const key = from + '>' + to;
+    const current = prefs.phraseTransitions[key] || 0.5;
+    const delta = wasGood ? 0.06 : -0.06;
+    prefs.phraseTransitions[key] = Math.max(0.05, Math.min(1.0, current + delta));
+  }
+
+  // Was the last phrase "good"? Based on average bar score during it
+  function lastPhraseWasGood() {
+    if (history.length < 2) return true;
+    const recent = history.slice(-4);
+    const avg = recent.reduce((s,h) => s+h.barScore, 0) / recent.length;
+    return avg > 0.55;
+  }
+
+  function getPrefs() { return prefs; }
+  function getHistory() { return history; }
+
+  return { scorebar, getLayerBias, biasPhrase, recordTransition, lastPhraseWasGood, getPrefs };
+})();
+
 const Conductor = (() => {
   let _callQueue      = [];
   let _barCount       = 0;
@@ -1526,7 +1819,7 @@ const Conductor = (() => {
     const len     = opts.len || motif.length;
     motif.slice(0, len).forEach((deg, i) => {
       const bt   = t0 + i * spacing;
-      const freq = preset.root * scale[deg % scale.length] * Math.pow(2, oct);
+      const freq = preset && scale ? preset.root * scale[deg % scale.length] * Math.pow(2, oct) : 0;
       if (!freq || freq < 80) return;
       const env = mkGain(0); env.connect(b); reg(layerName, env);
       env.gain.setValueAtTime(0, bt);
@@ -1561,6 +1854,9 @@ const Conductor = (() => {
     if (!isPlaying) return;
     _barCount++;
     flush();
+
+    // Score this bar — updates session preferences
+    try { SessionScorer.scorebar(); } catch(e) {}
 
     const preset   = getZone(parseInt(slider ? slider.value : '1'));
     const energy   = JC.active ? JC.energy : getIntensity(parseInt(slider ? slider.value : '1'));
@@ -2735,6 +3031,36 @@ JC.reconcile = function(preset, intensity) {
   const target   = JC.computeTargetSet();
   const percBufs = buildPercBufs(preset, sessionVoices['perc']);
   const phrase   = currentPhrase || 'intro';
+
+  // ── Musical Rules: remove clashing layers from target set ────────────────
+  // If two clashing layers are both in the target, remove the lower-priority one.
+  // Priority: melodic_lead > foundation > harmonic > melodic_colour > rhythmic > texture
+  const LAYER_PRIORITY = {
+    melody:5, choir:5, horn:4, cello:4, duduk:4,
+    strings:4, drone:4, bass:4, viola:3,
+    flute:3, harp:3, lute:2, bells:2, guitar:2, oud:2, organ:2,
+    perc:2, wardrums:2, taiko:2, march:2, stomp:2,
+    wind:1, riser:1, chaos:1, glitch:1, whispers:1, ritualchant:1,
+  };
+  try { MusicalRules.clashPairs.forEach(([a,b]) => {
+    if (target.has(a) && target.has(b)) {
+      const pa = LAYER_PRIORITY[a] ?? 1;
+      const pb = LAYER_PRIORITY[b] ?? 1;
+      if (pa >= pb && !layerOn[b]) target.delete(b);
+      else if (pb > pa && !layerOn[a]) target.delete(a);
+    }
+  }); } catch(e) {}
+
+  // ── Musical Rules: density cap per phrase ────────────────────────────────
+  const ideal = MusicalRules.idealLayerCount[phrase] || { min:2, max:8 };
+  if (target.size > ideal.max) {
+    // Trim lowest-priority layers first until within cap
+    const sorted = [...target].sort((a,b) => (LAYER_PRIORITY[a]??1) - (LAYER_PRIORITY[b]??1));
+    while (target.size > ideal.max && sorted.length) {
+      const drop = sorted.shift();
+      if (!['drone','strings','bass'].includes(drop)) target.delete(drop);
+    }
+  }
   const e        = intensity;
   const suppress = new Set(); // layers excluded from early-entry override (none currently)
 
@@ -3087,34 +3413,46 @@ function generatePhraseArc(chapter, step, mood) {
   // in the same dramatic class so the arc doesn't break the mood contract.
   // e.g. a 'tension' slot can become 'build' or 'climax' but never 'intro'.
   const swapFamily = {
-    intro:      ['intro','intro','build'],
-    build:      ['build','build','tension','intro'],
-    tension:    ['tension','tension','build','climax'],
-    climax:     ['climax','climax','tension'],
-    resolution: ['resolution','resolution','build'],
+    intro:      ['intro','intro','build','resolution'],
+    build:      ['build','build','tension','intro','resolution'],
+    tension:    ['tension','build','resolution','climax'],
+    climax:     ['climax','tension','resolution'],
+    resolution: ['resolution','resolution','build','intro'],
   };
 
   // Pool of phrases valid for each chapter range (for full swaps)
-  const earlyPhrases  = ['intro','intro','build','build','tension'];
-  const midPhrases    = ['build','tension','tension','climax','build'];
-  const latePhrases   = ['climax','climax','tension','climax','tension'];
-  const endPhrases    = ['resolution','build','resolution','intro','resolution'];
+  const earlyPhrases  = ['intro','intro','build','build','resolution'];
+  const midPhrases    = ['build','tension','build','resolution','climax'];
+  const latePhrases   = ['climax','tension','build','climax','resolution'];
+  const endPhrases    = ['resolution','build','resolution','resolution','intro'];
 
   const pool = step <= 2 ? earlyPhrases : step <= 5 ? midPhrases : step <= 6 ? latePhrases : endPhrases;
 
   // Build varied arc: 55% keep base, 30% swap within family, 15% full pool sub
-  const varied = base.map((p, i) => {
-    if (i === base.length - 1) return p; // always keep cadence/end phrase
+  // Get the previous phrase for transition scoring
+  const prevPhrase = base[0] || 'intro';
+
+  // Build varied arc iteratively so we can reference the previously chosen phrase
+  const varied = [];
+  for (let i = 0; i < base.length; i++) {
+    const p = base[i];
+    if (i === base.length - 1) { varied.push(p); break; } // always keep end phrase
     const roll = lr();
-    if (roll < 0.45) return p; // keep original
-    if (roll < 0.85) {
-      // Swap within dramatic family — tonally coherent variation
-      const family = swapFamily[p] || [p];
-      return family[Math.floor(lr() * family.length)];
-    }
-    // Full pool substitution — bigger departure
-    return pool[Math.floor(lr() * pool.length)];
-  });
+
+    const family   = swapFamily[p] || [p];
+    const poolSub  = pool[Math.floor(lr() * pool.length)];
+    const candidates = roll < 0.45 ? [p] : roll < 0.85 ? family : [poolSub];
+
+    // Score candidates using the last *actually chosen* phrase for continuity
+    const lastChosen = varied.length > 0 ? varied[varied.length - 1] : prevPhrase;
+    const scored = candidates.map(c => ({
+      phrase: c,
+      score: (SessionScorer ? SessionScorer.biasPhrase(lastChosen, c) : 0.5)
+             + (Math.random() * 0.15),
+    }));
+    scored.sort((a,b) => b.score - a.score);
+    varied.push(scored[0].phrase);
+  }
 
   // Ensure chapter 8 always resolves
   if (step === 7) varied[varied.length - 1] = 'resolution';
@@ -3309,6 +3647,39 @@ JC.tick = function() {
           satEl.style.setProperty('--pct', Math.round(_saturation * 100) + '%');
           document.getElementById('saturationVal').textContent = Math.round(_saturation * 100) + '%';
         }
+      }
+
+      // Chorus — lush at low energy, tighter at high energy
+      if (Object.keys(_chorusNodes || {}).length) {
+        const targetRate  = 0.15 + (1 - JC.energy) * 0.35;  // slow=calm, faster=tense
+        const targetDepth = 0.002 + (1 - JC.energy) * 0.006; // deep=calm, shallow=tense
+        const targetMix   = 0.15 + (1 - JC.energy) * 0.25;  // wetter at calm
+        _chorusRate  = _chorusRate  + (targetRate  - _chorusRate)  * 0.2;
+        _chorusDepth = _chorusDepth + (targetDepth - _chorusDepth) * 0.2;
+        _chorusMix   = _chorusMix   + (targetMix   - _chorusMix)   * 0.2;
+        updateChorusParams();
+        // Update UI
+        const crEl = document.getElementById('chorusRate');
+        if (crEl) { const pct = Math.round((_chorusRate-0.05)/2.0*100); crEl.value=pct; crEl.style.setProperty('--pct',pct+'%'); document.getElementById('chorusRateVal').textContent=_chorusRate.toFixed(2)+'Hz'; }
+        const cdEl = document.getElementById('chorusDepth');
+        if (cdEl) { const pct = Math.round(_chorusDepth/0.012*100); cdEl.value=pct; cdEl.style.setProperty('--pct',pct+'%'); document.getElementById('chorusDepthVal').textContent=Math.round(_chorusDepth/0.012*100)+'%'; }
+        const cmEl = document.getElementById('chorusMix');
+        if (cmEl) { const pct = Math.round(_chorusMix*100); cmEl.value=pct; cmEl.style.setProperty('--pct',pct+'%'); document.getElementById('chorusMixVal').textContent=pct+'%'; }
+      }
+
+      // Phaser — sweeps in at mid-energy, fades at calm and nightmare
+      if (_phaserNodes) {
+        const bell    = Math.max(0, 1 - Math.abs(JC.energy - 0.55) * 3.5); // peaks at 0.55
+        const targetMix  = bell * 0.35;
+        const targetRate = 0.10 + JC.energy * 0.40;
+        _phaserMix  = _phaserMix  + (targetMix  - _phaserMix)  * 0.15;
+        _phaserRate = _phaserRate + (targetRate  - _phaserRate) * 0.15;
+        _phaserNodes.wetG.gain.setTargetAtTime(_phaserMix, ctx.currentTime, 0.5);
+        _phaserNodes.lfo.frequency.setTargetAtTime(_phaserRate, ctx.currentTime, 0.5);
+        const pmEl = document.getElementById('phaserMix');
+        if (pmEl) { const pct = Math.round(_phaserMix*100); pmEl.value=pct; pmEl.style.setProperty('--pct',pct+'%'); document.getElementById('phaserMixVal').textContent=pct+'%'; }
+        const prEl = document.getElementById('phaserRate');
+        if (prEl) { const pct = Math.round((_phaserRate-0.05)/2.0*100); prEl.value=pct; prEl.style.setProperty('--pct',pct+'%'); document.getElementById('phaserRateVal').textContent=_phaserRate.toFixed(2)+'Hz'; }
       }
     }
 
@@ -4057,7 +4428,7 @@ function initAudio() {
 
   // Makeup gain — saturation compresses RMS, we need this back
   const satMakeup = ctx.createGain();
-  satMakeup.gain.value = 1.45; // restore the level lost to soft-clipping
+  satMakeup.gain.value = 1.10; // light makeup — don't over-compensate
   saturationNode.connect(satMakeup);
 
   // Mood filter — wide open by default so harmonics breathe
@@ -4070,11 +4441,11 @@ function initAudio() {
   // Master compressor — cinematic glue, not transparent limiting
   // Lower threshold + softer knee = everything locks together as one mass
   masterCompressor = ctx.createDynamicsCompressor();
-  masterCompressor.threshold.value = -22; // catches more of the mix
-  masterCompressor.knee.value      = 18;  // wide soft knee — musical, not clinical
-  masterCompressor.ratio.value     = 4.5; // stronger glue
-  masterCompressor.attack.value    = 0.005; // 5ms — catches peaks cleanly
-  masterCompressor.release.value   = 0.35;  // slightly faster release for punch
+  masterCompressor.threshold.value = -14; // lighter touch — only catches true peaks
+  masterCompressor.knee.value      = 24;  // very soft knee — transparent, musical
+  masterCompressor.ratio.value     = 2.8; // gentle glue, not a wall
+  masterCompressor.attack.value    = 0.018; // slower attack — lets transients breathe
+  masterCompressor.release.value   = 0.55;  // slower release — avoids pumping
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
@@ -4159,6 +4530,55 @@ function connectLayerReverb() {
   });
 }
 
+// ── Stereo chorus — width and shimmer on sustained layers ─────────────────────
+// Implemented as two slightly detuned delay lines (L/R) modulated by slow LFOs.
+// Inserts between the dry bus and fxInput so it doesn't affect the reverb send.
+const CHORUS_LAYERS = new Set(['strings','choir','drone','viola','harp','flute','melody','cello']);
+let _chorusNodes = {}; // name → { lDelay, rDelay, merger, lLfo, rLfo }
+
+function buildChorusForLayer(name) {
+  if (!ctx || !bus[name] || _chorusNodes[name]) return;
+  const b = bus[name];
+
+  // Two delay lines slightly out of phase — creates stereo width
+  const lDelay = ctx.createDelay(0.05); lDelay.delayTime.value = 0.022;
+  const rDelay = ctx.createDelay(0.05); rDelay.delayTime.value = 0.028;
+
+  // LFOs modulate delay time — slow, subtle, out of phase
+  const lLfo  = ctx.createOscillator(); lLfo.frequency.value = 0.28;
+  const rLfo  = ctx.createOscillator(); rLfo.frequency.value = 0.31;
+  const lLfoG = ctx.createGain();       lLfoG.gain.value = 0.004;
+  const rLfoG = ctx.createGain();       rLfoG.gain.value = 0.004;
+  lLfo.connect(lLfoG); lLfoG.connect(lDelay.delayTime);
+  rLfo.connect(rLfoG); rLfoG.connect(rDelay.delayTime);
+
+  // Stereo panner — L and R get opposite sides
+  const lPan = ctx.createStereoPanner(); lPan.pan.value = -0.5;
+  const rPan = ctx.createStereoPanner(); rPan.pan.value =  0.5;
+
+  // Wet/dry mix — chorus is subtle, 25% wet
+  const wetG = ctx.createGain(); wetG.gain.value = 0.25;
+  const dryG = ctx.createGain(); dryG.gain.value = 0.75;
+
+  // Route: bus → dryG → fxInput (existing dry path unchanged)
+  //        bus → lDelay → lPan → wetG → fxInput
+  //        bus → rDelay → rPan → wetG → fxInput
+  // We tap from the bus output BEFORE its existing dryG
+  // by connecting directly to the delay lines
+  b.connect(lDelay); lDelay.connect(lPan); lPan.connect(wetG); wetG.connect(fxInput);
+  b.connect(rDelay); rDelay.connect(rPan); rPan.connect(wetG);
+
+  lLfo.start(); rLfo.start();
+  _chorusNodes[name] = { lDelay, rDelay, lLfo, rLfo, lLfoG, rLfoG, lPan, rPan, wetG };
+}
+
+function buildAllChorus() {
+  CHORUS_LAYERS.forEach(name => {
+    if (bus[name]) buildChorusForLayer(name);
+  });
+}
+
+
 // ── Phrase-driven FX ──────────────────────────────────────────────────────────
 // Called on every phrase change. Drives delay time (BPM-synced), per-layer
 // reverb send amounts, and master saturation — all with smooth ramps so
@@ -4224,7 +4644,7 @@ function applyPhraseFX(phrase) {
 
   // ── Master saturation per phrase ─────────────────────────────────────────
   // resolution/intro: clean and clear. tension/climax: warm grit.
-  const SAT_TARGETS = { intro:0.12, build:0.22, tension:0.38, climax:0.48, resolution:0.10 };
+  const SAT_TARGETS = { intro:0.08, build:0.14, tension:0.24, climax:0.32, resolution:0.06 };
   const targetSat = SAT_TARGETS[phrase] ?? 0.22;
   // Blend toward target — don't override Journey auto-FX if it's active
   const blendedSat = JC.active
@@ -4241,6 +4661,112 @@ function applyPhraseFX(phrase) {
     }
   }
 }
+
+// ── Chorus parameter update — affects all per-layer chorus nodes ──────────────
+function updateChorusParams() {
+  Object.values(_chorusNodes || {}).forEach(n => {
+    if (!n) return;
+    try {
+      n.lLfo.frequency.setTargetAtTime(_chorusRate, ctx.currentTime, 0.1);
+      n.rLfo.frequency.setTargetAtTime(_chorusRate * 1.07, ctx.currentTime, 0.1);
+      n.lLfoG.gain.setTargetAtTime(_chorusDepth, ctx.currentTime, 0.1);
+      n.rLfoG.gain.setTargetAtTime(_chorusDepth, ctx.currentTime, 0.1);
+      n.wetG.gain.setTargetAtTime(_chorusMix, ctx.currentTime, 0.15);
+    } catch(e) {}
+  });
+}
+
+function onChorusRate(el) {
+  _chorusRate = 0.05 + (el.value / 100) * 2.0;
+  el.style.setProperty('--pct', el.value + '%');
+  document.getElementById('chorusRateVal').textContent = _chorusRate.toFixed(2) + 'Hz';
+  if (!ctx) return;
+  updateChorusParams();
+}
+
+function onChorusDepth(el) {
+  _chorusDepth = (el.value / 100) * 0.012;
+  el.style.setProperty('--pct', el.value + '%');
+  document.getElementById('chorusDepthVal').textContent = el.value + '%';
+  if (!ctx) return;
+  updateChorusParams();
+}
+
+function onChorusMix(el) {
+  _chorusMix = el.value / 100;
+  el.style.setProperty('--pct', el.value + '%');
+  document.getElementById('chorusMixVal').textContent = el.value + '%';
+  if (!ctx) return;
+  updateChorusParams();
+}
+
+// ── Master phaser chain — 4-stage allpass, LFO-swept, parallel wet/dry ────────
+function buildPhaserChain() {
+  if (!ctx || !fxInput) return;
+  // Disconnect old if rebuilding
+  if (_phaserNodes) {
+    try { _phaserNodes.lfo.stop(); } catch(e) {}
+    try { _phaserNodes.wetG.disconnect(); } catch(e) {}
+  }
+
+  // 4 allpass filters in series — the phaser comb
+  const allpass = [];
+  for (let i = 0; i < 4; i++) {
+    const ap = ctx.createBiquadFilter();
+    ap.type = 'allpass';
+    ap.frequency.value = 400 + i * 300;
+    ap.Q.value = 8;
+    allpass.push(ap);
+  }
+  // Chain allpass filters
+  for (let i = 0; i < allpass.length - 1; i++) allpass[i].connect(allpass[i+1]);
+
+  // LFO sweeps allpass frequencies
+  const lfo  = ctx.createOscillator();
+  const lfoG = ctx.createGain();
+  lfo.type = 'sine';
+  lfo.frequency.value = _phaserRate;
+  lfoG.gain.value = 600 * _phaserDepth; // sweep range in Hz
+  lfo.connect(lfoG);
+  allpass.forEach(ap => lfoG.connect(ap.frequency));
+
+  // Wet/dry
+  const wetG = ctx.createGain(); wetG.gain.value = _phaserMix;
+  const dryG = ctx.createGain(); dryG.gain.value = 1 - _phaserMix;
+
+  fxInput.connect(allpass[0]);
+  allpass[allpass.length-1].connect(wetG);
+  wetG.connect(masterGain);
+  // dry path already exists via reverbDryGain, no need to duplicate
+
+  lfo.start();
+  _phaserNodes = { lfo, lfoG, allpass, wetG, dryG };
+}
+
+function onPhaserRate(el) {
+  _phaserRate = 0.05 + (el.value / 100) * 2.0;
+  el.style.setProperty('--pct', el.value + '%');
+  document.getElementById('phaserRateVal').textContent = _phaserRate.toFixed(2) + 'Hz';
+  if (!ctx || !_phaserNodes) return;
+  _phaserNodes.lfo.frequency.setTargetAtTime(_phaserRate, ctx.currentTime, 0.1);
+}
+
+function onPhaserDepth(el) {
+  _phaserDepth = el.value / 100;
+  el.style.setProperty('--pct', el.value + '%');
+  document.getElementById('phaserDepthVal').textContent = el.value + '%';
+  if (!ctx || !_phaserNodes) return;
+  _phaserNodes.lfoG.gain.setTargetAtTime(600 * _phaserDepth, ctx.currentTime, 0.1);
+}
+
+function onPhaserMix(el) {
+  _phaserMix = el.value / 100;
+  el.style.setProperty('--pct', el.value + '%');
+  document.getElementById('phaserMixVal').textContent = el.value + '%';
+  if (!ctx || !_phaserNodes) return;
+  _phaserNodes.wetG.gain.setTargetAtTime(_phaserMix, ctx.currentTime, 0.15);
+}
+
 
 function makeSatCurve(amount) {
   const n = 1024; // higher resolution = smoother curve = no quantization crackle
@@ -4287,7 +4813,8 @@ function buildFXChain() {
   delayNode.connect(delayWetGain); delayWetGain.connect(masterGain);
 
   // Reconnect per-layer reverb sends to correct rooms
-  if (Object.keys(bus).length > 0) connectLayerReverb();
+  if (Object.keys(bus).length > 0) { connectLayerReverb(); buildAllChorus(); }
+  buildPhaserChain();
 }
 
 function buildIR(size) {
@@ -4621,25 +5148,25 @@ function killLayer(name) {
 
 // Absolute gain ceiling per layer
 const MIX_CEILING = {
-  // Foundation
-  drone:       0.72,  strings:     0.82,  bass:        0.76,
+  // Foundation — pulled back to give headroom
+  drone:       0.55,  strings:     0.65,  bass:        0.60,
   // Harmonic inner voice
-  viola:       0.62,
-  // Melodic lead
-  melody:      0.90,  choir:       0.88,  horn:        0.78,
-  cello:       0.76,  duduk:       0.72,
+  viola:       0.48,
+  // Melodic lead — melody sits clearly but not blasting
+  melody:      0.72,  choir:       0.70,  horn:        0.62,
+  cello:       0.60,  duduk:       0.56,
   // Melodic colour
-  lute:        0.54,  bells:       0.56,  guitar:      0.54,
-  flute:       0.62,  harp:        0.58,  oud:         0.56,
-  organ:       0.60,
-  // Rhythmic
-  perc:        0.95,  wardrums:    0.92,  march:       0.88,
-  stomp:       0.84,  taiko:       0.88,  chains:      0.52,
+  lute:        0.42,  bells:       0.44,  guitar:      0.42,
+  flute:       0.48,  harp:        0.46,  oud:         0.44,
+  organ:       0.48,
+  // Rhythmic — perc still punchy but not overwhelming
+  perc:        0.75,  wardrums:    0.72,  march:       0.68,
+  stomp:       0.64,  taiko:       0.68,  chains:      0.40,
   // Pulse
-  heartbeat:   0.68,  ritualchant: 0.68,  boss:        0.82,
+  heartbeat:   0.52,  ritualchant: 0.52,  boss:        0.65,
   // Texture
-  wind:        0.44,  riser:       0.54,  firecrackle: 0.30,
-  whispers:    0.34,  glitch:      0.38,  chaos:       0.52,
+  wind:        0.34,  riser:       0.42,  firecrackle: 0.24,
+  whispers:    0.26,  glitch:      0.30,  chaos:       0.40,
 };
 
 // Role membership — 7 roles
@@ -4779,8 +5306,9 @@ function adaptiveMixTarget(name, intensity) {
   const phraseLift = PHRASE_ROLE_LIFT[currentPhrase]?.[role] ?? 1.0;
 
   const raw = ceiling * relation * siblingScale * depthScale * bossLift * phraseDepth * phraseLift;
-  const moodBias = _moodLayerBias[name] ?? 1.0;
-  return Math.min(ceiling, Math.max(0.04, raw * moodBias));
+  const moodBias    = _moodLayerBias[name] ?? 1.0;
+  const sessionBias = (typeof SessionScorer !== 'undefined') ? SessionScorer.getLayerBias(name) : 1.0;
+  return Math.min(ceiling, Math.max(0.04, raw * moodBias * sessionBias));
 }
 
 // Legacy shim — called on layer start for initial gain
