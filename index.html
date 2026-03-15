@@ -13424,6 +13424,246 @@ function exitCinematic() {
   if (cinematicRaf) { cancelAnimationFrame(cinematicRaf); cinematicRaf = null; }
 }
 
+// ── CINEMATIC SKIN CONFIGS ───────────────────────────────────────
+// Each skin overrides the visual character of the cinematic visualizer.
+// cinDrawScene() reads from CIN_SKIN_CONFIG[_activeSkin] at render time.
+// Parameters that aren't specified fall back to the ashen defaults.
+
+const CIN_SKIN_CONFIG = {
+
+  ashen: {
+    // Sky — void black to ember-violet
+    skyTop:     [4,  2,  10],
+    skyBlendMul: { midR:0.7, midG:0.45, midB:0.8 },
+    // Stars — visible at rest, standard white/tinted
+    starStyle: 'stars',
+    // Moon — cracked stone orb
+    moonStyle: 'orb',
+    moonPos:   [0.72, 0.15],
+    // Terrain — ruined stone ramparts with spike ruins
+    terrainStyle: 'ruins',
+    // Particle — ash and ember
+    particleOverride: null,  // uses ZONE_ATMO per zone
+    // Fog — heavy low-ground stone mist
+    fogStyle: 'stone',
+    // Torches — medieval stone
+    torchStyle: 'torch',
+    torchSpacing: 0.26,
+    torchY: 0.76,
+    // Glyphs — runic script (existing system)
+    glyphStyle: 'runes',
+    glyphFont: "'Cinzel', serif",
+    // Title cards
+    titleFont:    "'Cinzel Decorative', serif",
+    titleWeight:  700,
+    subtitleFont: "'IM Fell English', serif",
+    hudFont:      "'Cinzel', serif",
+    // HUD labels
+    enterLabel: '◈  ENTERING  ◈',
+    floorLabel: 'FLOOR',
+    // Beat flash color multipliers
+    flashMidG: 0.5,
+  },
+
+  neon: {
+    skyTop:     [2,  1,  12],
+    skyBlendMul: { midR:0.5, midG:0.3, midB:1.0 },
+    // Stars → city grid of lights
+    starStyle: 'cityLights',
+    // Moon → neon transmission orb (pulsing ring)
+    moonStyle: 'neonRing',
+    moonPos:   [0.15, 0.12],
+    // Terrain → city skyline (geometric buildings)
+    terrainStyle: 'skyline',
+    // Particle → rain streaks
+    particleOverride: 'rain',
+    // Fog → low city smog
+    fogStyle: 'smog',
+    // Torches → neon lamp posts
+    torchStyle: 'lamppost',
+    torchSpacing: 0.20,
+    torchY: 0.80,
+    // Glyphs → kanji / katakana digital rain fragments
+    glyphStyle: 'digital',
+    glyphFont: "'Share Tech Mono', monospace",
+    // Title cards
+    titleFont:    "'Orbitron', sans-serif",
+    titleWeight:  700,
+    subtitleFont: "'Share Tech Mono', monospace",
+    hudFont:      "'Orbitron', sans-serif",
+    enterLabel: '>> ENTERING >>', 
+    floorLabel: 'LEVEL',
+    flashMidG: 0.2,
+  },
+
+  sakura: {
+    skyTop:     [5,  2,  8],
+    skyBlendMul: { midR:0.9, midG:0.4, midB:0.7 },
+    // Stars → soft bloom stars with petal shapes
+    starStyle: 'softStars',
+    // Moon → full Japanese moon — large, gentle, high
+    moonStyle: 'fullMoon',
+    moonPos:   [0.5, 0.12],
+    // Terrain → layered mountain silhouettes with bamboo near layer
+    terrainStyle: 'mountains',
+    // Particle → falling petals (overrides zone particles)
+    particleOverride: 'petals',
+    // Fog → soft morning mist in valleys
+    fogStyle: 'mist',
+    // Torches → paper lanterns
+    torchStyle: 'lantern',
+    torchSpacing: 0.22,
+    torchY: 0.78,
+    // Glyphs → kanji emotional concepts
+    glyphStyle: 'kanji',
+    glyphFont: "'Noto Serif JP', serif",
+    // Title cards
+    titleFont:    "'Noto Serif JP', serif",
+    titleWeight:  700,
+    subtitleFont: "'Noto Serif JP', serif",
+    hudFont:      "'Sawarabi Mincho', serif",
+    enterLabel: '— 入 —',
+    floorLabel: 'SCENE',
+    flashMidG: 0.6,
+  },
+
+  broadcast: {
+    skyTop:     [8,  8,  10],
+    skyBlendMul: { midR:0.7, midG:0.65, midB:0.4 },
+    // Stars → none — broadcast is indoors. VU bars instead.
+    starStyle: 'none',
+    // Moon → broadcast signal circle — clean, geometric
+    moonStyle: 'broadcastLogo',
+    moonPos:   [0.82, 0.10],
+    // Terrain → clean stage floor, horizon line, broadcast set
+    terrainStyle: 'stage',
+    // Particle → signal static (fine grain)
+    particleOverride: 'static',
+    // Fog → none — clean studio
+    fogStyle: 'none',
+    // Torches → studio spotlights
+    torchStyle: 'spotlight',
+    torchSpacing: 0.30,
+    torchY: 0.0,  // from top — spotlights shine down
+    // Glyphs → frequency/level notation
+    glyphStyle: 'levels',
+    glyphFont: "'Inter', sans-serif",
+    // Title cards
+    titleFont:    "'Inter', sans-serif",
+    titleWeight:  700,
+    subtitleFont: "'Inter', sans-serif",
+    hudFont:      "'Inter', sans-serif",
+    enterLabel: '▶  NOW ENTERING  ▶',
+    floorLabel: 'TRACK',
+    flashMidG: 0.7,
+  },
+
+  void: {
+    skyTop:     [0,  2,  0],
+    skyBlendMul: { midR:0.0, midG:0.5, midB:0.1 },
+    // Stars → phosphor scanline noise
+    starStyle: 'phosphor',
+    // Moon → blinking terminal cursor
+    moonStyle: 'cursor',
+    moonPos:   [0.08, 0.08],
+    // Terrain → corrupted grid / glitch geometry
+    terrainStyle: 'grid',
+    // Particle → phosphor decay particles
+    particleOverride: 'phosphorDecay',
+    // Fog → CRT scanline interference bands
+    fogStyle: 'scanlines',
+    // Torches → flickering terminal screens
+    torchStyle: 'terminal',
+    torchSpacing: 0.25,
+    torchY: 0.72,
+    // Glyphs → hex dumps and error codes
+    glyphStyle: 'hex',
+    glyphFont: "'Space Mono', monospace",
+    // Title cards
+    titleFont:    "'Space Mono', monospace",
+    titleWeight:  400,
+    subtitleFont: "'Share Tech Mono', monospace",
+    hudFont:      "'Space Mono', monospace",
+    enterLabel: '> SECTOR CHANGE',
+    floorLabel: 'NODE',
+    flashMidG: 0.9,
+  },
+};
+
+// Get active skin config, falling back to ashen for any missing field
+function cinSkinCfg() {
+  const s = CIN_SKIN_CONFIG[_activeSkin] || CIN_SKIN_CONFIG.ashen;
+  const d = CIN_SKIN_CONFIG.ashen;
+  return new Proxy(s, { get(t, k) { return k in t ? t[k] : d[k]; } });
+}
+
+// Per-skin glyph pools for the cinematic overlay
+const CIN_GLYPH_POOLS = {
+  runes:   ['ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ','ᛇ','ᛈ','ᛉ','ᛊ','ᛏ','ᛒ','ᛖ','ᛗ','ᛚ','ᛜ','ᛞ','ᛟ'],
+  digital: ['テ','ス','ト','デ','ジ','タ','ル','ア','イ','ウ','エ','オ','コ','ソ','ト','ノ','フ','ム','ル','ヲ','ン','01','10','FF','0x'],
+  kanji:   ['悲','喜','愛','空','無','心','花','月','水','風','山','時','夢','命','道','光','影','静','動','生'],
+  levels:  ['dB','Hz','kHz','RMS','VU','-6','-12','-18','-24','LU','FS','EQ','∿','▶','◉','○'],
+  hex:     ['0xDE','0xAD','0xFF','ERR','NUL','0x00','SEG','SYS','BUS','IRQ','>>','//','??','::'],
+};
+
+// Per-skin zone whisper/text pools for non-ashen skins
+const SKIN_ZONE_WHISPERS = {
+  neon: {
+    default: [
+      'signal strength: marginal', 'uplink lost at 02:14:38', 'this frequency was abandoned',
+      'carrier wave is all that remains', 'three channels of static and one of something else',
+      'the grid remembers every transmission', 'packet loss: 99.7%', 'who is broadcasting on this frequency',
+      'the signal was clean until it wasn\'t', 'something is listening on port 8080',
+      'latency: ∞ms', 'connection established. connection severed.',
+      'the city\'s dreams are encrypted', 'data flows upward into nothing',
+      'you are a node in a network that forgot its purpose',
+    ],
+  },
+  sakura: {
+    default: [
+      '花びらが散る頃、あなたのことを思った', // petals fall, I think of you
+      'every beautiful thing ends. that is why it is beautiful.',
+      '一期一会 — this moment will not come again',
+      'the cherry blossom knows it will fall. it blooms anyway.',
+      'mono no aware — the gentle sadness of passing things',
+      '時の流れは川のよう', // time flows like a river
+      'grief is just love with nowhere left to go',
+      'wabi-sabi: beauty in the imperfect, the impermanent, the incomplete',
+      'the moon does not mourn the clouds that cover it',
+      '静寂 — the silence after snow',
+      'some things cannot be said in words. this music is one of them.',
+      'you carry the people you have lost with you always',
+      'the reed cut from its bed cries for home. all music is this cry.',
+      '夢の中で、彼女はまだ生きている', // in dreams, she is still alive
+      'the weight of a single petal is immeasurable',
+    ],
+  },
+  broadcast: {
+    default: [
+      'this broadcast reaches 40 million viewers', 'we are live in 3... 2... 1...',
+      'the story you are about to hear is true', 'signal confirmed. all systems nominal.',
+      'breaking: the world has changed again', 'from our studios to wherever you are',
+      'this program contains scenes that may affect some viewers', 'and now: the news',
+      'we interrupt this broadcast', 'the following is a paid announcement',
+      'please stand by', 'transmission begins', 'you are now connected',
+      'the medium is the message', 'broadcasting live from the edge of something important',
+      'this moment, right now, is being recorded',
+    ],
+  },
+  void: {
+    default: [
+      '> segmentation fault (core dumped)', '> process 1337 killed by signal 11',
+      '> WARNING: undefined behavior', '> stack overflow at 0x0000DEAD',
+      '> kernel: BUG: spinlock recursion on CPU#0', '> fatal: too many open files',
+      '> memory corruption detected', '> EXCEPTION: null pointer dereference',
+      '> heartbeat timeout', '> watchdog: BUG: soft lockup - CPU#0 stuck',
+      '> out of memory: kill process or sacrifice child', '> PANIC: init exited',
+      '> mount: special device does not exist', '> syntax error near unexpected token',
+      '> i/o error on device: input/output error', '> cannot allocate memory in static TLS block',
+    ],
+  },
+};
+
 // ── CINEMATIC SCENE STATE v2 ─────────────────────────────────────
 const CIN = {
   t: 0,
@@ -13640,7 +13880,13 @@ const ZONE_ATMO = {
 };
 
 function cinGetAtmo(zone) {
-  return ZONE_ATMO[zone.name] || ZONE_ATMO['Ashen Fields'];
+  const base = ZONE_ATMO[zone.name] || ZONE_ATMO['Ashen Fields'];
+  const cfg  = cinSkinCfg();
+  // Non-ashen skins override particle type globally
+  if (cfg.particleOverride && _activeSkin !== 'ashen') {
+    return { ...base, particle: cfg.particleOverride };
+  }
+  return base;
 }
 
 // ── NARRATIVE TITLE CARDS PER ZONE ────────────────────────────────
@@ -13707,7 +13953,11 @@ function cinMakeParticle(type, zone, W, H, scattered) {
     case 'mote':  return { ...base, vx:(Math.random()-0.5)*0.6, vy:(Math.random()-0.7)*0.4,   size:Math.random()*3+1,   r:160,g:80,b:220, glow:true, phase:Math.random()*Math.PI*2 };
     case 'void':  return { ...base, vx:(Math.random()-0.5)*0.4, vy:(Math.random()-0.6)*0.5,   size:Math.random()*2+0.5, r:60,g:20,b:180, glow:true, phase:Math.random()*Math.PI*2 };
     case 'ember': return { ...base, vx:(Math.random()-0.5)*0.6, vy:-(Math.random()*1.0+0.3),  size:Math.random()*3+0.5, r:220,g:80,b:20, glow:true };
-    default:      return { ...base, vx:(Math.random()-0.5)*0.3, vy:-(Math.random()*0.3),       size:1.5, r:R,g:G,b:B };
+    case 'rain':         return { ...base, vx:(Math.random()-0.5)*0.4, vy:(Math.random()*1.8+0.8),  size:Math.random()*1.2+0.3, r:0,g:180,b:255,  glow:false };
+    case 'petals':       return { ...base, vx:(Math.random()-0.48)*0.3,vy:(Math.random()*0.4+0.1),  size:Math.random()*5+2,   r:232,g:120,b:160, glow:false, rot:Math.random()*Math.PI*2, rotV:(Math.random()-0.5)*0.04, wobble:Math.random()*Math.PI*2, wobbleR:0.008+Math.random()*0.012 };
+    case 'static':       return { ...base, vx:(Math.random()-0.5)*0.8, vy:(Math.random()-0.5)*0.8,  size:Math.random()*1.5+0.3, r:200,g:180,b:160, glow:false };
+    case 'phosphorDecay':return { ...base, vx:(Math.random()-0.5)*0.2, vy:Math.random()*0.3+0.05,   size:Math.random()*1.2+0.2, r:0,g:255,b:65,    glow:true,  phase:Math.random()*Math.PI*2 };
+    default:             return { ...base, vx:(Math.random()-0.5)*0.3, vy:-(Math.random()*0.3),       size:1.5, r:R,g:G,b:B };
   }
 }
 
@@ -13744,8 +13994,9 @@ function cinBuildTerrain(zone, W, H) {
 }
 
 function cinBuildRunes(zone, W, H) {
-  // Place 8-14 etched rune glyphs at fixed positions that pulse with mid energy
-  const glyphs = ['ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ','ᛇ','ᛈ','ᛉ','ᛊ','ᛏ','ᛒ','ᛖ','ᛗ','ᛚ','ᛜ','ᛞ','ᛟ'];
+  // Use skin-appropriate glyph pool
+  const cfg = cinSkinCfg();
+  const glyphs = CIN_GLYPH_POOLS[cfg.glyphStyle] || CIN_GLYPH_POOLS.runes;
   const rng = (s) => { let x = Math.sin(s * 93.7 + zone.vizB * 0.11) * 54321.9; return x - Math.floor(x); };
   const count = 10 + Math.floor(rng(zone.vizR) * 6);
   CIN.runes = [];
@@ -15442,127 +15693,233 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   CIN.camVel += (targetSpeed - CIN.camVel) * (active > 0.1 ? 0.04 : 0.018);
   CIN.camX  += CIN.camVel;
 
+
+  const cfg = cinSkinCfg();
+  const [skyR, skyG, skyB] = cfg.skyTop;
+  const sm = cfg.skyBlendMul;
+
   // ── 1. SKY FILL — motion blur persistence
-  // Resting: slower decay = dreamier trails. Active: faster = sharper
   c.fillStyle = `rgba(0,0,0,${0.06 + active * 0.05})`;
   c.fillRect(0, 0, W, H);
 
-  // ── 2. SKY GRADIENT — horizon atmospheric glow
+  // ── 2. SKY GRADIENT — skin-tinted horizon atmospheric glow
   const horizonY = H * (0.58 + rest * 0.04);
   const skyGrd = c.createLinearGradient(0, 0, 0, horizonY + 60);
-  // Boosted sky — was too dark to see anything. Active: vibrant. Rest: deep but visible.
   const skyMul = 0.10 + active * 0.38;
-  skyGrd.addColorStop(0,   `rgba(4,2,10,1)`);
-  skyGrd.addColorStop(0.45,`rgba(${Math.floor(R*skyMul*0.7)},${Math.floor(G*skyMul*0.45)},${Math.floor(B*skyMul*0.8)},0.95)`);
+  skyGrd.addColorStop(0,   `rgba(${skyR},${skyG},${skyB},1)`);
+  skyGrd.addColorStop(0.45,`rgba(${Math.floor(R*skyMul*sm.midR)},${Math.floor(G*skyMul*sm.midG)},${Math.floor(B*skyMul*sm.midB)},0.95)`);
   skyGrd.addColorStop(1,   `rgba(${Math.floor(R*skyMul*1.1)},${Math.floor(G*skyMul*0.8)},${Math.floor(B*skyMul*0.9)},0.65)`);
   c.fillStyle = skyGrd;
   c.fillRect(0, 0, W, horizonY + 80);
 
-  // ── 3. STARS — visible only at rest; dissolve when active
+  // ── 3. STARS / BACKGROUND LAYER — skin-specific
   const starAlpha = rest * 0.55;
-  if (starAlpha > 0.01) {
-    // Use rune positions as star seeds for consistency
-    const starCount = 120;
-    for (let i = 0; i < starCount; i++) {
+  if (cfg.starStyle === 'stars' && starAlpha > 0.01) {
+    // Ashen: classic twinkling stars
+    for (let i = 0; i < 120; i++) {
       const sx = Math.sin(i * 137.508 * Math.PI / 180 + 0.1) * 0.5 + 0.5;
-      const sy = Math.sin(i * 97.31 * Math.PI / 180 + 0.7) * 0.5 + 0.5;
+      const sy = Math.sin(i * 97.31  * Math.PI / 180 + 0.7) * 0.5 + 0.5;
       const twinkle = 0.4 + 0.6 * Math.sin(t * 0.012 + i * 2.1);
       const starX = sx * W, starY = sy * horizonY * 0.95;
       const sz = 0.4 + Math.sin(i * 43.7) * 0.3;
-      c.beginPath();
-      c.arc(starX, starY, sz, 0, Math.PI * 2);
-      const [mr, mg, mb] = atmo.moonTint;
-      const col = i % 7 === 0 ? `rgba(${mr},${mg},${mb},${starAlpha * twinkle * 0.8})` : `rgba(200,190,220,${starAlpha * twinkle * 0.6})`;
-      c.fillStyle = col;
+      c.beginPath(); c.arc(starX, starY, sz, 0, Math.PI * 2);
+      const [mr2, mg2, mb2] = atmo.moonTint;
+      c.fillStyle = i % 7 === 0
+        ? `rgba(${mr2},${mg2},${mb2},${starAlpha * twinkle * 0.8})`
+        : `rgba(200,190,220,${starAlpha * twinkle * 0.6})`;
       c.fill();
     }
+  } else if (cfg.starStyle === 'cityLights') {
+    // Neon: grid of city window lights
+    const cols = 48, rows = 22;
+    for (let ci = 0; ci < cols; ci++) {
+      for (let ri = 0; ri < rows; ri++) {
+        const hash = Math.sin(ci * 7.3 + ri * 13.1 + t * 0.0008) * 0.5 + 0.5;
+        if (hash < 0.3) continue;
+        const wx = (ci / cols) * W + Math.sin(ci * 3.7) * W * 0.008;
+        const wy = (ri / rows) * horizonY * 0.85 + Math.sin(ri * 2.1) * H * 0.01;
+        const wAlpha = (hash - 0.3) / 0.7 * (0.25 + active * 0.3);
+        const wFlicker = Math.sin(t * 0.08 + ci * 1.4 + ri * 2.1) > 0.92 ? 0.3 : 1.0;
+        const isNeon = (ci + ri) % 5 === 0;
+        c.fillStyle = isNeon
+          ? `rgba(0,229,255,${wAlpha * wFlicker})`
+          : `rgba(255,45,120,${wAlpha * 0.6 * wFlicker})`;
+        c.fillRect(wx, wy, 2 + Math.sin(ci * 5.1) * 1.5, 3 + Math.sin(ri * 3.7) * 1.5);
+      }
+    }
+  } else if (cfg.starStyle === 'softStars') {
+    // Sakura: large diffuse bloom stars, fewer
+    for (let i = 0; i < 55; i++) {
+      const sx = Math.sin(i * 137.508 * Math.PI / 180) * 0.5 + 0.5;
+      const sy = Math.sin(i * 97.31  * Math.PI / 180) * 0.5 + 0.5;
+      const stX = sx * W, stY = sy * horizonY * 0.8;
+      const sz = 1.2 + Math.sin(i * 43.7) * 0.8;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 0.006 + i * 1.8);
+      const sGrd = c.createRadialGradient(stX, stY, 0, stX, stY, sz * 4);
+      sGrd.addColorStop(0, `rgba(248,176,200,${starAlpha * pulse * 0.5})`);
+      sGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = sGrd; c.beginPath(); c.arc(stX, stY, sz * 4, 0, Math.PI*2); c.fill();
+    }
+  } else if (cfg.starStyle === 'phosphor') {
+    // Void: slow phosphor noise bands
+    const bandCount = 5 + Math.floor(active * 6);
+    for (let bi = 0; bi < bandCount; bi++) {
+      const by = ((t * 0.15 + bi * (H / bandCount)) % H);
+      const bAlpha = (0.015 + active * 0.025) * (0.5 + Math.sin(t * 0.04 + bi * 1.7) * 0.5);
+      c.fillStyle = `rgba(0,255,65,${bAlpha})`;
+      c.fillRect(0, by, W, 1 + Math.random() * 2);
+    }
   }
+  // broadcast: starStyle === 'none' → nothing drawn
 
-  // ── 4. HORIZON BLOOM — bass pulse — brighter base
+  // ── 4. HORIZON BLOOM — bass pulse
   const bassBloom = CIN.smoothBass;
-  const bloomR = W * (0.45 + active * 0.25);
-  const bloomGrd = c.createRadialGradient(W/2, horizonY, 0, W/2, horizonY, bloomR);
+  const bloomR2 = W * (0.45 + active * 0.25);
+  const bloomGrd = c.createRadialGradient(W/2, horizonY, 0, W/2, horizonY, bloomR2);
   bloomGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.55)},${Math.floor(B*0.45)},${0.08 + bassBloom * 0.30 + active * 0.10})`);
   bloomGrd.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = bloomGrd;
   c.fillRect(0, horizonY - H*0.4, W, H*0.55);
 
-  // ── 5. MOON / ORB — brighter, more presence
+  // ── 5. MOON / ORB — skin-specific character
+  const [moonXn, moonYn] = cfg.moonPos;
+  const moonX = W * moonXn, moonY = H * moonYn;
+  const [mr, mg, mb] = atmo.moonTint;
   CIN.moonFlicker += (Math.random() - 0.5) * (0.02 + active * 0.05);
   CIN.moonFlicker = Math.max(0.78, Math.min(1.0, CIN.moonFlicker));
   const breathe = 1 + rest * 0.06 * Math.sin(t * 0.018);
-  const moonX = W * 0.72, moonY = H * 0.15;
   const moonR = Math.min(W, H) * (0.042 + active * 0.020) * CIN.moonFlicker * breathe;
-  const [mr, mg, mb] = atmo.moonTint;
-  const moonGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 4);
-  moonGrd.addColorStop(0,   `rgba(${mr},${mg},${mb},${(0.65 + active * 0.30) * CIN.moonFlicker})`);
-  moonGrd.addColorStop(0.25,`rgba(${Math.floor(mr*0.6)},${Math.floor(mg*0.4)},${Math.floor(mb*0.8)},${(0.28 + active * 0.18) * CIN.moonFlicker})`);
-  moonGrd.addColorStop(1,   'rgba(0,0,0,0)');
-  c.fillStyle = moonGrd;
-  c.fillRect(0, 0, W, H * 0.5);
-  // Hard orb core — brighter
-  c.beginPath();
-  c.arc(moonX, moonY, moonR * 0.5, 0, Math.PI * 2);
-  c.fillStyle = `rgba(${mr},${mg},${mb},${(0.55 + active * 0.38) * CIN.moonFlicker})`;
-  c.fill();
 
-  // ── 6. PARALLAX TERRAIN LAYERS — mountains react to frequency bands ─
-  if (CIN.terrainParallax && CIN.terrainParallax.length) {
+  if (cfg.moonStyle === 'orb') {
+    // Ashen: cracked stone orb with glow
+    const moonGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 4);
+    moonGrd.addColorStop(0,   `rgba(${mr},${mg},${mb},${(0.65 + active * 0.30) * CIN.moonFlicker})`);
+    moonGrd.addColorStop(0.25,`rgba(${Math.floor(mr*0.6)},${Math.floor(mg*0.4)},${Math.floor(mb*0.8)},${(0.28 + active * 0.18) * CIN.moonFlicker})`);
+    moonGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = moonGrd; c.fillRect(0, 0, W, H * 0.5);
+    c.beginPath(); c.arc(moonX, moonY, moonR * 0.5, 0, Math.PI * 2);
+    c.fillStyle = `rgba(${mr},${mg},${mb},${(0.55 + active * 0.38) * CIN.moonFlicker})`; c.fill();
+
+  } else if (cfg.moonStyle === 'neonRing') {
+    // Neon: pulsing concentric rings — transmission orb
+    const ringCount = 3;
+    for (let ri = 0; ri < ringCount; ri++) {
+      const rPhase = (t * 0.025 + ri * 0.3) % 1.0;
+      const rRadius = moonR * (0.4 + ri * 0.6 + rPhase * 0.8);
+      const rAlpha = (1 - rPhase) * (0.3 + active * 0.5) * CIN.moonFlicker;
+      c.beginPath(); c.arc(moonX, moonY, rRadius, 0, Math.PI * 2);
+      c.strokeStyle = ri % 2 === 0 ? `rgba(0,229,255,${rAlpha})` : `rgba(255,45,120,${rAlpha * 0.7})`;
+      c.lineWidth = 1.5 - ri * 0.3;
+      c.stroke();
+    }
+    // Core dot
+    c.beginPath(); c.arc(moonX, moonY, moonR * 0.25, 0, Math.PI * 2);
+    c.fillStyle = `rgba(0,229,255,${(0.7 + active * 0.3) * CIN.moonFlicker})`; c.fill();
+    // Halo glow
+    const hGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 3);
+    hGrd.addColorStop(0, `rgba(0,229,255,${0.12 * CIN.moonFlicker})`);
+    hGrd.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = hGrd; c.beginPath(); c.arc(moonX, moonY, moonR * 3, 0, Math.PI*2); c.fill();
+
+  } else if (cfg.moonStyle === 'fullMoon') {
+    // Sakura: large soft full moon — high, pale, with cherry blossom ring
+    const sakMoonR = Math.min(W, H) * (0.065 + active * 0.01) * breathe;
+    const mGrd = c.createRadialGradient(moonX, moonY, sakMoonR * 0.1, moonX, moonY, sakMoonR * 3);
+    mGrd.addColorStop(0,   `rgba(255,240,230,${(0.75 + active * 0.2) * CIN.moonFlicker})`);
+    mGrd.addColorStop(0.3, `rgba(248,200,210,${0.25 * CIN.moonFlicker})`);
+    mGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = mGrd; c.fillRect(0, 0, W * 0.8, H * 0.45);
+    c.beginPath(); c.arc(moonX, moonY, sakMoonR, 0, Math.PI * 2);
+    c.fillStyle = `rgba(255,242,235,${(0.65 + active * 0.25) * CIN.moonFlicker})`; c.fill();
+    // Soft outer glow
+    c.beginPath(); c.arc(moonX, moonY, sakMoonR * 1.4, 0, Math.PI * 2);
+    c.strokeStyle = `rgba(232,180,200,${0.12 * CIN.moonFlicker})`; c.lineWidth = sakMoonR * 0.5; c.stroke();
+
+  } else if (cfg.moonStyle === 'broadcastLogo') {
+    // Broadcast: clean geometric signal circle — network logo aesthetic
+    const bR = Math.min(W, H) * 0.048;
+    // Outer ring
+    c.beginPath(); c.arc(moonX, moonY, bR, 0, Math.PI * 2);
+    c.strokeStyle = `rgba(232,160,32,${0.7 + active * 0.2})`; c.lineWidth = 2; c.stroke();
+    // Inner filled circle
+    c.beginPath(); c.arc(moonX, moonY, bR * 0.55, 0, Math.PI * 2);
+    c.fillStyle = `rgba(232,160,32,${0.5 + active * 0.35})`; c.fill();
+    // Center dot
+    c.beginPath(); c.arc(moonX, moonY, bR * 0.14, 0, Math.PI * 2);
+    c.fillStyle = `rgba(10,10,14,0.9)`; c.fill();
+    // Signal arcs — broadcast on-air indicator
+    if (isPlaying) {
+      for (let arc = 1; arc <= 3; arc++) {
+        const arcPhase = (t * 0.03 + arc * 0.25) % 1.0;
+        const arcAlpha = (1 - arcPhase) * (0.3 + active * 0.5);
+        const arcR = bR * (1.2 + arc * 0.4 + arcPhase * 0.6);
+        c.beginPath(); c.arc(moonX, moonY, arcR, -Math.PI*0.6, Math.PI*0.6);
+        c.strokeStyle = `rgba(232,160,32,${arcAlpha})`; c.lineWidth = 1; c.stroke();
+        c.beginPath(); c.arc(moonX, moonY, arcR, Math.PI*0.4, Math.PI*1.6);
+        c.strokeStyle = `rgba(232,160,32,${arcAlpha})`; c.lineWidth = 1; c.stroke();
+      }
+    }
+
+  } else if (cfg.moonStyle === 'cursor') {
+    // Void: blinking terminal cursor block
+    const cBlinkOn = Math.floor(t / 30) % 2 === 0;
+    const cW = Math.min(W, H) * 0.028, cH = cW * 1.6;
+    if (cBlinkOn || active > 0.3) {
+      const cAlpha = cBlinkOn ? (0.8 + active * 0.2) : (active * 0.5);
+      c.fillStyle = `rgba(0,255,65,${cAlpha})`;
+      c.fillRect(moonX - cW/2, moonY - cH * 0.8, cW, cH);
+      // Phosphor glow around cursor
+      const cgGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, cW * 4);
+      cgGrd.addColorStop(0, `rgba(0,255,65,${cAlpha * 0.3})`);
+      cgGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = cgGrd; c.beginPath(); c.arc(moonX, moonY, cW * 4, 0, Math.PI*2); c.fill();
+    }
+    // System prompt line
+    const promptSize = Math.floor(Math.min(W,H) * 0.012);
+    c.font = `${promptSize}px 'Space Mono', monospace`;
+    c.textAlign = 'left';
+    c.fillStyle = `rgba(0,255,65,${0.45 + active * 0.3})`;
+    c.fillText(`> ${zone.name}`, moonX + cW * 1.2, moonY + promptSize * 0.4);
+  }
+
+  // ── 6. PARALLAX TERRAIN / BACKGROUND — skin-specific style
+  if (cfg.terrainStyle === 'ruins' && CIN.terrainParallax && CIN.terrainParallax.length) {
+    // Ashen default: ruined stone ramparts
     CIN.terrainParallax.forEach((layer, li) => {
       const parallaxFrac = 0.08 + li * 0.16;
       const organicSway = Math.sin(t * 0.00018 * layer.speed) * W * 0.004 * (li + 1);
       const scrollX = -(CIN.camX * parallaxFrac) + organicSway;
-
-      // ── Frequency-reactive mountain lift ──────────────────────────
-      // Each point samples a slice of the FFT so peaks in the music
-      // cause mountain silhouettes to heave upward like a spectrum.
-      // Far layers react to low bass (slow, massive swells).
-      // Near layers react to mids (tighter, more percussive).
       const fftBinCount = freqData.length;
-      const freqReactScale = [0.055, 0.040, 0.028, 0.018][li]; // far layers swell most
-      const bandStart = [0, 0.04, 0.10, 0.20][li]; // bass → mid → upper-mid → presence
+      const freqReactScale = [0.055, 0.040, 0.028, 0.018][li];
+      const bandStart = [0, 0.04, 0.10, 0.20][li];
       const bandEnd   = [0.08, 0.18, 0.35, 0.60][li];
-
       const tileW = W;
       const offset = ((scrollX % tileW) + tileW) % tileW;
-
       const depthDark = li / 3.5;
-      // Slightly brighter base — more visible mountains
       const fillR = Math.floor(R * (0.18 - depthDark * 0.14) + (active * R * 0.06));
       const fillG = Math.floor(G * (0.11 - depthDark * 0.09) + (active * G * 0.04));
       const fillB = Math.floor(B * (0.22 - depthDark * 0.18) + (active * B * 0.08));
-
       for (let copy = -1; copy <= 1; copy++) {
         const dx = copy * tileW - offset;
-        c.beginPath();
-        c.moveTo(dx, H);
+        c.beginPath(); c.moveTo(dx, H);
         layer.pts.forEach((p, i) => {
-          const px = p.x + dx;
-          // Per-point frequency sample — maps horizontal position to frequency band
           const tNorm  = i / Math.max(1, layer.pts.length - 1);
           const binIdx = Math.floor((bandStart + tNorm * (bandEnd - bandStart)) * fftBinCount);
           const binVal = (freqData[Math.min(fftBinCount - 1, binIdx)] || 0) / 255;
-          // Smooth the freq lift with the global bass/energy for organic feel
           const freqLift = binVal * H * freqReactScale * (active * 0.85 + 0.15);
           const bassLift = CIN.smoothBass * H * 0.022 * (li * 0.5 + 0.3);
           const py = p.y - bassLift - freqLift;
-          i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+          i === 0 ? c.moveTo(p.x + dx, py) : c.lineTo(p.x + dx, py);
         });
         c.lineTo(layer.pts[layer.pts.length - 1].x + dx, H);
-        c.lineTo(dx, H);
-        c.closePath();
-
-        // Gradient fill — adds depth glow at ridge line when active
+        c.lineTo(dx, H); c.closePath();
         const ridgeY = layer.pts.reduce((mn, p) => Math.min(mn, p.y), H) - CIN.smoothBass * H * 0.022;
         const mGrd = c.createLinearGradient(0, ridgeY - H * 0.05, 0, H);
         const edgeGlow = active * 0.06 + CIN.smoothBass * 0.10;
-        mGrd.addColorStop(0,   `rgba(${fillR + Math.floor(R*edgeGlow)},${fillG + Math.floor(G*edgeGlow*0.6)},${fillB + Math.floor(B*edgeGlow)},${layer.alpha})`);
+        mGrd.addColorStop(0, `rgba(${fillR + Math.floor(R*edgeGlow)},${fillG + Math.floor(G*edgeGlow*0.6)},${fillB + Math.floor(B*edgeGlow)},${layer.alpha})`);
         mGrd.addColorStop(0.4, `rgba(${fillR},${fillG},${fillB},${layer.alpha})`);
         mGrd.addColorStop(1,   `rgba(${fillR},${fillG},${fillB},${layer.alpha})`);
-        c.fillStyle = mGrd;
-        c.fill();
-
-        // Ridge line — glows brighter on bass hits for the near two layers
+        c.fillStyle = mGrd; c.fill();
         if (li <= 1) {
           c.beginPath();
           layer.pts.forEach((p, i) => {
@@ -15571,29 +15928,238 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
             const binVal = (freqData[Math.min(fftBinCount - 1, binIdx)] || 0) / 255;
             const freqLift = binVal * H * freqReactScale * (active * 0.85 + 0.15);
             const bassLift = CIN.smoothBass * H * 0.022 * (li * 0.5 + 0.3);
-            const px = p.x + dx;
             const py = p.y - bassLift - freqLift;
-            i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+            i === 0 ? c.moveTo(p.x + dx, py) : c.lineTo(p.x + dx, py);
           });
           c.strokeStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${0.06 + CIN.smoothBass * 0.22 + active * 0.10})`;
-          c.lineWidth = 1 + CIN.smoothBass * 1.5;
-          c.stroke();
+          c.lineWidth = 1 + CIN.smoothBass * 1.5; c.stroke();
         }
       }
     });
+
+  } else if (cfg.terrainStyle === 'skyline') {
+    // Neon: procedural city skyline — geometric building silhouettes
+    const scrollX = -(CIN.camX * 0.35);
+    const buildingRng = (s) => { let x = Math.sin(s * 47.3 + 12.1) * 43758.5; return x - Math.floor(x); };
+    const buildingCount = 32;
+    const bW = W / buildingCount;
+    // Far layer — small distant buildings
+    for (let bi = -2; bi < buildingCount + 2; bi++) {
+      const sx = bi * bW + ((scrollX * 0.4) % bW);
+      const bh = H * (0.15 + buildingRng(bi * 3.1) * 0.22);
+      const by = horizonY - bh;
+      const fillVal = Math.floor(18 + buildingRng(bi) * 12);
+      c.fillStyle = `rgb(${fillVal},${fillVal},${Math.floor(fillVal * 1.8)})`;
+      c.fillRect(sx, by, bW * (0.55 + buildingRng(bi * 2) * 0.35), bh);
+      // Windows
+      const winRows = Math.floor(bh / 8), winCols = 2;
+      for (let wr = 0; wr < winRows; wr++) {
+        for (let wc = 0; wc < winCols; wc++) {
+          const wLit = buildingRng(bi * 13 + wr * 7 + wc * 3 + Math.floor(t / 120)) > 0.45;
+          if (!wLit) continue;
+          const wx = sx + 3 + wc * 7, wy = by + 4 + wr * 7;
+          c.fillStyle = buildingRng(bi + wr) > 0.6 ? 'rgba(0,229,255,0.5)' : 'rgba(255,45,120,0.35)';
+          c.fillRect(wx, wy, 4, 4);
+        }
+      }
+    }
+    // Near layer — taller buildings with bass-reactive antenna glow
+    for (let bi = -1; bi < 14; bi++) {
+      const sx2 = bi * bW * 2.1 + ((scrollX * 0.7) % (bW * 2));
+      const bh2 = H * (0.28 + buildingRng(bi * 5.3 + 100) * 0.32);
+      const by2 = horizonY - bh2;
+      const bwn = bW * (0.8 + buildingRng(bi * 2 + 200) * 0.8);
+      c.fillStyle = `rgba(8,6,20,0.92)`;
+      c.fillRect(sx2, by2, bwn, bh2);
+      // Antenna beacon
+      const beaconAlpha = (0.4 + CIN.smoothBass * 0.6) * (Math.sin(t * 0.08 + bi * 1.2) * 0.5 + 0.5);
+      c.fillStyle = `rgba(255,45,120,${beaconAlpha})`;
+      c.beginPath(); c.arc(sx2 + bwn/2, by2 - 4, 2.5, 0, Math.PI*2); c.fill();
+      // Neon edge glow on near buildings
+      c.shadowColor = 'rgba(0,229,255,0.3)'; c.shadowBlur = 6 + CIN.smoothBass * 8;
+      c.strokeStyle = `rgba(0,229,255,${0.08 + active * 0.12})`;
+      c.lineWidth = 1; c.strokeRect(sx2, by2, bwn, bh2);
+      c.shadowBlur = 0;
+    }
+    // Ground floor
+    const grd2 = c.createLinearGradient(0, horizonY, 0, H);
+    grd2.addColorStop(0, `rgba(10,8,28,0.95)`);
+    grd2.addColorStop(1, `rgba(4,2,12,1)`);
+    c.fillStyle = grd2; c.fillRect(0, horizonY, W, H);
+    // Wet street reflection
+    const reflGrd = c.createLinearGradient(0, horizonY, 0, horizonY + H * 0.12);
+    reflGrd.addColorStop(0, `rgba(0,229,255,${0.04 + CIN.smoothBass * 0.06})`);
+    reflGrd.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = reflGrd; c.fillRect(0, horizonY, W, H * 0.12);
+
+  } else if (cfg.terrainStyle === 'mountains') {
+    // Sakura: layered mountain silhouettes with soft gradient fills
+    if (CIN.terrainParallax && CIN.terrainParallax.length) {
+      CIN.terrainParallax.forEach((layer, li) => {
+        const parallaxFrac = 0.05 + li * 0.12;
+        const scrollX = -(CIN.camX * parallaxFrac);
+        const tileW = W;
+        const offset = ((scrollX % tileW) + tileW) % tileW;
+        // Softer, lighter mountain colors for sakura
+        const lightness = 0.06 + li * 0.04;
+        const pinkTint  = 0.05 + li * 0.02;
+        for (let copy = -1; copy <= 1; copy++) {
+          const dx = copy * tileW - offset;
+          c.beginPath(); c.moveTo(dx, H);
+          layer.pts.forEach((p, i) => {
+            const bassLift = CIN.smoothBass * H * 0.015 * (li * 0.4 + 0.2);
+            i === 0 ? c.moveTo(p.x + dx, p.y - bassLift) : c.lineTo(p.x + dx, p.y - bassLift);
+          });
+          c.lineTo(layer.pts[layer.pts.length - 1].x + dx, H);
+          c.lineTo(dx, H); c.closePath();
+          const ridgeY2 = layer.pts.reduce((mn, p) => Math.min(mn, p.y), H);
+          const mGrd2 = c.createLinearGradient(0, ridgeY2 - H * 0.04, 0, H);
+          mGrd2.addColorStop(0,   `rgba(${Math.floor(180 * lightness + R * pinkTint)},${Math.floor(80 * lightness)},${Math.floor(120 * lightness + B * pinkTint)},${layer.alpha})`);
+          mGrd2.addColorStop(1,   `rgba(${Math.floor(60 * lightness)},${Math.floor(30 * lightness)},${Math.floor(50 * lightness)},${layer.alpha})`);
+          c.fillStyle = mGrd2; c.fill();
+          // Soft pink ridge glow
+          if (li <= 1) {
+            c.beginPath();
+            layer.pts.forEach((p, i) => {
+              const bassLift = CIN.smoothBass * H * 0.015 * (li * 0.4 + 0.2);
+              i === 0 ? c.moveTo(p.x + dx, p.y - bassLift) : c.lineTo(p.x + dx, p.y - bassLift);
+            });
+            c.strokeStyle = `rgba(232,180,200,${0.08 + CIN.smoothBass * 0.18})`;
+            c.lineWidth = 1; c.stroke();
+          }
+        }
+      });
+    }
+    // Near bamboo silhouette layer
+    const bambooScroll = -(CIN.camX * 0.62) % W;
+    for (let bi = -2; bi < 18; bi++) {
+      const bx = bi * W/15 + ((bambooScroll) % (W/15));
+      const bh = H * (0.22 + Math.sin(bi * 7.3) * 0.08);
+      const by = horizonY - bh * 0.65;
+      const stemW = Math.max(1.5, Math.min(W,H) * 0.006 + Math.sin(bi * 3.1) * Math.min(W,H) * 0.002);
+      // Sway with bass
+      const sway = Math.sin(t * 0.02 + bi * 1.7) * (3 + CIN.smoothBass * 8);
+      c.save(); c.translate(bx + sway, 0);
+      c.fillStyle = 'rgba(30,15,25,0.85)';
+      c.fillRect(-stemW/2, by, stemW, bh * 0.65 + (H - by));
+      // Nodes
+      const nodeCount = 4;
+      for (let ni = 0; ni < nodeCount; ni++) {
+        const ny = by + (bh * 0.65) * (ni / nodeCount);
+        c.fillStyle = 'rgba(20,10,18,0.9)';
+        c.fillRect(-stemW/2 - 1, ny, stemW + 2, 3);
+      }
+      // Leaf cluster at top
+      c.fillStyle = 'rgba(25,10,22,0.8)';
+      c.beginPath(); c.ellipse(0, by, stemW * 4, stemW * 8, -0.3, 0, Math.PI*2); c.fill();
+      c.restore();
+    }
+
+  } else if (cfg.terrainStyle === 'stage') {
+    // Broadcast: clean studio stage — flat floor, horizon line, professional
+    // Studio backdrop gradient
+    const stageGrd = c.createLinearGradient(0, 0, 0, horizonY);
+    stageGrd.addColorStop(0,   'rgba(12,12,16,1)');
+    stageGrd.addColorStop(0.7, 'rgba(16,16,20,0.95)');
+    stageGrd.addColorStop(1,   'rgba(22,20,18,0.9)');
+    c.fillStyle = stageGrd; c.fillRect(0, 0, W, horizonY);
+    // Clean horizon line
+    c.fillStyle = `rgba(232,160,32,${0.25 + active * 0.2})`;
+    c.fillRect(0, horizonY - 1, W, 1 + CIN.smoothBass * 2);
+    // VU-style frequency bars along horizon — like broadcast lower third
+    const vuCount = 64;
+    const vuW = W / vuCount;
+    for (let vi = 0; vi < vuCount; vi++) {
+      const binIdx = Math.floor((vi / vuCount) * freqData.length * 0.7);
+      const binVal = (freqData[binIdx] || 0) / 255;
+      const vuh = binVal * H * 0.18 * (active * 0.9 + 0.1);
+      const vuAlpha = 0.20 + binVal * 0.45;
+      c.fillStyle = binVal > 0.75
+        ? `rgba(224,80,32,${vuAlpha})`
+        : binVal > 0.45
+          ? `rgba(232,160,32,${vuAlpha})`
+          : `rgba(80,160,80,${vuAlpha})`;
+      c.fillRect(vi * vuW, horizonY - vuh - 1, vuW - 1, vuh);
+    }
+    // Stage floor with reflective grid
+    const floorGrd = c.createLinearGradient(0, horizonY, 0, H);
+    floorGrd.addColorStop(0, 'rgba(20,18,16,1)');
+    floorGrd.addColorStop(1, 'rgba(8,8,10,1)');
+    c.fillStyle = floorGrd; c.fillRect(0, horizonY, W, H);
+    // Perspective grid on floor
+    const gridLines = 12;
+    c.strokeStyle = `rgba(232,160,32,${0.06 + active * 0.04})`;
+    c.lineWidth = 0.5;
+    for (let gi = 0; gi <= gridLines; gi++) {
+      const t2 = gi / gridLines;
+      // Horizontal
+      const gy = horizonY + (H - horizonY) * (t2 * t2);
+      c.beginPath(); c.moveTo(0, gy); c.lineTo(W, gy); c.stroke();
+      // Vertical perspective lines
+      const vx = W/2 + (t2 - 0.5) * W * 1.6;
+      c.beginPath(); c.moveTo(W/2, horizonY); c.lineTo(vx, H); c.stroke();
+    }
+
+  } else if (cfg.terrainStyle === 'grid') {
+    // Void: corrupted grid geometry with glitch tears
+    const gridCols = 24, gridRows = 16;
+    const scrollX3 = -(CIN.camX * 0.3);
+    for (let gc = 0; gc < gridCols; gc++) {
+      for (let gr = 0; gr < gridRows; gr++) {
+        const gx = (gc / gridCols) * W + ((scrollX3) % (W/gridCols));
+        const gy = horizonY * 0.2 + (gr / gridRows) * horizonY * 0.8;
+        const corrupt = Math.sin(gc * 7.3 + gr * 11.1 + t * 0.015) > 0.88;
+        const gAlpha = corrupt ? (0.12 + active * 0.18) : (0.025 + active * 0.04);
+        c.fillStyle = corrupt ? `rgba(0,255,65,${gAlpha})` : `rgba(0,100,20,${gAlpha})`;
+        c.fillRect(gx, gy, W/gridCols - 1, H * 0.02);
+      }
+    }
+    // Corrupted terrain silhouette
+    if (CIN.terrainParallax && CIN.terrainParallax.length) {
+      CIN.terrainParallax.forEach((layer, li) => {
+        const parallaxFrac = 0.08 + li * 0.16;
+        const scrollX4 = -(CIN.camX * parallaxFrac);
+        const tileW = W;
+        const offset = ((scrollX4 % tileW) + tileW) % tileW;
+        for (let copy = -1; copy <= 1; copy++) {
+          const dx = copy * tileW - offset;
+          // Glitch offset — random horizontal tear
+          const glitchOff = Math.sin(t * 0.07 + li * 3.1) > 0.92 ? (Math.random() - 0.5) * W * 0.03 : 0;
+          c.beginPath(); c.moveTo(dx, H);
+          layer.pts.forEach((p, i) => {
+            const bassLift = CIN.smoothBass * H * 0.018 * (li * 0.4 + 0.2);
+            const px = p.x + dx + (i % 3 === 0 ? glitchOff : 0);
+            i === 0 ? c.moveTo(px, p.y - bassLift) : c.lineTo(px, p.y - bassLift);
+          });
+          c.lineTo(layer.pts[layer.pts.length - 1].x + dx, H);
+          c.lineTo(dx, H); c.closePath();
+          const vFill = 8 + li * 4;
+          c.fillStyle = `rgba(0,${vFill},0,${layer.alpha * 0.9})`;
+          c.fill();
+          // Phosphor ridge edge
+          c.beginPath();
+          layer.pts.forEach((p, i) => {
+            const bassLift = CIN.smoothBass * H * 0.018 * (li * 0.4 + 0.2);
+            const px = p.x + dx + (i % 3 === 0 ? glitchOff : 0);
+            i === 0 ? c.moveTo(px, p.y - bassLift) : c.lineTo(px, p.y - bassLift);
+          });
+          c.strokeStyle = `rgba(0,255,65,${0.08 + CIN.smoothBass * 0.25 + active * 0.08})`;
+          c.lineWidth = 0.8; c.stroke();
+        }
+      });
+    }
   }
 
-  // ── 7. FOG LAYERS — resting: heavy & slow. Active: faster, thinner.
-  if (CIN.fogLayers.length) {
+  // ── 7. FOG / ATMOSPHERE — skin-specific
+  if (cfg.fogStyle === 'stone' && CIN.fogLayers.length) {
+    // Ashen: heavy low-ground stone mist
     CIN.fogLayers.forEach(fog => {
       fog.x += fog.speed * (0.3 + active * 0.7);
       const y = fog.y + Math.sin(t * fog.freq + fog.phase) * fog.amp * (0.5 + rest * 0.5);
       const fAlpha = (fog.alpha * (0.6 + rest * 0.4)) + CIN.smoothEnergy * 0.04;
       const fogW = W * 1.4;
-      // Fog drifts with a near-ground parallax on top of its own self-scroll
       const fogCamDrift = CIN.camX * 0.18;
       const fogX = ((fog.x - fogCamDrift) % fogW + fogW * 2) % fogW - fogW * 0.2;
-
       const fGrd = c.createLinearGradient(0, y - fog.height, 0, y + fog.height * 0.6);
       fGrd.addColorStop(0, 'rgba(0,0,0,0)');
       fGrd.addColorStop(0.4, `rgba(${Math.floor(R*0.15)},${Math.floor(G*0.12)},${Math.floor(B*0.2)},${fAlpha})`);
@@ -15602,40 +16168,163 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.fillStyle = fGrd;
       c.fillRect(fogX, y - fog.height, fogW, fog.height * 1.6);
     });
+  } else if (cfg.fogStyle === 'smog' && CIN.fogLayers.length) {
+    // Neon: low-lying city smog with cyan/pink tint
+    CIN.fogLayers.forEach(fog => {
+      fog.x += fog.speed * (0.5 + active * 1.0);
+      const y = fog.y + Math.sin(t * fog.freq + fog.phase) * fog.amp * 0.4;
+      const fAlpha = (fog.alpha * 0.9) + CIN.smoothBass * 0.05;
+      const fogW = W * 1.5;
+      const fogX = ((fog.x - CIN.camX * 0.25) % fogW + fogW * 2) % fogW - fogW * 0.2;
+      const fGrd2 = c.createLinearGradient(0, y - fog.height, 0, y + fog.height * 0.6);
+      fGrd2.addColorStop(0, 'rgba(0,0,0,0)');
+      fGrd2.addColorStop(0.4, `rgba(0,${Math.floor(30 + CIN.smoothEnergy * 20)},${Math.floor(60 + CIN.smoothBass * 40)},${fAlpha * 0.7})`);
+      fGrd2.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = fGrd2; c.fillRect(fogX, y - fog.height, fogW, fog.height * 1.4);
+    });
+  } else if (cfg.fogStyle === 'mist' && CIN.fogLayers.length) {
+    // Sakura: soft pale morning mist
+    CIN.fogLayers.forEach(fog => {
+      fog.x += fog.speed * (0.15 + active * 0.4);
+      const y = fog.y + Math.sin(t * fog.freq + fog.phase) * fog.amp * (0.6 + rest * 0.4);
+      const fAlpha = fog.alpha * (0.8 + rest * 0.3);
+      const fogW = W * 1.5;
+      const fogX = ((fog.x - CIN.camX * 0.12) % fogW + fogW * 2) % fogW - fogW * 0.2;
+      const fGrd3 = c.createLinearGradient(0, y - fog.height * 1.4, 0, y + fog.height * 0.6);
+      fGrd3.addColorStop(0, 'rgba(0,0,0,0)');
+      fGrd3.addColorStop(0.4, `rgba(240,200,220,${fAlpha * 0.35})`);
+      fGrd3.addColorStop(0.8, `rgba(200,160,190,${fAlpha * 0.18})`);
+      fGrd3.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = fGrd3; c.fillRect(fogX, y - fog.height * 1.4, fogW, fog.height * 2.0);
+    });
+  } else if (cfg.fogStyle === 'scanlines') {
+    // Void: horizontal CRT scanline interference bands
+    const bandCount = 3 + Math.floor(active * 4);
+    for (let bi = 0; bi < bandCount; bi++) {
+      const by = ((t * 0.8 + bi * (H * 0.35)) % H);
+      const bAlpha = 0.04 + active * 0.06 + CIN.smoothBass * 0.04;
+      const bH = 2 + Math.floor(Math.random() * 3);
+      c.fillStyle = `rgba(0,255,65,${bAlpha})`;
+      c.fillRect(0, by, W, bH);
+    }
   }
+  // broadcast fogStyle === 'none': nothing drawn
 
-  // ── 8. WAVEFORM — ground energy (invisible line, knight still roots to it) ────
+  // ── 8. WAVEFORM GROUND ─────────────────────────────────────────────
   const waveSlice = Math.min(waveData.length, 512);
   const waveFloor = H * (0.86 + rest * 0.02);
-  // Resting: small gentle wave. Active: large energy wave.
   const waveAmpMul = 0.04 + active * 0.09;
   const waveAmp = H * waveAmpMul;
-  // Waveform fill and line are intentionally hidden — knight grounds to this silently
 
-  // ── 8.5. KNIGHT — stands on waveform ─────────────────────────────
+  // ── 8.5. KNIGHT ────────────────────────────────────────────────────
   cinDrawKnight(c, W, H, zone, t, rest, waveData, waveFloor, waveAmp);
 
-  // ── 9. TORCH FLAMES — world-space, scroll with near layer
-  const nearParallax = 0.55; // matches li=3 fraction
-  const torchScroll  = (CIN.camX * nearParallax) % (W * 0.26); // spacing between torches
-  const torchSpacing = W * 0.26;
-  const torchY  = H * 0.76;
+  // ── 9. LIGHT SOURCES — skin-specific torches/lamps/lanterns
+  const nearParallax = 0.55;
+  const torchScroll  = (CIN.camX * nearParallax) % (W * cfg.torchSpacing);
+  const torchSpacing = W * cfg.torchSpacing;
+  const torchYPos    = cfg.torchStyle === 'spotlight' ? 0 : H * cfg.torchY;
+
   for (let ti = -1; ti <= 5; ti++) {
     const tx = ((ti * torchSpacing - torchScroll) % (W * 1.3) + W * 1.3) % (W * 1.3) - W * 0.15;
     if (tx < -W * 0.1 || tx > W * 1.1) continue;
     const flicker = 0.5 + 0.5 * Math.sin(t * (0.06 + rest * 0.04) + ti * 1.9) + CIN.smoothBass * 0.35;
-    const baseH = 8 + rest * 4;
-    const fh = (baseH + active * 22 + CIN.smoothBass * 16) * flicker;
-    const fw = (5 + active * 6 + CIN.smoothBass * 4) * flicker;
-    const tGrd = c.createRadialGradient(tx, torchY, 0, tx, torchY - fh, fw * 2.5);
-    const fBright = 0.4 + active * 0.5;
-    tGrd.addColorStop(0,   `rgba(255,${Math.floor(180 + active * 60)},80,${0.5 * fBright * flicker})`);
-    tGrd.addColorStop(0.35,`rgba(${R},${Math.floor(G*0.35)},0,${0.35 * fBright * flicker})`);
-    tGrd.addColorStop(1,   'rgba(0,0,0,0)');
-    c.fillStyle = tGrd;
-    c.beginPath();
-    c.ellipse(tx, torchY - fh/2, fw, fh, 0, 0, Math.PI * 2);
-    c.fill();
+
+    if (cfg.torchStyle === 'torch') {
+      // Ashen: stone torch flames
+      const baseH = 8 + rest * 4;
+      const fh = (baseH + active * 22 + CIN.smoothBass * 16) * flicker;
+      const fw = (5 + active * 6 + CIN.smoothBass * 4) * flicker;
+      const tGrd = c.createRadialGradient(tx, torchYPos, 0, tx, torchYPos - fh, fw * 2.5);
+      const fBright = 0.4 + active * 0.5;
+      tGrd.addColorStop(0,   `rgba(255,${Math.floor(180 + active * 60)},80,${0.5 * fBright * flicker})`);
+      tGrd.addColorStop(0.35,`rgba(${R},${Math.floor(G*0.35)},0,${0.35 * fBright * flicker})`);
+      tGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = tGrd;
+      c.beginPath(); c.ellipse(tx, torchYPos - fh/2, fw, fh, 0, 0, Math.PI * 2); c.fill();
+
+    } else if (cfg.torchStyle === 'lamppost') {
+      // Neon: vertical neon lamp post with glow
+      const postH = H * 0.22;
+      const postY = H * cfg.torchY - postH;
+      // Post
+      c.fillStyle = 'rgba(20,16,32,0.9)';
+      c.fillRect(tx - 2, postY, 4, postH);
+      // Lamp glow
+      const lAlpha = (0.25 + active * 0.5 + CIN.smoothBass * 0.35) * flicker;
+      const lampR = 12 + active * 8 + CIN.smoothBass * 6;
+      const lampColor = ti % 2 === 0 ? `rgba(0,229,255,${lAlpha})` : `rgba(255,45,120,${lAlpha * 0.8})`;
+      const lGrd = c.createRadialGradient(tx, postY, 0, tx, postY, lampR * 3);
+      lGrd.addColorStop(0, lampColor);
+      lGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = lGrd; c.beginPath(); c.arc(tx, postY, lampR * 3, 0, Math.PI*2); c.fill();
+      // Street reflection
+      const rAlpha = lAlpha * 0.3;
+      const rGrd = c.createLinearGradient(tx, H * cfg.torchY, tx, H * cfg.torchY + lampR * 3);
+      rGrd.addColorStop(0, ti % 2 === 0 ? `rgba(0,229,255,${rAlpha})` : `rgba(255,45,120,${rAlpha})`);
+      rGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = rGrd; c.fillRect(tx - 2, H * cfg.torchY, 4, lampR * 3);
+
+    } else if (cfg.torchStyle === 'lantern') {
+      // Sakura: paper lantern — warm amber glow, gentle bob
+      const bobY = torchYPos + Math.sin(t * 0.018 + ti * 1.3) * 4;
+      const lW = 14 + active * 4, lH = 20 + active * 6;
+      // Paper lantern body
+      c.save(); c.translate(tx, bobY);
+      // Glow halo
+      const lGrd2 = c.createRadialGradient(0, 0, 0, 0, 0, lW * 3);
+      lGrd2.addColorStop(0, `rgba(255,200,160,${(0.18 + active * 0.28) * flicker})`);
+      lGrd2.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = lGrd2; c.beginPath(); c.arc(0, 0, lW * 3, 0, Math.PI*2); c.fill();
+      // Lantern body
+      c.fillStyle = `rgba(${Math.floor(220 + ti * 4 % 30)},${Math.floor(80 + ti * 8 % 40)},${Math.floor(80 + ti * 5 % 30)},${(0.6 + active * 0.3) * flicker})`;
+      c.beginPath(); c.ellipse(0, 0, lW * 0.6, lH * 0.6, 0, 0, Math.PI*2); c.fill();
+      // String
+      c.strokeStyle = 'rgba(100,80,60,0.7)'; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(0, -lH * 0.6); c.lineTo(0, -lH * 0.6 - 12); c.stroke();
+      c.restore();
+
+    } else if (cfg.torchStyle === 'spotlight') {
+      // Broadcast: studio spotlights shining DOWN from top
+      const spAlpha = (0.06 + active * 0.12 + CIN.smoothBass * 0.08) * flicker;
+      const beamW   = 30 + active * 15;
+      const beamGrd = c.createLinearGradient(tx, 0, tx, H * 0.75);
+      beamGrd.addColorStop(0,   `rgba(255,240,200,${spAlpha})`);
+      beamGrd.addColorStop(0.4, `rgba(232,200,160,${spAlpha * 0.5})`);
+      beamGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = beamGrd;
+      c.beginPath();
+      c.moveTo(tx - 4, 0);
+      c.lineTo(tx - beamW/2, H * 0.75);
+      c.lineTo(tx + beamW/2, H * 0.75);
+      c.lineTo(tx + 4, 0);
+      c.closePath(); c.fill();
+      // Spotlight housing at top
+      c.fillStyle = 'rgba(30,28,24,0.9)';
+      c.fillRect(tx - 10, 0, 20, 8);
+
+    } else if (cfg.torchStyle === 'terminal') {
+      // Void: flickering CRT terminal screens on the ground
+      const scrW = 40 + active * 10, scrH = 28;
+      const scrY = torchYPos - scrH;
+      const scrAlpha = (0.35 + active * 0.45) * flicker;
+      // Screen glow
+      const sgGrd = c.createRadialGradient(tx, scrY + scrH/2, 0, tx, scrY + scrH/2, scrW);
+      sgGrd.addColorStop(0, `rgba(0,255,65,${scrAlpha * 0.4})`);
+      sgGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = sgGrd; c.beginPath(); c.arc(tx, scrY + scrH/2, scrW, 0, Math.PI*2); c.fill();
+      // Screen body
+      c.fillStyle = `rgba(0,${Math.floor(20 + active * 10)},0,0.9)`;
+      c.fillRect(tx - scrW/2, scrY, scrW, scrH);
+      // Scanline effect on screen
+      c.fillStyle = `rgba(0,255,65,${scrAlpha * 0.15})`;
+      for (let sl = 0; sl < scrH; sl += 3) c.fillRect(tx - scrW/2, scrY + sl, scrW, 1);
+      // Cursor blink in screen
+      if (Math.floor(t / 25) % 2 === 0) {
+        c.fillStyle = `rgba(0,255,65,${scrAlpha})`;
+        c.fillRect(tx - scrW/2 + 4, scrY + scrH - 6, 6, 4);
+      }
+    }
   }
 
   // ── 10. EMBERS — drift left with world scroll wind
@@ -15674,46 +16363,116 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       CIN.particles[pi] = cinMakeParticle(particleAtmo.particle, zone, W, H, false);
       return;
     }
+    // Movement per type
     if (p.type === 'wisp' || p.type === 'mote' || p.type === 'void') {
       p.x += p.vx + Math.sin(t * 0.008 + p.phase) * 0.3 - windDrift * 0.4;
       p.y += p.vy + Math.cos(t * 0.006 + p.phase) * 0.2;
+    } else if (p.type === 'rain') {
+      p.x += p.vx * 0.5 - windDrift * 0.3;
+      p.y += p.vy * (0.8 + active * 0.6);
+      if (p.y > H + 4) { p.y = -4; p.x = Math.random() * W; }
+    } else if (p.type === 'petals') {
+      if (p.wobble !== undefined) p.wobble += p.wobbleR || 0.01;
+      if (p.rot !== undefined) p.rot += p.rotV || 0;
+      p.x += p.vx + Math.sin(p.wobble || 0) * 0.25 - windDrift * 0.5;
+      p.y += p.vy * (0.5 + active * 0.5);
+      if (p.y > H + 10) { p.y = -10; p.x = Math.random() * W; }
+    } else if (p.type === 'phosphorDecay') {
+      p.x += p.vx + Math.sin(t * 0.015 + (p.phase || 0)) * 0.15;
+      p.y += p.vy;
+      if (p.y > H * 0.95 || p.y < 0) { p.y = Math.random() * H * 0.8; p.x = Math.random() * W; }
+    } else if (p.type === 'static') {
+      // Static: completely random position each frame for grain effect
+      p.x = Math.random() * W;
+      p.y = Math.random() * H;
     } else {
       p.x += p.vx * (0.5 + active * 1.2) - windDrift * 0.7;
       p.y += p.vy * (0.6 + active * 1.0);
     }
-    if (p.x < -10) p.x = W + 5;
-    if (p.x > W + 10) p.x = -5;
-    if (p.y < -10) p.y = H + 5;
-
-    const fadeAlpha = Math.sin(prog * Math.PI) * (rest * 0.6 + active * 0.4);
-    if (p.glow) {
-      const gGrd = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3.5);
-      gGrd.addColorStop(0, `rgba(${p.r},${p.g},${p.b},${fadeAlpha * 0.7})`);
-      gGrd.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = gGrd;
-      c.beginPath(); c.arc(p.x, p.y, p.size * 3.5, 0, Math.PI * 2); c.fill();
+    if (p.type !== 'static' && p.type !== 'rain' && p.type !== 'petals') {
+      if (p.x < -10) p.x = W + 5;
+      if (p.x > W + 10) p.x = -5;
+      if (p.y < -10) p.y = H + 5;
     }
-    c.beginPath();
-    c.arc(p.x, p.y, p.size * (1 - prog * 0.3), 0, Math.PI * 2);
-    c.fillStyle = `rgba(${p.r},${p.g},${p.b},${fadeAlpha * 0.9})`;
-    c.fill();
+
+    const fadeAlpha = p.type === 'static'
+      ? (0.04 + active * 0.06) * (Math.random() > 0.5 ? 1 : 0)
+      : p.type === 'rain'
+        ? (0.12 + active * 0.25) * (1 - prog * 0.3)
+        : Math.sin(prog * Math.PI) * (rest * 0.6 + active * 0.4);
+
+    if (p.type === 'petals') {
+      // Draw petal as small rotated ellipse
+      c.save();
+      c.translate(p.x, p.y);
+      c.rotate(p.rot || 0);
+      const pAlpha = Math.sin(prog * Math.PI) * (0.25 + active * 0.3);
+      c.beginPath();
+      c.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
+      c.fillStyle = `rgba(${p.r},${p.g},${p.b},${pAlpha})`;
+      c.fill();
+      c.restore();
+    } else if (p.type === 'rain') {
+      // Draw as short vertical line
+      c.beginPath();
+      c.moveTo(p.x, p.y);
+      c.lineTo(p.x - p.vx * 3, p.y - p.vy * 4);
+      c.strokeStyle = `rgba(${p.r},${p.g},${p.b},${fadeAlpha})`;
+      c.lineWidth = 0.8;
+      c.stroke();
+    } else {
+      if (p.glow) {
+        const gGrd = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3.5);
+        gGrd.addColorStop(0, `rgba(${p.r},${p.g},${p.b},${fadeAlpha * 0.7})`);
+        gGrd.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = gGrd;
+        c.beginPath(); c.arc(p.x, p.y, p.size * 3.5, 0, Math.PI * 2); c.fill();
+      }
+      c.beginPath();
+      c.arc(p.x, p.y, p.size * (1 - prog * 0.3), 0, Math.PI * 2);
+      c.fillStyle = `rgba(${p.r},${p.g},${p.b},${fadeAlpha * 0.9})`;
+      c.fill();
+    }
   });
 
-  // ── 12. RUNE GLYPHS — scroll with mid parallax layer, wrap across canvas
+  // ── 12. GLYPHS — skin-specific symbols that pulse with mid energy
   if (CIN.runes.length) {
     const midPulse    = CIN.smoothMid * 0.4;
     const restBreathe = rest * 0.06 * Math.sin(t * 0.014);
-    const runeParallax = 0.24; // mid-depth layer
+    const runeParallax = 0.24;
+    const glyphPool = CIN_GLYPH_POOLS[cfg.glyphStyle] || CIN_GLYPH_POOLS.runes;
     CIN.runes.forEach(rn => {
       const glow  = Math.sin(t * rn.speed + rn.phase);
-      const alpha = rn.baseAlpha + midPulse * 0.12 + restBreathe + glow * 0.02;
+      let alpha = rn.baseAlpha + midPulse * 0.12 + restBreathe + glow * 0.02;
+
+      // Void: glyphs flicker and occasionally corrupt to a different symbol
+      if (_activeSkin === 'void') {
+        if (Math.sin(t * 0.11 + rn.phase * 7.3) > 0.94) alpha *= 2.5; // brightness spike
+        if (Math.sin(t * 0.07 + rn.phase * 3.1) > 0.96) {
+          rn.glyph = glyphPool[Math.floor(Math.random() * glyphPool.length)]; // symbol corrupt
+        }
+      }
+
       if (alpha < 0.005) return;
-      // World-space x, wrapped so runes cycle continuously
       const rx = ((rn.x - CIN.camX * runeParallax) % (W * 1.2) + W * 1.2) % (W * 1.2) - W * 0.1;
-      c.font = `${rn.size}px serif`;
+
+      // Skin-specific glyph colors
+      let glyphR = R, glyphG = Math.floor(G * 0.7), glyphB = B;
+      if (_activeSkin === 'neon')      { glyphR = 0; glyphG = 229; glyphB = 255; }
+      else if (_activeSkin === 'sakura'){ glyphR = 232; glyphG = 120; glyphB = 160; }
+      else if (_activeSkin === 'broadcast') { glyphR = 232; glyphG = 160; glyphB = 32; }
+      else if (_activeSkin === 'void')  { glyphR = 0; glyphG = 255; glyphB = 65; }
+
+      c.font = `${rn.size}px ${cfg.glyphFont}`;
       c.textAlign = 'center';
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${alpha})`;
+      if (_activeSkin === 'void' || _activeSkin === 'neon') {
+        // Glow effect for digital skins
+        c.shadowColor = `rgba(${glyphR},${glyphG},${glyphB},${alpha * 1.2})`;
+        c.shadowBlur = 8;
+      }
+      c.fillStyle = `rgba(${glyphR},${glyphG},${glyphB},${alpha})`;
       c.fillText(rn.glyph, rx, rn.y);
+      c.shadowBlur = 0;
     });
   }
 
@@ -15799,19 +16558,24 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     CIN.flashAlpha *= 0.72;
   }
 
-  // ── 18. WHISPER TEXT SYSTEM
+  // ── 18. WHISPER TEXT SYSTEM — skin-specific text pool and font
   if (CIN.whisperCooldown > 0) CIN.whisperCooldown--;
-  // Resting: whispers more frequent and larger. Active: suppressed.
   const whisperChance = 0.006 + rest * 0.016;
   if (CIN.whisperCooldown === 0 && Math.random() < whisperChance) {
-    const pool = ZONE_WHISPERS[zone.name] || ZONE_WHISPERS['Ashen Fields'];
+    // Route to skin-specific whisper pool when available, fall back to zone pool
+    const skinPool = SKIN_ZONE_WHISPERS[_activeSkin];
+    const pool = skinPool
+      ? (skinPool[zone.name] || skinPool.default || ZONE_WHISPERS['Ashen Fields'])
+      : (ZONE_WHISPERS[zone.name] || ZONE_WHISPERS['Ashen Fields']);
     const line = pool[Math.floor(Math.random() * pool.length)];
     const wordCount = line.split(' ').length;
     const holdFrames = 180 + wordCount * 20 + Math.floor(Math.random() * 100);
     const size = Math.floor(Math.min(W,H) * (wordCount > 10 ? 0.022 : wordCount > 6 ? 0.026 : 0.030));
     const x = W * (0.08 + Math.random() * 0.84);
     const y = H * (0.12 + Math.random() * 0.55);
-    CIN.whispers.push({ text: line, x, y, alpha: 0, phase: 'in', holdFrames, heldFor: 0, size, italic: Math.random() > 0.35 });
+    // Void: always mono, no italics. Others: italic on body font
+    const useItalic = _activeSkin !== 'void' && _activeSkin !== 'broadcast' && Math.random() > 0.35;
+    CIN.whispers.push({ text: line, x, y, alpha: 0, phase: 'in', holdFrames, heldFor: 0, size, italic: useItalic });
     CIN.whisperCooldown = 120 + Math.floor(Math.random() * 100) + Math.floor(active * 80);
   }
   CIN.whispers = CIN.whispers.filter(w => !(w.phase === 'out' && w.alpha <= 0.008));
@@ -15819,27 +16583,57 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.022); if (w.alpha >= 1) w.phase = 'hold'; }
     if (w.phase === 'hold') { w.heldFor++; if (w.heldFor >= w.holdFrames) w.phase = 'out'; }
     if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.010); }
-    c.font = w.italic
-      ? `italic 400 ${w.size}px 'IM Fell English', serif`
-      : `400 ${w.size}px 'Cinzel', serif`;
+    // Font: use skin's body font — italic variant where supported
+    const wFont = w.italic ? `italic 400 ${w.size}px ${cfg.subtitleFont}` : `400 ${w.size}px ${cfg.hudFont}`;
+    c.font = wFont;
     c.textAlign = 'center';
-    // Alpha always based on w.alpha alone — never crushed by rest/activity state
     const wAlpha = w.alpha;
-    // Strong dark shadow for legibility on any background
-    c.shadowColor = `rgba(0,0,0,${wAlpha * 0.95})`;
-    c.shadowBlur = 18;
-    c.fillStyle = `rgba(0,0,0,${wAlpha * 0.90})`;
-    c.fillText(w.text, w.x + 2, w.y + 2);
-    c.shadowBlur = 0;
-    // Text — bright near-white with subtle zone tint, always readable
-    const tR = Math.floor(Math.min(255, R * 0.25 + 210));
-    const tG = Math.floor(Math.min(255, G * 0.20 + 200));
-    const tB = Math.floor(Math.min(255, B * 0.25 + 215));
-    c.shadowColor = `rgba(${R},${Math.floor(G*0.7)},${B},${wAlpha * 0.5})`;
-    c.shadowBlur = 10;
-    c.fillStyle = `rgba(${tR},${tG},${tB},${wAlpha})`;
-    c.fillText(w.text, w.x, w.y);
-    c.shadowBlur = 0;
+
+    // Void: phosphor glow instead of shadow
+    if (_activeSkin === 'void') {
+      c.shadowColor = `rgba(0,255,65,${wAlpha * 0.8})`;
+      c.shadowBlur = 12;
+      c.fillStyle = `rgba(0,255,65,${wAlpha * 0.9})`;
+      c.fillText(w.text, w.x, w.y);
+      c.shadowBlur = 0;
+    } else if (_activeSkin === 'neon') {
+      // Neon: chromatic shadow
+      c.fillStyle = `rgba(255,45,120,${wAlpha * 0.3})`;
+      c.fillText(w.text, w.x + 2, w.y);
+      c.shadowColor = `rgba(0,229,255,${wAlpha * 0.6})`;
+      c.shadowBlur = 10;
+      c.fillStyle = `rgba(200,240,255,${wAlpha})`;
+      c.fillText(w.text, w.x, w.y);
+      c.shadowBlur = 0;
+    } else if (_activeSkin === 'sakura') {
+      // Sakura: soft bloom shadow, warm white text
+      c.shadowColor = `rgba(200,80,120,${wAlpha * 0.4})`;
+      c.shadowBlur = 14;
+      c.fillStyle = `rgba(255,235,240,${wAlpha * 0.92})`;
+      c.fillText(w.text, w.x, w.y);
+      c.shadowBlur = 0;
+    } else if (_activeSkin === 'broadcast') {
+      // Broadcast: clean white on dark, professional
+      c.fillStyle = `rgba(0,0,0,${wAlpha * 0.8})`;
+      c.fillText(w.text, w.x + 1, w.y + 1);
+      c.fillStyle = `rgba(240,230,210,${wAlpha * 0.88})`;
+      c.fillText(w.text, w.x, w.y);
+    } else {
+      // Ashen default: strong shadow, zone-tinted text
+      c.shadowColor = `rgba(0,0,0,${wAlpha * 0.95})`;
+      c.shadowBlur = 18;
+      c.fillStyle = `rgba(0,0,0,${wAlpha * 0.90})`;
+      c.fillText(w.text, w.x + 2, w.y + 2);
+      c.shadowBlur = 0;
+      const tR = Math.floor(Math.min(255, R * 0.25 + 210));
+      const tG = Math.floor(Math.min(255, G * 0.20 + 200));
+      const tB = Math.floor(Math.min(255, B * 0.25 + 215));
+      c.shadowColor = `rgba(${R},${Math.floor(G*0.7)},${B},${wAlpha * 0.5})`;
+      c.shadowBlur = 10;
+      c.fillStyle = `rgba(${tR},${tG},${tB},${wAlpha})`;
+      c.fillText(w.text, w.x, w.y);
+      c.shadowBlur = 0;
+    }
   });
 
   // ── 19. NARRATIVE TITLE CARDS — zone entry cinematic reveal
@@ -15850,48 +16644,64 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     if (cr.phase === 'out')  { cr.alpha = Math.max(0, cr.alpha - 0.006); if (cr.alpha <= 0) CIN.chapterReveal = null; }
     if (cr.alpha > 0.005) {
       const fadeA = cr.alpha;
+      const ruleY  = H * 0.38;
+      const ruleW  = W * 0.3 * fadeA;
+      const titleSize  = Math.floor(Math.min(W,H) * 0.045);
+      const markerSize = Math.floor(Math.min(W,H) * 0.011);
+      const subSize    = Math.floor(Math.min(W,H) * 0.016);
+
+      // Skin-specific accent color for rules
+      let acR = R, acG = Math.floor(G*0.8), acB = B;
+      if (_activeSkin === 'neon')      { acR = 0;   acG = 229; acB = 255; }
+      else if (_activeSkin === 'sakura'){ acR = 232; acG = 120; acB = 160; }
+      else if (_activeSkin === 'broadcast'){ acR = 232; acG = 160; acB = 32; }
+      else if (_activeSkin === 'void')  { acR = 0;   acG = 255; acB = 65; }
+
       // Horizontal rule
-      const ruleY = H * 0.38;
-      const ruleW = W * 0.3 * fadeA;
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.8)},${B},${fadeA * 0.5})`;
+      c.fillStyle = `rgba(${acR},${acG},${acB},${fadeA * 0.5})`;
       c.fillRect(W/2 - ruleW/2, ruleY - 1, ruleW, 1);
 
-      // Chapter marker
-      const markerSize = Math.floor(Math.min(W,H) * 0.011);
-      c.font = `400 ${markerSize}px 'Cinzel', serif`;
+      // Enter label
+      c.font = `${cfg.titleWeight} ${markerSize}px ${cfg.hudFont}`;
       c.textAlign = 'center';
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${fadeA * 0.55})`;
-      c.fillText('◈  ENTERING  ◈', W/2, ruleY - 14);
+      c.fillStyle = `rgba(${acR},${acG},${acB},${fadeA * 0.55})`;
+      // Void: typewriter reveal of the enter label
+      const enterText = _activeSkin === 'void'
+        ? cfg.enterLabel.slice(0, Math.floor(cr.alpha * cfg.enterLabel.length))
+        : cfg.enterLabel;
+      c.fillText(enterText, W/2, ruleY - 14);
 
       // Zone name — big cinematic font
-      const titleSize = Math.floor(Math.min(W,H) * 0.045);
-      c.font = `700 ${titleSize}px 'Cinzel Decorative', serif`;
-      c.textAlign = 'center';
-      // Glow layer
-      c.shadowColor = `rgba(${R},${Math.floor(G*0.7)},${B},0.8)`;
-      c.shadowBlur = 30 * fadeA;
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.9)},${B},${fadeA * 0.9})`;
+      if (_activeSkin === 'void') {
+        c.shadowColor = `rgba(0,255,65,${fadeA * 0.9})`; c.shadowBlur = 20 * fadeA;
+      } else if (_activeSkin === 'neon') {
+        c.shadowColor = `rgba(0,229,255,${fadeA * 0.8})`; c.shadowBlur = 25 * fadeA;
+      } else {
+        c.shadowColor = `rgba(${acR},${acG},${acB},0.8)`; c.shadowBlur = 30 * fadeA;
+      }
+      c.font = `${cfg.titleWeight} ${titleSize}px ${cfg.titleFont}`;
+      c.fillStyle = `rgba(${acR},${acG},${acB},${fadeA * 0.9})`;
       c.fillText(cr.zoneName.toUpperCase(), W/2, ruleY + titleSize + 8);
       c.shadowBlur = 0;
 
-      // Subtitle — italic flavor
-      const subSize = Math.floor(Math.min(W,H) * 0.016);
-      c.font = `italic 400 ${subSize}px 'IM Fell English', serif`;
-      c.fillStyle = `rgba(${Math.floor(R*0.75)},${Math.floor(G*0.65)},${Math.floor(B*0.8)},${fadeA * 0.45})`;
+      // Subtitle
+      const subStyle = (_activeSkin === 'void' || _activeSkin === 'broadcast') ? '' : 'italic ';
+      c.font = `${subStyle}400 ${subSize}px ${cfg.subtitleFont}`;
+      c.fillStyle = `rgba(${Math.floor(acR*0.75)},${Math.floor(acG*0.65)},${Math.floor(acB*0.8)},${fadeA * 0.45})`;
       c.fillText(cr.desc, W/2, ruleY + titleSize + 8 + subSize + 14);
 
-      // Floor range
-      c.font = `400 ${markerSize}px 'Cinzel', serif`;
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.6)},${B},${fadeA * 0.35})`;
+      // Depth label (floor/level/node etc)
+      c.font = `${cfg.titleWeight} ${markerSize}px ${cfg.hudFont}`;
+      c.fillStyle = `rgba(${acR},${acG},${acB},${fadeA * 0.35})`;
       c.fillText(cr.floorRange, W/2, ruleY + titleSize + 8 + subSize + 14 + markerSize + 14);
 
       // Bottom rule
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.8)},${B},${fadeA * 0.5})`;
+      c.fillStyle = `rgba(${acR},${acG},${acB},${fadeA * 0.5})`;
       c.fillRect(W/2 - ruleW/2, ruleY + titleSize + 8 + subSize + 14 + markerSize + 28, ruleW, 1);
     }
   }
 
-  // ── 20. NARRATIVE TITLE FLOATING CARDS (less prominent, mid-session)
+  // ── 20. NARRATIVE FLOATING TITLE CARDS — mid-session
   if (CIN.titleCard) {
     const tc = CIN.titleCard;
     if (tc.phase === 'in')   { tc.alpha = Math.min(1, tc.alpha + 0.009); if (tc.alpha >= 1) tc.phase = 'hold'; }
@@ -15900,50 +16710,82 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     if (tc.alpha > 0.005) {
       const ta = tc.alpha * 0.7;
       const tSize = Math.floor(Math.min(W,H) * 0.028);
-      c.font = `700 ${tSize}px 'Cinzel', serif`;
+      // Void: subtle scanline flicker on title
+      const vFlicker = _activeSkin === 'void' ? (Math.sin(CIN.t * 0.18) * 0.5 + 0.5) : 1.0;
+      let tcR = R, tcG = Math.floor(G*0.85), tcB = B;
+      if (_activeSkin === 'neon')       { tcR = 0;   tcG = 229; tcB = 255; }
+      else if (_activeSkin === 'sakura'){ tcR = 248; tcG = 176; tcB = 200; }
+      else if (_activeSkin === 'broadcast'){ tcR = 232; tcG = 200; tcB = 160; }
+      else if (_activeSkin === 'void')  { tcR = 0;   tcG = 255; tcB = 65; }
+      c.font = `${cfg.titleWeight} ${tSize}px ${cfg.titleFont}`;
       c.textAlign = 'center';
-      c.shadowColor = `rgba(${R},${Math.floor(G*0.6)},${B},0.6)`;
-      c.shadowBlur = 18 * tc.alpha;
-      c.fillStyle = `rgba(${R},${Math.floor(G*0.85)},${B},${ta})`;
+      c.shadowColor = `rgba(${tcR},${tcG},${tcB},0.6)`; c.shadowBlur = 18 * tc.alpha;
+      c.fillStyle = `rgba(${tcR},${tcG},${tcB},${ta * vFlicker})`;
       c.fillText(tc.text, W/2, H * 0.22);
       c.shadowBlur = 0;
       if (tc.subtext) {
         const stSize = Math.floor(Math.min(W,H) * 0.013);
-        c.font = `italic 400 ${stSize}px 'IM Fell English', serif`;
-        c.fillStyle = `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.6)},${Math.floor(B*0.75)},${ta * 0.6})`;
+        const subStyle2 = (_activeSkin === 'void' || _activeSkin === 'broadcast') ? '' : 'italic ';
+        c.font = `${subStyle2}400 ${stSize}px ${cfg.subtitleFont}`;
+        c.fillStyle = `rgba(${Math.floor(tcR*0.7)},${Math.floor(tcG*0.6)},${Math.floor(tcB*0.75)},${ta * 0.6})`;
         c.fillText(tc.subtext, W/2, H * 0.22 + tSize + 10);
       }
     }
   }
 
-  // ── 21. HUD — always visible, fade with active energy
+  // ── 21. HUD — skin-specific font, label, and color
   const hudAlpha = 0.4 + rest * 0.25;
-  // Zone name top-center
+  let hudR = R, hudG = Math.floor(G*0.82), hudB = B;
+  if (_activeSkin === 'neon')       { hudR = 0;   hudG = 229; hudB = 255; }
+  else if (_activeSkin === 'sakura'){ hudR = 232; hudG = 140; hudB = 170; }
+  else if (_activeSkin === 'broadcast'){ hudR = 232; hudG = 180; hudB = 80; }
+  else if (_activeSkin === 'void')  { hudR = 0;   hudG = 200; hudB = 50; }
+
   const znSize = Math.floor(Math.min(W,H) * 0.020);
-  c.font = `700 ${znSize}px 'Cinzel', serif`;
+
+  // Void: add '> ' prefix to zone name; broadcast: clean sans
+  const zoneLabelText = _activeSkin === 'void'
+    ? `> ${zone.name.toUpperCase()}`
+    : zone.name.toUpperCase();
+
+  c.font = `${cfg.titleWeight} ${znSize}px ${cfg.hudFont}`;
   c.textAlign = 'center';
-  c.fillStyle = `rgba(${R},${Math.floor(G*0.82)},${B},${hudAlpha * 0.85})`;
-  c.fillText(zone.name.toUpperCase(), W/2, H * 0.065);
-  // Desc
-  c.font = `italic 400 ${Math.floor(znSize*0.72)}px 'IM Fell English', serif`;
-  c.fillStyle = `rgba(${Math.floor(R*0.65)},${Math.floor(G*0.55)},${Math.floor(B*0.75)},${hudAlpha * 0.35})`;
+  if (_activeSkin === 'void') { c.shadowColor = `rgba(0,255,65,0.5)`; c.shadowBlur = 8; }
+  c.fillStyle = `rgba(${hudR},${hudG},${hudB},${hudAlpha * 0.85})`;
+  c.fillText(zoneLabelText, W/2, H * 0.065);
+  c.shadowBlur = 0;
+
+  // Zone desc (italic on most skins, not on void/broadcast)
+  const descStyle = (_activeSkin === 'void' || _activeSkin === 'broadcast') ? '' : 'italic ';
+  c.font = `${descStyle}400 ${Math.floor(znSize*0.72)}px ${cfg.subtitleFont}`;
+  c.fillStyle = `rgba(${Math.floor(hudR*0.65)},${Math.floor(hudG*0.55)},${Math.floor(hudB*0.75)},${hudAlpha * 0.35})`;
   c.fillText(zone.desc, W/2, H * 0.065 + znSize + 6);
-  // Bottom bar: phrase left, floor right, resting dot center
+
+  // Bottom bar
   const hbSize = Math.floor(Math.min(W,H) * 0.013);
-  c.font = `400 ${hbSize}px 'Cinzel', serif`;
+  const floorLabel = `${cfg.floorLabel} ${typeof slider !== 'undefined' ? slider.value : '—'}`;
+  c.font = `400 ${hbSize}px ${cfg.hudFont}`;
   c.textAlign = 'left';
-  c.fillStyle = `rgba(${R},${G},${B},${hudAlpha * 0.32})`;
+  c.fillStyle = `rgba(${hudR},${hudG},${hudB},${hudAlpha * 0.32})`;
   c.fillText(currentPhrase ? currentPhrase.toUpperCase() : '', W * 0.04, H * 0.94);
   c.textAlign = 'right';
-  c.fillStyle = `rgba(${Math.floor(R*0.7)},${Math.floor(G*0.6)},${Math.floor(B*0.7)},${hudAlpha * 0.32})`;
-  c.fillText(`FLOOR ${typeof slider !== 'undefined' ? slider.value : '—'}`, W * 0.96, H * 0.94);
-  // Resting indicator
+  c.fillStyle = `rgba(${Math.floor(hudR*0.7)},${Math.floor(hudG*0.6)},${Math.floor(hudB*0.7)},${hudAlpha * 0.32})`;
+  c.fillText(floorLabel, W * 0.96, H * 0.94);
+
+  // Resting indicator — skin-specific glyph
   if (rest > 0.6) {
-    const dots = ['·', '· ·', '· · ·'];
+    const restGlyphs = {
+      ashen:     ['·', '· ·', '· · ·'],
+      neon:      ['_', '_ _', '_ _ _'],
+      sakura:    ['·', '·· ·', '··· ·'],
+      broadcast: ['●', '●●', '●●●'],
+      void:      ['_', '_ ', '__'],
+    };
+    const dots = (restGlyphs[_activeSkin] || restGlyphs.ashen);
     const dotIdx = Math.floor(t / 40) % 3;
-    c.font = `400 ${hbSize}px 'Cinzel', serif`;
+    c.font = `400 ${hbSize}px ${cfg.hudFont}`;
     c.textAlign = 'center';
-    c.fillStyle = `rgba(${R},${Math.floor(G*0.7)},${B},${(rest - 0.6) / 0.4 * 0.25})`;
+    c.fillStyle = `rgba(${hudR},${hudG},${hudB},${(rest - 0.6) / 0.4 * 0.25})`;
     c.fillText(dots[dotIdx], W/2, H * 0.94);
   }
 }
