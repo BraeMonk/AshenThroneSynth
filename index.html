@@ -13682,6 +13682,7 @@ const CIN = {
   smoothBass:   0,
   smoothMid:    0,
   smoothHigh:   0,
+  smoothFreq:   new Float32Array(256), // per-bin smoothed FFT — avoids raw-bin choppiness in terrain
   prevBass:     0,
   // Resting / active state
   restLevel: 1.0,   // 1 = fully resting, 0 = fully active
@@ -13879,10 +13880,22 @@ const ZONE_ATMO = {
   'Infernal Core':   { particle: 'ember',    moonTint: [220,80,30],   fogDense: 0.12, hasLightning: false, hasDrip: false },
 };
 
+// Default atmospheric configs for non-ashen skins (zone names won't match ZONE_ATMO)
+const SKIN_ATMO_DEFAULTS = {
+  neon:      { particle:'rain',         moonTint:[0,180,255],  fogDense:0.18, hasLightning:true,  hasDrip:false },
+  sakura:    { particle:'petals',       moonTint:[255,220,230],fogDense:0.22, hasLightning:false, hasDrip:false },
+  broadcast: { particle:'static',       moonTint:[232,160,32], fogDense:0.0,  hasLightning:false, hasDrip:false },
+  void:      { particle:'phosphorDecay',moonTint:[0,255,65],   fogDense:0.08, hasLightning:false, hasDrip:false },
+};
+
 function cinGetAtmo(zone) {
+  // Non-ashen skins get their own constant atmo — zone names won't be in ZONE_ATMO
+  if (_activeSkin !== 'ashen') {
+    const skinDefault = SKIN_ATMO_DEFAULTS[_activeSkin];
+    if (skinDefault) return skinDefault;
+  }
   const base = ZONE_ATMO[zone.name] || ZONE_ATMO['Ashen Fields'];
   const cfg  = cinSkinCfg();
-  // Non-ashen skins override particle type globally
   if (cfg.particleOverride && _activeSkin !== 'ashen') {
     return { ...base, particle: cfg.particleOverride };
   }
@@ -14016,6 +14029,8 @@ function cinBuildRunes(zone, W, H) {
 
 function cinInitFog(zone, W, H) {
   const atmo = cinGetAtmo(zone);
+  // Broadcast: no fog — clean studio
+  if (atmo.fogDense === 0) { CIN.fogLayers = []; return; }
   CIN.fogLayers = [
     { x:0, y:H*0.5,  speed:0.18, amp:H*0.06, freq:0.0008, alpha: atmo.fogDense * 0.5, height:H*0.18, phase:0.0 },
     { x:0, y:H*0.65, speed:0.12, amp:H*0.04, freq:0.0012, alpha: atmo.fogDense * 0.7, height:H*0.12, phase:1.2 },
@@ -14104,6 +14119,12 @@ function cinWaveYAt(x, W, waveData, waveFloor, waveAmp) {
 }
 
 function cinDrawCampfire(c, k, zone, t, restLevel, waveData, waveFloor, waveAmp, W) {
+  // Only render campfire for ashen skin — other skins have their own ambient light sources
+  if (_activeSkin !== 'ashen') {
+    // Update campfire Y position so knight still has correct ground reference
+    k.campfireY = cinWaveYAt(k.campfireX, W, waveData, waveFloor, waveAmp);
+    return;
+  }
   const fAlpha = Math.min(1, restLevel * 1.5);
   if (fAlpha < 0.02) return;
   const R = zone.vizR, G = zone.vizG, B = zone.vizB;
@@ -15678,6 +15699,7 @@ function cinDrawKnight(c, W, H, zone, t, restLevel, waveData, waveFloor, waveAmp
 function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   const R = zone.vizR, G = zone.vizG, B = zone.vizB;
   const atmo = cinGetAtmo(zone);
+  const [mr, mg, mb] = atmo.moonTint; // skin-aware moon tint — used by lightning and stars
   const rest = CIN.restLevel;
   const active = 1 - rest;
 
@@ -15687,9 +15709,9 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   // Bass hits add micro-lunges for organic feel.
   // Each terrain layer uses its own parallax fraction of camX.
   const baseSpeed   = W * 0.00048;
-  const targetSpeed = -(baseSpeed * active
+  const targetSpeed = baseSpeed * active
                     + CIN.smoothBass * W * 0.00022
-                    + CIN.smoothEnergy * W * 0.00012);
+                    + CIN.smoothEnergy * W * 0.00012;
   CIN.camVel += (targetSpeed - CIN.camVel) * (active > 0.1 ? 0.04 : 0.018);
   CIN.camX  += CIN.camVel;
 
@@ -15723,7 +15745,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       const starX = sx * W, starY = sy * horizonY * 0.95;
       const sz = 0.4 + Math.sin(i * 43.7) * 0.3;
       c.beginPath(); c.arc(starX, starY, sz, 0, Math.PI * 2);
-      const [mr2, mg2, mb2] = atmo.moonTint;
+      const [mr2, mg2, mb2] = [mr, mg, mb];
       c.fillStyle = i % 7 === 0
         ? `rgba(${mr2},${mg2},${mb2},${starAlpha * twinkle * 0.8})`
         : `rgba(200,190,220,${starAlpha * twinkle * 0.6})`;
@@ -15784,7 +15806,6 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   // ── 5. MOON / ORB — skin-specific character
   const [moonXn, moonYn] = cfg.moonPos;
   const moonX = W * moonXn, moonY = H * moonYn;
-  const [mr, mg, mb] = atmo.moonTint;
   CIN.moonFlicker += (Math.random() - 0.5) * (0.02 + active * 0.05);
   CIN.moonFlicker = Math.max(0.78, Math.min(1.0, CIN.moonFlicker));
   const breathe = 1 + rest * 0.06 * Math.sin(t * 0.018);
@@ -15905,7 +15926,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
         layer.pts.forEach((p, i) => {
           const tNorm  = i / Math.max(1, layer.pts.length - 1);
           const binIdx = Math.floor((bandStart + tNorm * (bandEnd - bandStart)) * fftBinCount);
-          const binVal = (freqData[Math.min(fftBinCount - 1, binIdx)] || 0) / 255;
+          const binVal = CIN.smoothFreq[Math.min(fftBinCount - 1, binIdx)] || 0;
           const freqLift = binVal * H * freqReactScale * (active * 0.85 + 0.15);
           const bassLift = CIN.smoothBass * H * 0.022 * (li * 0.5 + 0.3);
           const py = p.y - bassLift - freqLift;
@@ -15925,7 +15946,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
           layer.pts.forEach((p, i) => {
             const tNorm  = i / Math.max(1, layer.pts.length - 1);
             const binIdx = Math.floor((bandStart + tNorm * (bandEnd - bandStart)) * fftBinCount);
-            const binVal = (freqData[Math.min(fftBinCount - 1, binIdx)] || 0) / 255;
+            const binVal = CIN.smoothFreq[Math.min(fftBinCount - 1, binIdx)] || 0;
             const freqLift = binVal * H * freqReactScale * (active * 0.85 + 0.15);
             const bassLift = CIN.smoothBass * H * 0.022 * (li * 0.5 + 0.3);
             const py = p.y - bassLift - freqLift;
@@ -16327,9 +16348,13 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     }
   }
 
-  // ── 10. EMBERS — drift left with world scroll wind
-  const windDrift = CIN.camVel * 0.6; // embers blown back by forward travel
+  // ── 10. EMBERS — skin-gated drift particles
+  const windDrift = CIN.camVel * 0.6;
+  // Broadcast/sakura/void use their own particle systems — skip ashen embers
+  const _showEmbers = _activeSkin === 'ashen';
+  const _showNeonSparks = _activeSkin === 'neon';
   CIN.embers.forEach(p => {
+    if (!_showEmbers && !_showNeonSparks) return;
     p.age++;
     const drift = 0.3 + active * 1.4 + CIN.smoothEnergy * 1.2;
     p.x += p.vx * drift - windDrift;
@@ -16348,9 +16373,16 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     const alpha = Math.sin(prog * Math.PI) * (0.3 + active * 0.45);
     c.beginPath();
     c.arc(p.x, p.y, p.size * (1 - prog * 0.5), 0, Math.PI * 2);
-    c.fillStyle = prog < 0.3
-      ? `rgba(255,${180 + Math.floor(p.g * 0.4)},60,${alpha})`
-      : `rgba(${p.r},${Math.floor(p.g * 0.5)},${Math.floor(p.b * 0.3)},${alpha * 0.5})`;
+    if (_showNeonSparks) {
+      // Neon: electric sparks — cyan/pink, no orange
+      c.fillStyle = prog < 0.5
+        ? `rgba(0,229,255,${alpha * 0.6})`
+        : `rgba(255,45,120,${alpha * 0.35})`;
+    } else {
+      c.fillStyle = prog < 0.3
+        ? `rgba(255,${180 + Math.floor(p.g * 0.4)},60,${alpha})`
+        : `rgba(${p.r},${Math.floor(p.g * 0.5)},${Math.floor(p.b * 0.3)},${alpha * 0.5})`;
+    }
     c.fill();
   });
 
@@ -16859,10 +16891,13 @@ function drawCinematic() {
     CIN.knight = null;
     CIN._pendingLegend = savedLegend;
     const subtitles = ZONE_SUBTITLES[zone.name] || [''];
+    // For non-ashen skins, use zone.desc directly since ZONE_SUBTITLES only has ashen zones
+    const _chRevDesc = subtitles[1] || zone.desc || '';
+    const _chRevRange = subtitles[0] || (typeof slider !== 'undefined' ? `${(SKINS[_activeSkin]||SKINS.ashen).depthLabel} ${slider.value}` : '');
     CIN.chapterReveal = {
       zoneName: zone.name,
-      desc: subtitles[1] || zone.desc || '',
-      floorRange: subtitles[0] || '',
+      desc: _chRevDesc,
+      floorRange: _chRevRange,
       alpha: 0, phase: 'in', holdFrames: 220, heldFor: 0,
     };
     CIN.titleCooldown = 500;
@@ -16898,6 +16933,12 @@ function drawCinematic() {
   CIN.smoothHigh   += (rawHigh   - CIN.smoothHigh)   * 0.10;
   CIN.smoothEnergy += (rawEnergy - CIN.smoothEnergy) * 0.10;
 
+  // Per-bin smoothed FFT — used by terrain to avoid raw-bin choppy jitter
+  if (CIN.smoothFreq.length !== fftSize) CIN.smoothFreq = new Float32Array(fftSize);
+  for (let i = 0; i < fftSize; i++) {
+    CIN.smoothFreq[i] += ((freqData[i] / 255) - CIN.smoothFreq[i]) * 0.10;
+  }
+
   // ── Resting state: only when music is fully stopped ─────────────
   const targetRest = isPlaying ? 0.0 : 1.0;
   CIN.restSmooth += (targetRest - CIN.restSmooth) * 0.035;
@@ -16906,8 +16947,10 @@ function drawCinematic() {
   // ── Narrative title cards (mid-session, tied to resting moments) ─
   CIN.titleCooldown--;
   if (CIN.titleCooldown <= 0 && CIN.restLevel > 0.7 && !CIN.titleCard && !CIN.chapterReveal) {
-    const pool = ZONE_TITLES[zone.name] || ZONE_TITLES['Ashen Fields'];
-    const subs = ZONE_SUBTITLES[zone.name] || [''];
+    // Non-ashen: zone names won't be in ZONE_TITLES — use zone name as title, desc as sub
+    const _isAshen = _activeSkin === 'ashen' && ZONE_TITLES[zone.name];
+    const pool = _isAshen ? ZONE_TITLES[zone.name] : [zone.name.toUpperCase()];
+    const subs = _isAshen ? (ZONE_SUBTITLES[zone.name] || ['']) : ['', zone.desc || ''];
     CIN.titleCard = {
       text: pool[Math.floor(Math.random() * pool.length)],
       subtext: subs[1 + Math.floor(Math.random() * (subs.length - 1))] || '',
