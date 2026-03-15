@@ -103,7 +103,7 @@ body::after {
 }
 .crown {
   font-family: 'Cinzel', serif;
-  font-size: clamp(7px,1.6vw,10px);
+  font-size: clamp(9.0px,1.6vw,10px);
   letter-spacing: 0.5em; text-transform: uppercase;
   color: var(--gold-lo); margin-bottom: 12px;
   display: flex; align-items: center; justify-content: center; gap: 12px;
@@ -124,7 +124,7 @@ h1 {
 h1 span {
   display: block;
   font-family: 'Cinzel', serif; font-weight: 400;
-  font-size: clamp(8px,1.8vw,12px);
+  font-size: clamp(10.0px,1.8vw,12px);
   color: var(--text-lo);
   letter-spacing: .4em; margin-top: 10px;
   text-transform: uppercase; text-shadow: none;
@@ -177,7 +177,7 @@ h1 span {
 }
 
 .panel-title {
-  font-family: 'Cinzel', serif; font-size: clamp(7px,1.4vw,9px);
+  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.4vw,9px);
   letter-spacing: .35em; text-transform: uppercase;
   color: var(--gold-lo); margin-bottom: 16px;
   display: flex; align-items: center; gap: 9px;
@@ -195,7 +195,7 @@ h1 span {
   justify-content: space-between; margin-bottom: 14px; gap: 10px;
 }
 .floor-label .name {
-  font-family: 'Cinzel', serif; font-size: clamp(8px,1.6vw,10px);
+  font-family: 'Cinzel', serif; font-size: clamp(10.0px,1.6vw,10px);
   color: var(--text-lo); letter-spacing: .28em; text-transform: uppercase;
 }
 .floor-label .value {
@@ -248,20 +248,6 @@ input[type=range].mood-slider {
 input[type=range].mood-slider::-webkit-slider-thumb {
   background: radial-gradient(circle at 35% 32%, #309090, var(--teal));
   box-shadow: 0 0 9px rgba(22,80,80,.65);
-}
-input[type=range].chorus-slider {
-  background: linear-gradient(90deg, #1a6640 var(--pct,0%), var(--seam) var(--pct,0%));
-}
-input[type=range].chorus-slider::-webkit-slider-thumb {
-  background: radial-gradient(circle at 35% 32%, #2ea860, #1a6640);
-  box-shadow: 0 0 9px rgba(26,102,64,.65);
-}
-input[type=range].phaser-slider {
-  background: linear-gradient(90deg, var(--ember-hi) var(--pct,0%), var(--seam) var(--pct,0%));
-}
-input[type=range].phaser-slider::-webkit-slider-thumb {
-  background: radial-gradient(circle at 35% 32%, var(--gold), var(--ember-hi));
-  box-shadow: 0 0 9px rgba(170,52,24,.65);
 }
 
 /* ── ZONE BAR ─────────────────────────────────────────────── */
@@ -326,7 +312,7 @@ input[type=range].phaser-slider::-webkit-slider-thumb {
   display: flex; gap: 3px; z-index: 10;
 }
 .viz-mode-btn, .viz-cinematic-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(6px,1.2vw,8px); letter-spacing: .12em;
+  font-family: 'Cinzel', serif; font-size: clamp(8.0px,1.2vw,8px); letter-spacing: .12em;
   text-transform: uppercase; padding: 4px 7px;
   border: 1px solid var(--seam);
   background: rgba(2,2,5,.88); color: var(--text-lo);
@@ -357,7 +343,7 @@ canvas {
   border-right: 1px solid var(--seam); border-bottom: 1px solid var(--seam);
 }
 .layer-pill {
-  font-size: clamp(6px,1.2vw,8px); letter-spacing: .16em;
+  font-size: clamp(8.0px,1.2vw,8px); letter-spacing: .16em;
   font-family: 'Cinzel', serif; text-transform: uppercase;
   padding: 2px 6px;
   border: 1px solid transparent; color: var(--text-lo);
@@ -390,9 +376,9 @@ canvas {
   position: relative; z-index: 1;
 }
 .tab-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(7px,1.4vw,9px);
+  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.4vw,9px);
   letter-spacing: .2em; text-transform: uppercase;
-  padding: 10px clamp(7px,2vw,15px);
+  padding: 10px clamp(9.0px,2vw,15px);
   border: 1px solid transparent; border-bottom: none;
   background: transparent; color: var(--text-lo);
   cursor: pointer; transition: color .18s, background .18s;
@@ -419,12 +405,13 @@ canvas {
   border: 1px solid var(--seam); overflow: hidden; flex-wrap: wrap;
 }
 .phrase-pill {
-  font-family: 'Cinzel', serif; font-size: clamp(6.5px,1.3vw,8px);
-  letter-spacing: .16em; text-transform: uppercase;
-  padding: 7px 8px; flex: 1;
+  font-family: 'Cinzel', serif; font-size: clamp(7px,1.1vw,9px);
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: 7px 4px; flex: 1;
   border-right: 1px solid var(--seam);
   color: var(--text-lo); transition: all .32s; cursor: default;
-  text-align: center; min-width: 0; white-space: nowrap;
+  text-align: center; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
 }
 .phrase-pill:last-of-type { border-right: none; }
 .phrase-pill.active {
@@ -441,7 +428,7 @@ canvas {
   gap: 3px; margin-bottom: 4px;
 }
 .layer-toggle {
-  font-family: 'Cinzel', serif; font-size: clamp(7px,1.4vw,8.5px);
+  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.4vw,8.5px);
   letter-spacing: .1em; text-transform: uppercase;
   padding: 9px 9px; border: 1px solid var(--seam);
   background: rgba(8,8,16,.75); color: var(--text-lo);
@@ -471,7 +458,7 @@ canvas {
 .layer-toggle.boss-btn.active::before { background: var(--ember); }
 
 .layer-cat {
-  font-family: 'Cinzel', serif; font-size: clamp(6.5px,1.2vw,8px);
+  font-family: 'Cinzel', serif; font-size: clamp(8.5px,1.2vw,8px);
   letter-spacing: .4em; text-transform: uppercase;
   color: var(--text-lo); opacity: .42;
   margin: 14px 0 4px;
@@ -492,7 +479,7 @@ canvas {
 .fx-item { display: flex; flex-direction: column; gap: 8px; }
 .fx-label-row { display: flex; justify-content: space-between; align-items: baseline; }
 .fx-label {
-  font-family: 'Cinzel', serif; font-size: clamp(7.5px,1.4vw,9px);
+  font-family: 'Cinzel', serif; font-size: clamp(9.5px,1.4vw,9px);
   letter-spacing: .25em; text-transform: uppercase; color: var(--text-lo);
 }
 .fx-value {
@@ -501,7 +488,7 @@ canvas {
 }
 .fx-desc {
   font-family: 'IM Fell English', serif; font-style: italic;
-  font-size: clamp(9px,1.8vw,11px); color: var(--text-lo); margin-top: -2px;
+  font-size: clamp(11.0px,1.8vw,11px); color: var(--text-lo); margin-top: -2px;
 }
 
 /* ── SCALE GRID ───────────────────────────────────────────── */
@@ -511,15 +498,15 @@ canvas {
   gap: 4px; margin-bottom: 10px;
 }
 .scale-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(7px,1.4vw,8.5px);
+  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.4vw,8.5px);
   letter-spacing: .1em; text-transform: uppercase;
   padding: 9px 9px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo);
   cursor: pointer; transition: all .18s; text-align: left;
   touch-action: manipulation;
 }
-.scale-btn .scale-name { display: block; color: var(--text-mid); font-size: clamp(7.5px,1.5vw,9.5px); margin-bottom: 2px; }
-.scale-btn .scale-feel { display: block; font-size: clamp(7px,1.3vw,8px); color: var(--text-lo); font-style: italic; font-family: 'IM Fell English', serif; text-transform: none; letter-spacing: .02em; }
+.scale-btn .scale-name { display: block; color: var(--text-mid); font-size: clamp(9.5px,1.5vw,9.5px); margin-bottom: 2px; }
+.scale-btn .scale-feel { display: block; font-size: clamp(9.0px,1.3vw,8px); color: var(--text-lo); font-style: italic; font-family: 'IM Fell English', serif; text-transform: none; letter-spacing: .02em; }
 .scale-btn:hover { border-color: var(--gold-lo); }
 .scale-btn.active { border-color: var(--gold); background: rgba(200,146,26,.05); }
 .scale-btn.active .scale-name { color: var(--gold); }
@@ -533,7 +520,7 @@ canvas {
 .record-section { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .record-btn {
   flex: 1; min-width: 110px; padding: 10px;
-  font-family: 'Cinzel', serif; font-size: clamp(8px,1.5vw,10px); letter-spacing: .16em;
+  font-family: 'Cinzel', serif; font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .16em;
   text-transform: uppercase; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo);
   cursor: pointer; transition: all .2s; touch-action: manipulation; min-height: 40px;
@@ -542,7 +529,7 @@ canvas {
 .record-btn.recording { border-color: var(--blood-hi); color: var(--blood-hi); animation: recPulse 1s ease-in-out infinite; }
 .rec-dot { width: 7px; height: 7px; background: var(--blood-hi); display: inline-block; margin-right: 6px; opacity: 0; }
 .recording .rec-dot { opacity: 1; animation: recPulse 1s ease-in-out infinite; }
-.format-note { font-size: clamp(8.5px,1.6vw,10px); color: var(--text-lo); font-style: italic; margin-top: 8px; }
+.format-note { font-size: clamp(10.5px,1.6vw,10px); color: var(--text-lo); font-style: italic; margin-top: 8px; }
 
 /* ── SEED ROW ─────────────────────────────────────────────── */
 .seed-row { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
@@ -553,7 +540,7 @@ canvas {
 }
 .seed-input:focus { border-color: var(--gold-lo); }
 .seed-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(7.5px,1.4vw,9px); letter-spacing: .14em;
+  font-family: 'Cinzel', serif; font-size: clamp(9.5px,1.4vw,9px); letter-spacing: .14em;
   text-transform: uppercase; padding: 8px 12px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo); cursor: pointer;
   transition: all .18s; touch-action: manipulation; white-space: nowrap; min-height: 36px;
@@ -567,21 +554,21 @@ canvas {
   gap: 4px; margin-bottom: 14px;
 }
 .preset-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(7px,1.3vw,8.5px); letter-spacing: .09em;
+  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.3vw,8.5px); letter-spacing: .09em;
   text-transform: uppercase; padding: 9px 10px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo);
   cursor: pointer; transition: all .18s; text-align: left; touch-action: manipulation;
 }
 .preset-btn:hover { border-color: var(--gold-lo); color: var(--text-mid); }
-.preset-btn .preset-name { display: block; color: var(--text-mid); font-size: clamp(7.5px,1.5vw,9px); margin-bottom: 2px; }
-.preset-btn .preset-feel { display: block; font-size: clamp(6.5px,1.2vw,8px); color: var(--text-lo); font-style: italic; font-family: 'IM Fell English', serif; text-transform: none; }
+.preset-btn .preset-name { display: block; color: var(--text-mid); font-size: clamp(9.5px,1.5vw,9px); margin-bottom: 2px; }
+.preset-btn .preset-feel { display: block; font-size: clamp(8.5px,1.2vw,8px); color: var(--text-lo); font-style: italic; font-family: 'IM Fell English', serif; text-transform: none; }
 
 /* ── OST ──────────────────────────────────────────────────── */
 .song-gen-bar { height: 2px; background: var(--seam); flex: 1; min-width: 60px; overflow: hidden; }
 .song-gen-fill { height: 100%; background: linear-gradient(90deg, var(--ember), var(--gold)); width: 0%; transition: width 1s ease; }
 .ost-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-.ost-step-label { font-family: 'Cinzel', serif; font-size: clamp(9px,1.8vw,11px); color: var(--text); letter-spacing: .04em; }
-.ost-time { font-size: clamp(8.5px,1.6vw,10px); color: var(--text-lo); font-style: italic; margin-left: auto; }
+.ost-step-label { font-family: 'Cinzel', serif; font-size: clamp(11.0px,1.8vw,11px); color: var(--text); letter-spacing: .04em; }
+.ost-time { font-size: clamp(10.5px,1.6vw,10px); color: var(--text-lo); font-style: italic; margin-left: auto; }
 
 /* ── TIMELINE OUTPUT ──────────────────────────────────────── */
 .timeline-output {
@@ -590,11 +577,11 @@ canvas {
   padding: 12px; color: var(--text-lo); min-height: 56px;
   white-space: pre-line; line-height: 1.8; overflow-x: auto;
 }
-.midi-note { font-size: clamp(8.5px,1.5vw,10px); color: var(--text-lo); font-style: italic; margin-top: 7px; }
+.midi-note { font-size: clamp(10.5px,1.5vw,10px); color: var(--text-lo); font-style: italic; margin-top: 7px; }
 
 /* ── DEBUG ────────────────────────────────────────────────── */
 .debug-toggle {
-  font-family: 'Cinzel', serif; font-size: clamp(7px,1.3vw,9px); letter-spacing: .2em;
+  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.3vw,9px); letter-spacing: .2em;
   text-transform: uppercase; padding: 7px 12px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo); cursor: pointer;
   transition: all .18s; margin-bottom: 10px; display: block; touch-action: manipulation;
@@ -603,20 +590,20 @@ canvas {
 .debug-body { display: none; }
 .debug-body.open { display: block; }
 .debug-panel {
-  font-family: 'Cinzel', serif; font-size: clamp(8px,1.5vw,10px); letter-spacing: .08em;
+  font-family: 'Cinzel', serif; font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .08em;
   background: rgba(2,2,5,.85); border: 1px solid var(--seam);
   padding: 12px; display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 9px;
 }
 .debug-item { display: flex; flex-direction: column; gap: 2px; }
-.debug-label { color: var(--text-lo); font-size: clamp(6.5px,1.1vw,8px); letter-spacing: .2em; text-transform: uppercase; }
+.debug-label { color: var(--text-lo); font-size: clamp(8.5px,1.1vw,8px); letter-spacing: .2em; text-transform: uppercase; }
 .debug-value { color: var(--gold); font-size: clamp(10px,1.8vw,12px); }
-.cat-label { font-family: 'Cinzel', serif; font-size: clamp(7px,1.2vw,9px); color: var(--text-lo); letter-spacing: .15em; margin-top: 8px; }
+.cat-label { font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.2vw,9px); color: var(--text-lo); letter-spacing: .15em; margin-top: 8px; }
 
 /* ── MISC ─────────────────────────────────────────────────── */
 .adaptive-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .event-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(7px,1.3vw,9px); letter-spacing: .1em;
+  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.3vw,9px); letter-spacing: .1em;
   text-transform: uppercase; padding: 8px 10px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo);
   cursor: pointer; transition: all .18s; touch-action: manipulation;
@@ -638,7 +625,7 @@ canvas {
 #cinematicCanvas { position: absolute; inset: 0; display: block; }
 .cinematic-exit {
   position: absolute; top: 14px; right: 14px;
-  font-family: 'Cinzel', serif; font-size: clamp(8px,1.5vw,10px); letter-spacing: .2em;
+  font-family: 'Cinzel', serif; font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .2em;
   text-transform: uppercase; padding: 7px 13px;
   border: 1px solid rgba(42,42,64,.8); background: rgba(2,2,5,.85);
   color: var(--text-lo); cursor: pointer; touch-action: manipulation; min-height: 36px;
@@ -733,7 +720,7 @@ canvas {
       <div class="phrase-pill" id="pp-climax">Climax</div>
       <div class="phrase-sep"></div>
       <div class="phrase-pill" id="pp-resolution">Resolution</div>
-      <div style="margin-left:auto;font-size:11px;color:var(--text-lo);font-style:italic;" id="phraseCounter">Bar 1 / 8</div>
+      <div style="margin-left:auto;font-size:14px;color:var(--text-lo);font-style:italic;" id="phraseCounter">Bar 1 / 8</div>
     </div>
 
     <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ &nbsp; Invoke the Void</button>
@@ -789,8 +776,8 @@ canvas {
 
       <div class="layer-cat">Foundation</div>
       <div class="layer-grid">
-        <button class="layer-toggle active" id="btn-drone"     onclick="toggleLayer('drone')" oncontextmenu="cycleVoice('drone',event)">Void Drone <span id="voice-drone" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">harmonic</span></button>
-        <button class="layer-toggle"        id="btn-strings"   onclick="toggleLayer('strings')" oncontextmenu="cycleVoice('strings',event)">Strings <span id="voice-strings" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">arco</span></button>
+        <button class="layer-toggle active" id="btn-drone"     onclick="toggleLayer('drone')" oncontextmenu="cycleVoice('drone',event)">Void Drone <span id="voice-drone" style="font-size:9px;opacity:0.6;display:block;letter-spacing:0.05em;">harmonic</span></button>
+        <button class="layer-toggle"        id="btn-strings"   onclick="toggleLayer('strings')" oncontextmenu="cycleVoice('strings',event)">Strings <span id="voice-strings" style="font-size:9px;opacity:0.6;display:block;letter-spacing:0.05em;">arco</span></button>
         <button class="layer-toggle"        id="btn-bass"      onclick="toggleLayer('bass')">Deep Bass</button>
         <button class="layer-toggle"        id="btn-heartbeat" onclick="toggleLayer('heartbeat')">Heartbeat</button>
       </div>
@@ -804,7 +791,7 @@ canvas {
 
       <div class="layer-cat">Rhythm</div>
       <div class="layer-grid">
-        <button class="layer-toggle" id="btn-perc"     onclick="toggleLayer('perc')" oncontextmenu="cycleVoice('perc',event)">Percussion <span id="voice-perc" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">cinematic</span></button>
+        <button class="layer-toggle" id="btn-perc"     onclick="toggleLayer('perc')" oncontextmenu="cycleVoice('perc',event)">Percussion <span id="voice-perc" style="font-size:9px;opacity:0.6;display:block;letter-spacing:0.05em;">cinematic</span></button>
         <button class="layer-toggle" id="btn-wardrums" onclick="toggleLayer('wardrums')">War Drums</button>
         <button class="layer-toggle" id="btn-chains"   onclick="toggleLayer('chains')">Chains</button>
         <button class="layer-toggle" id="btn-march"    onclick="toggleLayer('march')">March Snare</button>
@@ -817,16 +804,16 @@ canvas {
         <button class="layer-toggle" id="btn-melody" onclick="toggleLayer('melody')">Melody</button>
         <button class="layer-toggle" id="btn-cello"  onclick="toggleLayer('cello')">Cello</button>
         <button class="layer-toggle" id="btn-viola"  onclick="toggleLayer('viola')">Viola</button>
-        <button class="layer-toggle" id="btn-choir"  onclick="toggleLayer('choir')" oncontextmenu="cycleVoice('choir',event)">Choir <span id="voice-choir" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">infernal</span></button>
+        <button class="layer-toggle" id="btn-choir"  onclick="toggleLayer('choir')" oncontextmenu="cycleVoice('choir',event)">Choir <span id="voice-choir" style="font-size:9px;opacity:0.6;display:block;letter-spacing:0.05em;">infernal</span></button>
         <button class="layer-toggle" id="btn-lute"   onclick="toggleLayer('lute')">Lute</button>
-        <button class="layer-toggle" id="btn-guitar" onclick="toggleLayer('guitar')" oncontextmenu="cycleVoice('guitar',event)">Guitar <span id="voice-guitar" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">nylon</span></button>
+        <button class="layer-toggle" id="btn-guitar" onclick="toggleLayer('guitar')" oncontextmenu="cycleVoice('guitar',event)">Guitar <span id="voice-guitar" style="font-size:9px;opacity:0.6;display:block;letter-spacing:0.05em;">nylon</span></button>
         <button class="layer-toggle" id="btn-oud"    onclick="toggleLayer('oud')">Oud</button>
         <button class="layer-toggle" id="btn-horn"   onclick="toggleLayer('horn')">Horn Call</button>
-        <button class="layer-toggle" id="btn-flute"  onclick="toggleLayer('flute')" oncontextmenu="cycleVoice('flute',event)">Flute <span id="voice-flute" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">concert</span></button>
+        <button class="layer-toggle" id="btn-flute"  onclick="toggleLayer('flute')" oncontextmenu="cycleVoice('flute',event)">Flute <span id="voice-flute" style="font-size:9px;opacity:0.6;display:block;letter-spacing:0.05em;">concert</span></button>
         <button class="layer-toggle" id="btn-duduk"  onclick="toggleLayer('duduk')">Duduk</button>
-        <button class="layer-toggle" id="btn-harp"   onclick="toggleLayer('harp')" oncontextmenu="cycleVoice('harp',event)">Harp <span id="voice-harp" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">concert</span></button>
+        <button class="layer-toggle" id="btn-harp"   onclick="toggleLayer('harp')" oncontextmenu="cycleVoice('harp',event)">Harp <span id="voice-harp" style="font-size:9px;opacity:0.6;display:block;letter-spacing:0.05em;">concert</span></button>
         <button class="layer-toggle" id="btn-bells"  onclick="toggleLayer('bells')">Bells</button>
-        <button class="layer-toggle" id="btn-organ"  onclick="toggleLayer('organ')" oncontextmenu="cycleVoice('organ',event)">Pipe Organ <span id="voice-organ" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">sine</span></button>
+        <button class="layer-toggle" id="btn-organ"  onclick="toggleLayer('organ')" oncontextmenu="cycleVoice('organ',event)">Pipe Organ <span id="voice-organ" style="font-size:9px;opacity:0.6;display:block;letter-spacing:0.05em;">sine</span></button>
       </div>
 
       <div class="layer-cat">Chaos</div>
@@ -903,9 +890,9 @@ canvas {
       <div class="scale-grid" id="scaleGrid"></div>
       <div class="status" id="scaleStatus" style="text-align:left;margin-top:8px;font-size:12px;min-height:16px;">Zone default active</div>
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--seam);">
-        <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--text-lo);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Journey Mood</div>
+        <div style="font-family:'Cinzel',serif;font-size:13px;color:var(--text-lo);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Journey Mood</div>
         <div id="journeyMoodGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
-        <div style="font-size:10px;color:var(--text-lo);font-style:italic;font-family:'IM Fell English',serif;margin-top:8px;min-height:14px;" id="journeyMoodDesc">Dungeon crawl — the default arc</div>
+        <div style="font-size:13px;color:var(--text-lo);font-style:italic;font-family:'IM Fell English',serif;margin-top:8px;min-height:14px;" id="journeyMoodDesc">Dungeon crawl — the default arc</div>
       </div>
     </div>
 
@@ -938,16 +925,16 @@ canvas {
         <input type="number" id="bpmLockInput" min="20" max="300" value="60"
           style="width:58px;background:var(--stone);border:1px solid var(--seam);color:var(--gold);font-family:'Cinzel',serif;font-size:16px;padding:6px 8px;text-align:center;border-radius:1px;"
           oninput="onBpmLockInput(this)"/>
-        <span style="font-family:'Cinzel',serif;font-size:9px;color:var(--text-lo);letter-spacing:0.1em;">BPM</span>
+        <span style="font-family:'Cinzel',serif;font-size:13px;color:var(--text-lo);letter-spacing:0.1em;">BPM</span>
       </div>
 
       <div style="flex:1;">
-        <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--text);margin-bottom:6px;" id="songGenStatus">Idle — 7 min 20 sec of OST</div>
+        <div style="font-family:'Cinzel',serif;font-size:14px;color:var(--text);margin-bottom:6px;" id="songGenStatus">Idle — 7 min 20 sec of OST</div>
         <div class="song-gen-bar"><div class="song-gen-fill" id="songGenFill"></div></div>
       </div>
       
       <div style="margin-bottom:16px;">
-        <div style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-lo);margin-bottom:10px;">Steps</div>
+        <div style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:0.25em;text-transform:uppercase;color:var(--text-lo);margin-bottom:10px;">Steps</div>
         <div id="ostStepList" style="display:flex;flex-direction:column;gap:4px;"></div>
       </div>
       <div style="display:flex;gap:10px;margin-bottom:12px;">
@@ -960,23 +947,23 @@ canvas {
 
     <!-- TOOLS TAB -->
     <div class="tab-pane" id="tab-tools" style="padding:24px 0 16px;">
-      <div class="panel-title" style="font-size:9px;margin-bottom:12px;">Seed System</div>
+      <div class="panel-title" style="font-size:13px;margin-bottom:12px;">Seed System</div>
       <div class="seed-row">
         <input type="text" class="seed-input" id="seedInput" placeholder="Seed (e.g. 42, dungeon)" maxlength="32"/>
         <button class="seed-btn" onclick="applySeed()">Apply</button>
         <button class="seed-btn" onclick="randomSeed()">Random</button>
       </div>
-      <div class="status" id="seedStatus" style="text-align:left;margin-bottom:16px;font-size:11px;min-height:16px;">No seed active — true random.</div>
+      <div class="status" id="seedStatus" style="text-align:left;margin-bottom:16px;font-size:14px;min-height:16px;">No seed active — true random.</div>
 
-      <div class="panel-title" style="font-size:9px;margin-bottom:12px;">Presets</div>
+      <div class="panel-title" style="font-size:13px;margin-bottom:12px;">Presets</div>
       <div class="preset-grid" id="presetGrid"></div>
 
-      <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Randomizer</div>
+      <div class="panel-title" style="font-size:13px;margin-top:20px;margin-bottom:12px;">Randomizer</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
         <button class="seed-btn" onclick="randomizeCoherent()" style="flex:1;min-width:120px;padding:10px;">
           🎲 Randomize
         </button>
-        <span id="randArchetypeLabel" style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.2em;color:var(--gold-lo);">—</span>
+        <span id="randArchetypeLabel" style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:0.2em;color:var(--gold-lo);">—</span>
       </div>
       <div class="layer-grid" style="margin-bottom:8px;">
         <button class="layer-toggle" onclick="randomizeCoherent('desolate')">Desolate</button>
@@ -987,7 +974,7 @@ canvas {
         <button class="layer-toggle" onclick="randomizeCoherent('nightmare')">Nightmare</button>
       </div>
 
-      <div class="panel-title" style="font-size:9px;margin-top:20px;margin-bottom:12px;">Recording</div>
+      <div class="panel-title" style="font-size:13px;margin-top:20px;margin-bottom:12px;">Recording</div>
       <div class="record-section">
         <button class="record-btn" id="recBtn" onclick="toggleRecord()"><span class="rec-dot"></span>Record</button>
         <button class="record-btn" id="dlBtn" onclick="downloadRecording()" style="display:none">↓ Download</button>
@@ -1129,7 +1116,7 @@ function buildOSTStepList() {
   OST_STEPS.forEach((s, i) => {
     const row = document.createElement('div');
     row.id = 'ost-step-' + i;
-    row.style.cssText = 'display:flex;gap:10px;align-items:center;font-family:Cinzel,serif;font-size:10px;color:var(--text-lo);letter-spacing:0.08em;padding:5px 8px;border:1px solid var(--seam);border-radius:1px;transition:all 0.4s;';
+    row.style.cssText = 'display:flex;gap:10px;align-items:center;font-family:Cinzel,serif;font-size:13px;color:var(--text-lo);letter-spacing:0.08em;padding:5px 8px;border:1px solid var(--seam);border-radius:1px;transition:all 0.4s;';
     const dur = Math.round(s.duration / 1000);
     row.innerHTML = `<span style="color:var(--text-lo);min-width:18px;">${i+1}.</span><span style="flex:1;color:var(--text);">${s.label}</span><span style="color:var(--text-lo);">Floor ${s.floor}</span><span style="color:var(--gold-lo);min-width:32px;text-align:right;">${dur}s</span>`;
     el.appendChild(row);
@@ -3473,7 +3460,7 @@ JC.applyMasterVolume = function() {
   // (only during the lock window), so we check if a ramp is already
   // in progress by comparing current gain to target.
   if(!ctx||!masterGain) return;
-  const targetGain = 0.28 + JC.energy * 0.44;
+  const targetGain = 0.55 + JC.energy * 0.35;
   const cur = masterGain.gain.value;
   // Only reschedule if we're significantly off target and not mid-transition
   if(Math.abs(cur - targetGain) < 0.04) return;
@@ -3591,7 +3578,7 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   // Master volume: slow ride to new energy level — 8 bars, no jump
   const now = ctx.currentTime;
   // Wider dynamic range — calm chapters breathe, peak chapters are present but not slamming
-  const targetVol = 0.30 + JC.energy * 0.32; // max 0.62 instead of 0.72
+  const targetVol = 0.55 + JC.energy * 0.35; // max 0.90 — limiter catches peaks
   // Only move if meaningfully different — avoids micro-pumping on small energy changes
   const currentVol = masterGain.gain.value;
   if (Math.abs(currentVol - targetVol) > 0.04) {
@@ -6911,9 +6898,7 @@ function buildBass(preset, intensity, name) {
       const leavingTension  = (phrase !== 'tension' && pedalActive);
 
       if (enteringTension) {
-        // Lock to the current tonic — the root of the zone, not the chord root.
-        // This is the pedal note. It will clash deliberately with tension chords.
-        pedalFreq   = preset.root * 0.5; // sub-octave for maximum weight
+        pedalFreq   = preset.root * 0.5;
         pedalActive = true;
         barsSincePedal = 0;
       }
@@ -6940,26 +6925,28 @@ function buildBass(preset, intensity, name) {
                   : isClimax    ? (0.42 + intensity * 0.12)   // climax release: loud
                   :               (0.28 + intensity * 0.12);
 
-        // Sub oscillator — at rootFreq for audible punch (rootFreq*0.5 on early
-        // zones is 11-13Hz, completely subsonic). Two sines: sub + main.
-        const subFreqBass = Math.max(35, rootFreq * 0.5); // never below 35Hz
+        // Sub oscillator — keep sub well below main to avoid summing clip
+        const subFreqBass = Math.max(40, rootFreq * 0.5);
         const sub  = mkOsc(subFreqBass, 'sine');
         const main = mkOsc(rootFreq,    'sine');
+        const subG = mkGain(pedalActive ? 0.5 : 0.7); // attenuate sub separately
         const filt = mkFilt(pedalActive ? 100 : 140, 'lowpass', pedalActive ? 0.8 : 0.6);
         const env  = mkGain(0);
-        chain(sub,  env, b);
+        chain(sub,  subG, env, b);
         chain(main, filt, env, b);
 
-        // Pedal: very slow attack/decay — the note breathes like a held bow stroke
-        const atk = pedalActive ? 0.08 : 0.025;
+        // Pedal: slow attack prevents the thump/drop on onset
+        const atk = pedalActive ? 0.35 : 0.025; // was 0.08 — much slower pedal onset
         const dec = pedalActive ? barDur * 0.95 : dur;
+        // Pull back pedal vol to prevent low-freq clipping
+        const pedVol = Math.min(vol, 0.22 + intensity * 0.08);
+        const useVol = pedalActive ? pedVol : vol;
         env.gain.setValueAtTime(0, t);
-        env.gain.linearRampToValueAtTime(vol, t + atk);
-        // Mid-note swell for pedal — same bow-pressure idea as melody
+        env.gain.linearRampToValueAtTime(useVol, t + atk);
         if (pedalActive) {
-          env.gain.linearRampToValueAtTime(vol * 1.06, t + barDur * 0.45);
-          env.gain.linearRampToValueAtTime(vol * 0.9,  t + barDur * 0.80);
-          env.gain.linearRampToValueAtTime(0.001,      t + dec);
+          env.gain.linearRampToValueAtTime(useVol * 1.06, t + barDur * 0.45);
+          env.gain.linearRampToValueAtTime(useVol * 0.9,  t + barDur * 0.80);
+          env.gain.linearRampToValueAtTime(0.001,         t + dec);
         } else {
           env.gain.exponentialRampToValueAtTime(0.001, t + dec);
         }
@@ -11387,7 +11374,7 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
     const now    = ctx.currentTime;
     const barSec = barLength || 4;
     const floor  = parseInt(slider?.value ?? '1');
-    const targetVol = 0.38 + getIntensity(floor) * 0.28; // calm continuous ride, no duck
+    const targetVol = 0.60 + getIntensity(floor) * 0.30; // full range, limiter protects
     masterGain.gain.cancelScheduledValues(now);
     masterGain.gain.setValueAtTime(masterGain.gain.value, now);
     masterGain.gain.linearRampToValueAtTime(targetVol, now + barSec * 6.0); // slow drift
@@ -13883,7 +13870,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     const line = pool[Math.floor(Math.random() * pool.length)];
     const wordCount = line.split(' ').length;
     const holdFrames = 180 + wordCount * 20 + Math.floor(Math.random() * 100);
-    const size = Math.floor(Math.min(W,H) * (wordCount > 10 ? 0.012 : wordCount > 6 ? 0.015 : 0.017));
+    const size = Math.floor(Math.min(W,H) * (wordCount > 10 ? 0.022 : wordCount > 6 ? 0.026 : 0.030));
     const x = W * (0.08 + Math.random() * 0.84);
     const y = H * (0.12 + Math.random() * 0.55);
     CIN.whispers.push({ text: line, x, y, alpha: 0, phase: 'in', holdFrames, heldFor: 0, size, italic: Math.random() > 0.35 });
@@ -13891,27 +13878,27 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   }
   CIN.whispers = CIN.whispers.filter(w => !(w.phase === 'out' && w.alpha <= 0.008));
   CIN.whispers.forEach(w => {
-    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.008); if (w.alpha >= 1) w.phase = 'hold'; }
+    if (w.phase === 'in')   { w.alpha = Math.min(1, w.alpha + 0.022); if (w.alpha >= 1) w.phase = 'hold'; }
     if (w.phase === 'hold') { w.heldFor++; if (w.heldFor >= w.holdFrames) w.phase = 'out'; }
-    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.005); }
+    if (w.phase === 'out')  { w.alpha = Math.max(0, w.alpha - 0.010); }
     c.font = w.italic
       ? `italic 400 ${w.size}px 'IM Fell English', serif`
       : `400 ${w.size}px 'Cinzel', serif`;
     c.textAlign = 'center';
-    // Glow halo behind text for readability
-    const wAlpha = w.alpha * (0.72 + rest * 0.22); // was 0.30+rest*0.18 — much brighter
-    c.shadowColor = `rgba(0,0,0,${wAlpha * 0.9})`;
-    c.shadowBlur = 14;
-    c.fillStyle = `rgba(0,0,0,${wAlpha * 0.75})`;
-    c.fillText(w.text, w.x + 1.5, w.y + 1.5);
+    // Alpha always based on w.alpha alone — never crushed by rest/activity state
+    const wAlpha = w.alpha;
+    // Strong dark shadow for legibility on any background
+    c.shadowColor = `rgba(0,0,0,${wAlpha * 0.95})`;
+    c.shadowBlur = 18;
+    c.fillStyle = `rgba(0,0,0,${wAlpha * 0.90})`;
+    c.fillText(w.text, w.x + 2, w.y + 2);
     c.shadowBlur = 0;
-    // Text — zone-tinted, clearly readable
-    const tR = Math.floor(Math.min(255, R * 0.55 + 165));
-    const tG = Math.floor(Math.min(255, G * 0.45 + 145));
-    const tB = Math.floor(Math.min(255, B * 0.55 + 155));
-    // Subtle glow pass
-    c.shadowColor = `rgba(${R},${Math.floor(G*0.7)},${B},${wAlpha * 0.4})`;
-    c.shadowBlur = 8;
+    // Text — bright near-white with subtle zone tint, always readable
+    const tR = Math.floor(Math.min(255, R * 0.25 + 210));
+    const tG = Math.floor(Math.min(255, G * 0.20 + 200));
+    const tB = Math.floor(Math.min(255, B * 0.25 + 215));
+    c.shadowColor = `rgba(${R},${Math.floor(G*0.7)},${B},${wAlpha * 0.5})`;
+    c.shadowBlur = 10;
     c.fillStyle = `rgba(${tR},${tG},${tB},${wAlpha})`;
     c.fillText(w.text, w.x, w.y);
     c.shadowBlur = 0;
