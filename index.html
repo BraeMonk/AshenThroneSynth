@@ -1010,10 +1010,11 @@ let fxInput = null;
 let reverbNode = null, reverbDryGain = null, reverbWetGain = null;
 let reverbNodeShort = null, reverbWetGainShort = null; // tight room for percussion
 let delayNode = null, delayFbGain = null, delayWetGain = null;
-let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF = null;
+let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF = null, masterHighShelf = null;
 
 let _reverbSize = 0.65, _reverbMix = 0.46, _delayTime = 0.0, _delayFb = 0.0;
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
+let _moodLayerBias = {}; // per-layer gain multiplier driven by mood
 let _saturation = 0.28;
 
 // BPM Lock
@@ -3088,6 +3089,44 @@ JC.tick = function() {
       JC._reconcileBar = 0;
       JC.reconcile(preset,intensity);
     }
+
+    // ── Journey auto-FX: nudge mood/reverb/saturation to match energy ──────
+    // Runs every 8 bars. Maps JC.energy → mood slider position, then lets
+    // applyMoodFX drive EQ, layer bias, reverb size and chord tension.
+    JC._fxBar = (JC._fxBar || 0) + 1;
+    if (JC._fxBar >= 8 && _journeyAgeMs > _openingWindowMs) {
+      JC._fxBar = 0;
+      const targetMood = Math.min(1, Math.max(0, JC.energy));
+      // Smooth toward target — don't snap, drift over time
+      const currentMood = _mood;
+      const newMood = currentMood + (targetMood - currentMood) * 0.35;
+      _mood = newMood;
+      // Update slider UI
+      const moodEl = document.getElementById('moodSlider');
+      if (moodEl) {
+        moodEl.value = Math.round(newMood * 100);
+        moodEl.style.setProperty('--pct', Math.round(newMood * 100) + '%');
+        const labels = ['Calm', 'Tense', 'Nightmare'];
+        const idx = newMood < 0.35 ? 0 : newMood < 0.7 ? 1 : 2;
+        document.getElementById('moodVal').textContent = labels[idx];
+        document.getElementById('dbg-mood').textContent = labels[idx].toLowerCase();
+      }
+      applyMoodFX(newMood);
+
+      // Saturation tracks energy — more grit at nightmare
+      if (saturationNode) {
+        const targetSat = 0.15 + JC.energy * 0.45;
+        _saturation = _saturation + (targetSat - _saturation) * 0.3;
+        saturationNode.curve = makeSatCurve(_saturation);
+        const satEl = document.getElementById('saturation');
+        if (satEl) {
+          satEl.value = Math.round(_saturation * 100);
+          satEl.style.setProperty('--pct', Math.round(_saturation * 100) + '%');
+          document.getElementById('saturationVal').textContent = Math.round(_saturation * 100) + '%';
+        }
+      }
+    }
+
     // Only apply master volume after the opening window — during opening,
     // masterGain is being driven by the cinematic rise schedule
     if (_journeyAgeMs > _openingWindowMs) JC.applyMasterVolume();
@@ -3852,11 +3891,18 @@ function initAudio() {
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
-  // Chain: masterGain → HPF → saturation → moodFilter → compressor → analyser → destination
+  // High shelf — mood-driven harshness control. Calm rolls off 3kHz+, nightmare opens fully.
+  masterHighShelf = ctx.createBiquadFilter();
+  masterHighShelf.type = 'highshelf';
+  masterHighShelf.frequency.value = 3200;
+  masterHighShelf.gain.value = 0; // neutral at start
+
+  // Chain: masterGain → HPF → saturation → moodFilter → highShelf → compressor → analyser → destination
   masterGain.connect(masterHPF);
   masterHPF.connect(saturationNode);
   satMakeup.connect(moodFilter);
-  moodFilter.connect(masterCompressor);
+  moodFilter.connect(masterHighShelf);
+  masterHighShelf.connect(masterCompressor);
   masterCompressor.connect(analyser);
   analyser.connect(ctx.destination);
 
@@ -3870,6 +3916,9 @@ function initAudio() {
 
   fxInput = ctx.createGain(); fxInput.gain.value = 1.0;
   buildFXChain();
+  // Apply initial mood so default 50% isn't starting harsh
+  if (masterHighShelf) masterHighShelf.gain.value = -5 + _mood * 5;
+  applyMoodFX(_mood);
 
   // Per-layer reverb send amounts — spatial depth hierarchy
   // Strings/choir/bells live in the room; bass/perc are dry and close
@@ -4049,15 +4098,61 @@ function onMood(el) {
   const idx = _mood < 0.35 ? 0 : _mood < 0.7 ? 1 : 2;
   document.getElementById('moodVal').textContent = labels[idx];
   document.getElementById('dbg-mood').textContent = labels[idx].toLowerCase();
+  applyMoodFX(_mood);
+}
+
+function applyMoodFX(m) {
+  // ── Layer gain bias ───────────────────────────────────────────────────────
+  // Calm lifts soft/harmonic layers, pulls back percussion/chaos.
+  // Nightmare does the inverse.
+  const softLift = 1.0 + (1 - m) * 0.45;
+  const hardLift = 1.0 + m * 0.40;
+  _moodLayerBias = {
+    strings: softLift, harp: softLift * 0.9, flute: softLift,
+    viola: softLift * 0.85, drone: softLift * 0.8,
+    duduk: softLift * 0.9, lute: softLift * 0.8, organ: 1.0 + (1-m)*0.2,
+    perc: hardLift, wardrums: hardLift, chaos: hardLift * 0.9,
+    riser: hardLift * 0.85, chains: hardLift * 0.8, taiko: hardLift,
+    choir: 1.0 + (1-m)*0.45 - m*0.30,
+  };
+
+  // ── Chord tension via CE ──────────────────────────────────────────────────
+  if (CE && CE.setMoodBias) CE.setMoodBias(m);
+
   if (!ctx) return;
-  // Mood: filter cutoff, reverb wetness, LFO feel
-  const freq = 600 + _mood * 8000;
-  const Q    = 0.5 + _mood * 3;
-  moodFilter.frequency.setTargetAtTime(freq, ctx.currentTime, 0.2);
-  moodFilter.Q.setTargetAtTime(Q, ctx.currentTime, 0.2);
-  // Nightmare adds more reverb
-  const addedWet = _mood > 0.75 ? 0.15 : 0;
-  reverbWetGain.gain.setTargetAtTime(_reverbMix + addedWet, ctx.currentTime, 0.3);
+
+  // ── EQ ────────────────────────────────────────────────────────────────────
+  moodFilter.frequency.setTargetAtTime(4000 + m * 14000, ctx.currentTime, 0.2);
+  moodFilter.Q.setTargetAtTime(0.5 + m * 3, ctx.currentTime, 0.2);
+  if (masterHighShelf) {
+    masterHighShelf.gain.setTargetAtTime(-5 + m * 5, ctx.currentTime, 0.3);
+  }
+
+  // ── Reverb size — calm=intimate room, nightmare=cathedral ────────────────
+  const targetSize = 0.30 + m * 0.55;
+  if (Math.abs(targetSize - _reverbSize) > 0.05 && reverbNode) {
+    _reverbSize = targetSize;
+    reverbNode.buffer = buildIR(_reverbSize);
+    document.getElementById('reverbSize').value = Math.round(_reverbSize * 100);
+    document.getElementById('reverbSizeVal').textContent = Math.round(_reverbSize * 100) + '%';
+    document.getElementById('reverbSize').style.setProperty('--pct', Math.round(_reverbSize*100)+'%');
+  }
+
+  // ── Reverb mix ────────────────────────────────────────────────────────────
+  if (reverbWetGain) {
+    reverbWetGain.gain.setTargetAtTime(_reverbMix + (m > 0.75 ? 0.15 : 0), ctx.currentTime, 0.3);
+  }
+
+  // ── Push bias to active buses ─────────────────────────────────────────────
+  if (isPlaying) {
+    Object.entries(_moodLayerBias).forEach(([n, bias]) => {
+      const b = bus[n];
+      if (b && layerOn[n]) {
+        const base = adaptiveMixTarget(n, journeyDepth ? journeyDepth/99 : 0.5);
+        b.gain.setTargetAtTime(Math.min(MIX_CEILING[n] ?? 0.5, base * bias), ctx.currentTime, 1.5);
+      }
+    });
+  }
 }
 let satDebounce = null;
 function onSaturation(el) {
@@ -4680,6 +4775,7 @@ const CE = (() => {
   let _eventOverride = null;   // { scaleDeg, quality, barsLeft }
   let _bossActive    = false;
   let _barCount      = 0;      // internal bar counter
+  let _moodBias      = 0.5;    // 0=calm→resolution progs, 1=nightmare→tension/combat progs
  
   // Public current chord — layers read this
   let currentChord = {
@@ -5033,6 +5129,14 @@ const CE = (() => {
     chordTone,
     scaleStep,
     releaseEvent,
+    setMoodBias: (m) => {
+      _moodBias = m;
+      // Nightmare pulls _progKey toward tension/combat when not in event override
+      if (!_eventOverride && !_bossActive) {
+        if (m > 0.75 && _progKey === 'normal') _progKey = 'tension';
+        else if (m < 0.35 && _progKey === 'tension') _progKey = 'normal';
+      }
+    },
     // Expose for debugging
     getProgKey: () => _progKey,
     getChordIdx: () => _chordIdx,
@@ -8477,6 +8581,8 @@ function buildGuitar(preset, intensity, name) {
     }
   }
 
+  let haloPanSide = -1; // alternates -1 (L) and +1 (R) each note
+
   // ── Oscillator-based sustained note for halo voice ───────────────────────
   // Fundamental-heavy tone with controlled harmonics, soft attack, tremolo.
   function playHaloNote(freq, duration) {
@@ -8531,15 +8637,26 @@ function buildGuitar(preset, intensity, name) {
     env.gain.linearRampToValueAtTime(0, now2 + duration);
     tremG.connect(env.gain); // tremolo modulates envelope gain
 
+    // Adaptive stereo — low notes pan left, high notes pan right,
+    // with alternating bias so consecutive notes spread across the field.
+    // Range [82,660]: notes below 200Hz bias left, above 350Hz bias right.
+    const freqBias  = Math.max(-1, Math.min(1, (freq - 220) / 220)); // -1 to +1
+    const panAmount = freqBias * 0.45 + haloPanSide * 0.20;          // blend register + alternation
+    haloPanSide *= -1;
+
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = Math.max(-0.7, Math.min(0.7, panAmount));
+
     const body = makeBodyFilter(name, 'guitar_electric');
-    body.output.connect(b);
+    body.output.connect(panner);
+    panner.connect(b);
     chain(merge, lp, pres, env, body.input);
 
     fund.start(now2); fund.stop(now2 + duration + 0.1);
     sub.start(now2);  sub.stop(now2 + duration + 0.1);
     harm2.start(now2); harm2.stop(now2 + duration + 0.1);
     trem.start(now2);  trem.stop(now2 + duration + 0.1);
-    reg(name, fund, sub, subG, harm2, harm2G, merge, lp, pres, env, trem, tremG);
+    reg(name, fund, sub, subG, harm2, harm2G, merge, lp, pres, env, trem, tremG, panner);
   }
 
   function schedHalo() {
