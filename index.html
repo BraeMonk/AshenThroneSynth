@@ -2726,7 +2726,7 @@ JC.applyMasterVolume = function() {
   // (only during the lock window), so we check if a ramp is already
   // in progress by comparing current gain to target.
   if(!ctx||!masterGain) return;
-  const targetGain = 0.14 + JC.energy * 0.28;
+  const targetGain = 0.28 + JC.energy * 0.44;
   const cur = masterGain.gain.value;
   // Only reschedule if we're significantly off target and not mid-transition
   if(Math.abs(cur - targetGain) < 0.04) return;
@@ -2826,7 +2826,7 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
 
   // Master volume: slow ride to new energy level — 8 bars, no dip
   const now = ctx.currentTime;
-  const targetVol = 0.14 + JC.energy * 0.28;
+  const targetVol = 0.28 + JC.energy * 0.44;
 
   // Peak transition — no silence, just a fast swell into the climax
   // The music itself carries the impact; we don't need to hollow it out first.
@@ -3192,7 +3192,7 @@ function startRandomJourney() {
     const now1 = ctx.currentTime;
     masterGain.gain.cancelScheduledValues(now1);
     masterGain.gain.setValueAtTime(0, now1);
-    masterGain.gain.linearRampToValueAtTime(0.38, now1 + barLength * 2);
+    masterGain.gain.linearRampToValueAtTime(0.60, now1 + barLength * 2);
   }
 
   // Compute opening layer set — energy varies per run (0.05–0.18) so some
@@ -3260,7 +3260,7 @@ function startRandomJourney() {
         const _now = ctx.currentTime;
         masterGain.gain.cancelScheduledValues(_now);
         masterGain.gain.setValueAtTime(masterGain.gain.value, _now);
-        masterGain.gain.linearRampToValueAtTime(0.38, _now + 0.08);
+        masterGain.gain.linearRampToValueAtTime(0.60, _now + 0.08);
       }
     },(outroDur+0.3)*1000));
   }, JC.totalDurationMs));
@@ -3953,12 +3953,12 @@ function killLayer(name) {
 
 // Absolute gain ceiling per layer — hard limit regardless of mix state
 const MIX_CEILING = {
-  drone:       0.48,  strings:     0.55,  bass:        0.55,  heartbeat:   0.58,
-  perc:        0.76,  wardrums:    0.74,  march:       0.68,  stomp:       0.64,
-  chains:      0.40,  wind:        0.28,  riser:       0.38,  firecrackle: 0.20,
-  whispers:    0.20,  ritualchant: 0.50,  glitch:      0.24,  boss:        0.60,
-  melody:      0.68,  choir:       0.66,  cello:       0.54,  organ:       0.38,
-  horn:        0.58,  lute:        0.40,  bells:       0.42,  chaos:       0.34,
+  drone:       0.72,  strings:     0.80,  bass:        0.78,  heartbeat:   0.70,
+  perc:        0.95,  wardrums:    0.92,  march:       0.88,  stomp:       0.84,
+  chains:      0.55,  wind:        0.42,  riser:       0.52,  firecrackle: 0.32,
+  whispers:    0.32,  ritualchant: 0.68,  glitch:      0.36,  boss:        0.80,
+  melody:      0.90,  choir:       0.88,  cello:       0.74,  organ:       0.58,
+  horn:        0.78,  lute:        0.60,  bells:       0.60,  chaos:       0.50,
 };
 
 // Role membership — every layer belongs to exactly one role
@@ -4020,11 +4020,11 @@ function getLeadRole(intensity) {
 // This is what separates a resolution from a climax at the mix level.
 // Applies on top of role relations so the hierarchy is preserved, just quieter.
 const PHRASE_DEPTH = {
-  intro:      0.52,   // sparse — only drone and strings, held back
-  build:      0.72,   // growing — layers entering, mix opening up
-  tension:    0.88,   // taut — full but restrained, energy coiled
-  climax:     1.00,   // everything — the only moment of full release
-  resolution: 0.58,   // exhale — melody carries, everything else recedes
+  intro:      0.72,   // sparse but present — this is still a film score opening
+  build:      0.88,   // growing — layers entering, mix opening up
+  tension:    0.96,   // taut — full and coiled
+  climax:     1.00,   // everything — full release
+  resolution: 0.78,   // exhale — melody carries, but it's still grand
 };
 
 function adaptiveMixTarget(name, intensity) {
@@ -4047,11 +4047,12 @@ function adaptiveMixTarget(name, intensity) {
                      : siblings === 2 ? 0.78
                      : 0.70;
 
-  // Depth scale — shallow floors are naturally quieter
-  const depthScale = 0.70 + depth * 0.35;
+  // Depth scale — removed the low-end floor suppression that was stacking
+  // with phrase depth and relation to make everything inaudible
+  const depthScale = 0.85 + depth * 0.15;
 
-  // Boss lift — everything up, but hierarchy preserved
-  const bossLift = isBoss ? 1.20 : 1.0;
+  // Boss lift — everything up, hierarchy preserved
+  const bossLift = isBoss ? 1.25 : 1.0;
 
   // Phrase arc multiplier — the arc breathes, not just the layers
   const phraseDepth = PHRASE_DEPTH[currentPhrase] ?? 0.80;
@@ -8516,7 +8517,7 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
     masterGain.gain.setValueAtTime(masterGain.gain.value, now);
     masterGain.gain.linearRampToValueAtTime(0.52, now + barSec * 1.0);   // breath in — gentle dip
     masterGain.gain.setValueAtTime(0.52, now + barSec * 4.0);            // hold through pattern swap
-    masterGain.gain.linearRampToValueAtTime(0.38, now + barSec * 7.0);   // bloom back slowly
+    masterGain.gain.linearRampToValueAtTime(0.60, now + barSec * 7.0);   // bloom back slowly
   }
 
   // Delay chord engine zone change to bar 4 so it transitions mid-dip
