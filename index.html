@@ -17188,58 +17188,76 @@ let _activeSkin = 'ashen';
 // Each skin has a distinct master-bus character that fires when the skin is
 // selected. Values blend in over ~3s so the shift is felt, not snapped.
 // These set: reverb size, reverb wet, saturation, high-shelf EQ, delay time+fb.
-//
-// ashen    — vast stone hall. Long tail, dark, moderate grit. The dungeon.
-// neon     — wet city glass. Tight punchy reverb, bright, saturated, slapback.
-// sakura   — open air valley. Medium bloom, clean, airy high shelf, no delay.
-// broadcast— controlled studio. Near-dry, flat EQ, zero saturation, clean echo.
-// void     — infinite corrupted space. Maximum tail, dark, glitchy delay.
+// Tuned to complement each skin's actual zone material — drone waveforms,
+// scale choices, percussion density, and BPM range all informed these values.
 
 const SKIN_AUDIO = {
+  // ── ASHEN — stone dungeon. Sine/sawtooth drones, sub-bass roots, sparse perc.
+  // Long diffuse tail fills silence between sparse hits. Dark shelf cut lets
+  // sub breathe without mud. No delay — silence IS the space here.
   ashen: {
-    reverbSize: 0.65,   // large stone hall
-    reverbWet:  0.72,
-    satBase:    0.18,   // moderate grit — iron and rust
-    moodFilterFreq: 9000,
-    highShelfGain:  -4, // dark, absorptive stone
+    reverbSize: 0.68,   // long stone hall — fills the silence between sparse hits
+    reverbWet:  0.74,
+    satBase:    0.16,   // light grit — iron and rust, not fuzz
+    moodFilterFreq: 8500,
+    highShelfGain:  -5, // cut the top — stone absorbs, dungeon is dark
     delayTime:  0.0,
     delayFb:    0.0,
   },
+
+  // ── NEON — city grid. Square/sawtooth drones, dorian/mixolydian, 4-on-floor kick.
+  // Tight reverb keeps kick and hihat defined, not washed. Bright shelf cuts
+  // through dense sawtooth harmonics. Slapback near dotted-8th of ~100bpm (≈0.09s).
+  // Heavy saturation — the zones are square waves, lean into the grit.
   neon: {
-    reverbSize: 0.22,   // tight — glass and concrete, not open air
-    reverbWet:  0.32,
-    satBase:    0.34,   // heavy saturation — neon sign buzz, overdriven grid
-    moodFilterFreq: 13000,
-    highShelfGain:  5,  // bright, harsh, city edge
-    delayTime:  0.11,   // short slapback — wet pavement echo
-    delayFb:    0.22,
+    reverbSize: 0.18,   // very tight — glass and concrete surfaces, not halls
+    reverbWet:  0.28,   // relatively dry so kick punch survives
+    satBase:    0.38,   // heavy — neon sign buzz, overdriven power grid
+    moodFilterFreq: 14000,
+    highShelfGain:  6,  // sharp, harsh, city-edge brightness
+    delayTime:  0.09,   // slapback — wet pavement reflection, dotted-8th at 100bpm
+    delayFb:    0.18,   // single echo, not a wash
   },
+
+  // ── SAKURA — open mountain air. Sine/triangle drones, pentatonic/lydian,
+  // barely any percussion, very slow LFOs, highest melodySkip of any skin.
+  // Lush bloom that doesn't crowd the silence. Gentle shelf lift in the
+  // 8–10k range where triangle harmonics live. Nothing harsh. No delay.
   sakura: {
-    reverbSize: 0.55,   // medium bloom — mountain valley, open sky
-    reverbWet:  0.58,
-    satBase:    0.04,   // near-clean — nothing harsh here
-    moodFilterFreq: 11000,
-    highShelfGain:  2,  // gentle air, soft shimmer
+    reverbSize: 0.58,   // generous bloom — mountain valley resonance
+    reverbWet:  0.65,   // wet enough to blur silence beautifully
+    satBase:    0.03,   // near-zero — clean as mountain water
+    moodFilterFreq: 10000,
+    highShelfGain:  3,  // lift triangle/sine shimmer — airy and open
     delayTime:  0.0,
     delayFb:    0.0,
   },
+
+  // ── BROADCAST — studio. Ionian/mixolydian (major modes), clean structured
+  // kick/snare/hihat, sine/triangle drones. Near-dry for dynamics and clarity.
+  // Flat EQ — accurate monitoring, nothing coloured. Tight room slap only.
   broadcast: {
-    reverbSize: 0.14,   // near-dry — controlled studio, no room bleed
-    reverbWet:  0.20,
-    satBase:    0.06,   // clean signal — broadcast standard
-    moodFilterFreq: 16000,
-    highShelfGain:  1,  // flat, accurate, professional
-    delayTime:  0.06,   // tight studio slap — monitoring echo
-    delayFb:    0.12,
+    reverbSize: 0.12,   // small live room — controlled studio acoustic
+    reverbWet:  0.18,   // near-dry — broadcast prioritises transient clarity
+    satBase:    0.05,   // clean — broadcast standard, no colouration
+    moodFilterFreq: 17000,
+    highShelfGain:  0,  // flat — accurate, uncoloured monitoring
+    delayTime:  0.05,   // tight room slap — not an effect, just space
+    delayFb:    0.08,   // single bounce, negligible tail
   },
+
+  // ── VOID — corrupted machine space. All square waves, chromatic/diminished
+  // scales, filter Q up to 9.0, prime-ish BPMs, non-standard roots.
+  // Max reverb smears harsh chromatic clusters into dread. Aggressive dark
+  // shelf cut — signal degradation. Long high-feedback delay = system collapse.
   void: {
-    reverbSize: 0.82,   // maximum — infinite corrupted space
-    reverbWet:  0.88,
-    satBase:    0.22,   // medium grit — digital clipping, not warmth
-    moodFilterFreq: 7500,
-    highShelfGain:  -7, // muffled — signal degradation, data loss
-    delayTime:  0.33,   // long glitchy echo — system feedback loop
-    delayFb:    0.45,
+    reverbSize: 0.85,   // near-maximum — infinite corrupted void
+    reverbWet:  0.90,   // almost fully wet — dry signal barely exists
+    satBase:    0.24,   // medium — digital clipping character, not warmth
+    moodFilterFreq: 6800,
+    highShelfGain:  -8, // severely muffled — entropy, signal loss
+    delayTime:  0.37,   // long glitchy feedback loop — system collapse
+    delayFb:    0.50,   // high feedback — the loop doesn't fully die
   },
 };
 
