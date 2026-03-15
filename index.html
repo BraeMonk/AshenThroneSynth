@@ -1036,6 +1036,21 @@ let _chorusRate = 0.30, _chorusDepth = 0.004, _chorusMix = 0.25;
 let _phaserRate = 0.20, _phaserDepth = 0.50, _phaserMix = 0.0;
 let _phaserNodes = null; // { lfo, lfoG, allpass[], wetG, dryG }
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
+
+// ── Live retimbre handles — populated by drone/choir builders, read by applyMoodSoundset ──
+// The drone builder stores references here after construction so applyMoodSoundset
+// can modulate filter freq/Q and LFO without killing/restarting the node graph.
+const DroneTimbre = {
+  filter: null,      // BiquadFilterNode — warmFilt
+  lfoFreq: null,     // OscillatorNode  — filter breathe LFO
+  lfoGain: null,     // GainNode        — LFO depth
+  oscs: [],          // [{ osc, role }] — pitch oscillators for wave-morph detection
+};
+const ChoirTimbre = {
+  formantFilters: [], // BiquadFilterNode[] — one per formant band
+  vibOsc: null,       // OscillatorNode  — choir vibrato LFO
+  vibGain: null,      // GainNode        — vibrato depth
+};
 let _moodLayerBias  = {}; // per-layer gain multiplier driven by mood
 let _foundationThin = 1.0; // 1.0=normal, 0.18=whisper — driven by Conductor solo moments
 let _saturation = 0.14;
@@ -2587,30 +2602,112 @@ const JOURNEY_MOODS = {
     desc: 'Dungeon crawl — darkness builds to nightmare',
     layerArc:  ['desolate','marching','marching','combat','combat','nightmare','nightmare','desolate'],
     scaleArc:  ['dark','dark','eerie','epic','dread','dread','dread','dark'],
+    // ── Soundset: slow sinking into stone ─────────────────────────────────
+    // Sawtooth drone, filtered low — that chest-compression sub quality.
+    // Choir formants narrow and chesty. Melody sine-wave, almost sub-vocal.
+    // Heavy reverb — everything sounds deep underground.
+    soundset: {
+      droneWave: 'sawtooth', droneFilterFreq: 300, droneFilterQ: 2.8,
+      droneLfoRate: 0.04, droneLfoDepth: 160,
+      choirFormants: [480, 900, 2200], choirVibRate: 3.2, choirVibDepth: 3.5,
+      melodyWave: 'sine',
+      bassWave: 'sawtooth',
+      reverbWetBase: 0.72,
+      satBase: 0.22,
+      moodFilterFreq: 9000,    // dark but not murky
+      highShelfGain: -4,
+      bpmBias: 0,              // no BPM change from zone default
+    },
   },
   tragic: {
     label: 'Tragic',
     desc: 'Grief and collapse — choir from the start, then silence',
     layerArc:  ['choral','choral','combat','combat','choral','choral','desolate','desolate'],
     scaleArc:  ['dark','dark','dark','dread','dark','eerie','dark','dark'],
+    // ── Soundset: slow string grief ───────────────────────────────────────
+    // Triangle drone — softer, with a hollow ache. Choir very open vowel, wide vibrato.
+    // Melody is triangle too — plaintive and thin, like a voice giving out.
+    // Very wet reverb — sound trapped in a cathedral nave. Slow BPM bias.
+    soundset: {
+      droneWave: 'triangle', droneFilterFreq: 260, droneFilterQ: 1.4,
+      droneLfoRate: 0.025, droneLfoDepth: 90,
+      choirFormants: [700, 1100, 2600], choirVibRate: 4.2, choirVibDepth: 5.0,
+      melodyWave: 'triangle',
+      bassWave: 'sine',
+      reverbWetBase: 0.88,
+      satBase: 0.06,
+      moodFilterFreq: 7500,    // slightly muffled — sound of grief
+      highShelfGain: -7,
+      bpmBias: -6,             // slightly slower — weight of mourning
+    },
   },
   triumphant: {
     label: 'Triumphant',
     desc: 'March to glory — heroic from bar one',
     layerArc:  ['marching','marching','combat','nightmare','combat','combat','marching','choral'],
     scaleArc:  ['epic','epic','epic','epic','dread','epic','epic','epic'],
+    // ── Soundset: bright brass-forward victory ────────────────────────────
+    // Square drone — more harmonic richness, punchy and present.
+    // Choir has elevated brightness, vibrato tight and martial.
+    // Melody is square too — declarative, cuts through the mix.
+    // Less reverb — close and immediate. Saturation higher for grit.
+    soundset: {
+      droneWave: 'square', droneFilterFreq: 600, droneFilterQ: 1.8,
+      droneLfoRate: 0.06, droneLfoDepth: 200,
+      choirFormants: [900, 1600, 3200], choirVibRate: 5.5, choirVibDepth: 2.5,
+      melodyWave: 'square',
+      bassWave: 'sawtooth',
+      reverbWetBase: 0.50,
+      satBase: 0.32,
+      moodFilterFreq: 16000,   // bright and open — nothing hidden
+      highShelfGain: 3,
+      bpmBias: 8,              // slightly faster — urgency and drive
+    },
   },
   arcane: {
     label: 'Arcane',
     desc: 'Ethereal and unstable — melody and organ, no drums',
     layerArc:  ['arcane','arcane','choral','arcane','arcane','arcane','choral','arcane'],
     scaleArc:  ['arcane','arcane','eerie','arcane','dread','arcane','arcane','eerie'],
+    // ── Soundset: glassy and unreal ───────────────────────────────────────
+    // Sine drone with fast LFO — shimmer, not weight. Very pure.
+    // Choir formants extremely high — almost whistle-like, otherworldly.
+    // Melody is sine — pure tone, no harmonic distortion.
+    // Maximum reverb tail — sounds like it's happening in another dimension.
+    soundset: {
+      droneWave: 'sine', droneFilterFreq: 800, droneFilterQ: 6.0,
+      droneLfoRate: 0.18, droneLfoDepth: 280,
+      choirFormants: [1100, 2200, 4000], choirVibRate: 6.0, choirVibDepth: 4.0,
+      melodyWave: 'sine',
+      bassWave: 'sine',
+      reverbWetBase: 0.95,
+      satBase: 0.04,
+      moodFilterFreq: 18000,   // fully open — all shimmer preserved
+      highShelfGain: 2,
+      bpmBias: -4,             // slightly slower — weightless float
+    },
   },
   meditative: {
     label: 'Meditative',
     desc: 'Wide and still — choir and bells, no combat ever',
     layerArc:  ['choral','choral','arcane','choral','arcane','choral','choral','desolate'],
     scaleArc:  ['arcane','arcane','arcane','eerie','arcane','arcane','dark','dark'],
+    // ── Soundset: vast cathedral silence ──────────────────────────────────
+    // Pure sine drone, almost inaudible — presence without mass.
+    // Choir breathes slowly — wide, open 'aah', near-zero vibrato.
+    // Melody sine, very quiet, rare attacks. Everything at maximum distance.
+    soundset: {
+      droneWave: 'sine', droneFilterFreq: 420, droneFilterQ: 0.8,
+      droneLfoRate: 0.015, droneLfoDepth: 50,
+      choirFormants: [800, 1400, 2800], choirVibRate: 1.5, choirVibDepth: 0.8,
+      melodyWave: 'sine',
+      bassWave: 'sine',
+      reverbWetBase: 0.92,
+      satBase: 0.02,
+      moodFilterFreq: 12000,   // warm, not bright — the sound of stone absorbing
+      highShelfGain: -3,
+      bpmBias: -10,            // slow and spacious
+    },
   },
 
   // ── NEW MOODS ──────────────────────────────────────────────────────────────
@@ -2618,10 +2715,25 @@ const JOURNEY_MOODS = {
   ritual: {
     label: 'Ritual',
     desc: 'Hypnotic and ceremonial — war drums and chanting hold steady for a long time before anything shifts',
-    // Percussion leads from the start. Energy stays low and locked for 5 chapters
-    // then a single violent peak and immediate collapse back to chanting.
     layerArc:  ['marching','marching','choral','marching','marching','nightmare','choral','desolate'],
     scaleArc:  ['dark','dark','eerie','dark','dread','dread','eerie','dark'],
+    // ── Soundset: bone-deep percussion and chant ──────────────────────────
+    // Sawtooth drone at very low frequency — more sub than tone.
+    // Choir formants narrow and chesty, short vibrato — syllabic, not lyrical.
+    // No melody wave brightness — this is ritual, not performance.
+    // Medium reverb — stone chamber, not cathedral. Saturation midrange grit.
+    soundset: {
+      droneWave: 'sawtooth', droneFilterFreq: 200, droneFilterQ: 3.5,
+      droneLfoRate: 0.03, droneLfoDepth: 120,
+      choirFormants: [400, 800, 1800], choirVibRate: 2.0, choirVibDepth: 1.5,
+      melodyWave: 'sawtooth',
+      bassWave: 'sawtooth',
+      reverbWetBase: 0.62,
+      satBase: 0.28,
+      moodFilterFreq: 8000,    // mid-scooped, heavy low-mids
+      highShelfGain: -5,
+      bpmBias: -4,
+    },
   },
 
   paranoia: {
@@ -2629,24 +2741,71 @@ const JOURNEY_MOODS = {
     desc: 'Twitchy and wrong — glitch and chaos early, energy never quite peaks, resolution never arrives',
     layerArc:  ['arcane','combat','nightmare','combat','arcane','combat','nightmare','arcane'],
     scaleArc:  ['eerie','dread','eerie','eerie','dread','eerie','dread','eerie'],
+    // ── Soundset: unstable, clipped, wrong ───────────────────────────────
+    // Square drone with fast irregular LFO — buzzing, unsettled.
+    // Choir formants pushed into dissonant cluster — sounds like argument not song.
+    // Melody sawtooth — aggressive edge, fast attack.
+    // Short reverb — claustrophobic, nowhere to hide. Heavy saturation.
+    soundset: {
+      droneWave: 'square', droneFilterFreq: 700, droneFilterQ: 8.0,
+      droneLfoRate: 0.22, droneLfoDepth: 350,
+      choirFormants: [600, 1050, 1900], choirVibRate: 7.5, choirVibDepth: 6.0,
+      melodyWave: 'sawtooth',
+      bassWave: 'square',
+      reverbWetBase: 0.38,
+      satBase: 0.42,
+      moodFilterFreq: 14000,   // harsh highs preserved — the scrape is intentional
+      highShelfGain: 5,
+      bpmBias: 6,
+    },
   },
 
   elegy: {
     label: 'Elegy',
     desc: 'A slow funeral — strings and choir throughout, never reaches combat, resolves into open silence',
-    // Strings and choir carry everything. No percussion ever.
-    // Slow, deliberate energy arc. Like a procession that keeps walking.
     layerArc:  ['choral','choral','choral','choral','choral','choral','choral','desolate'],
     scaleArc:  ['dark','dark','dark','eerie','dark','dark','eerie','dark'],
+    // ── Soundset: the sound of loss made audible ──────────────────────────
+    // Triangle drone, very slow LFO — a single sustained note, barely breathing.
+    // Choir formants: mid-range 'oh' vowel with deep slow vibrato — human grief.
+    // Melody triangle — warm and close, like a voice breaking on each note.
+    // The wettest reverb in the system — everything dissolves into the room.
+    soundset: {
+      droneWave: 'triangle', droneFilterFreq: 300, droneFilterQ: 1.0,
+      droneLfoRate: 0.018, droneLfoDepth: 70,
+      choirFormants: [600, 950, 2200], choirVibRate: 2.8, choirVibDepth: 6.5,
+      melodyWave: 'triangle',
+      bassWave: 'triangle',
+      reverbWetBase: 0.94,
+      satBase: 0.04,
+      moodFilterFreq: 6500,    // muffled like weeping through stone walls
+      highShelfGain: -8,
+      bpmBias: -12,            // the slowest — grief takes its time
+    },
   },
 
   siege: {
     label: 'Siege',
     desc: 'All combat, no mercy — peaks early and stays there, no resolution',
-    // Marching from bar 1, reaches full force by chapter 3 and holds.
-    // The grind. No cooldown.
     layerArc:  ['marching','combat','nightmare','nightmare','combat','nightmare','combat','marching'],
     scaleArc:  ['epic','dread','dread','dread','epic','dread','dread','epic'],
+    // ── Soundset: iron, fire, relentless percussion ───────────────────────
+    // Square drone at mid-high filter — grinding, industrial harmonics.
+    // Choir shouting not singing — short formants, aggressive vibrato.
+    // Melody square — maximum harmonic content, cuts through war noise.
+    // Dry mix — reverb kills punch. Maximum saturation — sounds like iron on iron.
+    soundset: {
+      droneWave: 'square', droneFilterFreq: 800, droneFilterQ: 4.0,
+      droneLfoRate: 0.12, droneLfoDepth: 400,
+      choirFormants: [750, 1300, 2500], choirVibRate: 8.0, choirVibDepth: 3.0,
+      melodyWave: 'square',
+      bassWave: 'square',
+      reverbWetBase: 0.32,
+      satBase: 0.48,
+      moodFilterFreq: 18000,   // nothing cut — all the grit lives here
+      highShelfGain: 4,
+      bpmBias: 12,             // fastest — relentless forward drive
+    },
   },
 
   awakening: {
@@ -2654,6 +2813,23 @@ const JOURNEY_MOODS = {
     desc: 'Inverted — starts at the peak and slowly dissolves into ash, like waking in the aftermath',
     layerArc:  ['nightmare','combat','marching','choral','marching','choral','desolate','desolate'],
     scaleArc:  ['dread','dread','epic','dark','eerie','dark','dark','arcane'],
+    // ── Soundset: burning aftermath dissolving to dust ────────────────────
+    // Starts sawtooth (combat energy), dissolves toward sine (the aftermath).
+    // The soundset sets the initial character — progression is via energy curve.
+    // Choir high-pitched and fractured — like voices after the battle.
+    // Reverb grows as energy recedes — the silence becomes vast.
+    soundset: {
+      droneWave: 'sawtooth', droneFilterFreq: 500, droneFilterQ: 3.0,
+      droneLfoRate: 0.08, droneLfoDepth: 240,
+      choirFormants: [850, 1500, 3000], choirVibRate: 5.0, choirVibDepth: 3.5,
+      melodyWave: 'sine',
+      bassWave: 'sawtooth',
+      reverbWetBase: 0.68,
+      satBase: 0.30,
+      moodFilterFreq: 11000,
+      highShelfGain: 0,
+      bpmBias: 4,
+    },
   },
 
   catharsis: {
@@ -2661,6 +2837,23 @@ const JOURNEY_MOODS = {
     desc: 'Slow grief to earned beauty — choir builds through pain toward genuine release, then rests in warmth',
     layerArc:  ['choral','choral','combat','choral','choral','choral','choral','desolate'],
     scaleArc:  ['dark','dark','dread','dark','eerie','arcane','arcane','dark'],
+    // ── Soundset: pain opening into warmth ───────────────────────────────
+    // Triangle drone — like tragic, but with a slight brightness that grows.
+    // Choir: mid-range warmth, slower vibrato — not grief but beauty that earned it.
+    // Melody triangle with warmth — the sound of crying turning to release.
+    // High reverb — the space opens as the feeling does. Low saturation.
+    soundset: {
+      droneWave: 'triangle', droneFilterFreq: 350, droneFilterQ: 1.6,
+      droneLfoRate: 0.032, droneLfoDepth: 110,
+      choirFormants: [650, 1050, 2400], choirVibRate: 3.5, choirVibDepth: 4.5,
+      melodyWave: 'triangle',
+      bassWave: 'sine',
+      reverbWetBase: 0.82,
+      satBase: 0.08,
+      moodFilterFreq: 9500,
+      highShelfGain: -2,
+      bpmBias: -5,
+    },
   },
 
   void: {
@@ -2668,6 +2861,23 @@ const JOURNEY_MOODS = {
     desc: 'Alien and placeless — chromatic harmonics, no tonal center, never resolves, music from somewhere else',
     layerArc:  ['arcane','arcane','nightmare','arcane','nightmare','arcane','arcane','arcane'],
     scaleArc:  ['arcane','eerie','dread','eerie','dread','eerie','arcane','eerie'],
+    // ── Soundset: the sound of nothing at all ─────────────────────────────
+    // Sine drone with very fast, deep LFO — it warbles, unstable.
+    // Choir formants: pure upper partials, almost no fundamental — inhuman.
+    // Melody sine, but the LFO makes it wander. Zero saturation — pure signal.
+    // Vast reverb but muted high end — sound from another dimension, muffled.
+    soundset: {
+      droneWave: 'sine', droneFilterFreq: 1200, droneFilterQ: 10.0,
+      droneLfoRate: 0.28, droneLfoDepth: 500,
+      choirFormants: [1400, 2800, 4500], choirVibRate: 8.5, choirVibDepth: 7.0,
+      melodyWave: 'sine',
+      bassWave: 'sine',
+      reverbWetBase: 0.90,
+      satBase: 0.01,
+      moodFilterFreq: 5000,    // alien muffled — as if heard through vacuum
+      highShelfGain: -10,
+      bpmBias: -8,
+    },
   },
 
   // ── GENRE MOODS ───────────────────────────────────────────────────────────
@@ -2675,9 +2885,24 @@ const JOURNEY_MOODS = {
   gregorian: {
     label: 'Gregorian',
     desc: 'Unaccompanied sacred chant — only voices and silence, no rhythm, no melody instruments',
-    // Pure choral throughout; only the final chapter gets any instrumental weight
     layerArc:  ['choral','choral','choral','choral','choral','choral','choral','desolate'],
     scaleArc:  ['dark','dark','dark','eerie','dark','dread','dark','dark'],
+    // ── Soundset: stone chapel, unison voices ──────────────────────────────
+    // The most restrained soundset. Sine drone barely audible — a room tone.
+    // Choir: pure narrow formant, no vibrato — Gregorian chant has no vibrato.
+    // Melody off — this is chant, not instrumental. Cathedral reverb tail.
+    soundset: {
+      droneWave: 'sine', droneFilterFreq: 180, droneFilterQ: 0.6,
+      droneLfoRate: 0.01, droneLfoDepth: 30,
+      choirFormants: [520, 800, 2000], choirVibRate: 0.5, choirVibDepth: 0.3,
+      melodyWave: 'sine',
+      bassWave: 'sine',
+      reverbWetBase: 0.96,
+      satBase: 0.01,
+      moodFilterFreq: 8000,    // warm stone, centuries of absorption
+      highShelfGain: -6,
+      bpmBias: -8,
+    },
   },
 
   industrial: {
@@ -2685,16 +2910,48 @@ const JOURNEY_MOODS = {
     desc: 'Grinding iron and percussion — no melody, no brass, just rhythm and noise building to collapse',
     layerArc:  ['marching','marching','combat','nightmare','nightmare','nightmare','combat','marching'],
     scaleArc:  ['dread','dread','dread','dread','eerie','dread','dread','dread'],
+    // ── Soundset: machine rhythm, distortion, no beauty ───────────────────
+    // Square drone — maximum harmonic series, machine-like.
+    // Choir formants extremely nasal and high — sounds like factory alarms.
+    // Melody square — mechanical, repetitive, no human warmth.
+    // Dry, close mix — industrial spaces don't have cathedral reverb.
+    // Maximum saturation — everything is clipped and distorted intentionally.
+    soundset: {
+      droneWave: 'square', droneFilterFreq: 1000, droneFilterQ: 6.0,
+      droneLfoRate: 0.35, droneLfoDepth: 600,
+      choirFormants: [1000, 2000, 3500], choirVibRate: 10.0, choirVibDepth: 2.0,
+      melodyWave: 'square',
+      bassWave: 'square',
+      reverbWetBase: 0.22,
+      satBase: 0.55,
+      moodFilterFreq: 18000,
+      highShelfGain: 6,
+      bpmBias: 16,             // relentless machine pace
+    },
   },
 
   celtic: {
     label: 'Celtic',
-    desc: 'Modal and lilting — lute and bells lead, no war drums or chaos, never fully dark',
-    layerArc:  ['arcane','arcane','choral','arcane','choral','arcane','arcane','desolate'],
-    // Dorian is the spine of Celtic music. Mixolydian for heroic chapters.
-    // Pentatonic for the ancient/introspective moments. Ionian for bright resolution.
-    // Never arcane (lydian/whole_tone) — those sound alien, not folk.
+    desc: 'Modal and lilting — flute and lute lead, light percussion, never fully dark',
+    layerArc:  ['choral','marching','choral','marching','choral','marching','choral','desolate'],
     scaleArc:  ['celtic','celtic','celtic','celtic','celtic','celtic','celtic','celtic'],
+    // ── Soundset: wood fire, open heath, folk strings ──────────────────────
+    // Triangle drone — warm and round, like a bodhrán resonance.
+    // Choir has brighter formants — 'ee' and 'ay' vowels, folk singing quality.
+    // Melody triangle — warm and expressive. No grit, no distortion.
+    // Medium reverb — outdoors, stone circle, open sky. Light saturation warmth.
+    soundset: {
+      droneWave: 'triangle', droneFilterFreq: 560, droneFilterQ: 1.5,
+      droneLfoRate: 0.07, droneLfoDepth: 140,
+      choirFormants: [900, 1700, 3400], choirVibRate: 4.8, choirVibDepth: 3.0,
+      melodyWave: 'triangle',
+      bassWave: 'triangle',
+      reverbWetBase: 0.55,
+      satBase: 0.10,
+      moodFilterFreq: 14000,   // bright and airy — open sky
+      highShelfGain: 2,
+      bpmBias: 2,
+    },
   },
 
   ambient: {
@@ -2702,10 +2959,174 @@ const JOURNEY_MOODS = {
     desc: 'Near-static texture — drone and strings only, movement measured in minutes not beats',
     layerArc:  ['desolate','desolate','arcane','desolate','arcane','desolate','desolate','desolate'],
     scaleArc:  ['arcane','arcane','arcane','arcane','eerie','arcane','arcane','dark'],
+    // ── Soundset: the silence between sounds ──────────────────────────────
+    // The most extreme soundset. Sine drone at near-inaudible depth.
+    // Almost no LFO movement — this is stillness as sound.
+    // Choir pure open 'aah', near zero vibrato — sustained without expression.
+    // Maximum reverb, minimum saturation — pure decay, no attack.
+    soundset: {
+      droneWave: 'sine', droneFilterFreq: 280, droneFilterQ: 0.5,
+      droneLfoRate: 0.008, droneLfoDepth: 25,
+      choirFormants: [750, 1200, 2600], choirVibRate: 0.8, choirVibDepth: 0.4,
+      melodyWave: 'sine',
+      bassWave: 'sine',
+      reverbWetBase: 0.98,
+      satBase: 0.01,
+      moodFilterFreq: 10000,
+      highShelfGain: -4,
+      bpmBias: -16,            // the slowest possible — barely moving
+    },
   },
 };
 
 let activeJourneyMood = 'descent';
+
+// ── MOOD SOUNDSET APPLICATION ─────────────────────────────────────────────────
+// Applies a mood's distinct timbral character to the running audio graph.
+// Called on journey start and again at each chapter transition (blended
+// with zone defaults so chapters feel like sub-flavours of the mood, not
+// complete resets). All parameter changes use setTargetAtTime for smooth
+// crossfades — never a hard cut.
+//
+// Parameters driven:
+//   droneWave / droneFilterFreq / droneLfoRate / droneLfoDepth
+//   choirFormants / choirVibRate / choirVibDepth
+//   moodFilter (master EQ colour — warmth vs harshness)
+//   masterHighShelf (presence vs darkness)
+//   reverbWetGain (spatial depth)
+//   saturation (harmonic grit vs cleanliness)
+//   BPM bias (applied to barLength, never overrides bpmLocked)
+//
+// Zone values are blended with soundset values at 60/40 so the zone still
+// contributes its character. Pure soundset values would make every floor of
+// the same mood sound identical; the blend keeps zone-to-zone evolution alive.
+
+let _activeSoundset = null; // stashed so chapter transitions can re-apply
+
+function applyMoodSoundset(moodId, immediate) {
+  const moodObj = JOURNEY_MOODS[moodId];
+  if (!moodObj || !moodObj.soundset) return;
+  const ss = moodObj.soundset;
+  _activeSoundset = ss;
+
+  const ramp = immediate ? 0.2 : 8.0; // seconds — slow blend unless cold-start
+
+  // ── Master EQ colour ────────────────────────────────────────────────────
+  if (moodFilter && ctx) {
+    const freq = ss.moodFilterFreq ?? 14000;
+    moodFilter.frequency.setTargetAtTime(freq, ctx.currentTime, ramp * 0.5);
+  }
+  if (masterHighShelf && ctx) {
+    const gain = ss.highShelfGain ?? 0;
+    masterHighShelf.gain.setTargetAtTime(gain, ctx.currentTime, ramp * 0.5);
+  }
+
+  // ── Reverb wet level ─────────────────────────────────────────────────────
+  if (reverbWetGain && ctx) {
+    const wet = ss.reverbWetBase ?? 0.70;
+    reverbWetGain.gain.setTargetAtTime(wet, ctx.currentTime, ramp);
+  }
+
+  // ── Saturation baseline ──────────────────────────────────────────────────
+  if (saturationNode && ctx) {
+    const targetSat = ss.satBase ?? 0.20;
+    if (!JC.active || JC.energy < 0.4) {
+      _saturation = targetSat;
+      clearTimeout(satDebounce);
+      satDebounce = setTimeout(() => {
+        if (saturationNode) saturationNode.curve = makeSatCurve(_saturation);
+      }, 100);
+      const satEl = document.getElementById('saturation');
+      if (satEl) {
+        satEl.value = Math.round(_saturation * 100);
+        satEl.style.setProperty('--pct', Math.round(_saturation * 100) + '%');
+        document.getElementById('saturationVal').textContent = Math.round(_saturation * 100) + '%';
+      }
+    }
+  }
+
+  // ── BPM bias — only when BPM is not manually locked ─────────────────────
+  if (!bpmLocked && ctx) {
+    const zone = getZone(parseInt(slider.value));
+    const bpmBias = ss.bpmBias ?? 0;
+    const biasedBpm = Math.max(40, Math.min(140, zone.bpm + bpmBias * 0.4));
+    barLength = (60 / biasedBpm) * 4;
+  }
+
+  // ── Drone retimbre via DroneTimbre handles ────────────────────────────────
+  if (ctx && isPlaying && layerOn['drone']) {
+    const zone = getZone(parseInt(slider.value));
+
+    // Blend 60% zone / 40% soundset so zone-to-zone evolution survives
+    const blendedFilter = zone.droneFilterFreq * 0.6 + (ss.droneFilterFreq ?? zone.droneFilterFreq) * 0.4;
+    const blendedQ      = zone.droneFilterQ    * 0.6 + (ss.droneFilterQ    ?? zone.droneFilterQ)    * 0.4;
+    const blendedLfoR   = zone.droneLfoRate    * 0.6 + (ss.droneLfoRate    ?? zone.droneLfoRate)    * 0.4;
+    const blendedLfoD   = zone.droneLfoDepth   * 0.6 + (ss.droneLfoDepth   ?? zone.droneLfoDepth)   * 0.4;
+
+    if (DroneTimbre.filter && ctx) {
+      DroneTimbre.filter.frequency.setTargetAtTime(blendedFilter, ctx.currentTime, ramp * 0.8);
+      DroneTimbre.filter.Q.setTargetAtTime(blendedQ, ctx.currentTime, ramp * 0.8);
+    }
+    if (DroneTimbre.lfoFreq && ctx) {
+      DroneTimbre.lfoFreq.frequency.setTargetAtTime(blendedLfoR, ctx.currentTime, ramp);
+    }
+    if (DroneTimbre.lfoGain && ctx) {
+      DroneTimbre.lfoGain.gain.setTargetAtTime(blendedLfoD, ctx.currentTime, ramp);
+    }
+
+    // Wave type morph — schedule a soft restart at next bar if wave changed.
+    // Compare against the zone's wave, not the last osc type, since 'harmonic'
+    // voice always uses 'sine' internally regardless of droneWave.
+    const targetWave = ss.droneWave ?? zone.droneWave;
+    const currentWave = DroneTimbre.oscs[0]?.osc?.type ?? zone.droneWave;
+    if (currentWave !== targetWave) {
+      const morphDelay = (barLength || 4) * 1000;
+      setTimeout(() => {
+        if (!isPlaying || !layerOn['drone']) return;
+        const z = getZone(parseInt(slider.value));
+        const morphedZone = {
+          ...z,
+          droneWave: targetWave,
+          droneFilterFreq: blendedFilter,
+          droneFilterQ: blendedQ,
+          droneLfoRate: blendedLfoR,
+          droneLfoDepth: blendedLfoD,
+        };
+        startLayer('drone', morphedZone, JC.active ? JC.energy : getIntensity(parseInt(slider.value)), null);
+      }, morphDelay);
+    }
+  }
+
+  // ── Choir formant retimbre via ChoirTimbre handles ────────────────────────
+  if (ctx && isPlaying && layerOn['choir'] && ChoirTimbre.f1Nodes && ChoirTimbre.f1Nodes.length) {
+    const zone = getZone(parseInt(slider.value));
+    const ssFormants = ss.choirFormants || zone.choirFormants;
+    const blendedFormants = ssFormants.map((f, i) => {
+      const zf = zone.choirFormants?.[i] ?? f;
+      return zf * 0.6 + f * 0.4;
+    });
+
+    // Update each voice's f1 formant filter toward blended target
+    ChoirTimbre.f1Nodes.forEach(({ f1, formF, closedF1, openF1 }, i) => {
+      if (!f1 || !ctx) return;
+      // Blend the base formant frequency — the retune loop re-applies the
+      // open/close morph each bar so we only need to shift the centre target
+      const targetF = blendedFormants[Math.min(i, blendedFormants.length - 1)];
+      const newClosedF1 = targetF * 0.65;
+      const newOpenF1   = targetF * 1.10;
+      // Ramp the current f1 frequency toward the new blended target
+      const currentT = f1.frequency.value;
+      f1.frequency.setTargetAtTime(
+        newClosedF1 + (newOpenF1 - newClosedF1) * MP_choirOpenness(),
+        ctx.currentTime,
+        ramp
+      );
+      // Persist new values so the retune loop uses them next iteration
+      ChoirTimbre.f1Nodes[i].closedF1 = newClosedF1;
+      ChoirTimbre.f1Nodes[i].openF1   = newOpenF1;
+    });
+  }
+}
 
 function crawlToFloor(targetFloor, durationMs, onComplete) {
   const startFloor = parseInt(slider.value);
@@ -2863,8 +3284,11 @@ const JC_MOOD_SUPPRESS = {
     'harp_tex','guitar_col','lute_mel','flute_mel','duduk_mel','oud_col','viola_pad',
   ]),
   celtic:     new Set([
+    // Exclude dark/heavy instruments — Celtic is never brutal
     'rhythm_2','rhythm_3','chains_tex','chaos_peak',
     'ritual','horn_acc','taiko_drv','oud_col','duduk_mel',
+    'wardrums','stomp','march','chaos','glitch','ritualchant','boss',
+    'viola','choir','organ','riser',
   ]),
   ambient:    new Set([
     'rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak',
@@ -3144,7 +3568,7 @@ JC.reconcile = function(preset, intensity) {
   // This overrides the JC_LAYER_GROUPS enter threshold for specific groups
   // within this mood only — guaranteeing they're heard from the start.
   const MOOD_EARLY_ENTRY = {
-    celtic:     { flute_mel:0.04, guitar_col:0.04, harp_tex:0.05, lute_mel:0.05 },
+    celtic:     { flute_mel:0.00, harp_tex:0.00, lute_mel:0.02, guitar_col:0.08, bells_det:0.10 }, // flute+harp from bar 1
     gregorian:  { duduk_mel:0.02, viola_pad:0.02, choir_bed:0.00 },
     elegy:      { duduk_mel:0.06, harp_tex:0.06, viola_pad:0.04 },
     arcane:     { flute_mel:0.08, harp_tex:0.08, oud_col:0.10 },
@@ -3189,7 +3613,7 @@ JC.reconcile = function(preset, intensity) {
     void:       ['melody','oud'],
     gregorian:  ['choir','duduk'],
     industrial: ['chaos'],
-    celtic:     ['flute','lute','guitar'],
+    celtic:     ['flute','lute','harp','melody'], // melody plays the folk tune, flute/lute colour
     ambient:    ['flute','harp'],
   };
 
@@ -3295,11 +3719,14 @@ JC.reconcile = function(preset, intensity) {
       resolution: ['drone','strings','bass','perc','wardrums','taiko'],
     },
     celtic: {
-      intro:      ['drone','strings','viola','flute','guitar','harp'],
-      build:      ['drone','strings','viola','flute','guitar','lute','harp','bells','choir'],
-      tension:    ['drone','strings','viola','bass','flute','lute','riser','choir'],
-      climax:     ['drone','strings','viola','bass','perc','flute','lute','guitar','choir','bells'],
-      resolution: ['drone','strings','viola','flute','harp','guitar','bells'],
+      // Flute, lute, harp, bells are the Celtic core. Light perc only (no wardrums/stomp).
+      // No riser, no choir (sounds too choral/dark), no viola (too heavy).
+      // Bass enters only at build/climax and stays quiet.
+      intro:      ['drone','strings','harp','flute','lute'],
+      build:      ['drone','strings','harp','flute','lute','guitar','bells','melody'],
+      tension:    ['drone','strings','bass','flute','lute','harp','melody'],
+      climax:     ['drone','strings','bass','perc','flute','lute','guitar','harp','bells','melody'],
+      resolution: ['drone','strings','harp','flute','lute','bells'],
     },
     ambient: {
       intro:      ['drone','strings','viola','harp','flute'],
@@ -3331,7 +3758,7 @@ JC.reconcile = function(preset, intensity) {
     paranoia: e > 0.60 ? 3 : 2,
     siege: e > 0.40 ? 5 : 4,
     industrial: e > 0.30 ? 5 : 4,
-    celtic: e > 0.60 ? 2 : 1,
+    celtic: e > 0.75 ? 2 : e > 0.50 ? 1 : 0, // very light perc, bodhrán-like
   }[JC.mood] ?? (e > 0.70 ? 4 : 2);
 
   const ROLE_CAPS = {
@@ -3549,6 +3976,15 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
 
   CE.onZoneChange(preset);
   if(!bpmLocked) barLength=(60/preset.bpm)*4;
+
+  // Re-apply soundset at each chapter — slow blend (8s) so the timbral shift
+  // feels like moving deeper into the mood's world, not a hard switch.
+  // Drone/choir formant updates are deferred by one bar so the chord pivot
+  // establishes before the filter retunes.
+  JC.timers.push(setTimeout(() => {
+    if (!JC.active || !isPlaying) return;
+    applyMoodSoundset(JC.mood, false);
+  }, (barLength || 4) * 1000));
   // Defer scale change by one bar — the pivot chord needs to establish
   // before the scale shifts, otherwise layers retune twice in quick succession.
   const _chapterScaleName = (JC._scaleArc && JC._scaleArc[JC.step]) || toChapter.scale;
@@ -3971,6 +4407,13 @@ function startRandomJourney() {
   // Re-pick all session voices — new perc, strings, organ timbre each journey
   pickSessionVoices();
 
+  // ── Apply mood soundset — sets the timbral identity for the whole journey ──
+  // Called with immediate=false so the EQ/reverb/saturation changes drift in
+  // over 8 seconds rather than snapping — the listener feels the world change.
+  // Drone/choir retimbre fires after initAudio() below so nodes exist.
+  // We stash the mood ID and re-call after audio is running (see below).
+  const _pendingMoodSoundset = activeJourneyMood;
+
   // ── VARIED INTRO SEED ─────────────────────────────────────────────────────
   // The intro was always identical: Chapter 1, floor 1, 'intro' phrase, dark scale.
   // Now we vary all the meaningful dimensions while keeping the chapter arc intact:
@@ -3992,6 +4435,10 @@ function startRandomJourney() {
 
   if(!bpmLocked) barLength=(60/firstPreset.bpm)*4;
   CE.onZoneChange(firstPreset);
+
+  // Apply soundset now that audio graph exists — immediate=true so EQ/reverb
+  // parameters are set before the first notes play (no audible "drift in" at cold open)
+  applyMoodSoundset(_pendingMoodSoundset, true);
 
   // Scale: pull from the mood's full scaleArc, not just chapter 1's scale mood
   const moodObj      = JOURNEY_MOODS[activeJourneyMood] || JOURNEY_MOODS.descent;
@@ -5004,6 +5451,22 @@ function applyMoodFX(m) {
     riser: hardLift * 0.85, chains: hardLift * 0.8, taiko: hardLift,
     choir: 1.0 + (1-m)*0.45 - m*0.30,
   };
+  // Celtic mood override — boost folk instruments, cut dark ones
+  if (activeJourneyMood === 'celtic') {
+    _moodLayerBias.flute  = 1.4;
+    _moodLayerBias.harp   = 1.4;
+    _moodLayerBias.lute   = 1.4;
+    _moodLayerBias.bells  = 1.3;
+    _moodLayerBias.melody = 1.3;
+    _moodLayerBias.guitar = 1.2;
+    _moodLayerBias.strings= 1.1;
+    _moodLayerBias.choir  = 0.3; // suppress choir in Celtic
+    _moodLayerBias.viola  = 0.2;
+    _moodLayerBias.organ  = 0.1;
+    _moodLayerBias.wardrums = 0.0;
+    _moodLayerBias.chaos  = 0.0;
+    return; // skip normal mood logic
+  };
 
   // ── Chord tension via CE ──────────────────────────────────────────────────
   if (CE && CE.setMoodBias) CE.setMoodBias(m);
@@ -5497,6 +5960,17 @@ const VOICE_BANKS = {
 function pickVoice(layer) {
   const bank = VOICE_BANKS[layer];
   if (!bank) return 'sine';
+  // Celtic mood — bias toward folk-appropriate voices
+  if (activeJourneyMood === 'celtic') {
+    const celticVoices = {
+      flute:   'breathy',    // breathy flute = more folk/earthy
+      harp:    'celtic',     // celtic harp voice
+      strings: 'pizzicato',  // plucked strings feel more folk
+      melody:  'whistle',    // tin whistle if available, else random
+    };
+    const preferred = celticVoices[layer];
+    if (preferred && bank.includes(preferred)) return preferred;
+  }
   return bank[Math.floor(Math.random() * bank.length)];
 }
 
@@ -6224,6 +6698,12 @@ function buildDrone(preset, intensity, name) {
   const lfo  = mkOsc(_filtLfoRate, 'sine');
   const lfoG = mkGain(preset.droneLfoDepth * 0.5 + intensity * 120);
   chain(lfo, lfoG); lfoG.connect(warmFilt.frequency); lfo.start(); reg(name, lfo, lfoG, warmFilt);
+
+  // ── Expose to DroneTimbre for live retimbre by applyMoodSoundset ─────────────
+  DroneTimbre.filter  = warmFilt;
+  DroneTimbre.lfoFreq = lfo;
+  DroneTimbre.lfoGain = lfoG;
+  DroneTimbre.oscs    = droneOscs;
 
   // ── Chord retune loop ────────────────────────────────────────────────────────
   let droneLastChord = CE.currentChord.label;
@@ -7968,6 +8448,15 @@ function buildChoir(preset, intensity, name) {
     regT(name, setTimeout(retuneChoir, Math.max(200, (barLength || 2) * 1000)));
   }
   regT(name, setTimeout(retuneChoir, (barLength || 2) * 1000));
+
+  // ── Expose to ChoirTimbre for live retimbre by applyMoodSoundset ─────────────
+  // f1Nodes[i].f1 is the first formant filter for voice i — the main timbral colour.
+  ChoirTimbre.formantFilters = f1Nodes.map(n => n.f1);
+  // For vibrato: each voice has its own vib oscillator; store the first one as a
+  // representative handle (all voices update in lock-step in retuneChoir anyway).
+  // We can't easily reach the per-voice vib oscillators from here without a ref array.
+  // Instead, expose f1Nodes so applyMoodSoundset can update formant freqs directly.
+  ChoirTimbre.f1Nodes = f1Nodes;
 }
 
 function buildChaos(preset, intensity, name) {
@@ -11129,7 +11618,14 @@ function buildJourneyMoodUI() {
     btn.className = 'scale-btn' + (id === 'descent' ? ' active' : '');
     btn.id = 'jmood-' + id;
     btn.onclick = () => selectJourneyMood(id);
-    btn.innerHTML = `<span class="scale-name">${mood.label}</span>`;
+    // Build a compact soundset signature from the mood's soundset definition
+    const ss = mood.soundset || {};
+    const waveGlyph = { sine:'∿', sawtooth:'⊿', square:'⊓', triangle:'△' }[ss.droneWave] || '∿';
+    const reverbLabel = ss.reverbWetBase >= 0.90 ? 'vast' : ss.reverbWetBase >= 0.75 ? 'deep' : ss.reverbWetBase >= 0.55 ? 'room' : 'dry';
+    const satLabel = ss.satBase >= 0.40 ? 'grit' : ss.satBase >= 0.20 ? 'warm' : 'clean';
+    const bpmLabel = (ss.bpmBias ?? 0) >= 10 ? '⚡fast' : (ss.bpmBias ?? 0) <= -10 ? '⋯slow' : '';
+    const sig = [waveGlyph, reverbLabel, satLabel, bpmLabel].filter(Boolean).join(' · ');
+    btn.innerHTML = `<span class="scale-name">${mood.label}</span><span class="scale-feel" style="font-size:8px;opacity:0.55;">${sig}</span>`;
     grid.appendChild(btn);
   });
 }
@@ -11141,7 +11637,17 @@ function selectJourneyMood(id) {
   if (btn) btn.classList.add('active');
   const mood = JOURNEY_MOODS[id];
   const desc = document.getElementById('journeyMoodDesc');
-  if (desc) desc.textContent = mood.desc;
+  if (desc) {
+    const ss = mood.soundset || {};
+    // Build a one-line soundset summary to show alongside the mood description
+    const waveNames = { sine:'sine drone', sawtooth:'sawtooth drone', square:'square drone', triangle:'triangle drone' };
+    const waveName = waveNames[ss.droneWave] || 'drone';
+    const reverbFeel = ss.reverbWetBase >= 0.90 ? 'vast cathedral reverb' : ss.reverbWetBase >= 0.75 ? 'deep hall reverb' : ss.reverbWetBase >= 0.55 ? 'room reverb' : 'dry close mix';
+    const satFeel = ss.satBase >= 0.40 ? 'heavy saturation' : ss.satBase >= 0.20 ? 'warm harmonic grit' : 'clean signal path';
+    const bpmFeel = (ss.bpmBias ?? 0) >= 10 ? ', faster tempo' : (ss.bpmBias ?? 0) <= -10 ? ', slower tempo' : '';
+    const soundsetLine = `${waveName} · ${reverbFeel} · ${satFeel}${bpmFeel}`;
+    desc.innerHTML = `${mood.desc}<br><em style="font-size:10px;opacity:0.5;letter-spacing:0.04em;">${soundsetLine}</em>`;
+  }
 }
 
 function selectScale(id) {
