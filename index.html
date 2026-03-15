@@ -4143,16 +4143,8 @@ function applyMoodFX(m) {
     reverbWetGain.gain.setTargetAtTime(_reverbMix + (m > 0.75 ? 0.15 : 0), ctx.currentTime, 0.3);
   }
 
-  // ── Push bias to active buses ─────────────────────────────────────────────
-  if (isPlaying) {
-    Object.entries(_moodLayerBias).forEach(([n, bias]) => {
-      const b = bus[n];
-      if (b && layerOn[n]) {
-        const base = adaptiveMixTarget(n, journeyDepth ? journeyDepth/99 : 0.5);
-        b.gain.setTargetAtTime(Math.min(MIX_CEILING[n] ?? 0.5, base * bias), ctx.currentTime, 1.5);
-      }
-    });
-  }
+  // _moodLayerBias is now read directly by adaptiveMixTarget,
+  // so the continuous mix loop picks it up automatically on its next 80ms tick.
 }
 let satDebounce = null;
 function onSaturation(el) {
@@ -4517,7 +4509,8 @@ function adaptiveMixTarget(name, intensity) {
   const phraseLift = PHRASE_ROLE_LIFT[currentPhrase]?.[role] ?? 1.0;
 
   const raw = ceiling * relation * siblingScale * depthScale * bossLift * phraseDepth * phraseLift;
-  return Math.min(ceiling, Math.max(0.04, raw));
+  const moodBias = _moodLayerBias[name] ?? 1.0;
+  return Math.min(ceiling, Math.max(0.04, raw * moodBias));
 }
 
 // Legacy shim — called on layer start for initial gain
