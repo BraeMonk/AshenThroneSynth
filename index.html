@@ -2542,6 +2542,7 @@ JC.reconcile = function(preset, intensity) {
   const percBufs = buildPercBufs(preset, sessionVoices['perc']);
   const phrase   = currentPhrase || 'intro';
   const e        = intensity;
+  const suppress = new Set(); // layers excluded from early-entry override (none currently)
 
   const SUSTAIN_LAYERS = new Set([
     'drone','strings','choir','melody','cello','organ','bass',
