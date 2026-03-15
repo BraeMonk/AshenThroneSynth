@@ -1305,6 +1305,8 @@ function advancePhrase() {
     // Mutate the zone leitmotif on each phrase transition — keeps melodic identity
     // but prevents exact repetition. mutateMotif was defined but never called before.
     if (journeyActive || JC.active) mutateMotif(getZone(parseInt(slider.value)));
+    // Apply phrase-driven FX — delay, reverb sends, saturation
+    applyPhraseFX(next);
 
     // During Journey, JC.reconcile is the sole authority on layers and gain.
     // autoEvolution / applyPhraseLayers must not run — they cold-restart
@@ -3375,6 +3377,7 @@ function startRandomJourney() {
   currentPhrase = phraseSeq[phraseSeqIdx] || openPhrase;
   autoEvolution = true;
   startPhraseEngine();
+  applyPhraseFX(currentPhrase);
 
   // ── IMMEDIATE JOURNEY OPEN — full bloom, no drone-solo moment ──────────────
   // All chapter-1 layers start together, staggered by just half a bar each,
@@ -3970,6 +3973,89 @@ function connectLayerReverb() {
       try { b._sendGain.connect(target); } catch(e) {}
     }
   });
+}
+
+// ── Phrase-driven FX ──────────────────────────────────────────────────────────
+// Called on every phrase change. Drives delay time (BPM-synced), per-layer
+// reverb send amounts, and master saturation — all with smooth ramps so
+// transitions feel musical not mechanical.
+function applyPhraseFX(phrase) {
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const ramp = 2.0; // seconds to drift to new values — one bar at most tempos
+
+  // ── BPM-synced delay ─────────────────────────────────────────────────────
+  // intro/resolution: dotted-quarter echo (1.5 beats) — spacious and dreamy
+  // build: quarter-note echo (1 beat) — rhythmic, pushes forward
+  // tension: eighth-note echo (0.5 beats) — tight, nervous, close
+  // climax: no echo — keep it clear and punchy at peak density
+  const bpm = bpmLocked ? bpmLockValue : (getZone(parseInt(slider.value))?.bpm || 80);
+  const beat = 60 / bpm;
+  const DELAY_TARGETS = {
+    intro:      { time: beat * 1.5, fb: 0.38, wet: 0.28 },
+    resolution: { time: beat * 1.5, fb: 0.42, wet: 0.32 },
+    build:      { time: beat * 1.0, fb: 0.30, wet: 0.22 },
+    tension:    { time: beat * 0.5, fb: 0.22, wet: 0.18 },
+    climax:     { time: beat * 0.25,fb: 0.10, wet: 0.08 },
+  };
+  const dt = DELAY_TARGETS[phrase] || DELAY_TARGETS.build;
+  if (delayNode) {
+    _delayTime = dt.time;
+    _delayFb   = dt.fb;
+    delayNode.delayTime.setTargetAtTime(dt.time, now, ramp * 0.5);
+    delayFbGain.gain.setTargetAtTime(dt.fb, now, ramp * 0.5);
+    delayWetGain.gain.setTargetAtTime(dt.wet, now, ramp * 0.5);
+    // Update UI
+    const dtEl = document.getElementById('delayTime');
+    if (dtEl) { dtEl.value = Math.round(dt.time / 1.2 * 100); dtEl.style.setProperty('--pct', Math.round(dt.time/1.2*100)+'%'); document.getElementById('delayTimeVal').textContent = dt.time.toFixed(2)+'s'; }
+    const dfEl = document.getElementById('delayFb');
+    if (dfEl) { dfEl.value = Math.round(dt.fb * 100); dfEl.style.setProperty('--pct', Math.round(dt.fb*100)+'%'); }
+  }
+
+  // ── Reverb send multipliers per phrase ───────────────────────────────────
+  // intro/resolution: everything wetter — instruments float in the room
+  // tension: melodic layers drier (more present/urgent), pads stay wet
+  // climax: pads pull back wet, rhythmic stays tight
+  const REVERB_PHRASE_MULT = {
+    intro:      { melody:1.3, choir:1.3, strings:1.2, harp:1.3, bells:1.3, flute:1.2, perc:0.8,  wardrums:0.7 },
+    resolution: { melody:1.4, choir:1.4, strings:1.3, harp:1.4, bells:1.4, flute:1.3, perc:0.6,  wardrums:0.5 },
+    build:      { melody:1.1, choir:1.1, strings:1.1, harp:1.1, bells:1.1, flute:1.1, perc:0.9,  wardrums:0.9 },
+    tension:    { melody:0.8, choir:1.0, strings:1.1, harp:1.2, bells:1.1, flute:0.9, perc:1.1,  wardrums:1.2 },
+    climax:     { melody:0.9, choir:1.1, strings:1.0, harp:0.9, bells:0.8, flute:0.9, perc:1.0,  wardrums:1.0 },
+  };
+  const mults = REVERB_PHRASE_MULT[phrase] || {};
+  const BASE_SENDS = {
+    drone:0.82, strings:0.82, bass:0.38, heartbeat:0.06, wind:0.72, riser:0.58,
+    melody:0.92, cello:0.68, choir:0.80, lute:0.52, horn:0.65, bells:0.85,
+    organ:0.55, guitar:0.55, flute:0.78, duduk:0.72, harp:0.80, viola:0.75,
+    oud:0.58, perc:0.22, wardrums:0.24, taiko:0.18, chains:0.28,
+  };
+  LAYER_NAMES.forEach(name => {
+    const b = bus[name];
+    if (!b?._sendGain) return;
+    const base = BASE_SENDS[name] ?? 0.30;
+    const mult = mults[name] ?? 1.0;
+    b._sendGain.gain.setTargetAtTime(Math.min(0.95, base * mult), now, ramp);
+  });
+
+  // ── Master saturation per phrase ─────────────────────────────────────────
+  // resolution/intro: clean and clear. tension/climax: warm grit.
+  const SAT_TARGETS = { intro:0.12, build:0.22, tension:0.38, climax:0.48, resolution:0.10 };
+  const targetSat = SAT_TARGETS[phrase] ?? 0.22;
+  // Blend toward target — don't override Journey auto-FX if it's active
+  const blendedSat = JC.active
+    ? _saturation + (targetSat - _saturation) * 0.4   // Journey does the heavy lifting
+    : targetSat;
+  if (saturationNode) {
+    _saturation = blendedSat;
+    saturationNode.curve = makeSatCurve(_saturation);
+    const satEl = document.getElementById('saturation');
+    if (satEl) {
+      satEl.value = Math.round(_saturation * 100);
+      satEl.style.setProperty('--pct', Math.round(_saturation * 100) + '%');
+      document.getElementById('saturationVal').textContent = Math.round(_saturation * 100) + '%';
+    }
+  }
 }
 
 function makeSatCurve(amount) {
@@ -4647,7 +4733,7 @@ const CE = (() => {
       combat:     [[0,'min'], [5,'dim'], [0,'min'], [5,'dim']],       // i – v° – i – v°
       boss:       [[0,'tritone'], [0,'tritone'], [1,'phrygian'], [0,'tritone']],
       resolution: [[0,'openFifth'], [6,'sus2'], [3,'sus4'], [0,'min']],
-      tension:    [[0,'hdim7'], [5,'dim7'], [1,'phrygian'], [0,'min7']],
+      tension:    [[0,'hdim7'], [0,'openFifth'], [5,'dim7'], [0,'min7']],
       // Celtic-specific progressions for Ashen Fields — modal folk cadences
       celtic_normal:     [[0,'min'], [6,'maj'], [4,'maj'], [0,'min']],    // i – VI – IV – i (dorian)
       celtic_resolution: [[0,'openFifth'], [6,'sus2'], [4,'sus4'], [0,'openFifth']], // open modal
@@ -4658,7 +4744,7 @@ const CE = (() => {
       combat:     [[0,'min'], [1,'phrygian'], [5,'dim'], [0,'min']],
       boss:       [[0,'dim7'], [6,'dim7'], [3,'dim7'], [0,'dim7']],   // dim7 cycle
       resolution: [[0,'min'], [6,'sus2'], [3,'maj'], [0,'openFifth']],
-      tension:    [[0,'hdim7'], [1,'phrygian'], [5,'dim7'], [0,'min7']],
+      tension:    [[0,'hdim7'], [0,'min'], [5,'dim7'], [0,'min7']],
       celtic_normal:     [[0,'min'], [4,'maj'], [6,'maj'], [3,'maj']],    // dorian i–IV–VI–III
       celtic_resolution: [[0,'min'], [6,'sus2'], [4,'maj'], [0,'openFifth']],
       celtic_tension:    [[0,'min'], [6,'maj'], [5,'min'], [0,'min']],
@@ -4668,7 +4754,7 @@ const CE = (() => {
       combat:     [[0,'dim7'], [5,'dim'], [0,'min'], [1,'phrygian']],
       boss:       [[0,'tritone'], [1,'tritone'], [0,'dim7'], [1,'phrygian']],
       resolution: [[0,'min'], [6,'sus2'], [0,'openFifth'], [0,'min']],
-      tension:    [[0,'dim7'], [6,'dim7'], [1,'phrygian'], [0,'hdim7']],
+      tension:    [[0,'dim7'], [0,'openFifth'], [1,'phrygian'], [0,'min']],
       celtic_normal:     [[0,'min'], [3,'maj'], [6,'maj'], [4,'maj']],
       celtic_resolution: [[0,'openFifth'], [3,'sus4'], [0,'min'], [0,'openFifth']],
       celtic_tension:    [[0,'min'], [5,'min'], [3,'maj'], [0,'min']],
@@ -4678,7 +4764,7 @@ const CE = (() => {
       combat:     [[0,'min'], [1,'phrygian'], [0,'min'], [5,'dim7']],
       boss:       [[0,'dim7'], [1,'phrygian'], [6,'dim7'], [0,'dim7']],
       resolution: [[0,'min'], [3,'sus4'], [6,'maj'], [0,'openFifth']],
-      tension:    [[0,'hdim7'], [5,'dim7'], [1,'phrygian'], [0,'minMaj7']],
+      tension:    [[0,'hdim7'], [0,'min'], [5,'dim7'], [0,'minMaj7']],
       celtic_normal:     [[0,'min'], [6,'maj'], [3,'maj'], [4,'maj']],
       celtic_resolution: [[0,'min'], [6,'sus2'], [3,'sus4'], [0,'openFifth']],
       celtic_tension:    [[0,'min'], [4,'maj'], [5,'min'], [0,'min']],
@@ -4688,7 +4774,7 @@ const CE = (() => {
       combat:     [[0,'min'], [2,'dim'], [5,'dom7'], [0,'min']],
       boss:       [[0,'dim7'], [3,'aug'], [0,'dim7'], [6,'dim7']],
       resolution: [[0,'sus2'], [4,'sus4'], [2,'min'], [0,'min7']],
-      tension:    [[0,'minMaj7'], [5,'dim7'], [2,'hdim7'], [0,'dim7']],
+      tension:    [[0,'minMaj7'], [0,'openFifth'], [2,'hdim7'], [0,'min']],
       celtic_normal:     [[0,'min'], [4,'maj'], [6,'maj'], [0,'min']],
       celtic_resolution: [[0,'sus2'], [4,'sus4'], [6,'maj'], [0,'openFifth']],
       celtic_tension:    [[0,'min'], [3,'maj'], [5,'min'], [0,'min']],
@@ -4698,7 +4784,7 @@ const CE = (() => {
       combat:     [[0,'min7'], [5,'dim7'], [1,'phrygian'], [0,'min']],
       boss:       [[0,'tritone'], [5,'tritone'], [1,'phrygian'], [0,'dim7']],
       resolution: [[0,'min'], [6,'sus2'], [3,'maj'], [0,'openFifth']],
-      tension:    [[0,'dim7'], [1,'phrygian'], [5,'hdim7'], [0,'minMaj7']],
+      tension:    [[0,'dim7'], [0,'min'], [5,'hdim7'], [0,'minMaj7']],
       celtic_normal:     [[0,'min'], [6,'maj'], [4,'maj'], [3,'maj']],
       celtic_resolution: [[0,'openFifth'], [6,'sus2'], [4,'sus4'], [0,'min']],
       celtic_tension:    [[0,'min'], [5,'min'], [6,'maj'], [0,'min']],
@@ -4708,7 +4794,7 @@ const CE = (() => {
       combat:     [[0,'dim7'], [1,'phrygian'], [0,'dim7'], [5,'tritone']],
       boss:       [[0,'tritone'], [1,'tritone'], [6,'dim7'], [0,'tritone']],
       resolution: [[0,'min'], [3,'stack4ths'], [0,'openFifth'], [0,'min']],
-      tension:    [[0,'dim7'], [6,'dim7'], [3,'dim7'], [0,'hdim7']],
+      tension:    [[0,'dim7'], [0,'openFifth'], [3,'dim7'], [0,'min']],
       celtic_normal:     [[0,'min'], [4,'maj'], [3,'maj'], [6,'maj']],
       celtic_resolution: [[0,'openFifth'], [4,'sus4'], [3,'sus2'], [0,'min']],
       celtic_tension:    [[0,'min'], [6,'maj'], [5,'min'], [0,'min']],
@@ -4718,7 +4804,7 @@ const CE = (() => {
       combat:     [[0,'tritone'], [1,'phrygian'], [0,'dim7'], [1,'tritone']],
       boss:       [[0,'tritone'], [0,'tritone'], [1,'tritone'], [0,'tritone']],
       resolution: [[0,'min'], [0,'openFifth'], [6,'min'], [0,'min']],
-      tension:    [[0,'dim7'], [1,'phrygian'], [0,'tritone'], [0,'dim7']],
+      tension:    [[0,'dim7'], [0,'min'], [0,'tritone'], [0,'openFifth']],
       celtic_normal:     [[0,'min'], [3,'maj'], [4,'maj'], [6,'maj']],
       celtic_resolution: [[0,'openFifth'], [3,'sus4'], [6,'sus2'], [0,'openFifth']],
       celtic_tension:    [[0,'min'], [4,'maj'], [6,'maj'], [0,'min']],
@@ -4731,7 +4817,9 @@ const CE = (() => {
     combat:     [[0,'min'], [1,'phrygian'], [5,'dim'], [0,'min']],
     boss:       [[0,'tritone'], [1,'phrygian'], [0,'dim7'], [0,'tritone']],
     resolution: [[0,'openFifth'], [6,'sus2'], [0,'min'], [0,'min']],
-    tension:    [[0,'hdim7'], [5,'dim7'], [1,'phrygian'], [0,'min7']],
+    // Tension: dissonant chords with breathing moments (openFifth/min) between them
+    // so the ear gets relief before the next push. Pattern: push → breathe → push → settle.
+    tension:    [[0,'hdim7'], [0,'openFifth'], [5,'dim7'], [0,'min7']],
   };
  
   // ── Event chord overrides ─────────────────────────────────────
@@ -5124,10 +5212,13 @@ const CE = (() => {
     releaseEvent,
     setMoodBias: (m) => {
       _moodBias = m;
-      // Nightmare pulls _progKey toward tension/combat when not in event override
+      // Only nudge _progKey if not overridden by phrase/event/boss.
+      // Nightmare leans toward tension but doesn't lock — phrase engine
+      // can still pull it back to resolution/normal naturally.
       if (!_eventOverride && !_bossActive) {
-        if (m > 0.75 && _progKey === 'normal') _progKey = 'tension';
-        else if (m < 0.35 && _progKey === 'tension') _progKey = 'normal';
+        if (m > 0.80 && _progKey === 'normal') _progKey = 'tension';
+        else if (m < 0.30 && _progKey === 'tension') _progKey = 'normal';
+        // Mid-range: leave _progKey alone — let the phrase engine decide
       }
     },
     // Expose for debugging
