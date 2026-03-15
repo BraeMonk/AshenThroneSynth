@@ -1285,6 +1285,10 @@ function tickBar() {
   updateDebug();
 
   const phraseDur = PHRASE_DURATIONS[currentPhrase] || 8;
+
+  // Conductor lookahead + motif callbacks
+  Conductor.onBar(phraseBar, phraseDur, currentPhrase, phraseSeq, phraseSeqIdx);
+
   if (phraseBar >= phraseDur) {
     phraseBar = 0;
     advancePhrase();
@@ -1433,6 +1437,185 @@ function mutateMotif(preset) {
 
 // ── Timeline logging ──────────────────────────────────────────────
 let timelineEvents = [];
+
+
+// ── CONDUCTOR ─────────────────────────────────────────────────────────────────
+// Lookahead brain — watches phrase sequence, schedules FX prep and motif
+// callbacks so musical moments feel set up, not just reactive.
+const Conductor = (() => {
+  let _callQueue      = [];
+  let _barCount       = 0;
+  let _crActive       = false;
+  let _peakFired      = false;
+  let _lastNextPhrase = null;
+
+  function schedule(bar, label, fn) {
+    _callQueue.push({ bar, fn, label });
+    _callQueue.sort((a, b) => a.bar - b.bar);
+  }
+
+  function flush() {
+    const due  = _callQueue.filter(e => e.bar <= _barCount);
+    _callQueue = _callQueue.filter(e => e.bar >  _barCount);
+    due.forEach(e => {
+      try { e.fn(); } catch(err) {}
+      if (e.label) logTimeline('🎼 ' + e.label);
+    });
+  }
+
+  function prepareForPhrase(incoming) {
+    if (!ctx || !isPlaying) return;
+    const now  = ctx.currentTime;
+    const ramp = (barLength || 4) * 1.8;
+    if (incoming === 'resolution' && reverbWetGain) {
+      reverbWetGain.gain.setTargetAtTime(Math.min(0.85, _reverbMix + 0.25), now, ramp * 0.4);
+    }
+    if (incoming === 'tension' && delayNode) {
+      const bpm = bpmLocked ? bpmLockValue : (getZone(parseInt(slider.value))?.bpm || 80);
+      // Move delay slider — set flag so onDelayTime knows this is Journey
+      const newTime = (60/bpm) * 0.5;
+      delayNode.delayTime.setTargetAtTime(newTime, now, ramp * 0.3);
+      const pct = Math.round(newTime / 1.2 * 100);
+      const dtEl = document.getElementById('delayTime');
+      if (dtEl) { dtEl.value = pct; dtEl.style.setProperty('--pct', pct + '%'); document.getElementById('delayTimeVal').textContent = newTime.toFixed(2) + 's'; }
+    }
+    if (incoming === 'climax' && bus['choir'] && layerOn['choir']) {
+      bus['choir'].gain.setTargetAtTime(
+        Math.min(MIX_CEILING['choir'] || 0.88, adaptiveMixTarget('choir', 0.9) * 1.15),
+        now, ramp * 0.5
+      );
+    }
+    logTimeline('Conductor: preparing for ' + incoming);
+  }
+
+  function playAnticipation(incoming, preset) {
+    if (!ctx || !isPlaying || !bus['melody'] || !preset) return;
+    const motif  = ZONE_LEITMOTIFS[preset.name] || baseMotif;
+    const degMap = { tension: motif[motif.length-1], resolution: 0, climax: 4, build: motif[1] || 2 };
+    const deg    = degMap[incoming] !== undefined ? degMap[incoming] : motif[0];
+    const scale  = getScale(preset);
+    const freq   = preset.root * scale[deg % scale.length] * Math.pow(2, preset.melodyOctave + 1);
+    if (!freq || freq < 80) return;
+    const now = ctx.currentTime;
+    const dur = (barLength || 4) * 0.6;
+    const env = mkGain(0); env.connect(bus['melody']); reg('melody', env);
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(0.06, now + 0.08);
+    env.gain.linearRampToValueAtTime(0, now + dur);
+    const o = mkOsc(freq, 'sine'); const g = mkGain(1);
+    chain(o, g, env); o.start(now); o.stop(now + dur + 0.1);
+    reg('melody', o, g);
+  }
+
+  function fireMotifFragment(layerName, preset, energy, opts) {
+    opts = opts || {};
+    if (!ctx || !isPlaying || !preset) return;
+    if (!layerOn[layerName] && !opts.force) return;
+    const b = bus[layerName];
+    if (!b) return;
+    const motif   = opts.motif || ZONE_LEITMOTIFS[preset.name] || baseMotif;
+    const scale   = getScale(preset);
+    const oct     = opts.octave !== undefined ? opts.octave : preset.melodyOctave + (layerName === 'choir' ? 2 : 1);
+    const beat    = (barLength || 4) / 4;
+    const noteDur = beat * (opts.noteDur || 1.4);
+    const spacing = beat * (opts.spacing || 1.0);
+    const vol     = opts.vol || (0.07 + energy * 0.06);
+    const t0      = ctx.currentTime + (opts.offset || 0);
+    const useType = opts.type || (layerName === 'choir' ? 'sawtooth' : 'sine');
+    const partials = layerName === 'choir' ? [1, 2] : [1, 2, 3];
+    const len     = opts.len || motif.length;
+    motif.slice(0, len).forEach((deg, i) => {
+      const bt   = t0 + i * spacing;
+      const freq = preset.root * scale[deg % scale.length] * Math.pow(2, oct);
+      if (!freq || freq < 80) return;
+      const env = mkGain(0); env.connect(b); reg(layerName, env);
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.07);
+      env.gain.setValueAtTime(vol * 0.85, bt + noteDur * 0.6);
+      env.gain.linearRampToValueAtTime(0, bt + noteDur);
+      [1, 2, 3].slice(0, partials.length).forEach((r, ri) => {
+        const amp = [0.5, 0.22, 0.10][ri];
+        const o   = mkOsc(Math.max(20, freq * r), useType);
+        const g2  = mkGain(amp);
+        chain(o, g2, env); o.start(bt); o.stop(bt + noteDur + 0.15);
+        reg(layerName, o, g2);
+      });
+    });
+  }
+
+  function fireCallAndResponse(preset, energy) {
+    if (_crActive || !preset) return;
+    _crActive = true;
+    const bar = barLength || 4;
+    fireMotifFragment('melody', preset, energy, { len: 3, spacing: bar/4 * 1.1 });
+    schedule(_barCount + 1, 'Call-and-response echo', function() {
+      fireMotifFragment('choir', preset, energy * 0.7, {
+        len: 4, spacing: bar/4 * 1.2, offset: 0.15,
+        octave: preset.melodyOctave + 2, vol: 0.05
+      });
+      _crActive = false;
+    });
+  }
+
+  function onBar(phraseBar, phraseDur, currentPhrase, phraseSeq, phraseSeqIdx) {
+    if (!isPlaying) return;
+    _barCount++;
+    flush();
+
+    const preset   = getZone(parseInt(slider ? slider.value : '1'));
+    const energy   = JC.active ? JC.energy : getIntensity(parseInt(slider ? slider.value : '1'));
+    const barsLeft = phraseDur - phraseBar;
+    const nextPhrase = phraseSeq[(phraseSeqIdx + 1) % phraseSeq.length];
+
+    // Lookahead triggers — only fire once per nextPhrase change to avoid repeat calls
+    if (nextPhrase !== _lastNextPhrase) {
+      _lastNextPhrase = nextPhrase;
+    }
+    if (barsLeft === 2) prepareForPhrase(nextPhrase);
+    if (barsLeft === 1) playAnticipation(nextPhrase, preset);
+
+    // Call-and-response during build/intro
+    if (!_crActive && (currentPhrase === 'build' || currentPhrase === 'intro')) {
+      if (phraseBar === 2 && Math.random() < 0.55) {
+        fireCallAndResponse(preset, energy);
+      }
+    }
+
+    // Cadential descending flourish at end of tension
+    if (currentPhrase === 'tension' && barsLeft === 1 && Math.random() < 0.7) {
+      const descMotif = (ZONE_LEITMOTIFS[preset.name] || baseMotif).slice().reverse();
+      fireMotifFragment('melody', preset, energy, {
+        motif: descMotif, len: 3, spacing: (barLength||4)/4 * 0.75,
+        vol: 0.05, noteDur: (barLength||4)/4 * 0.9
+      });
+      logTimeline('Conductor: cadential descent');
+    }
+
+    // Energy peak leitmotif statement
+    if (JC.active && !_peakFired && JC.energy >= 0.85) {
+      _peakFired = true;
+      schedule(_barCount + 1, 'Energy peak — leitmotif statement', function() {
+        fireMotifFragment('melody', preset, JC.energy, { len: 6, spacing: (barLength||4)/4 });
+        schedule(_barCount + 2, 'Peak echo — choir response', function() {
+          fireMotifFragment('choir', preset, JC.energy * 0.8, {
+            len: 4, spacing: (barLength||4)/4 * 1.3,
+            octave: preset.melodyOctave + 2, offset: 0.2
+          });
+        });
+      });
+    }
+  }
+
+  function reset() {
+    _callQueue      = [];
+    _crActive       = false;
+    _peakFired      = false;
+    _lastNextPhrase = null;
+  }
+
+  return { onBar, schedule, reset, fireMotifFragment, fireCallAndResponse };
+})();
+
 let sessionStartTime = null;
 
 function logTimeline(desc) {
@@ -3209,6 +3392,7 @@ function startRandomJourney() {
   }
   JC._reconcileBar=0;
   _leitmotifReturnFired=false;
+  Conductor.reset();
 
   // ── PER-RUN LAYER ARC SCRAMBLE ────────────────────────────────────────────
   // The mood's layerArc defines which archetype plays each chapter, but it's
