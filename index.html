@@ -4141,6 +4141,18 @@ function makeBodyFilter(layerName, instrument) {
         mkShelf(4500,-10, true), // roll off the harsh highs — nylon not steel
       ];
       break;
+    case 'guitar_electric':
+      // Electric guitar pickup response: scooped low-mids, nasal upper-mid bite,
+      // extended high end, characteristic 3-4kHz presence peak
+      filters = [
+        mkPeak(100,  +6, 2.0),   // low-end body — electric has more bass via amp
+        mkPeak(400,  -3, 1.5),   // scoop low-mids — electric characteristic
+        mkPeak(1000, -2, 1.2),   // slight dip in the mud zone
+        mkPeak(2800, +6, 2.0),   // nasal presence peak — pickup character
+        mkPeak(4500, +3, 1.8),   // bite / string attack
+        mkShelf(8000,-6,  true), // gentle rolloff — electric stays brighter than acoustic
+      ];
+      break;
     case 'flute':
       // Cylindrical bore: emphasises odd harmonics at lower register (fundamental, 3rd, 5th),
       // even+odd above 2nd octave. Gentle low boost (warmth of the air column), bright presence
@@ -4488,7 +4500,7 @@ const VOICE_BANKS = {
   stomp:      ['stomp1', 'stomp2', 'stomp3'],
   lute:       ['sawtooth', 'sine', 'lute', 'plucked'],
   // New instruments
-  guitar:     ['nylon', 'steel', 'fingerpicked'],
+  guitar:     ['nylon', 'halo', 'fingerpicked'],
   flute:      ['concert', 'breathy', 'alto'],
   duduk:      ['low', 'mid', 'high'],
   harp:       ['concert', 'celtic', 'electric'],
@@ -4920,7 +4932,7 @@ const CE = (() => {
       // guitar: E3–A5 — the strumming register of an acoustic guitar.
       //   E2 (82Hz) exists on guitar but sounds like bass guitar when soloed.
       //   CE center bias at [165,880] → ~522Hz (D5) keeps chords in guitar territory.
-      guitar:      [165, 880],
+      guitar:      [82, 660],
       // harp: G2–F6 — orchestral harp warm register. The full range goes lower
       //   but the sweet spot that reads as "harp" not "bass" or "piccolo" is here.
       //   CE center bias at [98,1400] → ~749Hz keeps glissandos in the warm mid.
@@ -4931,6 +4943,9 @@ const CE = (() => {
       oud:         [110, 1600],  // oud range, fretless so allow wider
     };
     const [lo, hi] = ranges[layerName] || [80, 2000];
+    // Guitar gets a low center bias — real guitar chords sit in the 150-300Hz zone,
+    // not the mathematical midpoint of the range which would be ~370Hz (too thin/high)
+    const centerBias = layerName === 'guitar' ? 150 : (lo + hi) / 2;
     const inRange  = candidates.filter(c => c.freq >= lo && c.freq <= hi);
     if (!inRange.length) return chord.root * baseOct; // fallback
  
@@ -4938,7 +4953,7 @@ const CE = (() => {
  
     if (voiceIdx >= 0) {
       // Prefer the requested chord tone index, closest octave to range center
-      const center  = (lo + hi) / 2;
+      const center  = centerBias;
       const matches = inRange.filter(c => c.toneIdx === voiceIdx % chord.ratios.length);
       chosen = (matches.length ? matches : inRange)
         .reduce((a, b) => Math.abs(a.freq - center) < Math.abs(b.freq - center) ? a : b);
@@ -4951,9 +4966,8 @@ const CE = (() => {
         );
       } else {
         // No memory yet — pick root tone nearest center of range
-        const center  = (lo + hi) / 2;
         chosen = inRange.reduce((a, b) =>
-          Math.abs(a.freq - center) < Math.abs(b.freq - center) ? a : b
+          Math.abs(a.freq - centerBias) < Math.abs(b.freq - centerBias) ? a : b
         );
       }
     }
@@ -8228,6 +8242,11 @@ function buildGuitar(preset, intensity, name) {
   const beat  = 60 / bpm;
   const sr    = ctx.sampleRate;
 
+  // Halo voice gets a much wetter reverb send — the hall IS the sound
+  if (b._sendGain) {
+    b._sendGain.gain.setValueAtTime(voice === 'halo' ? 0.88 : 0.55, ctx.currentTime);
+  }
+
   // Voice config — all parameters control the offline KS algorithm:
   //   excBW:       one-pole lowpass coeff on excitation noise (0=white, 0.9=muffled)
   //   loopLP:      one-pole lowpass coeff in the feedback loop (0.5=bright, 0.9=dark)
@@ -8237,29 +8256,33 @@ function buildGuitar(preset, intensity, name) {
   //   droopDecay:  samples over which pitch sag resolves
   //   ringSeconds: hard cap on buffer length
   const VOICE_CFG = {
-    // Nylon: fingerpicked character — warm attack, long resonant bloom
+    // Nylon: big, grand, bright sustained notes — piano-string resonance
     nylon: {
-      excBW: 0.72, loopLP: 0.88, feedback: 0.9960,
-      inharm: 0.006, droopCents: 20, droopDecay: 1200,
-      ringSeconds: 6.0,
-      volBase: 0.50, volInt: 0.18,
-      timingBass: 0.52, timingTreb: 0.36, jitter: 0.16,
-    },
-    // Steel: grand, bright, long piano-like ring with full harmonic wash
-    steel: {
-      excBW: 0.28, loopLP: 0.50, feedback: 0.9975,
+      excBW: 0.28, loopLP: 0.50, feedback: 0.9982,
       inharm: 0.001, droopCents: 5, droopDecay: 300,
-      ringSeconds: 8.0,
-      volBase: 0.54, volInt: 0.22,
+      ringSeconds: 10.0,
+      volBase: 0.58, volInt: 0.22,
       timingBass: 0.36, timingTreb: 0.24, jitter: 0.06,
+      sustained: true, strumSpread: 0.012, noteDur: 4.0,
     },
-    // Fingerpicked: intimate, slightly muted, warm resonance with gentle bloom
+    // Halo: clean electric single-note arpeggios — Martin O'Donnell style.
+    // Bright pickup response, near-zero droop, long glassy sustain, deliberate pace.
+    halo: {
+      excBW: 0.15, loopLP: 0.55, feedback: 0.9985,
+      inharm: 0.0003, droopCents: 1, droopDecay: 80,
+      ringSeconds: 9.0,
+      volBase: 0.54, volInt: 0.20,
+      timingBass: 0.48, timingTreb: 0.38, jitter: 0.05,
+      sustained: false,
+    },
+    // Fingerpicked: bright arpeggiated wash — previous steel character
     fingerpicked: {
-      excBW: 0.62, loopLP: 0.80, feedback: 0.9940,
-      inharm: 0.005, droopCents: 16, droopDecay: 1000,
-      ringSeconds: 5.0,
-      volBase: 0.48, volInt: 0.18,
-      timingBass: 0.50, timingTreb: 0.34, jitter: 0.18,
+      excBW: 0.28, loopLP: 0.50, feedback: 0.9965,
+      inharm: 0.001, droopCents: 5, droopDecay: 300,
+      ringSeconds: 6.0,
+      volBase: 0.52, volInt: 0.20,
+      timingBass: 0.36, timingTreb: 0.24, jitter: 0.08,
+      sustained: false,
     },
   };
   const vc = VOICE_CFG[voice] || VOICE_CFG.nylon;
@@ -8274,7 +8297,13 @@ function buildGuitar(preset, intensity, name) {
     [[0,1,'bass'],[1,1,'treble'],[2,1,'treble'],[0,1,'bass'],[2,1,'mid']],
     [[0,1,'bass'],[2,1,'treble'],[1,1,'mid'],[2,1,'treble']],
   ];
-  const ARPS   = voice === 'fingerpicked' ? ARPS_FP : ARPS_STD;
+  // Halo: sparse, deliberate single notes — wide intervals but grounded register
+  const ARPS_HALO = [
+    [[0,1,'bass'],[2,1,'treble'],[1,1,'mid'],[0,1,'bass']],
+    [[0,1,'bass'],[1,1,'mid'],[2,1,'treble'],[1,1,'mid'],[0,1,'bass']],
+    [[0,1,'bass'],[2,1,'treble'],[0,1,'bass'],[1,1,'mid'],[2,1,'treble']],
+  ];
+  const ARPS   = voice === 'fingerpicked' ? ARPS_FP : voice === 'halo' ? ARPS_HALO : ARPS_STD;
   const patIdx = Math.floor(Math.random() * ARPS.length);
   let arpStep  = 0;
   let t        = ctx.currentTime + beat * 0.5;
@@ -8376,7 +8405,7 @@ function buildGuitar(preset, intensity, name) {
     const src    = ctx.createBufferSource();
     src.buffer   = strBuf;
 
-    const body   = makeBodyFilter(name, 'guitar');
+    const body   = makeBodyFilter(name, voice === 'steel' || voice === 'halo' ? 'guitar_electric' : 'guitar');
     const outG   = mkGain(vol);
     body.output.connect(b);
     chain(src, outG, body.input);
@@ -8403,28 +8432,49 @@ function buildGuitar(preset, intensity, name) {
       guitarLastChord = currentChordLabel;
     }
 
-    const pat  = ARPS[patIdx];
-    const step = pat[arpStep % pat.length];
-    const vIdx = step[0];
-    const octM = step[1];
-    const role = step[2];
-    const freq = CE.chordTone('guitar', octM, vIdx % Math.max(1, CE.currentChord.ratios.length));
+    if (vc.sustained) {
+      // ── Sustained chord mode (nylon / steel) ─────────────────────────────
+      // Play root (low), third (mid), fifth (mid), octave root (high) with
+      // a small strum spread. No frequency halving — stay in guitar range.
+      const chord    = CE.currentChord;
+      const numTones = Math.min(chord.ratios.length, 3);
+      const spread   = vc.strumSpread;
+      // Bass string: root at octave 0 for full low-end body
+      const bassFreq = CE.chordTone('guitar', 0, 0);
+      if (bassFreq) pluckString(t, bassFreq, 'bass');
+      // Mid strings: chord tones at octave 1
+      for (let i = 1; i < numTones; i++) {
+        const freq = CE.chordTone('guitar', 1, i);
+        if (freq) pluckString(t + i * spread, freq, 'mid');
+      }
+      // High string: root octave up
+      const highFreq = CE.chordTone('guitar', 2, 0);
+      if (highFreq) pluckString(t + numTones * spread, highFreq, 'treble');
 
-    pluckString(t, freq, role);
+      const stepDur = beat * vc.noteDur * (0.92 + Math.random() * 0.16);
+      t += stepDur;
+      regT(name, setTimeout(schedArp, stepDur * 1000));
+    } else {
+      // ── Arpeggio mode (fingerpicked) ─────────────────────────────────────
+      const pat  = ARPS[patIdx];
+      const step = pat[arpStep % pat.length];
+      const vIdx = step[0];
+      const octM = step[1];
+      const role = step[2];
+      const freq = CE.chordTone('guitar', octM, vIdx % Math.max(1, CE.currentChord.ratios.length));
 
-    const isBass = role === 'bass';
-    if (isBass) trebleRun = 0; else trebleRun++;
+      pluckString(t, freq, role);
 
-    const base    = isBass ? beat * vc.timingBass : beat * vc.timingTreb;
-    let   stepDur = base * (1 - vc.jitter + Math.random() * vc.jitter * 2);
-    if (voice === 'fingerpicked' && trebleRun >= 3 && Math.random() < 0.25) {
-      stepDur += beat * 0.15;
-      trebleRun = 0;
+      const isBass = role === 'bass';
+      if (isBass) trebleRun = 0; else trebleRun++;
+
+      const base    = isBass ? beat * vc.timingBass : beat * vc.timingTreb;
+      let   stepDur = base * (1 - vc.jitter + Math.random() * vc.jitter * 2);
+
+      t += stepDur;
+      arpStep++;
+      regT(name, setTimeout(schedArp, stepDur * 1000));
     }
-
-    t += stepDur;
-    arpStep++;
-    regT(name, setTimeout(schedArp, stepDur * 1000));
   }
 
   schedArp();
