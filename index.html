@@ -2219,6 +2219,7 @@ let journeyDepth  = 0;   // 0-7, current step index — read by knight
 //   Void Spire:       cluster + silence (rest=7) — alien, wrong
 //   Infernal Core:    descending half-steps — collapse, inevitability
 const ZONE_LEITMOTIFS = {
+  // Ashen Throne
   'Ashen Fields':   [0, 2, 0, 3, 2, 0],        // falling minor third resolves to root
   'Rotwood Forest': [0, 1, 2, 3, 2, 1],        // chromatic ascent — unsettling
   'Catacombs Deep': [0, 6, 0, 5, 4, 0],        // tritone leap + approach
@@ -2227,6 +2228,42 @@ const ZONE_LEITMOTIFS = {
   'Obsidian Keep':  [0, 3, 0, 4, 3, 0],        // fourth-based march cell
   'Void Spire':     [0, 6, 1, 5, 0, 2],        // dissonant, no clear home
   'Infernal Core':  [6, 5, 4, 3, 2, 1],        // inexorable descent
+  // Neon Noir — synthetic ascending gestures, syncopated
+  'Street Level':         [0, 2, 3, 2, 0, 3],  // short urban riff
+  'Underpass':            [0, 3, 2, 0, 3, 5],  // slight lift, then bounce back
+  'The Grid':             [0, 2, 5, 3, 2, 0],  // grid-like symmetry
+  'Club District':        [3, 5, 3, 2, 0, 2],  // syncopated peak
+  'Skybridge':            [0, 4, 5, 4, 2, 0],  // soaring, wide interval
+  'Transmission Tower':   [5, 4, 2, 0, 2, 5],  // broadcast signal arc
+  'Rooftop Edge':         [0, 5, 4, 2, 5, 0],  // open, wide, resolving
+  'Static Dawn':          [4, 2, 0, 2, 4, 2],  // slow dissolution
+  // Sakura — stepwise, lyrical, emotionally shaped
+  'Ma — Emptiness':       [0, 0, 2, 0, 0, 4],  // sparse — mostly silence
+  'Mono no Aware':        [0, 2, 4, 2, 0, 2],  // gentle rise and rest
+  'Kanashimi':            [4, 3, 2, 1, 0, 1],  // descending grief
+  'Natsukashii':          [0, 2, 4, 5, 4, 2],  // bittersweet reach
+  'Aware':                [0, 4, 5, 4, 6, 4],  // peak of feeling
+  'Wabi-Sabi':            [4, 2, 0, 2, 4, 2],  // acceptance — returning
+  'Yūgen':                [0, 2, 4, 2, 4, 0],  // mysterious, open
+  'Shizukesa':            [0, 2, 0, 0, 2, 0],  // stillness — barely moving
+  // Broadcast — declarative, on-beat, professional
+  'Pre-Production':       [0, 2, 4, 2, 0, 0],  // warm-up gesture
+  'Sound Check':          [0, 4, 2, 0, 4, 2],  // test signal pattern
+  'Opening Titles':       [0, 2, 4, 5, 4, 0],  // title fanfare
+  'Feature Story':        [0, 4, 5, 4, 2, 0],  // building statement
+  'Breaking News':        [5, 4, 2, 5, 4, 0],  // urgent, punchy
+  'On-Air Maximum':       [0, 3, 5, 3, 0, 5],  // maximum impact
+  'Wrap':                 [5, 4, 2, 0, 2, 4],  // beginning to resolve
+  'Sign Off':             [4, 2, 0, 2, 0, 0],  // gentle fade to root
+  // Void Signal — chromatic, unstable, no clear tonal center
+  'BOOT_SEQUENCE':        [0, 1, 0, 2, 0, 1],  // machine initialise
+  'PROCESS_TREE':         [0, 3, 2, 5, 3, 0],  // branching pattern
+  'DATA_CORRUPTION':      [0, 2, 6, 2, 4, 0],  // whole-tone drift
+  'MEMORY_LEAK':          [5, 3, 6, 3, 5, 0],  // leaking, unstable
+  'KERNEL_PANIC':         [0, 6, 1, 5, 2, 4],  // maximum dissonance
+  'SYSTEM_FAILURE':       [6, 5, 4, 3, 2, 1],  // descent into null
+  'EMERGENCY_SHUTDOWN':   [0, 1, 0, 0, 1, 0],  // dying signal
+  'NULL_STATE':           [0, 0, 0, 2, 0, 0],  // silence with a pulse
 };
 
 let baseMotif = [0, 2, 4, 2]; // fallback if zone not found
@@ -5660,7 +5697,513 @@ const ZONES = [
   },
 ];
 
-function getZone(f)      { return ZONES.find(z => f >= z.range[0] && f <= z.range[1]) || ZONES[ZONES.length-1]; }
+// ══════════════════════════════════════════════════════════════════
+// SKIN ZONE SETS
+// Each non-default skin has its own 8-zone arc that replaces ZONES
+// when that skin is active. Every parameter matches ZONES schema exactly
+// so all synthesis code works identically — only the musical character
+// and narrative context change.
+//
+// Design principles per skin:
+//   neon     — rising city tower, synthetic groove, mixolydian/dorian
+//   sakura   — emotional arc through grief/beauty, pentatonic roots
+//   broadcast— production intensity, clean tonal center, ionian
+//   void     — algorithmic collapse, chromatic/diminished, prime-Hz roots
+// ══════════════════════════════════════════════════════════════════
+
+const SKIN_ZONES = {
+
+  // ── NEON NOIR: ascending neon city tower ─────────────────────────
+  // Root walks UP a chromatic semitone each zone (mirror of dungeon descent)
+  // — you're rising through a city, not sinking into a dungeon.
+  // BPMs: 78 → 86 → 94 → 102 → 110 → 118 → 124 → 88 (rooftop exhale)
+  // Scales: mostly dorian + mixolydian — minor groove with a lifted 7th
+  neon: [
+    {
+      name:'Street Level', range:[1,12], color:'#003366', bpm:78,
+      root:65.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818], // dorian
+      droneWave:'square', droneFilterFreq:400, droneFilterQ:2.0,
+      droneLfoRate:0.06, droneLfoDepth:140, droneAmpLfo:0.07,
+      kickFreq:58, kickDecay:0.38, snareDecay:0.16, snareFilterFreq:1200,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sawtooth', bassFilterFreq:220, bassPattern:[0,0,0,0,2,0,0,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.38,
+      melodyPatterns:[[0,2,0,3,2,0,3,2],[0,3,2,0,3,2,3,0]],
+      choirFormants:[900,1600,3000], choirVibRate:4.0, choirVibDepth:2.0,
+      vizR:0, vizG:100, vizB:200,
+      desc:'Wet concrete. Neon reflections. The city hums at base frequency.'
+    },
+    {
+      name:'Underpass', range:[13,24], color:'#004488', bpm:86,
+      root:69.3, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818], // dorian
+      droneWave:'sawtooth', droneFilterFreq:480, droneFilterQ:2.8,
+      droneLfoRate:0.09, droneLfoDepth:180, droneAmpLfo:0.09,
+      kickFreq:60, kickDecay:0.32, snareDecay:0.13, snareFilterFreq:1400,
+      kickPattern:[1,0,0,0,1,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sawtooth', bassFilterFreq:260, bassPattern:[0,0,2,0,0,0,2,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.28,
+      melodyPatterns:[[0,2,3,2,0,3,2,0],[3,2,0,2,3,5,3,2]],
+      choirFormants:[1000,1800,3200], choirVibRate:4.5, choirVibDepth:2.2,
+      vizR:0, vizG:130, vizB:220,
+      desc:'Graffiti walls. Sub bass leaks from somewhere below.'
+    },
+    {
+      name:'The Grid', range:[25,36], color:'#0055aa', bpm:94,
+      root:73.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818], // dorian
+      droneWave:'sawtooth', droneFilterFreq:560, droneFilterQ:3.2,
+      droneLfoRate:0.12, droneLfoDepth:220, droneAmpLfo:0.11,
+      kickFreq:62, kickDecay:0.28, snareDecay:0.11, snareFilterFreq:1600,
+      kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,1], hihatPattern:[1,0,1,0,1,1,0,1],
+      bassWave:'sawtooth', bassFilterFreq:300, bassPattern:[0,0,0,3,2,0,3,0],
+      melodyWave:'sawtooth', melodyOctave:1, melodySkip:0.20,
+      melodyPatterns:[[0,2,3,5,3,2,5,3],[5,3,2,0,2,3,5,3],[0,3,5,3,2,5,3,2]],
+      choirFormants:[1100,2000,3400], choirVibRate:5.0, choirVibDepth:2.5,
+      vizR:0, vizG:160, vizB:240,
+      desc:'Data flows. The city becomes information. Pulse synchronises.'
+    },
+    {
+      name:'Club District', range:[37,48], color:'#220066', bpm:102,
+      root:77.8, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818], // dorian
+      droneWave:'square', droneFilterFreq:640, droneFilterQ:4.0,
+      droneLfoRate:0.15, droneLfoDepth:280, droneAmpLfo:0.13,
+      kickFreq:64, kickDecay:0.24, snareDecay:0.10, snareFilterFreq:1800,
+      kickPattern:[1,0,0,1,0,1,0,0], snarePattern:[0,0,0,0,1,0,1,0], hihatPattern:[1,1,0,1,1,0,1,0],
+      bassWave:'sawtooth', bassFilterFreq:360, bassPattern:[0,3,0,4,2,0,4,2],
+      melodyWave:'sawtooth', melodyOctave:1, melodySkip:0.14,
+      melodyPatterns:[[0,2,3,5,3,2,5,3],[0,5,3,2,5,3,2,0],[3,5,3,2,0,2,3,5]],
+      choirFormants:[1200,2200,3600], choirVibRate:5.5, choirVibDepth:2.8,
+      vizR:80, vizG:0, vizB:255,
+      desc:'Strobes. Bassline in the chest. Something ancient in the rhythm.'
+    },
+    {
+      name:'Skybridge', range:[49,60], color:'#440088', bpm:110,
+      root:82.4, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818], // phrygian edge
+      droneWave:'square', droneFilterFreq:720, droneFilterQ:4.8,
+      droneLfoRate:0.18, droneLfoDepth:340, droneAmpLfo:0.15,
+      kickFreq:66, kickDecay:0.22, snareDecay:0.09, snareFilterFreq:2000,
+      kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,0,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
+      bassWave:'square', bassFilterFreq:420, bassPattern:[0,3,0,4,2,3,4,0],
+      melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.10,
+      melodyPatterns:[[0,2,4,5,4,2,5,3],[6,5,4,2,0,2,4,5],[0,4,2,6,5,3,2,4]],
+      choirFormants:[1300,2400,3800], choirVibRate:6.0, choirVibDepth:3.0,
+      vizR:120, vizG:0, vizB:255,
+      desc:'Rain on glass a thousand feet up. The city is a circuit below.'
+    },
+    {
+      name:'Transmission Tower', range:[61,72], color:'#660099', bpm:118,
+      root:87.3, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818], // phrygian
+      droneWave:'square', droneFilterFreq:800, droneFilterQ:5.5,
+      droneLfoRate:0.22, droneLfoDepth:420, droneAmpLfo:0.18,
+      kickFreq:68, kickDecay:0.20, snareDecay:0.08, snareFilterFreq:2200,
+      kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,0,0,1,0,1,1], hihatPattern:[1,1,1,0,1,1,1,0],
+      bassWave:'square', bassFilterFreq:480, bassPattern:[0,0,4,2,0,5,4,0],
+      melodyWave:'square', melodyOctave:2, melodySkip:0.08,
+      melodyPatterns:[[0,2,4,5,4,2,5,6],[5,4,2,0,2,4,5,4],[0,5,4,2,6,5,3,0]],
+      choirFormants:[1400,2600,4000], choirVibRate:7.0, choirVibDepth:3.2,
+      vizR:160, vizG:0, vizB:255,
+      desc:'Maximum signal. Static and clarity at once. Peak transmission.'
+    },
+    {
+      name:'Rooftop Edge', range:[73,84], color:'#8800aa', bpm:124,
+      root:46.2, scale:[1,1.1225,1.2599,1.4983,1.6818,1.7818,1.8929], // pentatonic open
+      droneWave:'sine', droneFilterFreq:500, droneFilterQ:2.5,
+      droneLfoRate:0.10, droneLfoDepth:280, droneAmpLfo:0.14,
+      kickFreq:56, kickDecay:0.40, snareDecay:0.15, snareFilterFreq:1400,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:300, bassPattern:[0,0,0,4,0,0,0,4],
+      melodyWave:'sine', melodyOctave:2, melodySkip:0.22,
+      melodyPatterns:[[0,2,4,0,2,4,2,0],[4,2,0,4,2,0,4,2]],
+      choirFormants:[1200,2200,3600], choirVibRate:4.0, choirVibDepth:2.0,
+      vizR:200, vizG:40, vizB:255,
+      desc:'Wind. Lights below. The signal dissolves into open air.'
+    },
+    {
+      name:'Static Dawn', range:[85,99], color:'#aa00cc', bpm:88,
+      root:55.0, scale:[1,1.1225,1.2599,1.4983,1.7818], // pentatonic
+      droneWave:'sine', droneFilterFreq:320, droneFilterQ:1.0,
+      droneLfoRate:0.03, droneLfoDepth:120, droneAmpLfo:0.06,
+      kickFreq:52, kickDecay:0.55, snareDecay:0.20, snareFilterFreq:800,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:200, bassPattern:[0,0,0,0,2,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.50,
+      melodyPatterns:[[0,2,4,2,0,0,4,0],[4,2,0,0,2,4,0,0]],
+      choirFormants:[1000,1800,3200], choirVibRate:2.5, choirVibDepth:1.0,
+      vizR:220, vizG:80, vizB:255,
+      desc:'First light. Signal drops to carrier wave. City exhales.'
+    },
+  ],
+
+  // ── SAKURA: emotional arc through grief and beauty ────────────────
+  // Roots follow a circle-of-fifths walk: A → E → B → F# → D → A → E → A
+  // (ascending then resolving back) — tonally warm, harmonically coherent.
+  // Scales: pentatonic → lydian (dreamy) → nat. minor (grief) →
+  //         harmonic minor (longing) → dorian (bittersweet) → pentatonic (peace)
+  // BPMs gentle throughout: 52 → 58 → 62 → 68 → 72 → 76 → 60 → 48
+  // Zone names: states of emotion / Japanese aesthetic concepts
+  sakura: [
+    {
+      name:'Ma — Emptiness', range:[1,12], color:'#3a1528', bpm:52,
+      root:55.0, scale:[1,1.1892,1.3348,1.4983,1.7818], // pentatonic — open, unresolved
+      droneWave:'sine', droneFilterFreq:260, droneFilterQ:0.9,
+      droneLfoRate:0.02, droneLfoDepth:60, droneAmpLfo:0.05,
+      kickFreq:44, kickDecay:0.70, snareDecay:0.25, snareFilterFreq:600,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:160, bassPattern:[0,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.60,
+      melodyPatterns:[[0,2,0,0,2,0,4,0],[0,0,4,0,2,0,0,0]],
+      choirFormants:[700,1200,2400], choirVibRate:1.8, choirVibDepth:1.2,
+      vizR:180, vizG:80, vizB:120,
+      desc:'Silence before. A held breath. The moment before feeling arrives.'
+    },
+    {
+      name:'Mono no Aware', range:[13,24], color:'#4a2038', bpm:58,
+      root:82.4, scale:[1,1.1225,1.2599,1.4983,1.6818,1.7818,1.8877], // lydian — bittersweet beauty
+      droneWave:'triangle', droneFilterFreq:300, droneFilterQ:1.2,
+      droneLfoRate:0.025, droneLfoDepth:80, droneAmpLfo:0.06,
+      kickFreq:46, kickDecay:0.60, snareDecay:0.22, snareFilterFreq:700,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:180, bassPattern:[0,0,0,0,2,0,0,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.42,
+      melodyPatterns:[[0,2,4,2,0,2,4,2],[0,4,2,0,4,2,4,0]],
+      choirFormants:[750,1300,2600], choirVibRate:2.5, choirVibDepth:2.0,
+      vizR:200, vizG:100, vizB:140,
+      desc:'The sadness of beautiful things passing. Petals begin to fall.'
+    },
+    {
+      name:'Kanashimi', range:[25,36], color:'#2a1040', bpm:62,
+      root:61.7, scale:[1,1.1225,1.2599,1.3348,1.4983,1.5874,1.7818], // natural minor — grief
+      droneWave:'triangle', droneFilterFreq:280, droneFilterQ:1.5,
+      droneLfoRate:0.03, droneLfoDepth:100, droneAmpLfo:0.07,
+      kickFreq:44, kickDecay:0.65, snareDecay:0.24, snareFilterFreq:650,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'triangle', bassFilterFreq:190, bassPattern:[0,0,0,0,2,0,0,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.32,
+      melodyPatterns:[[4,3,2,1,0,1,2,3],[0,2,3,2,1,0,2,1],[2,1,0,2,3,2,1,0]],
+      choirFormants:[680,1100,2300], choirVibRate:3.0, choirVibDepth:3.5,
+      vizR:160, vizG:60, vizB:180,
+      desc:'Grief arrives fully. The strings carry it without flinching.'
+    },
+    {
+      name:'Natsukashii', range:[37,48], color:'#381848', bpm:68,
+      root:73.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.5874,1.8877], // harmonic minor — longing
+      droneWave:'triangle', droneFilterFreq:320, droneFilterQ:1.8,
+      droneLfoRate:0.035, droneLfoDepth:120, droneAmpLfo:0.08,
+      kickFreq:46, kickDecay:0.55, snareDecay:0.20, snareFilterFreq:750,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,0,0,1,0,0,0],
+      bassWave:'triangle', bassFilterFreq:210, bassPattern:[0,0,0,0,2,0,0,2],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.22,
+      melodyPatterns:[[0,2,4,5,4,2,1,0],[5,4,2,0,1,2,4,5],[0,1,4,5,4,1,2,0]],
+      choirFormants:[720,1200,2500], choirVibRate:3.5, choirVibDepth:4.0,
+      vizR:180, vizG:80, vizB:200,
+      desc:'Bittersweet memory. The ache of things that were beautiful.'
+    },
+    {
+      name:'Aware', range:[49,60], color:'#482050', bpm:72,
+      root:55.0, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818], // dorian — bittersweet turn
+      droneWave:'triangle', droneFilterFreq:360, droneFilterQ:2.0,
+      droneLfoRate:0.04, droneLfoDepth:140, droneAmpLfo:0.09,
+      kickFreq:48, kickDecay:0.50, snareDecay:0.18, snareFilterFreq:800,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,0,0,1,0,0,0],
+      bassWave:'sine', bassFilterFreq:220, bassPattern:[0,0,0,2,0,0,2,0],
+      melodyWave:'sine', melodyOctave:2, melodySkip:0.15,
+      melodyPatterns:[[0,2,4,6,4,2,5,3],[6,5,4,2,0,2,4,5],[0,4,2,6,5,3,2,4]],
+      choirFormants:[750,1300,2700], choirVibRate:4.0, choirVibDepth:4.5,
+      vizR:200, vizG:100, vizB:210,
+      desc:'The peak of feeling. Beauty and grief become the same thing.'
+    },
+    {
+      name:'Wabi-Sabi', range:[61,72], color:'#502848', bpm:76,
+      root:65.4, scale:[1,1.1892,1.3348,1.4983,1.7818], // pentatonic — finding beauty in imperfection
+      droneWave:'triangle', droneFilterFreq:400, droneFilterQ:1.6,
+      droneLfoRate:0.038, droneLfoDepth:130, droneAmpLfo:0.10,
+      kickFreq:50, kickDecay:0.45, snareDecay:0.16, snareFilterFreq:850,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,0,0,1,0],
+      bassWave:'sine', bassFilterFreq:240, bassPattern:[0,0,2,0,0,2,0,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.18,
+      melodyPatterns:[[0,2,4,2,4,2,0,2],[4,2,0,2,4,0,2,4]],
+      choirFormants:[720,1250,2600], choirVibRate:3.2, choirVibDepth:3.2,
+      vizR:215, vizG:110, vizB:190,
+      desc:'Imperfection as beauty. The cracked glaze. The scar on the wood.'
+    },
+    {
+      name:'Yūgen', range:[73,84], color:'#401838', bpm:60,
+      root:82.4, scale:[1,1.1892,1.3348,1.4983,1.7818], // pentatonic — mysterious grace
+      droneWave:'sine', droneFilterFreq:300, droneFilterQ:1.0,
+      droneLfoRate:0.022, droneLfoDepth:90, droneAmpLfo:0.07,
+      kickFreq:44, kickDecay:0.60, snareDecay:0.22, snareFilterFreq:600,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:180, bassPattern:[0,0,0,0,2,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.35,
+      melodyPatterns:[[0,2,4,0,2,4,2,0],[4,2,0,4,2,0,4,2]],
+      choirFormants:[700,1200,2500], choirVibRate:2.2, choirVibDepth:2.2,
+      vizR:200, vizG:90, vizB:160,
+      desc:'Profound awareness of the universe. Beyond words. Just presence.'
+    },
+    {
+      name:'Shizukesa', range:[85,99], color:'#300a28', bpm:48,
+      root:55.0, scale:[1,1.1892,1.3348,1.4983,1.7818], // pentatonic — pure peace
+      droneWave:'sine', droneFilterFreq:220, droneFilterQ:0.7,
+      droneLfoRate:0.015, droneLfoDepth:50, droneAmpLfo:0.04,
+      kickFreq:42, kickDecay:0.80, snareDecay:0.28, snareFilterFreq:500,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:160, bassPattern:[0,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.65,
+      melodyPatterns:[[0,2,0,0,4,0,2,0],[0,0,2,0,0,4,0,0]],
+      choirFormants:[700,1200,2400], choirVibRate:1.5, choirVibDepth:0.8,
+      vizR:190, vizG:80, vizB:140,
+      desc:'Stillness after. Like snow settling. The feeling finds its rest.'
+    },
+  ],
+
+  // ── BROADCAST: production intensity arc ──────────────────────────
+  // Root stays steady around A/D (clean broadcast tonal center).
+  // BPMs in broadcast-comfortable range: 80 → 88 → 96 → 100 → 108 → 112 → 96 → 80
+  // Scales ionian/mixolydian — major-mode, positive, professional
+  // Zone names: broadcast production stages
+  broadcast: [
+    {
+      name:'Pre-Production', range:[1,12], color:'#181820', bpm:80,
+      root:55.0, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.8877], // ionian — clean major
+      droneWave:'sine', droneFilterFreq:360, droneFilterQ:1.0,
+      droneLfoRate:0.04, droneLfoDepth:80, droneAmpLfo:0.05,
+      kickFreq:52, kickDecay:0.42, snareDecay:0.16, snareFilterFreq:1200,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sine', bassFilterFreq:200, bassPattern:[0,0,0,0,2,0,0,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.40,
+      melodyPatterns:[[0,2,4,2,0,2,4,2],[0,4,2,0,4,2,4,0]],
+      choirFormants:[800,1400,2600], choirVibRate:3.0, choirVibDepth:1.5,
+      vizR:80, vizG:80, vizB:80,
+      desc:'Quiet studio. Levels set. Monitors warm. Waiting for the signal.'
+    },
+    {
+      name:'Sound Check', range:[13,24], color:'#202228', bpm:88,
+      root:58.3, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818], // mixolydian
+      droneWave:'triangle', droneFilterFreq:420, droneFilterQ:1.2,
+      droneLfoRate:0.05, droneLfoDepth:100, droneAmpLfo:0.06,
+      kickFreq:54, kickDecay:0.36, snareDecay:0.14, snareFilterFreq:1400,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sine', bassFilterFreq:220, bassPattern:[0,0,2,0,0,0,2,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.32,
+      melodyPatterns:[[0,2,4,2,0,4,2,0],[4,2,0,2,4,5,4,2]],
+      choirFormants:[850,1500,2800], choirVibRate:3.2, choirVibDepth:1.6,
+      vizR:100, vizG:100, vizB:100,
+      desc:'Testing, one two three. Faders up. The broadcast takes shape.'
+    },
+    {
+      name:'Opening Titles', range:[25,36], color:'#282830', bpm:96,
+      root:65.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.8877], // ionian
+      droneWave:'triangle', droneFilterFreq:480, droneFilterQ:1.5,
+      droneLfoRate:0.06, droneLfoDepth:120, droneAmpLfo:0.07,
+      kickFreq:56, kickDecay:0.32, snareDecay:0.12, snareFilterFreq:1500,
+      kickPattern:[1,0,0,0,1,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,1,0,1],
+      bassWave:'sine', bassFilterFreq:240, bassPattern:[0,0,0,3,2,0,3,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.22,
+      melodyPatterns:[[0,2,4,5,4,2,5,3],[5,4,2,0,2,4,5,3],[0,4,5,4,2,4,5,2]],
+      choirFormants:[900,1600,3000], choirVibRate:3.5, choirVibDepth:1.8,
+      vizR:160, vizG:130, vizB:50,
+      desc:'We are live. Title card fades in. The audience leans forward.'
+    },
+    {
+      name:'Feature Story', range:[37,48], color:'#302820', bpm:100,
+      root:69.3, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818], // mixolydian
+      droneWave:'triangle', droneFilterFreq:520, droneFilterQ:1.8,
+      droneLfoRate:0.07, droneLfoDepth:140, droneAmpLfo:0.08,
+      kickFreq:58, kickDecay:0.28, snareDecay:0.11, snareFilterFreq:1600,
+      kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,1], hihatPattern:[1,0,1,0,1,1,0,1],
+      bassWave:'triangle', bassFilterFreq:260, bassPattern:[0,0,4,0,2,0,4,0],
+      melodyWave:'sine', melodyOctave:2, melodySkip:0.16,
+      melodyPatterns:[[0,2,4,6,4,2,5,3],[6,5,4,2,0,2,4,5],[0,4,2,6,5,3,2,4]],
+      choirFormants:[950,1700,3100], choirVibRate:3.8, choirVibDepth:2.0,
+      vizR:200, vizG:160, vizB:40,
+      desc:'The story builds. Graphics over footage. The hook lands.'
+    },
+    {
+      name:'Breaking News', range:[49,60], color:'#401010', bpm:108,
+      root:73.4, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818], // phrygian tension
+      droneWave:'sawtooth', droneFilterFreq:580, droneFilterQ:2.5,
+      droneLfoRate:0.10, droneLfoDepth:180, droneAmpLfo:0.11,
+      kickFreq:60, kickDecay:0.26, snareDecay:0.10, snareFilterFreq:1800,
+      kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,0,0,1,0,0,1], hihatPattern:[1,1,0,1,1,0,1,0],
+      bassWave:'sawtooth', bassFilterFreq:300, bassPattern:[0,3,0,4,2,3,4,0],
+      melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.10,
+      melodyPatterns:[[0,2,4,5,4,2,5,6],[5,4,2,0,2,4,5,4],[0,5,4,2,6,5,3,0]],
+      choirFormants:[1000,1800,3200], choirVibRate:5.0, choirVibDepth:2.5,
+      vizR:220, vizG:60, vizB:20,
+      desc:'BREAKING. Lower third flashes red. The world changed mid-broadcast.'
+    },
+    {
+      name:'On-Air Maximum', range:[61,72], color:'#501010', bpm:112,
+      root:77.8, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818], // peak tension
+      droneWave:'sawtooth', droneFilterFreq:640, droneFilterQ:3.0,
+      droneLfoRate:0.14, droneLfoDepth:220, droneAmpLfo:0.14,
+      kickFreq:62, kickDecay:0.24, snareDecay:0.09, snareFilterFreq:2000,
+      kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,0,0,1,0,1,1], hihatPattern:[1,1,1,0,1,1,0,1],
+      bassWave:'sawtooth', bassFilterFreq:340, bassPattern:[0,0,4,2,0,5,4,0],
+      melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.08,
+      melodyPatterns:[[0,2,4,5,4,2,5,6],[5,4,2,0,2,4,5,4],[0,5,4,2,6,5,3,0]],
+      choirFormants:[1100,2000,3400], choirVibRate:6.0, choirVibDepth:2.8,
+      vizR:240, vizG:80, vizB:20,
+      desc:'All channels live. Maximum reach. This moment reaches everyone.'
+    },
+    {
+      name:'Wrap', range:[73,84], color:'#201820', bpm:96,
+      root:65.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.8877], // ionian — resolving back
+      droneWave:'triangle', droneFilterFreq:440, droneFilterQ:1.5,
+      droneLfoRate:0.06, droneLfoDepth:110, droneAmpLfo:0.09,
+      kickFreq:56, kickDecay:0.35, snareDecay:0.14, snareFilterFreq:1300,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sine', bassFilterFreq:240, bassPattern:[0,0,0,4,0,0,0,4],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.22,
+      melodyPatterns:[[0,2,4,0,2,4,2,0],[4,2,0,4,2,0,4,2]],
+      choirFormants:[850,1500,2800], choirVibRate:3.0, choirVibDepth:1.5,
+      vizR:120, vizG:110, vizB:60,
+      desc:'Outro music. Credits roll. The signal starts to fade.'
+    },
+    {
+      name:'Sign Off', range:[85,99], color:'#101018', bpm:80,
+      root:55.0, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.8877], // ionian — resolved
+      droneWave:'sine', droneFilterFreq:300, droneFilterQ:0.8,
+      droneLfoRate:0.03, droneLfoDepth:70, droneAmpLfo:0.05,
+      kickFreq:50, kickDecay:0.50, snareDecay:0.18, snareFilterFreq:900,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:180, bassPattern:[0,0,0,0,2,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.55,
+      melodyPatterns:[[0,2,4,2,0,0,4,0],[4,2,0,0,2,4,0,0]],
+      choirFormants:[800,1400,2600], choirVibRate:2.0, choirVibDepth:0.8,
+      vizR:80, vizG:80, vizB:80,
+      desc:'Carrier wave only. Station closes. The air goes quiet again.'
+    },
+  ],
+
+  // ── VOID SIGNAL: algorithmic collapse ────────────────────────────
+  // Roots are non-standard Hz values (prime number multiples of 11Hz base)
+  // to produce beating and inharmonicity that feels machine/alien.
+  // Scales: chromatic → diminished → whole-tone → locrian → chromatic
+  // BPMs: erratic / prime-ish values to avoid metronomic feel
+  // Zone names: process/system states
+  void: [
+    {
+      name:'BOOT_SEQUENCE', range:[1,12], color:'#001400', bpm:77,
+      root:55.0, scale:[1,1.0595,1.1225,1.1892,1.2599,1.3348,1.4142,1.4983,1.5874,1.6818,1.7818,1.8877], // chromatic
+      droneWave:'square', droneFilterFreq:220, droneFilterQ:2.0,
+      droneLfoRate:0.11, droneLfoDepth:100, droneAmpLfo:0.08,
+      kickFreq:55, kickDecay:0.30, snareDecay:0.12, snareFilterFreq:1400,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'square', bassFilterFreq:180, bassPattern:[0,0,0,0,2,0,0,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.52,
+      melodyPatterns:[[0,1,0,0,2,0,1,0],[0,0,3,0,0,2,0,1]],
+      choirFormants:[500,1000,2000], choirVibRate:2.0, choirVibDepth:1.0,
+      vizR:0, vizG:100, vizB:0,
+      desc:'> INITIALISING... system check nominal. all processes loading.'
+    },
+    {
+      name:'PROCESS_TREE', range:[13,24], color:'#001800', bpm:83,
+      root:44.0, scale:[1,1.0595,1.1892,1.3348,1.4142,1.5874,1.6818,1.8877], // diminished
+      droneWave:'square', droneFilterFreq:280, droneFilterQ:3.0,
+      droneLfoRate:0.14, droneLfoDepth:150, droneAmpLfo:0.10,
+      kickFreq:50, kickDecay:0.28, snareDecay:0.11, snareFilterFreq:1600,
+      kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,0,0,1,0,0,0],
+      bassWave:'square', bassFilterFreq:200, bassPattern:[0,0,2,0,0,0,2,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.38,
+      melodyPatterns:[[0,2,3,5,3,2,5,3],[3,5,3,0,2,3,5,0]],
+      choirFormants:[600,1200,2400], choirVibRate:3.0, choirVibDepth:1.5,
+      vizR:0, vizG:140, vizB:0,
+      desc:'> PROCESS_TREE expanding. 847 threads active. no anomalies.'
+    },
+    {
+      name:'DATA_CORRUPTION', range:[25,36], color:'#002000', bpm:89,
+      root:55.0, scale:[1,1.1225,1.2599,1.4142,1.5874,1.7818], // whole tone — unstable, floating
+      droneWave:'square', droneFilterFreq:360, droneFilterQ:4.5,
+      droneLfoRate:0.18, droneLfoDepth:200, droneAmpLfo:0.12,
+      kickFreq:52, kickDecay:0.26, snareDecay:0.10, snareFilterFreq:1800,
+      kickPattern:[1,0,1,0,0,1,0,0], snarePattern:[0,0,0,0,1,0,1,0], hihatPattern:[1,0,1,0,1,0,0,1],
+      bassWave:'square', bassFilterFreq:240, bassPattern:[0,0,0,3,2,0,3,0],
+      melodyWave:'sawtooth', melodyOctave:1, melodySkip:0.24,
+      melodyPatterns:[[0,2,4,0,2,4,2,0],[4,2,0,4,2,0,4,2],[0,4,2,4,0,4,2,4]],
+      choirFormants:[700,1400,2800], choirVibRate:5.0, choirVibDepth:2.5,
+      vizR:0, vizG:180, vizB:20,
+      desc:'> WARNING: sector 7G checksum failure. attempting recovery...'
+    },
+    {
+      name:'MEMORY_LEAK', range:[37,48], color:'#003000', bpm:97,
+      root:46.2, scale:[1,1.0595,1.1892,1.3348,1.4142,1.5874,1.7818], // locrian — most unstable
+      droneWave:'square', droneFilterFreq:440, droneFilterQ:6.0,
+      droneLfoRate:0.22, droneLfoDepth:260, droneAmpLfo:0.14,
+      kickFreq:54, kickDecay:0.24, snareDecay:0.09, snareFilterFreq:2000,
+      kickPattern:[1,0,0,1,0,1,0,0], snarePattern:[0,0,0,0,1,0,1,0], hihatPattern:[1,1,0,1,0,1,0,1],
+      bassWave:'square', bassFilterFreq:280, bassPattern:[0,3,0,4,2,0,4,2],
+      melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.16,
+      melodyPatterns:[[0,2,3,5,3,2,5,3],[6,5,3,2,0,2,3,5],[0,3,5,3,2,5,3,0]],
+      choirFormants:[800,1600,3200], choirVibRate:6.0, choirVibDepth:3.0,
+      vizR:0, vizG:210, vizB:30,
+      desc:'> MEMORY_LEAK detected. heap usage 94%. processes slowing.'
+    },
+    {
+      name:'KERNEL_PANIC', range:[49,60], color:'#004000', bpm:103,
+      root:43.6, scale:[1,1.0595,1.1892,1.3348,1.4142,1.5874,1.6818,1.8877], // diminished peak
+      droneWave:'square', droneFilterFreq:520, droneFilterQ:7.5,
+      droneLfoRate:0.28, droneLfoDepth:340, droneAmpLfo:0.16,
+      kickFreq:56, kickDecay:0.22, snareDecay:0.08, snareFilterFreq:2200,
+      kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,0,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
+      bassWave:'square', bassFilterFreq:320, bassPattern:[0,0,4,2,0,5,4,0],
+      melodyWave:'square', melodyOctave:2, melodySkip:0.10,
+      melodyPatterns:[[0,2,3,5,4,2,5,6],[5,4,3,2,0,2,3,5],[0,5,4,3,6,5,3,0]],
+      choirFormants:[900,1800,3600], choirVibRate:8.0, choirVibDepth:3.5,
+      vizR:0, vizG:240, vizB:40,
+      desc:'> KERNEL_PANIC: non-maskable interrupt. oops: general protection fault.'
+    },
+    {
+      name:'SYSTEM_FAILURE', range:[61,72], color:'#005000', bpm:109,
+      root:36.7, scale:[1,1.0595,1.1892,1.3348,1.4142,1.5874,1.6818,1.8877], // diminished max
+      droneWave:'square', droneFilterFreq:600, droneFilterQ:9.0,
+      droneLfoRate:0.34, droneLfoDepth:420, droneAmpLfo:0.19,
+      kickFreq:58, kickDecay:0.20, snareDecay:0.08, snareFilterFreq:2400,
+      kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,0,0,1,0,1,1], hihatPattern:[1,1,1,0,1,1,1,0],
+      bassWave:'square', bassFilterFreq:360, bassPattern:[0,0,4,2,0,5,3,0],
+      melodyWave:'square', melodyOctave:2, melodySkip:0.08,
+      melodyPatterns:[[0,2,3,5,4,2,5,6],[5,4,3,2,0,2,3,5],[0,5,4,3,6,5,2,0]],
+      choirFormants:[1000,2000,4000], choirVibRate:9.0, choirVibDepth:3.8,
+      vizR:30, vizG:255, vizB:50,
+      desc:'> SYSTEM_FAILURE. critical processes terminated. data loss imminent.'
+    },
+    {
+      name:'EMERGENCY_SHUTDOWN', range:[73,84], color:'#003000', bpm:67,
+      root:32.7, scale:[1,1.0595,1.1225,1.1892,1.2599,1.3348,1.4142,1.4983,1.5874,1.6818,1.7818,1.8877], // full chromatic
+      droneWave:'square', droneFilterFreq:380, droneFilterQ:4.0,
+      droneLfoRate:0.16, droneLfoDepth:280, droneAmpLfo:0.15,
+      kickFreq:50, kickDecay:0.35, snareDecay:0.14, snareFilterFreq:1600,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'square', bassFilterFreq:260, bassPattern:[0,0,0,4,0,0,0,4],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.30,
+      melodyPatterns:[[0,2,1,0,2,1,0,2],[2,1,0,2,1,0,2,1]],
+      choirFormants:[800,1600,3200], choirVibRate:5.0, choirVibDepth:2.5,
+      vizR:20, vizG:200, vizB:30,
+      desc:'> EMERGENCY_SHUTDOWN initiated. spinning down. goodbye.'
+    },
+    {
+      name:'NULL_STATE', range:[85,99], color:'#000800', bpm:57,
+      root:27.5, scale:[1,1.1892,1.3348,1.4983,1.7818], // pentatonic — oddly peaceful at the end
+      droneWave:'sine', droneFilterFreq:180, droneFilterQ:0.6,
+      droneLfoRate:0.02, droneLfoDepth:40, droneAmpLfo:0.04,
+      kickFreq:44, kickDecay:0.70, snareDecay:0.24, snareFilterFreq:600,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:160, bassPattern:[0,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:0, melodySkip:0.70,
+      melodyPatterns:[[0,0,2,0,0,0,4,0],[0,0,0,2,0,0,0,4]],
+      choirFormants:[600,1200,2400], choirVibRate:1.0, choirVibDepth:0.5,
+      vizR:0, vizG:100, vizB:0,
+      desc:'> null. null. null. null. null. null. null. null. null.'
+    },
+  ],
+};
+
+// ── Skin-aware zone resolution ────────────────────────────────────────────
+// getZone() routes through the active skin's zone set when available,
+// falling back to the default ZONES for the ashen skin.
+function getZone(f) {
+  const zones = (SKIN_ZONES[_activeSkin]) || ZONES;
+  return zones.find(z => f >= z.range[0] && f <= z.range[1]) || zones[zones.length - 1];
+}
 function getIntensity(f) { return Math.min(1, Math.pow((f - 1) / 98, 0.65)); } // log curve — gentler ramp, no hard ceiling at floor 50
 function getScale(preset) {
   if (activeScaleId === 'zone') return preset.scale;
@@ -15790,6 +16333,9 @@ function applySkin(id, save) {
   if (save !== false) {
     try { localStorage.setItem('mf_skin', id); } catch(e) {}
   }
+
+  // Refresh zone display — zone names/colors change with skin
+  updateFloorUI();
 }
 
 function buildSkinBar() {
@@ -16115,7 +16661,8 @@ applySkin = function(id, save) {
 // ── Init ──────────────────────────────────────────────────────────
 (function() {
   const bar = document.getElementById('zoneBar');
-  ZONES.forEach(() => { const s = document.createElement('div'); s.className = 'zone-seg'; bar.appendChild(s); });
+  const zones = (SKIN_ZONES[_activeSkin]) || ZONES;
+  zones.forEach(() => { const s = document.createElement('div'); s.className = 'zone-seg'; bar.appendChild(s); });
   lastZoneName = getZone(1).name;
   updateFloorUI();
   buildScaleUI();
