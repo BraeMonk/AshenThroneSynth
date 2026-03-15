@@ -3060,7 +3060,7 @@ JC.tick = function() {
     });
   }
 
-  const preset    = getZone(chapter.floor);
+  const preset    = getZone(JC._currentFloor || crawlTarget);
   const intensity = Math.min(1,JC.energy+0.15);
 
   // Only reconcile (add/remove layers) every 4 bars, and never during a
