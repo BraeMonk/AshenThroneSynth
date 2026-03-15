@@ -1719,6 +1719,9 @@ const SCALES = [
   { id:'mixolydian', name:'Mixolydian',      feel:'Heroic · Bittersweet · Epic',
     ratios:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
     dots:[1,0,1,0,1,1,0,1,0,1,1,0] },
+  { id:'ionian',     name:'Ionian (Major)',   feel:'Bright · Resolved · Folk',
+    ratios:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.8877],
+    dots:[1,0,1,0,1,1,0,1,0,1,0,1] },
   { id:'whole_tone', name:'Whole Tone',      feel:'Floating · Surreal · Dreamlike',
     ratios:[1,1.1225,1.2599,1.4142,1.5874,1.7818],
     dots:[1,0,1,0,1,0,1,0,1,0,1,0] },
@@ -2019,6 +2022,9 @@ const SCALE_MOODS = {
   epic:    ['dorian', 'mixolydian', 'nat_minor'],
   arcane:  ['lydian', 'whole_tone', 'chromatic'],
   dread:   ['locrian', 'diminished', 'chromatic'],
+  // Celtic folk modes — dorian is the spine, mixolydian the colour,
+  // pentatonic the ancient root, ionian for bright reels
+  celtic:  ['dorian', 'mixolydian', 'pentatonic', 'ionian'],
 };
 
 const JOURNEY_SCALE_ARC = ['dark', 'dark', 'eerie', 'epic', 'epic', 'dread', 'dread', 'dread'];
@@ -2133,9 +2139,11 @@ const JOURNEY_MOODS = {
   celtic: {
     label: 'Celtic',
     desc: 'Modal and lilting — lute and bells lead, no war drums or chaos, never fully dark',
-    // Arcane (lute/melody/organ) throughout with choral swells; no combat
     layerArc:  ['arcane','arcane','choral','arcane','choral','arcane','arcane','desolate'],
-    scaleArc:  ['arcane','arcane','arcane','eerie','arcane','arcane','dark','arcane'],
+    // Dorian is the spine of Celtic music. Mixolydian for heroic chapters.
+    // Pentatonic for the ancient/introspective moments. Ionian for bright resolution.
+    // Never arcane (lydian/whole_tone) — those sound alien, not folk.
+    scaleArc:  ['celtic','celtic','celtic','celtic','celtic','celtic','celtic','celtic'],
   },
 
   ambient: {
@@ -4540,6 +4548,10 @@ const CE = (() => {
       boss:       [[0,'tritone'], [0,'tritone'], [1,'phrygian'], [0,'tritone']],
       resolution: [[0,'openFifth'], [6,'sus2'], [3,'sus4'], [0,'min']],
       tension:    [[0,'hdim7'], [5,'dim7'], [1,'phrygian'], [0,'min7']],
+      // Celtic-specific progressions for Ashen Fields — modal folk cadences
+      celtic_normal:     [[0,'min'], [6,'maj'], [4,'maj'], [0,'min']],    // i – VI – IV – i (dorian)
+      celtic_resolution: [[0,'openFifth'], [6,'sus2'], [4,'sus4'], [0,'openFifth']], // open modal
+      celtic_tension:    [[0,'min'], [5,'min'], [6,'maj'], [0,'min']],    // i – v – VI – i
     },
     'Rotwood Forest': {
       normal:     [[0,'min7'], [3,'maj'], [6,'maj'], [5,'min']],      // i7 – III – VI – v
@@ -4547,6 +4559,9 @@ const CE = (() => {
       boss:       [[0,'dim7'], [6,'dim7'], [3,'dim7'], [0,'dim7']],   // dim7 cycle
       resolution: [[0,'min'], [6,'sus2'], [3,'maj'], [0,'openFifth']],
       tension:    [[0,'hdim7'], [1,'phrygian'], [5,'dim7'], [0,'min7']],
+      celtic_normal:     [[0,'min'], [4,'maj'], [6,'maj'], [3,'maj']],    // dorian i–IV–VI–III
+      celtic_resolution: [[0,'min'], [6,'sus2'], [4,'maj'], [0,'openFifth']],
+      celtic_tension:    [[0,'min'], [6,'maj'], [5,'min'], [0,'min']],
     },
     'Catacombs Deep': {
       normal:     [[0,'min'], [1,'phrygian'], [6,'maj'], [0,'min']],  // i – bII – VI – i
@@ -4554,6 +4569,9 @@ const CE = (() => {
       boss:       [[0,'tritone'], [1,'tritone'], [0,'dim7'], [1,'phrygian']],
       resolution: [[0,'min'], [6,'sus2'], [0,'openFifth'], [0,'min']],
       tension:    [[0,'dim7'], [6,'dim7'], [1,'phrygian'], [0,'hdim7']],
+      celtic_normal:     [[0,'min'], [3,'maj'], [6,'maj'], [4,'maj']],
+      celtic_resolution: [[0,'openFifth'], [3,'sus4'], [0,'min'], [0,'openFifth']],
+      celtic_tension:    [[0,'min'], [5,'min'], [3,'maj'], [0,'min']],
     },
     'Shadowmere': {
       normal:     [[0,'min7'], [6,'minMaj7'], [3,'maj7'], [5,'hdim7']],
@@ -4561,6 +4579,9 @@ const CE = (() => {
       boss:       [[0,'dim7'], [1,'phrygian'], [6,'dim7'], [0,'dim7']],
       resolution: [[0,'min'], [3,'sus4'], [6,'maj'], [0,'openFifth']],
       tension:    [[0,'hdim7'], [5,'dim7'], [1,'phrygian'], [0,'minMaj7']],
+      celtic_normal:     [[0,'min'], [6,'maj'], [3,'maj'], [4,'maj']],
+      celtic_resolution: [[0,'min'], [6,'sus2'], [3,'sus4'], [0,'openFifth']],
+      celtic_tension:    [[0,'min'], [4,'maj'], [5,'min'], [0,'min']],
     },
     "Sorcerer's Veil": {
       normal:     [[0,'min7'], [4,'maj7'], [2,'hdim7'], [6,'maj7']],
@@ -4568,6 +4589,9 @@ const CE = (() => {
       boss:       [[0,'dim7'], [3,'aug'], [0,'dim7'], [6,'dim7']],
       resolution: [[0,'sus2'], [4,'sus4'], [2,'min'], [0,'min7']],
       tension:    [[0,'minMaj7'], [5,'dim7'], [2,'hdim7'], [0,'dim7']],
+      celtic_normal:     [[0,'min'], [4,'maj'], [6,'maj'], [0,'min']],
+      celtic_resolution: [[0,'sus2'], [4,'sus4'], [6,'maj'], [0,'openFifth']],
+      celtic_tension:    [[0,'min'], [3,'maj'], [5,'min'], [0,'min']],
     },
     'Obsidian Keep': {
       normal:     [[0,'min'], [1,'phrygian'], [5,'min'], [6,'maj']],
@@ -4575,6 +4599,9 @@ const CE = (() => {
       boss:       [[0,'tritone'], [5,'tritone'], [1,'phrygian'], [0,'dim7']],
       resolution: [[0,'min'], [6,'sus2'], [3,'maj'], [0,'openFifth']],
       tension:    [[0,'dim7'], [1,'phrygian'], [5,'hdim7'], [0,'minMaj7']],
+      celtic_normal:     [[0,'min'], [6,'maj'], [4,'maj'], [3,'maj']],
+      celtic_resolution: [[0,'openFifth'], [6,'sus2'], [4,'sus4'], [0,'min']],
+      celtic_tension:    [[0,'min'], [5,'min'], [6,'maj'], [0,'min']],
     },
     'Void Spire': {
       normal:     [[0,'hdim7'], [1,'phrygian'], [6,'min7'], [5,'dim7']],
@@ -4582,6 +4609,9 @@ const CE = (() => {
       boss:       [[0,'tritone'], [1,'tritone'], [6,'dim7'], [0,'tritone']],
       resolution: [[0,'min'], [3,'stack4ths'], [0,'openFifth'], [0,'min']],
       tension:    [[0,'dim7'], [6,'dim7'], [3,'dim7'], [0,'hdim7']],
+      celtic_normal:     [[0,'min'], [4,'maj'], [3,'maj'], [6,'maj']],
+      celtic_resolution: [[0,'openFifth'], [4,'sus4'], [3,'sus2'], [0,'min']],
+      celtic_tension:    [[0,'min'], [6,'maj'], [5,'min'], [0,'min']],
     },
     'Infernal Core': {
       normal:     [[0,'dim7'], [1,'phrygian'], [5,'tritone'], [0,'dim7']],
@@ -4589,6 +4619,9 @@ const CE = (() => {
       boss:       [[0,'tritone'], [0,'tritone'], [1,'tritone'], [0,'tritone']],
       resolution: [[0,'min'], [0,'openFifth'], [6,'min'], [0,'min']],
       tension:    [[0,'dim7'], [1,'phrygian'], [0,'tritone'], [0,'dim7']],
+      celtic_normal:     [[0,'min'], [3,'maj'], [4,'maj'], [6,'maj']],
+      celtic_resolution: [[0,'openFifth'], [3,'sus4'], [6,'sus2'], [0,'openFifth']],
+      celtic_tension:    [[0,'min'], [4,'maj'], [6,'maj'], [0,'min']],
     },
   };
  
@@ -4666,6 +4699,11 @@ const CE = (() => {
     const name = zone?.name || '';
     const zoneProgs = ZONE_PROGRESSIONS[name] || DEFAULT_PROG;
     const key = _bossActive ? 'boss' : _progKey;
+    // Celtic journey uses modal folk progressions, not the dark/horror ones
+    if (activeJourneyMood === 'celtic' && !_bossActive) {
+      const celticKey = 'celtic_' + (key === 'combat' ? 'tension' : key);
+      if (zoneProgs[celticKey]) return zoneProgs[celticKey];
+    }
     return zoneProgs[key] || zoneProgs.normal || DEFAULT_PROG.normal;
   }
  
@@ -8178,12 +8216,11 @@ function buildRitualChant(preset, intensity, name) {
   schedNote();
 }
 
-// ── KARPLUS-STRONG GUITAR ─────────────────────────────────────────────────────
-// Physical string model: shaped noise excitation → delay line → loop filter →
-// feedback → body EQ. Resonant frequency emerges from f = sampleRate / delayLen.
-// Produces the two-stage decay, natural inharmonicity from the allpass in the loop,
-// and correct timbral evolution — none of which additive sines can replicate.
-// Min reliable WebAudio delay ~3ms (333Hz). Guitar range [165,880Hz] — min 5ms. Safe.
+// ── GUITAR ────────────────────────────────────────────────────────────────────
+// Offline Karplus-Strong: the entire string resonance is computed sample-by-sample
+// into a PCM buffer, then played back with a BufferSourceNode. No feedback loop
+// in the audio graph — eliminates the instability of online KS in WebAudio.
+// Each pluck generates a unique buffer at the correct pitch and voice character.
 function buildGuitar(preset, intensity, name) {
   const voice = sessionVoices[name] || 'nylon';
   const b     = bus[name];
@@ -8191,27 +8228,33 @@ function buildGuitar(preset, intensity, name) {
   const beat  = 60 / bpm;
   const sr    = ctx.sampleRate;
 
-  // excBW: excitation noise bandwidth — higher = brighter attack
-  // loopCutoffMult: loop LPF cutoff as multiple of fundamental — tone colour
-  // feedback: loop gain (<1) — controls decay rate, higher = longer ring
-  // inharmonicity: allpass Q for partial stretching (wound string stiffness)
-  // droopCents/droopMs: pitch sag at onset (string under pluck force)
+  // Voice config — all parameters control the offline KS algorithm:
+  //   excBW:       one-pole lowpass coeff on excitation noise (0=white, 0.9=muffled)
+  //   loopLP:      one-pole lowpass coeff in the feedback loop (0.5=bright, 0.9=dark)
+  //   feedback:    loop gain — controls decay rate (0.980=1s, 0.995=3s at 330Hz)
+  //   inharm:      inharmonicity — fractional delay coefficient stretches partials sharp
+  //   droopCents:  initial pitch sag in cents
+  //   droopDecay:  samples over which pitch sag resolves
+  //   ringSeconds: hard cap on buffer length
   const VOICE_CFG = {
     nylon: {
-      excBW: 3000, loopCutoffMult: 12, feedback: 0.9985, inharmonicity: 0.018,
-      droopCents: 12, droopMs: 18,
-      volBase: 0.52, volInt: 0.22,
+      excBW: 0.55, loopLP: 0.72, feedback: 0.9945,
+      inharm: 0.004, droopCents: 14, droopDecay: 800,
+      ringSeconds: 5.0,
+      volBase: 0.52, volInt: 0.20,
       timingBass: 0.38, timingTreb: 0.26, jitter: 0.10,
     },
     steel: {
-      excBW: 6000, loopCutoffMult: 22, feedback: 0.9992, inharmonicity: 0.010,
-      droopCents: 6, droopMs: 10,
-      volBase: 0.54, volInt: 0.24,
+      excBW: 0.35, loopLP: 0.58, feedback: 0.9965,
+      inharm: 0.002, droopCents: 7, droopDecay: 400,
+      ringSeconds: 6.0,
+      volBase: 0.54, volInt: 0.22,
       timingBass: 0.36, timingTreb: 0.24, jitter: 0.08,
     },
     fingerpicked: {
-      excBW: 2000, loopCutoffMult: 9, feedback: 0.9978, inharmonicity: 0.024,
-      droopCents: 18, droopMs: 25,
+      excBW: 0.68, loopLP: 0.82, feedback: 0.9920,
+      inharm: 0.006, droopCents: 20, droopDecay: 1200,
+      ringSeconds: 4.0,
       volBase: 0.48, volInt: 0.18,
       timingBass: 0.52, timingTreb: 0.36, jitter: 0.18,
     },
@@ -8234,77 +8277,93 @@ function buildGuitar(preset, intensity, name) {
   let t        = ctx.currentTime + beat * 0.5;
   let trebleRun = 0;
 
+  // Pre-build a small cache of buffers per unique frequency so repeated notes
+  // reuse the same buffer (saves CPU on dense arpeggios).
+  const bufCache = {};
+
+  function buildStringBuffer(freq) {
+    if (bufCache[freq]) return bufCache[freq];
+
+    const period   = Math.round(sr / freq);   // delay line length in samples
+    const ringLen  = Math.min(Math.round(sr * vc.ringSeconds), sr * 4);
+    const buf      = ctx.createBuffer(1, ringLen, sr);
+    const d        = buf.getChannelData(0);
+
+    // ── Fill delay line with bandlimited noise ──────────────────────────────
+    // One-pole lowpass on white noise shapes the excitation spectrum.
+    // excBW: 0=white noise, 0.9=very muffled (pre-filtered by finger flesh).
+    const dl = new Float32Array(period);
+    let lpState = 0;
+    for (let i = 0; i < period; i++) {
+      const raw = Math.random() * 2 - 1;
+      lpState   = lpState * vc.excBW + raw * (1 - vc.excBW);
+      dl[i]     = lpState;
+    }
+
+    // ── Pitch droop: start delay line length longer, shrink to target ──────
+    // Simulates string stretching under pluck force. Implemented as a fractional
+    // delay blend between two adjacent samples in the delay line.
+    const droopRatio = Math.pow(2, vc.droopCents / 1200); // >1 = flat = longer delay
+
+    // ── Run KS loop sample by sample ───────────────────────────────────────
+    // State: dl[] is the circular delay buffer.
+    // Each sample: read from delay line → one-pole lowpass → multiply by feedback → write back.
+    // Inharmonicity: blend current and next sample (fractional delay) — stretches partials.
+    let writeIdx  = 0;
+    let loopState = 0; // one-pole lowpass state
+    for (let i = 0; i < ringLen; i++) {
+      // Pitch droop: fractional delay blend during early samples
+      const droopFrac = i < vc.droopDecay
+        ? (droopRatio - 1.0) * (1.0 - i / vc.droopDecay) // fades to 0
+        : 0.0;
+      const readF   = writeIdx - period * (1 + droopFrac);
+      const readI   = Math.floor(readF);
+      const frac    = readF - readI;
+      const ri0     = ((readI % period) + period) % period;
+      const ri1     = ((readI + 1) % period + period) % period;
+
+      // Inharmonicity: mix current and next+1 sample (all-pass style stretch)
+      const ri2     = ((readI + 2) % period + period) % period;
+      const sample  = dl[ri0] * (1 - frac) * (1 - vc.inharm)
+                    + dl[ri1] * (frac      * (1 - vc.inharm) + (1 - frac) * vc.inharm)
+                    + dl[ri2] * frac * vc.inharm;
+
+      // One-pole lowpass in the loop — controls tone brightness and high decay rate
+      loopState = loopState * vc.loopLP + sample * (1 - vc.loopLP);
+
+      // Write back with feedback gain
+      dl[writeIdx % period] = loopState * vc.feedback;
+      d[i] = loopState;
+      writeIdx++;
+    }
+
+    // Normalise to ±0.9 peak
+    let peak = 0;
+    for (let i = 0; i < ringLen; i++) if (Math.abs(d[i]) > peak) peak = Math.abs(d[i]);
+    if (peak > 0.001) { const g = 0.9 / peak; for (let i = 0; i < ringLen; i++) d[i] *= g; }
+
+    bufCache[freq] = buf;
+    return buf;
+  }
+
   function pluckString(bt, freq, role) {
     if (!freq || freq < 100 || !layerOn[name]) return;
-
-    const baseDelay = 1 / freq;
-    const droopDelay = baseDelay * Math.pow(2, vc.droopCents / 1200);
-    const droopS     = vc.droopMs / 1000;
-
-    // Excitation: shaped noise burst — length 2 periods, 1ms fade-in/out
-    const excLen  = Math.max(64, Math.ceil(sr * Math.min(baseDelay * 2, 0.012)));
-    const excBuf  = ctx.createBuffer(1, excLen, sr);
-    const excData = excBuf.getChannelData(0);
-    const fadeRamp = Math.floor(sr * 0.001);
-    for (let i = 0; i < excLen; i++) {
-      let env = 1.0;
-      if (i < fadeRamp)             env = i / fadeRamp;
-      if (i > excLen - fadeRamp)    env = (excLen - i) / fadeRamp;
-      excData[i] = (Math.random() * 2 - 1) * env;
-    }
-    const excSrc  = ctx.createBufferSource(); excSrc.buffer = excBuf;
-    const excFilt = mkFilt(vc.excBW, 'lowpass', 0.7);
-
-    // Delay line — the string length
-    const delay = ctx.createDelay(0.05);
-    delay.delayTime.setValueAtTime(droopDelay, bt);
-    delay.delayTime.linearRampToValueAtTime(baseDelay, bt + droopS);
-
-    // Loop lowpass — shapes tone, controls high-frequency decay rate
-    const loopLPF = mkFilt(Math.min(freq * vc.loopCutoffMult, sr * 0.45), 'lowpass', 0.5);
-
-    // Inharmonicity allpass — stretches upper partials sharp (wound string stiffness)
-    const inh = ctx.createBiquadFilter();
-    inh.type  = 'allpass';
-    inh.frequency.value = freq * 2.1;
-    inh.Q.value         = vc.inharmonicity * 80;
-
-    // Feedback gain — energy loss per cycle → natural exponential decay
-    // High strings decay faster (lower feedback) matching real string physics
-    const freqFactor = Math.min(1.0, 165 / freq);
-    const fb  = Math.min(0.9999, vc.feedback - freqFactor * 0.0006);
-    const fbG = mkGain(fb);
-
-    // Body EQ + output
-    const body = makeBodyFilter(name, 'guitar');
-    body.output.connect(b);
     const isBass = role === 'bass';
     const vol    = (vc.volBase + intensity * vc.volInt) * (isBass ? 0.9 : 1.0);
+
+    const strBuf = buildStringBuffer(Math.round(freq)); // round to nearest Hz for cache hits
+    const src    = ctx.createBufferSource();
+    src.buffer   = strBuf;
+
+    const body   = makeBodyFilter(name, 'guitar');
     const outG   = mkGain(vol);
+    body.output.connect(b);
+    chain(src, outG, body.input);
 
-    // Signal chain:
-    // excSrc → excFilt → delay ←──────────────────────┐
-    //                       ↓                          │
-    //                     outG                    fbG ← inh ← loopLPF ← delay
-    //                       ↓
-    //                    body → b
-    chain(excSrc, excFilt, delay);
-    chain(delay, loopLPF, inh, fbG);
-    fbG.connect(delay);
-    delay.connect(outG);
-    outG.connect(body.input);
-
-    excSrc.start(bt);
-    excSrc.stop(bt + baseDelay + 0.002);
-
-    const ringTime = Math.min(6.0, Math.log(0.001) / Math.log(fb) / freq);
-    // Schedule a hard stop on delay node to free resources after ring dies
-    const stopAt = bt + droopS + ringTime + 0.1;
-    regT(name, setTimeout(() => {
-      try { delay.disconnect(); loopLPF.disconnect(); inh.disconnect(); fbG.disconnect(); outG.disconnect(); } catch(e){}
-    }, (stopAt - ctx.currentTime) * 1000));
-
-    reg(name, excSrc, excFilt, delay, loopLPF, inh, fbG, outG);
+    src.start(bt);
+    // Stop after the buffer plays through once — no looping
+    src.stop(bt + strBuf.duration + 0.05);
+    reg(name, src, outG);
   }
 
   function schedArp() {
@@ -8335,7 +8394,6 @@ function buildGuitar(preset, intensity, name) {
 
   schedArp();
 }
-
 // ── FLUTE ─────────────────────────────────────────────────────────────────────
 // Three voices: concert (bright, airy), breathy (heavy breath noise, slightly
 // detuned air-column wobble), alto (octave lower, darker, slower vibrato).
@@ -8635,11 +8693,9 @@ function buildDuduk(preset, intensity, name) {
   schedNote();
 }
 
-// ── KARPLUS-STRONG HARP ───────────────────────────────────────────────────────
-// Same KS model as guitar but tuned for harp character:
-// longer decay, cleaner excitation (no nail — flesh of the finger or pick),
-// prominent soundboard resonance in 200-350Hz, and three gesture types.
-// Range [98, 1400Hz] — min delay ~7ms at 98Hz. Reliable in WebAudio.
+// ── HARP ──────────────────────────────────────────────────────────────────────
+// Offline Karplus-Strong, same approach as guitar. Harp-specific: longer ring,
+// softer excitation, louder soundboard resonance, three gesture types.
 function buildHarp(preset, intensity, name) {
   const voice = sessionVoices[name] || 'concert';
   const b     = bus[name];
@@ -8649,108 +8705,106 @@ function buildHarp(preset, intensity, name) {
 
   const VOICE_CFG = {
     concert: {
-      // Orchestral concert harp: warm, long ring, clear fundamental
-      excBW: 4000, loopCutoffMult: 16, feedback: 0.9988, inharmonicity: 0.006,
-      droopCents: 8, droopMs: 12,
-      volBase: 0.58, volInt: 0.24,
-      glissSpacingMs: 55, decayMult: 1.0, octBias: 0,
+      excBW: 0.62, loopLP: 0.78, feedback: 0.991,
+      inharm: 0.003, droopCents: 8, droopDecay: 600,
+      ringSeconds: 3.5,
+      volBase: 0.58, volInt: 0.22,
+      glissSpacingMs: 55, octBias: 0,
     },
     celtic: {
-      // Celtic/lever harp: faster decay, brighter, higher register
-      excBW: 5000, loopCutoffMult: 20, feedback: 0.9984, inharmonicity: 0.004,
-      droopCents: 5, droopMs: 8,
-      volBase: 0.60, volInt: 0.22,
-      glissSpacingMs: 35, decayMult: 0.75, octBias: 1,
+      excBW: 0.48, loopLP: 0.65, feedback: 0.988,
+      inharm: 0.002, droopCents: 5, droopDecay: 350,
+      ringSeconds: 2.5,
+      volBase: 0.60, volInt: 0.20,
+      glissSpacingMs: 35, octBias: 1,
     },
     electric: {
-      // Electric/lever harp: tight, fast decay, hard transient, slight brightness
-      excBW: 7000, loopCutoffMult: 28, feedback: 0.9975, inharmonicity: 0.003,
-      droopCents: 3, droopMs: 5,
-      volBase: 0.62, volInt: 0.26,
-      glissSpacingMs: 45, decayMult: 0.55, octBias: 0,
+      excBW: 0.30, loopLP: 0.52, feedback: 0.982,
+      inharm: 0.001, droopCents: 3, droopDecay: 200,
+      ringSeconds: 1.8,
+      volBase: 0.62, volInt: 0.24,
+      glissSpacingMs: 45, octBias: 0,
     },
   };
   const vc = VOICE_CFG[voice] || VOICE_CFG.concert;
 
-  function pluckHarpString(bt, freq, decayScale, vol) {
-    if (!freq || freq < 70 || !layerOn[name]) return;
+  const bufCache = {};
 
-    const baseDelay  = 1 / freq;
-    const droopDelay = baseDelay * Math.pow(2, vc.droopCents / 1200);
-    const droopS     = vc.droopMs / 1000;
+  function buildStringBuffer(freq) {
+    if (bufCache[freq]) return bufCache[freq];
 
-    // Excitation: slightly longer than guitar — harp strings are thicker/longer
-    const excLen  = Math.max(64, Math.ceil(sr * Math.min(baseDelay * 2.5, 0.018)));
-    const excBuf  = ctx.createBuffer(1, excLen, sr);
-    const excData = excBuf.getChannelData(0);
-    const fadeRamp = Math.floor(sr * 0.0015); // 1.5ms — slightly softer onset than guitar
-    for (let i = 0; i < excLen; i++) {
-      let env = 1.0;
-      if (i < fadeRamp)           env = i / fadeRamp;
-      if (i > excLen - fadeRamp)  env = (excLen - i) / fadeRamp;
-      excData[i] = (Math.random() * 2 - 1) * env;
+    const period  = Math.round(sr / freq);
+    const ringLen = Math.min(Math.round(sr * vc.ringSeconds), sr * 5);
+    const buf     = ctx.createBuffer(1, ringLen, sr);
+    const d       = buf.getChannelData(0);
+
+    // Excitation: softer than guitar — harp strings plucked with fingernail tip
+    // but much more flesh contact area → smoother, less bright than guitar nail
+    const dl = new Float32Array(period);
+    let lpState = 0;
+    for (let i = 0; i < period; i++) {
+      const raw = Math.random() * 2 - 1;
+      lpState   = lpState * vc.excBW + raw * (1 - vc.excBW);
+      dl[i]     = lpState;
     }
-    const excSrc  = ctx.createBufferSource(); excSrc.buffer = excBuf;
-    const excFilt = mkFilt(vc.excBW, 'lowpass', 0.6);
 
-    // Delay line
-    const delay = ctx.createDelay(0.05);
-    delay.delayTime.setValueAtTime(droopDelay, bt);
-    delay.delayTime.linearRampToValueAtTime(baseDelay, bt + droopS);
+    const droopRatio = Math.pow(2, vc.droopCents / 1200);
+    let writeIdx  = 0;
+    let loopState = 0;
+    for (let i = 0; i < ringLen; i++) {
+      const droopFrac = i < vc.droopDecay
+        ? (droopRatio - 1.0) * (1.0 - i / vc.droopDecay)
+        : 0.0;
+      const readF = writeIdx - period * (1 + droopFrac);
+      const readI = Math.floor(readF);
+      const frac  = readF - readI;
+      const ri0   = ((readI     % period) + period) % period;
+      const ri1   = ((readI + 1 % period) + period) % period;
+      const ri2   = ((readI + 2 % period) + period) % period;
 
-    // Loop LPF — harp uses lower cutoffMult than guitar = warmer/darker tone
-    const loopLPF = mkFilt(Math.min(freq * vc.loopCutoffMult, sr * 0.45), 'lowpass', 0.5);
+      const sample = dl[ri0] * (1 - frac) * (1 - vc.inharm)
+                   + dl[ri1] * (frac * (1 - vc.inharm) + (1 - frac) * vc.inharm)
+                   + dl[ri2] * frac * vc.inharm;
 
-    // Inharmonicity — harp strings are less stiff than guitar (lower inharmonicity)
-    const inh = ctx.createBiquadFilter();
-    inh.type  = 'allpass';
-    inh.frequency.value = freq * 2.2;
-    inh.Q.value         = vc.inharmonicity * 80;
+      loopState = loopState * vc.loopLP + sample * (1 - vc.loopLP);
+      dl[writeIdx % period] = loopState * vc.feedback;
+      d[i] = loopState;
+      writeIdx++;
+    }
 
-    // Feedback — modulated by decayScale so gesture type affects ring length
-    // Lower strings ring longer (physics: thicker strings lose energy slower)
-    const freqFactor = Math.min(1.0, 200 / freq);
-    const fb  = Math.min(0.9999, (vc.feedback - freqFactor * 0.0004) * decayScale);
-    const fbG = mkGain(Math.max(0.9, fb)); // floor at 0.9 to prevent silence
+    let peak = 0;
+    for (let i = 0; i < ringLen; i++) if (Math.abs(d[i]) > peak) peak = Math.abs(d[i]);
+    if (peak > 0.001) { const g = 0.9 / peak; for (let i = 0; i < ringLen; i++) d[i] *= g; }
 
-    // Body EQ
-    const body = makeBodyFilter(name, 'harp');
+    bufCache[freq] = buf;
+    return buf;
+  }
+
+  function pluckHarpString(bt, freq, vol) {
+    if (!freq || freq < 60 || !layerOn[name]) return;
+
+    const strBuf = buildStringBuffer(Math.round(freq));
+    const src    = ctx.createBufferSource(); src.buffer = strBuf;
+    const body   = makeBodyFilter(name, 'harp');
     body.output.connect(b);
     const outG = mkGain(vol);
+    chain(src, outG, body.input);
+    src.start(bt);
+    src.stop(bt + strBuf.duration + 0.05);
+    reg(name, src, outG);
 
-    // Soundboard resonance — harp soundboard has strong fixed-pitch modes
-    // at ~200, 290, 340Hz. Short noise burst through narrow bandpass.
+    // Soundboard resonance — fixed modes independent of string pitch
     [210, 290, 340].forEach((bf, i) => {
-      const sbLen  = Math.floor(sr * 0.06);
-      const sbBuf  = ctx.createBuffer(1, sbLen, sr);
-      const sbData = sbBuf.getChannelData(0);
-      for (let j = 0; j < sbLen; j++)
-        sbData[j] = (Math.random() * 2 - 1) * Math.exp(-j / sr / 0.018);
-      const sbSrc  = ctx.createBufferSource(); sbSrc.buffer = sbBuf;
-      const sbFilt = mkFilt(bf, 'bandpass', 5 - i);
-      const sbG    = mkGain(vol * (0.12 - i * 0.03));
-      chain(sbSrc, sbFilt, sbG, b);
-      sbSrc.start(bt);
-      reg(name, sbSrc, sbFilt, sbG);
+      const bBuf  = ctx.createBuffer(1, Math.floor(sr * 0.08), sr);
+      const bData = bBuf.getChannelData(0);
+      for (let j = 0; j < bData.length; j++)
+        bData[j] = (Math.random() * 2 - 1) * Math.exp(-j / sr / 0.020);
+      const bSrc  = ctx.createBufferSource(); bSrc.buffer = bBuf;
+      const bFilt = mkFilt(bf, 'bandpass', 5 - i);
+      const bG    = mkGain(vol * (0.10 - i * 0.025));
+      chain(bSrc, bFilt, bG, b); bSrc.start(bt);
+      reg(name, bSrc, bFilt, bG);
     });
-
-    // Signal chain (same as guitar)
-    chain(excSrc, excFilt, delay);
-    chain(delay, loopLPF, inh, fbG);
-    fbG.connect(delay);
-    delay.connect(outG);
-    outG.connect(body.input);
-
-    excSrc.start(bt);
-    excSrc.stop(bt + baseDelay + 0.002);
-
-    const ringTime = Math.min(8.0, Math.log(0.001) / Math.log(Math.max(0.9001, fb)) / freq);
-    const stopAt = bt + droopS + ringTime + 0.1;
-    regT(name, setTimeout(() => {
-      try { delay.disconnect(); loopLPF.disconnect(); inh.disconnect(); fbG.disconnect(); outG.disconnect(); } catch(e){}
-    }, (stopAt - ctx.currentTime) * 1000));
-
-    reg(name, excSrc, excFilt, delay, loopLPF, inh, fbG, outG);
   }
 
   function doGliss() {
@@ -8759,35 +8813,28 @@ function buildHarp(preset, intensity, name) {
     const vol      = vc.volBase + intensity * vc.volInt;
     const nRat     = Math.max(1, CE.currentChord.ratios.length);
     const spacingS = vc.glissSpacingMs / 1000;
-    const octBias  = vc.octBias;
-
     for (let i = 0; i < nTones; i++) {
-      const vIdx  = goUp ? i % nRat : (nTones - 1 - i) % nRat;
-      const octM  = Math.floor(i / nRat) + 1 + octBias;
-      const freq  = CE.chordTone('harp', octM, vIdx);
-      const bt    = ctx.currentTime + i * spacingS;
-      // Lower strings ring longer — decayScale decreases with pitch
-      const decayScale = vc.decayMult * (0.9 + (1 - vIdx / Math.max(1, nRat)) * 0.2);
-      pluckHarpString(bt, freq, decayScale, vol * (1 - i * 0.05));
+      const vIdx = goUp ? i % nRat : (nTones - 1 - i) % nRat;
+      const octM = Math.floor(i / nRat) + 1 + vc.octBias;
+      const freq = CE.chordTone('harp', octM, vIdx);
+      pluckHarpString(ctx.currentTime + i * spacingS, freq, vol * (1 - i * 0.05));
     }
   }
 
   function doChordPluck() {
-    const vol   = (vc.volBase - 0.06) + intensity * vc.volInt;
-    const nRat  = Math.max(1, CE.currentChord.ratios.length);
-    const spreadS = (vc.glissSpacingMs * 0.15) / 1000;
+    const vol  = (vc.volBase - 0.06) + intensity * vc.volInt;
+    const nRat = Math.max(1, CE.currentChord.ratios.length);
     for (let i = 0; i < nRat; i++) {
       const freq = CE.chordTone('harp', 1 + vc.octBias, i);
-      pluckHarpString(ctx.currentTime + i * spreadS, freq, vc.decayMult * 1.1, vol * (0.9 - i * 0.08));
+      pluckHarpString(ctx.currentTime + i * 0.008, freq, vol * (0.9 - i * 0.08));
     }
   }
 
   function doSingleString() {
-    const octChoice = (rng() < 0.5 ? 1 : 2) + vc.octBias;
+    const oct  = (rng() < 0.5 ? 1 : 2) + vc.octBias;
     const vIdx = Math.floor(rng() * Math.max(1, CE.currentChord.ratios.length));
-    const freq = CE.chordTone('harp', octChoice, vIdx);
-    pluckHarpString(ctx.currentTime, freq, vc.decayMult * 1.4,
-      (vc.volBase - 0.10) + intensity * vc.volInt);
+    const freq = CE.chordTone('harp', oct, vIdx);
+    pluckHarpString(ctx.currentTime, freq, (vc.volBase - 0.10) + intensity * vc.volInt);
   }
 
   function schedGesture() {
@@ -8796,7 +8843,6 @@ function buildHarp(preset, intensity, name) {
     if (roll < 0.50)      doGliss();
     else if (roll < 0.75) doChordPluck();
     else                  doSingleString();
-
     const wait = intensity > 0.6
       ? beat * (2 + rng() * 2)
       : beat * (4 + rng() * 4);
