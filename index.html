@@ -8237,26 +8237,29 @@ function buildGuitar(preset, intensity, name) {
   //   droopDecay:  samples over which pitch sag resolves
   //   ringSeconds: hard cap on buffer length
   const VOICE_CFG = {
+    // Nylon: fingerpicked character — warm attack, long resonant bloom
     nylon: {
-      excBW: 0.55, loopLP: 0.72, feedback: 0.9945,
-      inharm: 0.004, droopCents: 14, droopDecay: 800,
-      ringSeconds: 5.0,
-      volBase: 0.52, volInt: 0.20,
-      timingBass: 0.38, timingTreb: 0.26, jitter: 0.10,
-    },
-    steel: {
-      excBW: 0.35, loopLP: 0.58, feedback: 0.9965,
-      inharm: 0.002, droopCents: 7, droopDecay: 400,
-      ringSeconds: 6.0,
-      volBase: 0.54, volInt: 0.22,
-      timingBass: 0.36, timingTreb: 0.24, jitter: 0.08,
-    },
-    fingerpicked: {
-      excBW: 0.68, loopLP: 0.82, feedback: 0.9920,
+      excBW: 0.72, loopLP: 0.88, feedback: 0.9960,
       inharm: 0.006, droopCents: 20, droopDecay: 1200,
-      ringSeconds: 4.0,
+      ringSeconds: 6.0,
+      volBase: 0.50, volInt: 0.18,
+      timingBass: 0.52, timingTreb: 0.36, jitter: 0.16,
+    },
+    // Steel: grand, bright, long piano-like ring with full harmonic wash
+    steel: {
+      excBW: 0.28, loopLP: 0.50, feedback: 0.9975,
+      inharm: 0.001, droopCents: 5, droopDecay: 300,
+      ringSeconds: 8.0,
+      volBase: 0.54, volInt: 0.22,
+      timingBass: 0.36, timingTreb: 0.24, jitter: 0.06,
+    },
+    // Fingerpicked: intimate, slightly muted, warm resonance with gentle bloom
+    fingerpicked: {
+      excBW: 0.62, loopLP: 0.80, feedback: 0.9940,
+      inharm: 0.005, droopCents: 16, droopDecay: 1000,
+      ringSeconds: 5.0,
       volBase: 0.48, volInt: 0.18,
-      timingBass: 0.52, timingTreb: 0.36, jitter: 0.18,
+      timingBass: 0.50, timingTreb: 0.34, jitter: 0.18,
     },
   };
   const vc = VOICE_CFG[voice] || VOICE_CFG.nylon;
