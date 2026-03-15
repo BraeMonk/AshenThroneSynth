@@ -5241,27 +5241,27 @@ function killLayer(name) {
 
 // Absolute gain ceiling per layer
 const MIX_CEILING = {
-  // Ceilings designed so 6-8 simultaneous layers sum to ~0.85,
-  // worst-case climax (14 layers) sums to ~1.55 — compressor handles the rest.
-  // Foundation — always on, so kept low
-  drone:       0.14,  strings:     0.16,  bass:        0.13,
+  // Ceilings scaled so normal mix is full and present,
+  // limiter catches any worst-case summation peaks.
+  // Foundation
+  drone:       0.35,  strings:     0.40,  bass:        0.32,
   // Harmonic inner voice
-  viola:       0.08,
+  viola:       0.20,
   // Melodic lead
-  melody:      0.13,  choir:       0.12,  horn:        0.10,
-  cello:       0.10,  duduk:       0.09,
+  melody:      0.32,  choir:       0.30,  horn:        0.25,
+  cello:       0.25,  duduk:       0.22,
   // Melodic colour
-  lute:        0.07,  bells:       0.08,  guitar:      0.07,
-  flute:       0.09,  harp:        0.08,  oud:         0.07,
-  organ:       0.09,
+  lute:        0.18,  bells:       0.20,  guitar:      0.18,
+  flute:       0.22,  harp:        0.20,  oud:         0.18,
+  organ:       0.22,
   // Rhythmic
-  perc:        0.14,  wardrums:    0.12,  march:       0.11,
-  stomp:       0.10,  taiko:       0.11,  chains:      0.07,
+  perc:        0.35,  wardrums:    0.30,  march:       0.28,
+  stomp:       0.25,  taiko:       0.28,  chains:      0.18,
   // Pulse
-  heartbeat:   0.09,  ritualchant: 0.09,  boss:        0.12,
+  heartbeat:   0.22,  ritualchant: 0.22,  boss:        0.30,
   // Texture
-  wind:        0.06,  riser:       0.07,  firecrackle: 0.05,
-  whispers:    0.05,  glitch:      0.06,  chaos:       0.07,
+  wind:        0.15,  riser:       0.18,  firecrackle: 0.12,
+  whispers:    0.12,  glitch:      0.15,  chaos:       0.18,
 };
 
 // Role membership — 7 roles
