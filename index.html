@@ -17184,6 +17184,146 @@ const SKINS = {
 
 let _activeSkin = 'ashen';
 
+// ── SKIN AUDIO PROFILES ───────────────────────────────────────────────────────
+// Each skin has a distinct master-bus character that fires when the skin is
+// selected. Values blend in over ~3s so the shift is felt, not snapped.
+// These set: reverb size, reverb wet, saturation, high-shelf EQ, delay time+fb.
+//
+// ashen    — vast stone hall. Long tail, dark, moderate grit. The dungeon.
+// neon     — wet city glass. Tight punchy reverb, bright, saturated, slapback.
+// sakura   — open air valley. Medium bloom, clean, airy high shelf, no delay.
+// broadcast— controlled studio. Near-dry, flat EQ, zero saturation, clean echo.
+// void     — infinite corrupted space. Maximum tail, dark, glitchy delay.
+
+const SKIN_AUDIO = {
+  ashen: {
+    reverbSize: 0.65,   // large stone hall
+    reverbWet:  0.72,
+    satBase:    0.18,   // moderate grit — iron and rust
+    moodFilterFreq: 9000,
+    highShelfGain:  -4, // dark, absorptive stone
+    delayTime:  0.0,
+    delayFb:    0.0,
+  },
+  neon: {
+    reverbSize: 0.22,   // tight — glass and concrete, not open air
+    reverbWet:  0.32,
+    satBase:    0.34,   // heavy saturation — neon sign buzz, overdriven grid
+    moodFilterFreq: 13000,
+    highShelfGain:  5,  // bright, harsh, city edge
+    delayTime:  0.11,   // short slapback — wet pavement echo
+    delayFb:    0.22,
+  },
+  sakura: {
+    reverbSize: 0.55,   // medium bloom — mountain valley, open sky
+    reverbWet:  0.58,
+    satBase:    0.04,   // near-clean — nothing harsh here
+    moodFilterFreq: 11000,
+    highShelfGain:  2,  // gentle air, soft shimmer
+    delayTime:  0.0,
+    delayFb:    0.0,
+  },
+  broadcast: {
+    reverbSize: 0.14,   // near-dry — controlled studio, no room bleed
+    reverbWet:  0.20,
+    satBase:    0.06,   // clean signal — broadcast standard
+    moodFilterFreq: 16000,
+    highShelfGain:  1,  // flat, accurate, professional
+    delayTime:  0.06,   // tight studio slap — monitoring echo
+    delayFb:    0.12,
+  },
+  void: {
+    reverbSize: 0.82,   // maximum — infinite corrupted space
+    reverbWet:  0.88,
+    satBase:    0.22,   // medium grit — digital clipping, not warmth
+    moodFilterFreq: 7500,
+    highShelfGain:  -7, // muffled — signal degradation, data loss
+    delayTime:  0.33,   // long glitchy echo — system feedback loop
+    delayFb:    0.45,
+  },
+};
+
+function applySkinAudio(id) {
+  const sa = SKIN_AUDIO[id] || SKIN_AUDIO.ashen;
+  const ramp = 3.0; // seconds — felt as a shift, not a snap
+
+  // ── Reverb size ──────────────────────────────────────────────────
+  if (Math.abs(sa.reverbSize - _reverbSize) > 0.04 && ctx && reverbNode) {
+    _reverbSize = sa.reverbSize;
+    // Rebuild IR after short delay so ramp has started
+    setTimeout(() => {
+      if (reverbNode) reverbNode.buffer = buildIR(_reverbSize);
+    }, 400);
+    const sizeEl = document.getElementById('reverbSize');
+    if (sizeEl) {
+      const pct = Math.round(_reverbSize * 100);
+      sizeEl.value = pct;
+      sizeEl.style.setProperty('--pct', pct + '%');
+      document.getElementById('reverbSizeVal').textContent = pct + '%';
+    }
+  }
+
+  // ── Reverb wet ───────────────────────────────────────────────────
+  if (ctx && reverbWetGain) {
+    _reverbMix = sa.reverbWet;
+    reverbWetGain.gain.setTargetAtTime(sa.reverbWet, ctx.currentTime, ramp);
+    reverbDryGain.gain.setTargetAtTime(1.0 - sa.reverbWet, ctx.currentTime, ramp);
+    const mixEl = document.getElementById('reverbMix');
+    if (mixEl) {
+      const pct = Math.round(sa.reverbWet * 100);
+      mixEl.value = pct;
+      mixEl.style.setProperty('--pct', pct + '%');
+      document.getElementById('reverbMixVal').textContent = pct + '%';
+    }
+  }
+
+  // ── Saturation ───────────────────────────────────────────────────
+  if (saturationNode && ctx) {
+    _saturation = sa.satBase;
+    setTimeout(() => {
+      if (saturationNode) saturationNode.curve = makeSatCurve(_saturation);
+    }, 200);
+    const satEl = document.getElementById('saturation');
+    if (satEl) {
+      const pct = Math.round(_saturation * 100);
+      satEl.value = pct;
+      satEl.style.setProperty('--pct', pct + '%');
+      document.getElementById('saturationVal').textContent = pct + '%';
+    }
+  }
+
+  // ── Master EQ ────────────────────────────────────────────────────
+  if (moodFilter && ctx) {
+    moodFilter.frequency.setTargetAtTime(sa.moodFilterFreq, ctx.currentTime, ramp);
+  }
+  if (masterHighShelf && ctx) {
+    masterHighShelf.gain.setTargetAtTime(sa.highShelfGain, ctx.currentTime, ramp);
+  }
+
+  // ── Delay ────────────────────────────────────────────────────────
+  if (ctx && delayNode && delayFbGain && delayWetGain) {
+    _delayTime = sa.delayTime;
+    _delayFb   = sa.delayFb;
+    delayNode.delayTime.setTargetAtTime(sa.delayTime, ctx.currentTime, ramp * 0.5);
+    delayFbGain.gain.setTargetAtTime(sa.delayFb, ctx.currentTime, ramp * 0.5);
+    delayWetGain.gain.setTargetAtTime(sa.delayTime > 0 ? 0.35 : 0, ctx.currentTime, ramp * 0.5);
+    const dtEl = document.getElementById('delayTime');
+    if (dtEl) {
+      const pct = Math.round((sa.delayTime / 1.2) * 100);
+      dtEl.value = pct;
+      dtEl.style.setProperty('--pct', pct + '%');
+      document.getElementById('delayTimeVal').textContent = sa.delayTime.toFixed(2) + 's';
+    }
+    const dfEl = document.getElementById('delayFeedback');
+    if (dfEl) {
+      const pct = Math.round(sa.delayFb * 100);
+      dfEl.value = pct;
+      dfEl.style.setProperty('--pct', pct + '%');
+      document.getElementById('delayFeedbackVal').textContent = pct + '%';
+    }
+  }
+}
+
 function applySkin(id, save) {
   const skin = SKINS[id] || SKINS.ashen;
   _activeSkin = id;
@@ -17234,6 +17374,9 @@ function applySkin(id, save) {
 
   // Refresh zone display — zone names/colors change with skin
   updateFloorUI();
+
+  // Apply skin-specific master bus character (reverb, saturation, EQ, delay)
+  applySkinAudio(id);
 }
 
 function buildSkinBar() {
