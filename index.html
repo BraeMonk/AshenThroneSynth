@@ -10,28 +10,32 @@
 <link rel="icon" sizes="192x192" href="icon.png">
 <link rel="icon" sizes="512x512" href="icon.png">
 <title>Ashen Throne — Music Forge</title>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Noto+Serif+JP:wght@400;700&family=Sawarabi+Mincho&family=Inter:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <style>
 /* ═══════════════════════════════════════════════════════════════
-   ASHEN THRONE — MUSIC FORGE
-   Aesthetic: Obsidian temple ruins · Ember-lit stone · Ancient runes
-   Carved deep, illuminated by dying firelight
+   MUSIC FORGE — SKIN SYSTEM
+   Each skin overrides the same set of CSS custom properties.
+   JS applies a data-skin attribute to <html> which triggers the
+   matching [data-skin="…"] block below.
+   Default (no attribute) = ashen — backwards compatible.
 ═══════════════════════════════════════════════════════════════ */
-:root {
-  --void:        #020205;
-  --stone:       #080810;
-  --stone-mid:   #0d0d18;
-  --stone-hi:    #141420;
+
+/* ── SKIN: ASHEN THRONE (default) ────────────────────────────
+   Obsidian temple ruins · Ember-lit stone · Ancient runes     */
+:root, [data-skin="ashen"] {
+  --bg-deep:     #020205;
+  --bg-mid:      #080810;
+  --bg-panel:    linear-gradient(158deg,#0e0e1c 0%,#080810 55%,#0b0b15 100%);
   --seam:        #1a1a2c;
   --seam-hi:     #252538;
-  --gold:        #c8921a;
-  --gold-hi:     #e8b040;
-  --gold-lo:     #6e4e10;
-  --gold-glow:   rgba(200,146,26,0.22);
-  --ember:       #aa3418;
-  --ember-hi:    #d04820;
-  --ember-lo:    #5a1c0a;
-  --ember-glow:  rgba(170,52,24,0.18);
+  --accent:      #c8921a;
+  --accent-hi:   #e8b040;
+  --accent-lo:   #6e4e10;
+  --accent-glow: rgba(200,146,26,0.22);
+  --hot:         #aa3418;
+  --hot-hi:      #d04820;
+  --hot-lo:      #5a1c0a;
+  --hot-glow:    rgba(170,52,24,0.18);
   --violet:      #28104a;
   --violet-hi:   #502090;
   --rune:        #2e4e7e;
@@ -40,8 +44,269 @@
   --text:        #c4ba98;
   --text-mid:    #7e7458;
   --text-lo:     #48402e;
+  --danger:      #8a1818;
+  --danger-hi:   #c02828;
+  /* keep legacy names alive so existing code references don't break */
+  --void:        #020205;
+  --stone:       #080810;
+  --stone-mid:   #0d0d18;
+  --stone-hi:    #141420;
+  --gold:        #c8921a;
+  --gold-hi:     #e8b040;
+  --gold-lo:     #6e4e10;
+  --gold-glow:   rgba(200,146,26,0.22);
+  --ember:       #aa3418;
+  --ember-hi:    #d04820;
+  --ember-lo:    #5a1c0a;
+  --ember-glow:  rgba(170,52,24,0.18);
   --blood:       #8a1818;
   --blood-hi:    #c02828;
+  /* typography */
+  --font-display:var(--font-display);
+  --font-ui:     var(--font-ui);
+  --font-body:   var(--font-body);
+  /* atmosphere */
+  --atmo-a: rgba(170,52,24,0.12);
+  --atmo-b: rgba(40,16,74,0.16);
+  --atmo-c: rgba(20,10,16,0.20);
+  --atmo-d: rgba(8,6,18,0.28);
+  --atmo-a-pos: 50% 105%;
+  --atmo-b-pos: 5% 50%;
+  --atmo-c-pos: 95% 25%;
+  --atmo-d-pos: 50% 0%;
+  /* skin accent for play button active */
+  --play-active-border: var(--hot);
+  --play-active-color:  #d84828;
+  --play-active-bg:     linear-gradient(140deg,#140400 0%,#0a0200 100%);
+}
+
+/* ── SKIN: NEON NOIR ──────────────────────────────────────────
+   Deep navy + electric cyan + hot pink
+   Use for: synthwave, cyberpunk, lo-fi YouTube, nightlife      */
+[data-skin="neon"] {
+  --bg-deep:     #03020e;
+  --bg-mid:      #07061a;
+  --bg-panel:    linear-gradient(158deg,#0c0a22 0%,#07061a 55%,#0a0820 100%);
+  --seam:        #1a1640;
+  --seam-hi:     #2a2460;
+  --accent:      #00e5ff;
+  --accent-hi:   #80f0ff;
+  --accent-lo:   #006688;
+  --accent-glow: rgba(0,229,255,0.22);
+  --hot:         #ff2d78;
+  --hot-hi:      #ff6ea0;
+  --hot-lo:      #880033;
+  --hot-glow:    rgba(255,45,120,0.20);
+  --violet:      #1a0a3a;
+  --violet-hi:   #7040d0;
+  --rune:        #00a0c0;
+  --rune-hi:     #40d0f0;
+  --teal:        #005060;
+  --text:        #c8d8f0;
+  --text-mid:    #6878a8;
+  --text-lo:     #303858;
+  --danger:      #cc1144;
+  --danger-hi:   #ff2266;
+  /* legacy aliases */
+  --void:        #03020e;
+  --stone:       #07061a;
+  --stone-mid:   #0c0a22;
+  --stone-hi:    #12103a;
+  --gold:        #00e5ff;
+  --gold-hi:     #80f0ff;
+  --gold-lo:     #006688;
+  --gold-glow:   rgba(0,229,255,0.22);
+  --ember:       #ff2d78;
+  --ember-hi:    #ff6ea0;
+  --ember-lo:    #880033;
+  --ember-glow:  rgba(255,45,120,0.20);
+  --blood:       #cc1144;
+  --blood-hi:    #ff2266;
+  --font-display:'Orbitron', sans-serif;
+  --font-ui:     'Orbitron', sans-serif;
+  --font-body:   'Share Tech Mono', monospace;
+  --atmo-a: rgba(255,45,120,0.10);
+  --atmo-b: rgba(0,100,180,0.14);
+  --atmo-c: rgba(80,10,120,0.18);
+  --atmo-d: rgba(3,2,14,0.30);
+  --atmo-a-pos: 50% 110%;
+  --atmo-b-pos: 8% 50%;
+  --atmo-c-pos: 92% 20%;
+  --atmo-d-pos: 50% 0%;
+  --play-active-border: #ff2d78;
+  --play-active-color:  #ff6ea0;
+  --play-active-bg:     linear-gradient(140deg,#1a0010 0%,#0a0008 100%);
+}
+
+/* ── SKIN: SAKURA ─────────────────────────────────────────────
+   Ink black + cherry blossom pink + soft ivory
+   Use for: anime, emotional indie games, shorts, J-drama       */
+[data-skin="sakura"] {
+  --bg-deep:     #05030a;
+  --bg-mid:      #0e0810;
+  --bg-panel:    linear-gradient(158deg,#150d18 0%,#0e0810 55%,#120a14 100%);
+  --seam:        #2a1a28;
+  --seam-hi:     #3e2838;
+  --accent:      #e87898;
+  --accent-hi:   #f8b0c8;
+  --accent-lo:   #7a3048;
+  --accent-glow: rgba(232,120,152,0.22);
+  --hot:         #c84878;
+  --hot-hi:      #e878a8;
+  --hot-lo:      #601030;
+  --hot-glow:    rgba(200,72,120,0.20);
+  --violet:      #1e0828;
+  --violet-hi:   #8848a8;
+  --rune:        #9060a8;
+  --rune-hi:     #c090d8;
+  --teal:        #304858;
+  --text:        #f0e8e8;
+  --text-mid:    #a08090;
+  --text-lo:     #504050;
+  --danger:      #a01840;
+  --danger-hi:   #e03060;
+  --void:        #05030a;
+  --stone:       #0e0810;
+  --stone-mid:   #150d18;
+  --stone-hi:    #1e1020;
+  --gold:        #e87898;
+  --gold-hi:     #f8b0c8;
+  --gold-lo:     #7a3048;
+  --gold-glow:   rgba(232,120,152,0.22);
+  --ember:       #c84878;
+  --ember-hi:    #e878a8;
+  --ember-lo:    #601030;
+  --ember-glow:  rgba(200,72,120,0.20);
+  --blood:       #a01840;
+  --blood-hi:    #e03060;
+  --font-display:'Noto Serif JP', serif;
+  --font-ui:     'Sawarabi Mincho', serif;
+  --font-body:   'Noto Serif JP', serif;
+  --atmo-a: rgba(200,72,120,0.10);
+  --atmo-b: rgba(80,20,80,0.14);
+  --atmo-c: rgba(20,8,24,0.22);
+  --atmo-d: rgba(5,3,10,0.32);
+  --atmo-a-pos: 50% 108%;
+  --atmo-b-pos: 6% 48%;
+  --atmo-c-pos: 94% 22%;
+  --atmo-d-pos: 50% 0%;
+  --play-active-border: #c84878;
+  --play-active-color:  #e878a8;
+  --play-active-bg:     linear-gradient(140deg,#14040c 0%,#080208 100%);
+}
+
+/* ── SKIN: BROADCAST ──────────────────────────────────────────
+   Clean charcoal + professional white + amber
+   Use for: YouTube vlogs, podcast intros, documentary, pro AV  */
+[data-skin="broadcast"] {
+  --bg-deep:     #0a0a0c;
+  --bg-mid:      #121216;
+  --bg-panel:    linear-gradient(158deg,#1a1a20 0%,#121216 55%,#161618 100%);
+  --seam:        #282830;
+  --seam-hi:     #383840;
+  --accent:      #e8a020;
+  --accent-hi:   #f8c050;
+  --accent-lo:   #705010;
+  --accent-glow: rgba(232,160,32,0.18);
+  --hot:         #e05020;
+  --hot-hi:      #f07840;
+  --hot-lo:      #602010;
+  --hot-glow:    rgba(224,80,32,0.16);
+  --violet:      #181824;
+  --violet-hi:   #4848a8;
+  --rune:        #3060a0;
+  --rune-hi:     #5090d0;
+  --teal:        #184848;
+  --text:        #e8e8ec;
+  --text-mid:    #888898;
+  --text-lo:     #444450;
+  --danger:      #c02020;
+  --danger-hi:   #e83030;
+  --void:        #0a0a0c;
+  --stone:       #121216;
+  --stone-mid:   #1a1a20;
+  --stone-hi:    #202028;
+  --gold:        #e8a020;
+  --gold-hi:     #f8c050;
+  --gold-lo:     #705010;
+  --gold-glow:   rgba(232,160,32,0.18);
+  --ember:       #e05020;
+  --ember-hi:    #f07840;
+  --ember-lo:    #602010;
+  --ember-glow:  rgba(224,80,32,0.16);
+  --blood:       #c02020;
+  --blood-hi:    #e83030;
+  --font-display:'Inter', sans-serif;
+  --font-ui:     'Inter', sans-serif;
+  --font-body:   'Inter', sans-serif;
+  --atmo-a: rgba(224,80,32,0.08);
+  --atmo-b: rgba(30,30,60,0.12);
+  --atmo-c: rgba(10,10,16,0.18);
+  --atmo-d: rgba(10,10,12,0.24);
+  --atmo-a-pos: 50% 105%;
+  --atmo-b-pos: 5% 50%;
+  --atmo-c-pos: 95% 25%;
+  --atmo-d-pos: 50% 0%;
+  --play-active-border: #e05020;
+  --play-active-color:  #f07840;
+  --play-active-bg:     linear-gradient(140deg,#160800 0%,#0c0400 100%);
+}
+
+/* ── SKIN: VOID SIGNAL ────────────────────────────────────────
+   Pure black + acid green terminal + monospace
+   Use for: indie horror, glitch art, experimental, ARG, sci-fi */
+[data-skin="void"] {
+  --bg-deep:     #000000;
+  --bg-mid:      #030603;
+  --bg-panel:    linear-gradient(158deg,#050a05 0%,#030603 55%,#040804 100%);
+  --seam:        #0a1a0a;
+  --seam-hi:     #102a10;
+  --accent:      #00ff41;
+  --accent-hi:   #80ff90;
+  --accent-lo:   #005010;
+  --accent-glow: rgba(0,255,65,0.18);
+  --hot:         #ff4400;
+  --hot-hi:      #ff7040;
+  --hot-lo:      #881800;
+  --hot-glow:    rgba(255,68,0,0.16);
+  --violet:      #000800;
+  --violet-hi:   #00a020;
+  --rune:        #004400;
+  --rune-hi:     #008800;
+  --teal:        #003010;
+  --text:        #80ff90;
+  --text-mid:    #306030;
+  --text-lo:     #183018;
+  --danger:      #cc2200;
+  --danger-hi:   #ff3300;
+  --void:        #000000;
+  --stone:       #030603;
+  --stone-mid:   #050a05;
+  --stone-hi:    #081008;
+  --gold:        #00ff41;
+  --gold-hi:     #80ff90;
+  --gold-lo:     #005010;
+  --gold-glow:   rgba(0,255,65,0.18);
+  --ember:       #ff4400;
+  --ember-hi:    #ff7040;
+  --ember-lo:    #881800;
+  --ember-glow:  rgba(255,68,0,0.16);
+  --blood:       #cc2200;
+  --blood-hi:    #ff3300;
+  --font-display:'Space Mono', monospace;
+  --font-ui:     'Space Mono', monospace;
+  --font-body:   'Share Tech Mono', monospace;
+  --atmo-a: rgba(0,255,65,0.05);
+  --atmo-b: rgba(0,60,0,0.12);
+  --atmo-c: rgba(0,20,0,0.15);
+  --atmo-d: rgba(0,0,0,0.40);
+  --atmo-a-pos: 50% 105%;
+  --atmo-b-pos: 5% 50%;
+  --atmo-c-pos: 95% 25%;
+  --atmo-d-pos: 50% 0%;
+  --play-active-border: #ff4400;
+  --play-active-color:  #ff7040;
+  --play-active-bg:     linear-gradient(140deg,#100200 0%,#060100 100%);
 }
 
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
@@ -63,23 +328,23 @@
 
 /* ── BODY ─────────────────────────────────────────────────── */
 body {
-  background: var(--void);
+  background: var(--bg-deep);
   color: var(--text);
-  font-family: 'IM Fell English', serif;
+  font-family: var(--font-body);
   min-height: 100vh;
   overflow-x: hidden;
   position: relative;
 }
 
-/* Atmospheric depth — violet cold up top, ember warmth at base */
+/* Atmospheric depth — driven by skin vars */
 body::before {
   content: '';
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(ellipse 90% 40% at 50% 105%, rgba(170,52,24,0.12) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 5%  50%,  rgba(40,16,74, 0.16) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 35% at 95% 25%,  rgba(20,10,16, 0.20) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 55% at 50% 0%,  rgba(8,6,18,  0.28) 0%, transparent 65%);
+    radial-gradient(ellipse 90% 40% at var(--atmo-a-pos), var(--atmo-a) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at var(--atmo-b-pos), var(--atmo-b) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 35% at var(--atmo-c-pos), var(--atmo-c) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 55% at var(--atmo-d-pos), var(--atmo-d) 0%, transparent 65%);
 }
 
 /* Stone grain */
@@ -102,7 +367,7 @@ body::after {
   margin-bottom: clamp(24px,5vw,52px);
 }
 .crown {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-ui);
   font-size: clamp(9.0px,1.6vw,10px);
   letter-spacing: 0.5em; text-transform: uppercase;
   color: var(--gold-lo); margin-bottom: 12px;
@@ -115,15 +380,15 @@ body::after {
 .crown::after { transform: scaleX(-1); }
 
 h1 {
-  font-family: 'Cinzel Decorative', serif;
+  font-family: var(--font-display);
   font-size: clamp(22px,7vw,56px); font-weight: 900;
   color: var(--gold);
-  text-shadow: 0 0 28px rgba(200,146,26,.6), 0 0 72px rgba(200,146,26,.16), 0 2px 0 #000;
+  text-shadow: 0 0 28px var(--accent-glow), 0 0 72px var(--accent-glow), 0 2px 0 #000;
   line-height: 1.05; letter-spacing: .04em;
 }
 h1 span {
   display: block;
-  font-family: 'Cinzel', serif; font-weight: 400;
+  font-family: var(--font-ui); font-weight: 400;
   font-size: clamp(10.0px,1.8vw,12px);
   color: var(--text-lo);
   letter-spacing: .4em; margin-top: 10px;
@@ -150,7 +415,7 @@ h1 span {
 
 /* ── PANEL ────────────────────────────────────────────────── */
 .panel {
-  background: linear-gradient(158deg, #0e0e1c 0%, #080810 55%, #0b0b15 100%);
+  background: var(--bg-panel);
   border: 1px solid var(--seam);
   margin-bottom: 12px; position: relative;
   padding: clamp(14px,3vw,26px);
@@ -177,7 +442,7 @@ h1 span {
 }
 
 .panel-title {
-  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.4vw,9px);
+  font-family: var(--font-ui); font-size: clamp(9.0px,1.4vw,9px);
   letter-spacing: .35em; text-transform: uppercase;
   color: var(--gold-lo); margin-bottom: 16px;
   display: flex; align-items: center; gap: 9px;
@@ -195,18 +460,18 @@ h1 span {
   justify-content: space-between; margin-bottom: 14px; gap: 10px;
 }
 .floor-label .name {
-  font-family: 'Cinzel', serif; font-size: clamp(10.0px,1.6vw,10px);
+  font-family: var(--font-ui); font-size: clamp(10.0px,1.6vw,10px);
   color: var(--text-lo); letter-spacing: .28em; text-transform: uppercase;
 }
 .floor-label .value {
-  font-family: 'Cinzel Decorative', serif;
+  font-family: var(--font-display);
   font-size: clamp(30px,6.5vw,48px); font-weight: 700;
   color: var(--gold); line-height: 1; flex-shrink: 0;
   text-shadow: 0 0 22px rgba(200,146,26,.65), 0 0 60px rgba(200,146,26,.18);
   transition: text-shadow .4s;
 }
 .floor-label .zone-name {
-  font-family: 'IM Fell English', serif; font-style: italic;
+  font-family: var(--font-body); font-style: italic;
   font-size: clamp(11px,2.4vw,15px); color: var(--text-mid);
   text-align: right; transition: opacity .2s;
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -280,7 +545,7 @@ input[type=range].mood-slider::-webkit-slider-thumb {
 .play-btn {
   width: 100%;
   padding: clamp(13px,2.8vw,18px) clamp(18px,4vw,32px);
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-ui);
   font-size: clamp(10px,2vw,13px); font-weight: 700;
   letter-spacing: .28em; text-transform: uppercase;
   border: 1px solid var(--gold-lo);
@@ -299,9 +564,9 @@ input[type=range].mood-slider::-webkit-slider-thumb {
 .play-btn:hover::before { transform: translateX(110%); }
 .play-btn:hover { border-color: var(--gold); color: var(--gold-hi); box-shadow: 0 0 26px rgba(200,146,26,.2); }
 .play-btn.playing {
-  border-color: var(--ember);
-  color: #d84828;
-  background: linear-gradient(140deg, #140400 0%, #0a0200 100%);
+  border-color: var(--play-active-border);
+  color: var(--play-active-color);
+  background: var(--play-active-bg);
   animation: playPulse 2.6s ease-in-out infinite;
 }
 
@@ -312,7 +577,7 @@ input[type=range].mood-slider::-webkit-slider-thumb {
   display: flex; gap: 3px; z-index: 10;
 }
 .viz-mode-btn, .viz-cinematic-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(8.0px,1.2vw,8px); letter-spacing: .12em;
+  font-family: var(--font-ui); font-size: clamp(8.0px,1.2vw,8px); letter-spacing: .12em;
   text-transform: uppercase; padding: 4px 7px;
   border: 1px solid var(--seam);
   background: rgba(2,2,5,.88); color: var(--text-lo);
@@ -329,7 +594,7 @@ canvas {
 /* ── STATUS ───────────────────────────────────────────────── */
 .status {
   text-align: center;
-  font-family: 'IM Fell English', serif; font-style: italic;
+  font-family: var(--font-body); font-style: italic;
   font-size: clamp(10px,2vw,12px); color: var(--text-lo);
   margin-top: 8px; min-height: 18px; transition: color .4s;
 }
@@ -344,7 +609,7 @@ canvas {
 }
 .layer-pill {
   font-size: clamp(8.0px,1.2vw,8px); letter-spacing: .16em;
-  font-family: 'Cinzel', serif; text-transform: uppercase;
+  font-family: var(--font-ui); text-transform: uppercase;
   padding: 2px 6px;
   border: 1px solid transparent; color: var(--text-lo);
   transition: all .4s;
@@ -376,7 +641,7 @@ canvas {
   position: relative; z-index: 1;
 }
 .tab-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.4vw,9px);
+  font-family: var(--font-ui); font-size: clamp(9.0px,1.4vw,9px);
   letter-spacing: .2em; text-transform: uppercase;
   padding: 10px clamp(9.0px,2vw,15px);
   border: 1px solid transparent; border-bottom: none;
@@ -405,7 +670,7 @@ canvas {
   border: 1px solid var(--seam); overflow: hidden; flex-wrap: wrap;
 }
 .phrase-pill {
-  font-family: 'Cinzel', serif; font-size: clamp(7px,1.1vw,9px);
+  font-family: var(--font-ui); font-size: clamp(7px,1.1vw,9px);
   letter-spacing: .08em; text-transform: uppercase;
   padding: 7px 4px; flex: 1;
   border-right: 1px solid var(--seam);
@@ -428,7 +693,7 @@ canvas {
   gap: 3px; margin-bottom: 4px;
 }
 .layer-toggle {
-  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.4vw,8.5px);
+  font-family: var(--font-ui); font-size: clamp(9.0px,1.4vw,8.5px);
   letter-spacing: .1em; text-transform: uppercase;
   padding: 9px 9px; border: 1px solid var(--seam);
   background: rgba(8,8,16,.75); color: var(--text-lo);
@@ -458,7 +723,7 @@ canvas {
 .layer-toggle.boss-btn.active::before { background: var(--ember); }
 
 .layer-cat {
-  font-family: 'Cinzel', serif; font-size: clamp(8.5px,1.2vw,8px);
+  font-family: var(--font-ui); font-size: clamp(8.5px,1.2vw,8px);
   letter-spacing: .4em; text-transform: uppercase;
   color: var(--text-lo); opacity: .42;
   margin: 14px 0 4px;
@@ -479,15 +744,15 @@ canvas {
 .fx-item { display: flex; flex-direction: column; gap: 8px; }
 .fx-label-row { display: flex; justify-content: space-between; align-items: baseline; }
 .fx-label {
-  font-family: 'Cinzel', serif; font-size: clamp(9.5px,1.4vw,9px);
+  font-family: var(--font-ui); font-size: clamp(9.5px,1.4vw,9px);
   letter-spacing: .25em; text-transform: uppercase; color: var(--text-lo);
 }
 .fx-value {
-  font-family: 'Cinzel Decorative', serif; font-size: clamp(11px,2.2vw,14px);
+  font-family: var(--font-display); font-size: clamp(11px,2.2vw,14px);
   color: var(--gold); text-shadow: 0 0 9px rgba(200,146,26,.4);
 }
 .fx-desc {
-  font-family: 'IM Fell English', serif; font-style: italic;
+  font-family: var(--font-body); font-style: italic;
   font-size: clamp(11.0px,1.8vw,11px); color: var(--text-lo); margin-top: -2px;
 }
 
@@ -498,7 +763,7 @@ canvas {
   gap: 4px; margin-bottom: 10px;
 }
 .scale-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.4vw,8.5px);
+  font-family: var(--font-ui); font-size: clamp(9.0px,1.4vw,8.5px);
   letter-spacing: .1em; text-transform: uppercase;
   padding: 9px 9px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo);
@@ -506,7 +771,7 @@ canvas {
   touch-action: manipulation;
 }
 .scale-btn .scale-name { display: block; color: var(--text-mid); font-size: clamp(9.5px,1.5vw,9.5px); margin-bottom: 2px; }
-.scale-btn .scale-feel { display: block; font-size: clamp(9.0px,1.3vw,8px); color: var(--text-lo); font-style: italic; font-family: 'IM Fell English', serif; text-transform: none; letter-spacing: .02em; }
+.scale-btn .scale-feel { display: block; font-size: clamp(9.0px,1.3vw,8px); color: var(--text-lo); font-style: italic; font-family: var(--font-body); text-transform: none; letter-spacing: .02em; }
 .scale-btn:hover { border-color: var(--gold-lo); }
 .scale-btn.active { border-color: var(--gold); background: rgba(200,146,26,.05); }
 .scale-btn.active .scale-name { color: var(--gold); }
@@ -520,7 +785,7 @@ canvas {
 .record-section { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .record-btn {
   flex: 1; min-width: 110px; padding: 10px;
-  font-family: 'Cinzel', serif; font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .16em;
+  font-family: var(--font-ui); font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .16em;
   text-transform: uppercase; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo);
   cursor: pointer; transition: all .2s; touch-action: manipulation; min-height: 40px;
@@ -534,13 +799,13 @@ canvas {
 /* ── SEED ROW ─────────────────────────────────────────────── */
 .seed-row { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
 .seed-input {
-  font-family: 'Cinzel', serif; font-size: 16px; letter-spacing: .1em;
+  font-family: var(--font-ui); font-size: 16px; letter-spacing: .1em;
   padding: 8px 11px; border: 1px solid var(--seam);
   background: rgba(2,2,5,.8); color: var(--text); flex: 1; min-width: 90px; outline: none;
 }
 .seed-input:focus { border-color: var(--gold-lo); }
 .seed-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(9.5px,1.4vw,9px); letter-spacing: .14em;
+  font-family: var(--font-ui); font-size: clamp(9.5px,1.4vw,9px); letter-spacing: .14em;
   text-transform: uppercase; padding: 8px 12px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo); cursor: pointer;
   transition: all .18s; touch-action: manipulation; white-space: nowrap; min-height: 36px;
@@ -554,25 +819,25 @@ canvas {
   gap: 4px; margin-bottom: 14px;
 }
 .preset-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.3vw,8.5px); letter-spacing: .09em;
+  font-family: var(--font-ui); font-size: clamp(9.0px,1.3vw,8.5px); letter-spacing: .09em;
   text-transform: uppercase; padding: 9px 10px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo);
   cursor: pointer; transition: all .18s; text-align: left; touch-action: manipulation;
 }
 .preset-btn:hover { border-color: var(--gold-lo); color: var(--text-mid); }
 .preset-btn .preset-name { display: block; color: var(--text-mid); font-size: clamp(9.5px,1.5vw,9px); margin-bottom: 2px; }
-.preset-btn .preset-feel { display: block; font-size: clamp(8.5px,1.2vw,8px); color: var(--text-lo); font-style: italic; font-family: 'IM Fell English', serif; text-transform: none; }
+.preset-btn .preset-feel { display: block; font-size: clamp(8.5px,1.2vw,8px); color: var(--text-lo); font-style: italic; font-family: var(--font-body); text-transform: none; }
 
 /* ── OST ──────────────────────────────────────────────────── */
 .song-gen-bar { height: 2px; background: var(--seam); flex: 1; min-width: 60px; overflow: hidden; }
 .song-gen-fill { height: 100%; background: linear-gradient(90deg, var(--ember), var(--gold)); width: 0%; transition: width 1s ease; }
 .ost-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-.ost-step-label { font-family: 'Cinzel', serif; font-size: clamp(11.0px,1.8vw,11px); color: var(--text); letter-spacing: .04em; }
+.ost-step-label { font-family: var(--font-ui); font-size: clamp(11.0px,1.8vw,11px); color: var(--text); letter-spacing: .04em; }
 .ost-time { font-size: clamp(10.5px,1.6vw,10px); color: var(--text-lo); font-style: italic; margin-left: auto; }
 
 /* ── TIMELINE OUTPUT ──────────────────────────────────────── */
 .timeline-output {
-  font-family: 'IM Fell English', serif; font-size: clamp(10px,1.8vw,12px); font-style: italic;
+  font-family: var(--font-body); font-size: clamp(10px,1.8vw,12px); font-style: italic;
   background: rgba(2,2,5,.85); border: 1px solid var(--seam);
   padding: 12px; color: var(--text-lo); min-height: 56px;
   white-space: pre-line; line-height: 1.8; overflow-x: auto;
@@ -581,7 +846,7 @@ canvas {
 
 /* ── DEBUG ────────────────────────────────────────────────── */
 .debug-toggle {
-  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.3vw,9px); letter-spacing: .2em;
+  font-family: var(--font-ui); font-size: clamp(9.0px,1.3vw,9px); letter-spacing: .2em;
   text-transform: uppercase; padding: 7px 12px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo); cursor: pointer;
   transition: all .18s; margin-bottom: 10px; display: block; touch-action: manipulation;
@@ -590,7 +855,7 @@ canvas {
 .debug-body { display: none; }
 .debug-body.open { display: block; }
 .debug-panel {
-  font-family: 'Cinzel', serif; font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .08em;
+  font-family: var(--font-ui); font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .08em;
   background: rgba(2,2,5,.85); border: 1px solid var(--seam);
   padding: 12px; display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 9px;
@@ -598,12 +863,12 @@ canvas {
 .debug-item { display: flex; flex-direction: column; gap: 2px; }
 .debug-label { color: var(--text-lo); font-size: clamp(8.5px,1.1vw,8px); letter-spacing: .2em; text-transform: uppercase; }
 .debug-value { color: var(--gold); font-size: clamp(10px,1.8vw,12px); }
-.cat-label { font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.2vw,9px); color: var(--text-lo); letter-spacing: .15em; margin-top: 8px; }
+.cat-label { font-family: var(--font-ui); font-size: clamp(9.0px,1.2vw,9px); color: var(--text-lo); letter-spacing: .15em; margin-top: 8px; }
 
 /* ── MISC ─────────────────────────────────────────────────── */
 .adaptive-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .event-btn {
-  font-family: 'Cinzel', serif; font-size: clamp(9.0px,1.3vw,9px); letter-spacing: .1em;
+  font-family: var(--font-ui); font-size: clamp(9.0px,1.3vw,9px); letter-spacing: .1em;
   text-transform: uppercase; padding: 8px 10px; border: 1px solid var(--seam);
   background: transparent; color: var(--text-lo);
   cursor: pointer; transition: all .18s; touch-action: manipulation;
@@ -625,7 +890,7 @@ canvas {
 #cinematicCanvas { position: absolute; inset: 0; display: block; }
 .cinematic-exit {
   position: absolute; top: 14px; right: 14px;
-  font-family: 'Cinzel', serif; font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .2em;
+  font-family: var(--font-ui); font-size: clamp(10.0px,1.5vw,10px); letter-spacing: .2em;
   text-transform: uppercase; padding: 7px 13px;
   border: 1px solid rgba(42,42,64,.8); background: rgba(2,2,5,.85);
   color: var(--text-lo); cursor: pointer; touch-action: manipulation; min-height: 36px;
@@ -637,11 +902,11 @@ canvas {
   text-align: center; pointer-events: none; width: 90%;
 }
 .cinematic-info .ci-zone {
-  font-family: 'Cinzel', serif; font-size: clamp(13px,3.5vw,20px); letter-spacing: .16em;
+  font-family: var(--font-ui); font-size: clamp(13px,3.5vw,20px); letter-spacing: .16em;
   color: var(--gold); text-shadow: 0 0 36px currentColor;
 }
 .cinematic-info .ci-floor {
-  font-family: 'IM Fell English', serif; font-style: italic;
+  font-family: var(--font-body); font-style: italic;
   font-size: clamp(10px,2vw,13px); color: var(--text-lo); margin-top: 5px;
 }
 
@@ -674,9 +939,524 @@ canvas {
   .layer-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
   .fx-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   SKIN FLAIR SYSTEM
+   Each skin gets its own visual identity beyond color:
+   - Background canvas layer (id="skinFxCanvas")
+   - Per-skin panel border treatments
+   - Button hover/active effects
+   - Typography treatments
+   - Input styling
+   - Overlay textures via ::before/::after
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Skin FX canvas — sits behind everything, above body::before ── */
+#skinFxCanvas {
+  position: fixed; inset: 0; z-index: 1;
+  pointer-events: none; opacity: 1;
+  width: 100%; height: 100%;
+}
+
+/* ── SKIN PICKER ──────────────────────────────────────────── */
+.skin-btn {
+  font-family: var(--font-ui);
+  font-size: clamp(7px,1.1vw,8px);
+  letter-spacing: .18em; text-transform: uppercase;
+  padding: 4px 10px; cursor: pointer;
+  border: 1px solid var(--seam-hi);
+  background: transparent;
+  color: var(--text-lo);
+  transition: all .18s; touch-action: manipulation;
+  white-space: nowrap; position: relative; overflow: hidden;
+}
+.skin-btn:hover { border-color: var(--accent-lo); color: var(--text-mid); }
+.skin-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-shadow: 0 0 8px var(--accent-glow);
+  background: rgba(255,255,255,.02);
+}
+
+/* ════════════════════════════════════════════════════════════
+   ASHEN THRONE flair
+   Ember particles via canvas. Panels: animated corner ember glow.
+   Buttons: molten shimmer sweep on hover.
+   ════════════════════════════════════════════════════════════ */
+
+/* Animated corner glow — embers pulse at panel corners */
+[data-skin="ashen"] .panel::after {
+  content: '';
+  position: absolute; inset: -1px; pointer-events: none;
+  background:
+    radial-gradient(circle 28px at 0% 0%,   rgba(200,146,26,.18) 0%, transparent 70%),
+    radial-gradient(circle 28px at 100% 0%,  rgba(170,52,24,.14) 0%, transparent 70%),
+    radial-gradient(circle 28px at 0% 100%,  rgba(170,52,24,.12) 0%, transparent 70%),
+    radial-gradient(circle 28px at 100% 100%,rgba(200,146,26,.10) 0%, transparent 70%);
+  animation: ashenCornerPulse 4s ease-in-out infinite;
+  border-radius: inherit;
+}
+@keyframes ashenCornerPulse {
+  0%,100% { opacity:.6; }
+  50%      { opacity:1.0; }
+}
+
+/* Heat shimmer on play button */
+[data-skin="ashen"] .play-btn::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(200,146,26,.04) 0%, transparent 40%,
+    rgba(170,52,24,.06) 100%);
+  animation: ashenHeatWarp 3.2s ease-in-out infinite alternate;
+}
+@keyframes ashenHeatWarp {
+  0%   { opacity:.4; transform: scaleY(1); }
+  100% { opacity:.9; transform: scaleY(1.01); }
+}
+
+/* Active layer toggle: ember pulse glow */
+[data-skin="ashen"] .layer-toggle.active {
+  box-shadow: 0 0 8px rgba(200,146,26,.25), inset 0 0 6px rgba(170,52,24,.08) !important;
+}
+
+/* Tab underline: glowing ember line */
+[data-skin="ashen"] .tab-btn.active::after {
+  background: linear-gradient(90deg, transparent, var(--ember), var(--gold), var(--ember), transparent);
+  animation: ashenTabLine 2.5s ease-in-out infinite;
+}
+@keyframes ashenTabLine {
+  0%,100% { opacity:.7; }
+  50%      { opacity:1; }
+}
+
+/* Input range thumb: ember glow on drag */
+[data-skin="ashen"] input[type=range]:focus::-webkit-slider-thumb,
+[data-skin="ashen"] input[type=range]:active::-webkit-slider-thumb {
+  box-shadow: 0 0 18px rgba(200,146,26,1), 0 0 36px rgba(170,52,24,.6) !important;
+  transform: scale(1.3) !important;
+}
+
+/* ════════════════════════════════════════════════════════════
+   NEON NOIR flair
+   Animated scanlines + grid rain via canvas.
+   Panels: neon edge glow, CRT corners.
+   Buttons: electric pulse, chromatic border.
+   ════════════════════════════════════════════════════════════ */
+
+/* Scanline overlay on the whole page */
+[data-skin="neon"] body::after {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.18) 2px,
+    rgba(0,0,0,.18) 4px
+  ) !important;
+  opacity: 1 !important;
+  animation: neonScanScroll 8s linear infinite;
+}
+@keyframes neonScanScroll {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 100px; }
+}
+
+/* Panel: neon border glow */
+[data-skin="neon"] .panel {
+  border-color: rgba(0,229,255,.25) !important;
+  box-shadow:
+    0 0 0 1px rgba(0,229,255,.06),
+    0 0 18px rgba(0,229,255,.08),
+    inset 0 0 12px rgba(0,229,255,.03),
+    0 6px 28px rgba(0,0,0,.8) !important;
+}
+[data-skin="neon"] .panel:hover {
+  border-color: rgba(0,229,255,.4) !important;
+  box-shadow:
+    0 0 0 1px rgba(0,229,255,.12),
+    0 0 28px rgba(0,229,255,.14),
+    inset 0 0 16px rgba(0,229,255,.04),
+    0 6px 28px rgba(0,0,0,.8) !important;
+  transition: border-color .3s, box-shadow .3s;
+}
+
+/* Panel corner brackets: neon */
+[data-skin="neon"] .panel::before {
+  background:
+    linear-gradient(90deg,  #00e5ff 10px, transparent 10px) top    left  / 10px 1px no-repeat,
+    linear-gradient(180deg, #00e5ff 10px, transparent 10px) top    left  / 1px 10px no-repeat,
+    linear-gradient(270deg, #ff2d78 10px, transparent 10px) top    right / 10px 1px no-repeat,
+    linear-gradient(180deg, #ff2d78 10px, transparent 10px) top    right / 1px 10px no-repeat,
+    linear-gradient(90deg,  #ff2d78 10px, transparent 10px) bottom left  / 10px 1px no-repeat,
+    linear-gradient(0deg,   #ff2d78 10px, transparent 10px) bottom left  / 1px 10px no-repeat,
+    linear-gradient(270deg, #00e5ff 10px, transparent 10px) bottom right / 10px 1px no-repeat,
+    linear-gradient(0deg,   #00e5ff 10px, transparent 10px) bottom right / 1px 10px no-repeat !important;
+  opacity: 1 !important;
+  animation: neonCornerFlicker 5s ease-in-out infinite;
+}
+@keyframes neonCornerFlicker {
+  0%,95%,100% { opacity:1; }
+  96%          { opacity:.4; }
+  97%          { opacity:1; }
+  98%          { opacity:.6; }
+}
+
+/* h1: chromatic aberration */
+[data-skin="neon"] h1 {
+  text-shadow:
+    -2px 0 rgba(255,45,120,.7),
+     2px 0 rgba(0,229,255,.7),
+     0 0 28px rgba(0,229,255,.6),
+     0 0 72px rgba(0,229,255,.2) !important;
+  animation: neonTitleFlicker 6s ease-in-out infinite;
+}
+@keyframes neonTitleFlicker {
+  0%,92%,100% { opacity:1; }
+  93%          { opacity:.7; }
+  94%          { opacity:1; }
+  95%          { opacity:.8; }
+}
+
+/* Active layer toggles: electric glow */
+[data-skin="neon"] .layer-toggle.active {
+  box-shadow: 0 0 10px rgba(0,229,255,.3), inset 0 0 6px rgba(0,229,255,.06) !important;
+  border-color: rgba(0,229,255,.4) !important;
+}
+
+/* Inputs: neon cyan glow on focus */
+[data-skin="neon"] input[type=range]::-webkit-slider-thumb {
+  background: radial-gradient(circle at 35% 32%, #80f0ff, #00e5ff) !important;
+  box-shadow: 0 0 12px rgba(0,229,255,.9), 0 0 28px rgba(0,229,255,.4) !important;
+}
+[data-skin="neon"] select, [data-skin="neon"] input[type=number] {
+  border-bottom: 1px solid rgba(0,229,255,.4) !important;
+  box-shadow: 0 2px 8px rgba(0,229,255,.1) !important;
+}
+
+/* Play button: pulsing neon */
+[data-skin="neon"] .play-btn {
+  background: linear-gradient(140deg, #040028 0%, #020018 65%, #040028 100%) !important;
+}
+[data-skin="neon"] .play-btn:hover {
+  box-shadow: 0 0 28px rgba(0,229,255,.3), 0 0 56px rgba(0,229,255,.1) !important;
+}
+[data-skin="neon"] .play-btn.playing {
+  animation: neonPlayPulse 1.8s ease-in-out infinite !important;
+}
+@keyframes neonPlayPulse {
+  0%,100% { box-shadow: 0 0 12px rgba(255,45,120,.3); }
+  50%      { box-shadow: 0 0 32px rgba(255,45,120,.8), 0 0 64px rgba(255,45,120,.2); }
+}
+
+/* Skin btn: neon glow */
+[data-skin="neon"] .skin-btn.active {
+  box-shadow: 0 0 8px var(--accent-glow), inset 0 0 4px rgba(0,229,255,.05);
+}
+
+/* ════════════════════════════════════════════════════════════
+   SAKURA flair
+   Falling petals via canvas.
+   Panels: soft ink-wash borders, bloom glow.
+   Buttons: petal-pink hover bloom.
+   Typography: soft shadow, delicate.
+   ════════════════════════════════════════════════════════════ */
+
+/* Panel: soft ink-wash feel */
+[data-skin="sakura"] .panel {
+  border-color: rgba(232,120,152,.18) !important;
+  box-shadow:
+    0 0 0 1px rgba(232,120,152,.06),
+    0 0 24px rgba(232,120,152,.07),
+    inset 0 0 32px rgba(200,72,120,.03),
+    0 6px 28px rgba(0,0,0,.7) !important;
+}
+
+/* Panel corner brackets: cherry blossom pink */
+[data-skin="sakura"] .panel::before {
+  background:
+    linear-gradient(90deg,  rgba(232,120,152,.8) 10px, transparent 10px) top    left  / 14px 1px no-repeat,
+    linear-gradient(180deg, rgba(232,120,152,.8) 10px, transparent 10px) top    left  / 1px 14px no-repeat,
+    linear-gradient(270deg, rgba(200,72,120,.6)  10px, transparent 10px) top    right / 14px 1px no-repeat,
+    linear-gradient(180deg, rgba(200,72,120,.6)  10px, transparent 10px) top    right / 1px 14px no-repeat,
+    linear-gradient(90deg,  rgba(200,72,120,.6)  10px, transparent 10px) bottom left  / 14px 1px no-repeat,
+    linear-gradient(0deg,   rgba(200,72,120,.6)  10px, transparent 10px) bottom left  / 1px 14px no-repeat,
+    linear-gradient(270deg, rgba(232,120,152,.8) 10px, transparent 10px) bottom right / 14px 1px no-repeat,
+    linear-gradient(0deg,   rgba(232,120,152,.8) 10px, transparent 10px) bottom right / 1px 14px no-repeat !important;
+  opacity: .9 !important;
+}
+
+/* h1: soft bloom, no harsh glow */
+[data-skin="sakura"] h1 {
+  text-shadow:
+    0 0 40px rgba(232,120,152,.35),
+    0 0 80px rgba(200,72,120,.15),
+    0 2px 0 rgba(0,0,0,.8) !important;
+  letter-spacing: .08em !important;
+}
+
+/* Active layer toggles: petal glow */
+[data-skin="sakura"] .layer-toggle.active {
+  box-shadow: 0 0 10px rgba(232,120,152,.25), inset 0 0 8px rgba(200,72,120,.06) !important;
+  border-color: rgba(232,120,152,.35) !important;
+}
+
+/* Buttons: soft hover bloom */
+[data-skin="sakura"] .layer-toggle:hover {
+  box-shadow: 0 0 14px rgba(232,120,152,.2) !important;
+}
+[data-skin="sakura"] .tab-btn.active {
+  text-shadow: 0 0 10px rgba(232,120,152,.5);
+}
+[data-skin="sakura"] .tab-btn.active::after {
+  background: linear-gradient(90deg, transparent, rgba(232,120,152,.6), rgba(248,176,200,.8), rgba(232,120,152,.6), transparent) !important;
+}
+
+/* Input range: petal pink thumb */
+[data-skin="sakura"] input[type=range]::-webkit-slider-thumb {
+  background: radial-gradient(circle at 35% 32%, #f8b0c8, #e87898) !important;
+  box-shadow: 0 0 10px rgba(232,120,152,.7), 0 0 22px rgba(232,120,152,.25) !important;
+}
+
+/* Play button: soft bloom background */
+[data-skin="sakura"] .play-btn {
+  background: linear-gradient(140deg, #1a080e 0%, #100408 65%, #180610 100%) !important;
+}
+[data-skin="sakura"] .play-btn.playing {
+  animation: sakuraPlayPulse 3s ease-in-out infinite !important;
+}
+@keyframes sakuraPlayPulse {
+  0%,100% { box-shadow: 0 0 8px rgba(200,72,120,.2); }
+  50%      { box-shadow: 0 0 24px rgba(232,120,152,.5), 0 0 48px rgba(200,72,120,.15); }
+}
+
+/* Layers strip: ink-wash border */
+[data-skin="sakura"] .layers {
+  border-left-color: rgba(232,120,152,.4) !important;
+  background: rgba(20,8,16,.85) !important;
+}
+
+/* ════════════════════════════════════════════════════════════
+   BROADCAST flair
+   VU meter via canvas behind header.
+   Panels: clean signal-line border sweep.
+   Buttons: professional click ripple.
+   Typography: clean Inter, tight.
+   ════════════════════════════════════════════════════════════ */
+
+/* Panel: clean professional borders */
+[data-skin="broadcast"] .panel {
+  border-color: rgba(232,160,32,.2) !important;
+  box-shadow:
+    0 0 0 1px rgba(232,160,32,.04),
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 4px 20px rgba(0,0,0,.6) !important;
+}
+
+/* Panel corner brackets: amber signal */
+[data-skin="broadcast"] .panel::before {
+  background:
+    linear-gradient(90deg,  rgba(232,160,32,.7) 8px, transparent 8px) top    left  / 8px 1px no-repeat,
+    linear-gradient(180deg, rgba(232,160,32,.7) 8px, transparent 8px) top    left  / 1px 8px no-repeat,
+    linear-gradient(270deg, rgba(232,160,32,.5) 8px, transparent 8px) top    right / 8px 1px no-repeat,
+    linear-gradient(180deg, rgba(232,160,32,.5) 8px, transparent 8px) top    right / 1px 8px no-repeat,
+    linear-gradient(90deg,  rgba(232,160,32,.5) 8px, transparent 8px) bottom left  / 8px 1px no-repeat,
+    linear-gradient(0deg,   rgba(232,160,32,.5) 8px, transparent 8px) bottom left  / 1px 8px no-repeat,
+    linear-gradient(270deg, rgba(232,160,32,.7) 8px, transparent 8px) bottom right / 8px 1px no-repeat,
+    linear-gradient(0deg,   rgba(232,160,32,.7) 8px, transparent 8px) bottom right / 1px 8px no-repeat !important;
+  opacity: .8 !important;
+}
+
+/* Animated signal-line sweep on panels */
+[data-skin="broadcast"] .panel::after {
+  content: '';
+  position: absolute; top: 0; left: -100%; right: auto; bottom: auto;
+  width: 40%; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(232,160,32,.4), transparent);
+  animation: broadcastSweep 6s linear infinite;
+}
+@keyframes broadcastSweep {
+  0%   { left: -40%; }
+  100% { left: 140%; }
+}
+
+/* h1: tight tracking, no glow — professional */
+[data-skin="broadcast"] h1 {
+  letter-spacing: .02em !important;
+  text-shadow: 0 1px 0 rgba(0,0,0,.8), 0 0 20px rgba(232,160,32,.3) !important;
+}
+
+/* Active toggles: clean amber */
+[data-skin="broadcast"] .layer-toggle.active {
+  box-shadow: 0 0 6px rgba(232,160,32,.2), inset 0 1px 0 rgba(232,160,32,.08) !important;
+  border-color: rgba(232,160,32,.35) !important;
+}
+
+/* Tab active: clean underline */
+[data-skin="broadcast"] .tab-btn.active::after {
+  background: linear-gradient(90deg, transparent, rgba(232,160,32,.8), transparent) !important;
+  height: 2px !important;
+}
+
+/* Input range: amber thumb */
+[data-skin="broadcast"] input[type=range]::-webkit-slider-thumb {
+  background: radial-gradient(circle at 35% 32%, #f8c050, #e8a020) !important;
+  box-shadow: 0 0 8px rgba(232,160,32,.7), 0 0 18px rgba(232,160,32,.2) !important;
+}
+
+/* Play button: on-air feel */
+[data-skin="broadcast"] .play-btn {
+  background: linear-gradient(140deg, #141208 0%, #0c0c06 65%, #121008 100%) !important;
+  letter-spacing: .22em !important;
+}
+[data-skin="broadcast"] .play-btn.playing {
+  animation: broadcastPlayPulse 2s ease-in-out infinite !important;
+}
+@keyframes broadcastPlayPulse {
+  0%,100% { box-shadow: 0 0 8px rgba(224,80,32,.2); }
+  50%      { box-shadow: 0 0 20px rgba(224,80,32,.5), 0 0 40px rgba(224,80,32,.12); }
+}
+
+/* Layers strip: signal border */
+[data-skin="broadcast"] .layers {
+  border-left-color: rgba(232,160,32,.5) !important;
+  background: rgba(10,10,12,.9) !important;
+}
+
+/* ════════════════════════════════════════════════════════════
+   VOID SIGNAL flair
+   Phosphor + glitch canvas.
+   Panels: CRT screen-door texture, terminal borders.
+   Buttons: flicker on hover, typing effect.
+   Typography: monospace, phosphor green.
+   ════════════════════════════════════════════════════════════ */
+
+/* CRT screen-door texture overlay on panels */
+[data-skin="void"] .panel::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,255,65,.015) 3px, rgba(0,255,65,.015) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,.05) 3px, rgba(0,0,0,.05) 4px);
+  animation: voidScreenBurn .08s steps(2) infinite;
+}
+@keyframes voidScreenBurn {
+  0%  { opacity:.8; }
+  50% { opacity:1; }
+}
+
+/* Panel borders: terminal green */
+[data-skin="void"] .panel {
+  border-color: rgba(0,255,65,.2) !important;
+  box-shadow:
+    0 0 0 1px rgba(0,255,65,.06),
+    0 0 16px rgba(0,255,65,.06),
+    inset 0 0 8px rgba(0,255,65,.02),
+    0 6px 28px rgba(0,0,0,.9) !important;
+}
+
+/* Panel corner brackets: terminal green */
+[data-skin="void"] .panel::before {
+  background:
+    linear-gradient(90deg,  rgba(0,255,65,.9) 10px, transparent 10px) top    left  / 10px 1px no-repeat,
+    linear-gradient(180deg, rgba(0,255,65,.9) 10px, transparent 10px) top    left  / 1px 10px no-repeat,
+    linear-gradient(270deg, rgba(0,255,65,.7) 10px, transparent 10px) top    right / 10px 1px no-repeat,
+    linear-gradient(180deg, rgba(0,255,65,.7) 10px, transparent 10px) top    right / 1px 10px no-repeat,
+    linear-gradient(90deg,  rgba(0,255,65,.7) 10px, transparent 10px) bottom left  / 10px 1px no-repeat,
+    linear-gradient(0deg,   rgba(0,255,65,.7) 10px, transparent 10px) bottom left  / 1px 10px no-repeat,
+    linear-gradient(270deg, rgba(0,255,65,.9) 10px, transparent 10px) bottom right / 10px 1px no-repeat,
+    linear-gradient(0deg,   rgba(0,255,65,.9) 10px, transparent 10px) bottom right / 1px 10px no-repeat !important;
+  opacity: 1 !important;
+  animation: voidCornerFlicker 3s steps(1) infinite;
+}
+@keyframes voidCornerFlicker {
+  0%,88%,92%,100% { opacity:1; }
+  89%             { opacity:.3; }
+  90%             { opacity:1; }
+  91%             { opacity:.6; }
+}
+
+/* h1: phosphor burn + chromatic tear */
+[data-skin="void"] h1 {
+  text-shadow:
+    0 0 10px rgba(0,255,65,.9),
+    0 0 30px rgba(0,255,65,.5),
+    0 0 60px rgba(0,255,65,.2),
+    2px 0 rgba(0,255,65,.15),
+   -2px 0 rgba(0,200,50,.1) !important;
+  animation: voidTitlePhosphor 4s ease-in-out infinite;
+}
+@keyframes voidTitlePhosphor {
+  0%,90%,100% { opacity:1; filter:brightness(1); }
+  91%          { opacity:.7; filter:brightness(1.4); }
+  92%          { opacity:1; filter:brightness(.8); }
+  93%          { opacity:.9; filter:brightness(1.2); }
+}
+
+/* Active layer toggles: phosphor glow */
+[data-skin="void"] .layer-toggle.active {
+  box-shadow: 0 0 8px rgba(0,255,65,.3), inset 0 0 6px rgba(0,255,65,.06) !important;
+  border-color: rgba(0,255,65,.4) !important;
+}
+
+/* Buttons hover: terminal flicker */
+[data-skin="void"] .layer-toggle:hover {
+  animation: voidBtnFlicker .15s steps(2) 2;
+}
+@keyframes voidBtnFlicker {
+  0%  { filter: brightness(1.4) saturate(1.2); }
+  50% { filter: brightness(.7); }
+  100%{ filter: brightness(1); }
+}
+
+/* Tab active: green terminal underline */
+[data-skin="void"] .tab-btn.active {
+  color: #00ff41 !important;
+  text-shadow: 0 0 8px rgba(0,255,65,.6);
+}
+[data-skin="void"] .tab-btn.active::after {
+  background: #00ff41 !important;
+  box-shadow: 0 0 6px rgba(0,255,65,.8);
+}
+
+/* Input range: phosphor green */
+[data-skin="void"] input[type=range]::-webkit-slider-thumb {
+  background: radial-gradient(circle at 35% 32%, #80ff90, #00ff41) !important;
+  box-shadow: 0 0 12px rgba(0,255,65,1), 0 0 24px rgba(0,255,65,.4) !important;
+}
+
+/* Play button: terminal command feel */
+[data-skin="void"] .play-btn {
+  background: #000 !important;
+  letter-spacing: .15em !important;
+}
+[data-skin="void"] .play-btn:hover {
+  background: rgba(0,255,65,.04) !important;
+  box-shadow: 0 0 20px rgba(0,255,65,.2) !important;
+}
+[data-skin="void"] .play-btn.playing {
+  animation: voidPlayPulse 1s steps(2) infinite !important;
+}
+@keyframes voidPlayPulse {
+  0%,100% { box-shadow: 0 0 8px rgba(0,255,65,.3); border-color: #00ff41; }
+  50%      { box-shadow: 0 0 24px rgba(0,255,65,.7), 0 0 48px rgba(0,255,65,.2); border-color: #80ff90; }
+}
+
+/* Void Signal — terminal cursor blink on active skin btn */
+[data-skin="void"] .skin-btn.active::after {
+  content: '▌'; animation: recPulse 1s step-end infinite;
+  margin-left: 3px; font-size: 9px;
+}
+
+/* Layers strip: terminal border */
+[data-skin="void"] .layers {
+  border-left-color: rgba(0,255,65,.5) !important;
+  background: rgba(0,4,0,.9) !important;
+}
 </style>
 </head>
 <body>
+
+<!-- Skin FX canvas — background particle/effect layer per skin -->
+<canvas id="skinFxCanvas"></canvas>
 
 <!-- Cinematic Overlay -->
 <div id="cinematicOverlay">
@@ -684,20 +1464,22 @@ canvas {
   <button class="cinematic-exit" onclick="exitCinematic()">✕ Exit Cinematic</button>
   <div class="cinematic-info">
     <div class="ci-zone" id="ciZone">Ashen Fields</div>
-    <div class="ci-floor" id="ciFloor">Void Floor 1</div>
+    <div class="ci-floor" id="ciFloor">Floor 1</div>
   </div>
 </div>
 
 <div class="container">
   <div class="header">
-    <div class="crown">✦ Ashen Throne ✦</div>
-    <h1>Music Forge<span>Adaptive Dungeon Synthesizer</span></h1>
-    <div class="divider"><span class="divider-gem">✦</span></div>
+    <div class="crown" id="skinCrown">✦ Ashen Throne ✦</div>
+    <h1 id="skinTitle">Music Forge<span id="skinSubtitle">Adaptive Dungeon Synthesizer</span></h1>
+    <div class="divider"><span class="divider-gem" id="skinGem">✦</span></div>
+    <!-- Skin selector -->
+    <div id="skinBar" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:18px;"></div>
   </div>
 
   <!-- FLOOR + PHRASE always visible -->
   <div class="panel">
-    <div class="panel-title">Void Depth</div>
+    <div class="panel-title" id="skinDepthLabel">Void Depth</div>
     <div class="floor-section">
       <div class="floor-label">
         <div>
@@ -723,7 +1505,7 @@ canvas {
       <div style="margin-left:auto;font-size:14px;color:var(--text-lo);font-style:italic;" id="phraseCounter">Bar 1 / 8</div>
     </div>
 
-    <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ &nbsp; Invoke the Void</button>
+    <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ &nbsp; <span id="skinPlayLabel">Invoke the Void</span></button>
 
     <div class="visualizer-wrap" style="margin-top:16px;">
       <div class="viz-controls">
@@ -739,7 +1521,7 @@ canvas {
   <div class="panel" style="padding-bottom:0;">
     <div class="tabs-nav">
       <button class="tab-btn active" onclick="switchTab('layers')">Layers</button>
-      <button class="tab-btn" onclick="switchTab('fx')">Chamber FX</button>
+      <button class="tab-btn" onclick="switchTab('fx')" id="skinFxTab">Chamber FX</button>
       <button class="tab-btn" onclick="switchTab('scale')">Scale</button>
       <button class="tab-btn" onclick="switchTab('events')">Events</button>
       <button class="tab-btn" onclick="switchTab('ost')">OST</button>
@@ -3145,7 +3927,7 @@ function crawlToFloor(targetFloor, durationMs, onComplete) {
     document.getElementById('zoneName').textContent = zone.name;
     slider.style.setProperty('--pct', ((floor - 1) / 98 * 100).toFixed(1) + '%');
     document.getElementById('ciZone').textContent = zone.name;
-    document.getElementById('ciFloor').textContent = `Void Floor ${floor}`;
+    document.getElementById('ciFloor').textContent = `${(SKINS[_activeSkin]||SKINS.ashen).depthUnit} ${floor}`;
     if (current === targetFloor) {
       clearInterval(crawlInterval);
       crawlInterval = null;
@@ -4029,7 +4811,7 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
     const zEl=document.getElementById('zoneName');
     if(zEl){zEl.classList.add('changing');setTimeout(()=>{zEl.textContent=preset.name;zEl.classList.remove('changing');},150);}
     document.getElementById('ciZone').textContent  = preset.name;
-    document.getElementById('ciFloor').textContent = `Void Floor ${toChapter.floor}`;
+    document.getElementById('ciFloor').textContent = `${(SKINS[_activeSkin]||SKINS.ashen).depthUnit} ${toChapter.floor}`;
     setStatus(`${toChapter.label} — ${preset.desc}`);
     document.getElementById('randArchetypeLabel').textContent=toChapter.label.toUpperCase();
   }, bl*1000));
@@ -4089,7 +4871,7 @@ JC.tick = function() {
     // Update zone name and bar so the display tracks the descent
     const crawlZone = getZone(nf);
     document.getElementById('zoneName').textContent = crawlZone.name;
-    document.getElementById('ciFloor').textContent  = `Void Floor ${nf}`;
+    document.getElementById('ciFloor').textContent  = `${(SKINS[_activeSkin]||SKINS.ashen).depthUnit} ${nf}`;
     const fn = document.getElementById('floorNum');
     fn.style.color      = `rgb(${crawlZone.vizR},${crawlZone.vizG},${crawlZone.vizB})`;
     fn.style.textShadow = `0 0 22px rgba(${crawlZone.vizR},${crawlZone.vizG},${crawlZone.vizB},0.6)`;
@@ -11909,7 +12691,7 @@ function updateFloorUI() {
   });
 
   document.getElementById('ciZone').textContent  = zone.name;
-  document.getElementById('ciFloor').textContent = `Void Floor ${floor}`;
+  document.getElementById('ciFloor').textContent = `${(SKINS[_activeSkin]||SKINS.ashen).depthUnit} ${floor}`;
 
   // Color and name: only snap when not playing — crossfade owns them while playing
   if (!isPlaying) {
@@ -14770,6 +15552,459 @@ document.addEventListener('keydown', e => {
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
+// ── SKIN SYSTEM ──────────────────────────────────────────────────────────────
+// Each skin defines the visual identity and all user-facing text labels.
+// applySkin() swaps data-skin on <html> (triggering CSS vars) and updates
+// every labeled DOM element so the tool feels purpose-built for each context.
+// The chosen skin is persisted to localStorage so it survives page reloads.
+
+const SKINS = {
+  ashen: {
+    id: 'ashen',
+    label: 'Ashen Throne',
+    gem: '✦',
+    // Header
+    crown:    '✦ Ashen Throne ✦',
+    title:    'Music Forge',
+    subtitle: 'Adaptive Dungeon Synthesizer',
+    // Controls
+    playIdle:    'Invoke the Void',
+    statusIdle:  'Awaiting invocation...',
+    depthLabel:  'Void Depth',
+    depthUnit:   'Floor',
+    fxTab:       'Chamber FX',
+    // Mood desc prefix shown in journey panel
+    useCaseHint: 'Dark fantasy · Dungeon games · Horror',
+  },
+  neon: {
+    id: 'neon',
+    label: 'Neon Noir',
+    gem: '◈',
+    crown:    '◈ Neon Noir ◈',
+    title:    'Music Forge',
+    subtitle: 'Adaptive Cinematic Synthesizer',
+    playIdle:    'Engage Signal',
+    statusIdle:  'Standing by...',
+    depthLabel:  'Intensity',
+    depthUnit:   'Level',
+    fxTab:       'Signal FX',
+    useCaseHint: 'Synthwave · Cyberpunk · YouTube · Lo-fi',
+  },
+  sakura: {
+    id: 'sakura',
+    label: 'Sakura',
+    gem: '花',
+    crown:    '花 Sakura 花',
+    title:    'Music Forge',
+    subtitle: 'Adaptive Emotional Synthesizer',
+    playIdle:    'Begin',
+    statusIdle:  '静寂 — awaiting...',
+    depthLabel:  'Emotional Depth',
+    depthUnit:   'Scene',
+    fxTab:       'Space FX',
+    useCaseHint: 'Anime · Emotional indie · Shorts · Drama',
+  },
+  broadcast: {
+    id: 'broadcast',
+    label: 'Broadcast',
+    gem: '▶',
+    crown:    '▶ Broadcast ▶',
+    title:    'Music Forge',
+    subtitle: 'Adaptive Score Generator',
+    playIdle:    'Start Score',
+    statusIdle:  'Ready.',
+    depthLabel:  'Intensity',
+    depthUnit:   'Track',
+    fxTab:       'Mix FX',
+    useCaseHint: 'YouTube · Podcast · Documentary · Pro AV',
+  },
+  void: {
+    id: 'void',
+    label: 'Void Signal',
+    gem: '>_',
+    crown:    '>_ VOID_SIGNAL >_',
+    title:    'MUSIC_FORGE',
+    subtitle: 'ADAPTIVE_SYNTHESIS_ENGINE v0.1',
+    playIdle:    '> RUN SEQUENCE',
+    statusIdle:  '> AWAITING INPUT_',
+    depthLabel:  'SIGNAL DEPTH',
+    depthUnit:   'NODE',
+    fxTab:       'SIG FX',
+    useCaseHint: 'Indie horror · Glitch · ARG · Experimental',
+  },
+};
+
+let _activeSkin = 'ashen';
+
+function applySkin(id, save) {
+  const skin = SKINS[id] || SKINS.ashen;
+  _activeSkin = id;
+
+  // Swap CSS skin class on <html>
+  document.documentElement.setAttribute('data-skin', id);
+
+  // Update all labeled text nodes
+  const set = (elId, text) => { const el = document.getElementById(elId); if (el) el.textContent = text; };
+  const setHTML = (elId, html) => { const el = document.getElementById(elId); if (el) el.innerHTML = html; };
+
+  set('skinCrown',      skin.crown);
+  set('skinGem',        skin.gem);
+  set('skinSubtitle',   skin.subtitle);
+  set('skinPlayLabel',  skin.playIdle);
+  set('skinDepthLabel', skin.depthLabel);
+
+  // Title — preserve the subtitle span
+  const titleEl = document.getElementById('skinTitle');
+  if (titleEl) {
+    titleEl.childNodes[0].textContent = skin.title;
+  }
+
+  // Floor depth unit label
+  const depthUnitEl = document.querySelector('.floor-label .name');
+  if (depthUnitEl) depthUnitEl.textContent = skin.depthUnit;
+
+  // FX tab
+  const fxTabEl = document.getElementById('skinFxTab');
+  if (fxTabEl) fxTabEl.textContent = skin.fxTab;
+
+  // Status idle — only update if not currently playing
+  if (!isPlaying) setStatus(skin.statusIdle);
+
+  // Cinematic overlay floor label prefix
+  const ciFloor = document.getElementById('ciFloor');
+  if (ciFloor && !isPlaying) ciFloor.textContent = `${skin.depthUnit} 1`;
+
+  // Update skin bar active state
+  document.querySelectorAll('.skin-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.skin === id);
+  });
+
+  // Persist
+  if (save !== false) {
+    try { localStorage.setItem('mf_skin', id); } catch(e) {}
+  }
+}
+
+function buildSkinBar() {
+  const bar = document.getElementById('skinBar');
+  if (!bar) return;
+  Object.values(SKINS).forEach(skin => {
+    const btn = document.createElement('button');
+    btn.className = 'skin-btn' + (skin.id === _activeSkin ? ' active' : '');
+    btn.dataset.skin = skin.id;
+    btn.title = skin.useCaseHint;
+    btn.textContent = skin.label;
+    btn.onclick = () => applySkin(skin.id);
+    bar.appendChild(btn);
+  });
+}
+
+// ── SKIN FLAIR ENGINE ─────────────────────────────────────────────────────────
+// Per-skin canvas animations running on #skinFxCanvas.
+// Each skin registers a tick function; applySkin() switches which one runs.
+// All use requestAnimationFrame and are deliberately lightweight —
+// the audio engine is the priority, canvas is decoration.
+
+const _sfx = {
+  canvas: null,
+  ctx:    null,
+  raf:    null,
+  tick:   null,  // currently active tick fn
+  skin:   null,  // currently active skin id
+  t:      0,     // frame counter
+};
+
+// Called once at init and on window resize
+function _sfxResize() {
+  if (!_sfx.canvas) return;
+  _sfx.canvas.width  = window.innerWidth;
+  _sfx.canvas.height = window.innerHeight;
+}
+
+function _sfxLoop() {
+  _sfx.raf = requestAnimationFrame(_sfxLoop);
+  _sfx.t++;
+  if (!_sfx.ctx || !_sfx.tick) return;
+  _sfx.tick(_sfx.ctx, _sfx.canvas.width, _sfx.canvas.height, _sfx.t);
+}
+
+// ── ASHEN: drifting ember/ash motes ──────────────────────────────────────────
+function _sfxInitAshen() {
+  const motes = Array.from({length: 55}, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    r: 0.5 + Math.random() * 1.8,
+    drift: (Math.random() - 0.48) * 0.00018,
+    rise:  0.00012 + Math.random() * 0.00022,
+    flicker: Math.random() * Math.PI * 2,
+    flickerRate: 0.012 + Math.random() * 0.025,
+    color: Math.random() > 0.6
+      ? `rgba(200,146,26,`   // gold ember
+      : Math.random() > 0.5
+        ? `rgba(170,52,24,`  // red ember
+        : `rgba(180,160,120,`, // ash
+  }));
+  return (ctx, W, H, t) => {
+    ctx.clearRect(0, 0, W, H);
+    motes.forEach(m => {
+      m.y -= m.rise;
+      m.x += m.drift + Math.sin(t * 0.008 + m.flicker) * 0.00012;
+      m.flicker += m.flickerRate;
+      if (m.y < -0.02) { m.y = 1.02; m.x = Math.random(); }
+      const alpha = (0.18 + Math.sin(m.flicker) * 0.12) * (0.4 + m.y * 0.6);
+      ctx.beginPath();
+      ctx.arc(m.x * W, m.y * H, m.r, 0, Math.PI * 2);
+      ctx.fillStyle = m.color + alpha.toFixed(3) + ')';
+      ctx.fill();
+    });
+  };
+}
+
+// ── NEON: grid + rain streaks ─────────────────────────────────────────────────
+function _sfxInitNeon() {
+  const COLS = 28, ROWS = 18;
+  const dots = Array.from({length: COLS * ROWS}, (_, i) => ({
+    x: (i % COLS) / (COLS - 1),
+    y: Math.floor(i / COLS) / (ROWS - 1),
+    pulse: Math.random() * Math.PI * 2,
+    rate:  0.008 + Math.random() * 0.012,
+    color: Math.random() > 0.7 ? '#ff2d78' : '#00e5ff',
+  }));
+  const streaks = Array.from({length: 14}, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    len: 0.04 + Math.random() * 0.10,
+    speed: 0.0008 + Math.random() * 0.0016,
+    alpha: 0.08 + Math.random() * 0.14,
+    color: Math.random() > 0.5 ? 'rgba(0,229,255,' : 'rgba(255,45,120,',
+  }));
+  return (ctx, W, H, t) => {
+    ctx.clearRect(0, 0, W, H);
+    // Grid dots
+    dots.forEach(d => {
+      d.pulse += d.rate;
+      const a = (Math.sin(d.pulse) * 0.5 + 0.5) * 0.12;
+      ctx.beginPath();
+      ctx.arc(d.x * W, d.y * H, 1, 0, Math.PI * 2);
+      ctx.fillStyle = d.color.replace('#', 'rgba(').replace('ff2d78', '255,45,120,').replace('00e5ff', '0,229,255,') + a + ')';
+      ctx.fill();
+    });
+    // Rain streaks
+    streaks.forEach(s => {
+      s.y += s.speed;
+      if (s.y > 1.1) { s.y = -0.1; s.x = Math.random(); }
+      const grad = ctx.createLinearGradient(s.x*W, s.y*H, s.x*W, (s.y+s.len)*H);
+      grad.addColorStop(0, s.color + '0)');
+      grad.addColorStop(0.5, s.color + s.alpha + ')');
+      grad.addColorStop(1, s.color + '0)');
+      ctx.beginPath();
+      ctx.moveTo(s.x * W, s.y * H);
+      ctx.lineTo(s.x * W, (s.y + s.len) * H);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+  };
+}
+
+// ── SAKURA: falling petals ───────────────────────────────────────────────────
+function _sfxInitSakura() {
+  const petals = Array.from({length: 32}, () => ({
+    x:    Math.random(),
+    y:    Math.random(),
+    size: 3 + Math.random() * 5,
+    rot:  Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.018,
+    drift: (Math.random() - 0.48) * 0.00025,
+    fall:  0.00015 + Math.random() * 0.00025,
+    wobble: Math.random() * Math.PI * 2,
+    wobbleRate: 0.008 + Math.random() * 0.012,
+    alpha: 0.15 + Math.random() * 0.25,
+    pink: Math.floor(180 + Math.random() * 52),
+  }));
+  return (ctx, W, H, t) => {
+    ctx.clearRect(0, 0, W, H);
+    petals.forEach(p => {
+      p.y += p.fall;
+      p.wobble += p.wobbleRate;
+      p.x += p.drift + Math.sin(p.wobble) * 0.00018;
+      p.rot += p.rotSpeed;
+      if (p.y > 1.05) { p.y = -0.05; p.x = Math.random(); }
+      ctx.save();
+      ctx.translate(p.x * W, p.y * H);
+      ctx.rotate(p.rot);
+      // Simple petal: two arcs
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${p.pink}, ${Math.floor(p.pink * 0.55)}, ${Math.floor(p.pink * 0.62)}, ${p.alpha})`;
+      ctx.fill();
+      ctx.restore();
+    });
+  };
+}
+
+// ── BROADCAST: VU-style bars behind header ───────────────────────────────────
+function _sfxInitBroadcast() {
+  const BARS = 32;
+  const heights = new Float32Array(BARS).map(() => Math.random());
+  const targets = new Float32Array(BARS).map(() => Math.random());
+  let updateT = 0;
+  return (ctx, W, H, t) => {
+    ctx.clearRect(0, 0, W, H);
+    updateT++;
+    if (updateT % 8 === 0) {
+      for (let i = 0; i < BARS; i++) {
+        targets[i] = isPlaying
+          ? 0.1 + Math.random() * 0.85
+          : 0.02 + Math.random() * 0.12;
+      }
+    }
+    const bw = W / BARS;
+    const maxH = H * 0.22; // only fill top 22% — behind header
+    for (let i = 0; i < BARS; i++) {
+      heights[i] += (targets[i] - heights[i]) * 0.12;
+      const h = heights[i] * maxH;
+      const hue = heights[i] > 0.8 ? 'rgba(224,80,32,' : 'rgba(232,160,32,';
+      const alpha = 0.06 + heights[i] * 0.10;
+      ctx.fillStyle = hue + alpha + ')';
+      ctx.fillRect(i * bw + 1, H * 0.01, bw - 2, h);
+    }
+    // Subtle horizontal scan line across middle of VU area
+    const scanY = H * 0.01 + (H * 0.22 * 0.5);
+    const scanAlpha = 0.04 + Math.sin(t * 0.04) * 0.02;
+    ctx.fillStyle = `rgba(232,160,32,${scanAlpha})`;
+    ctx.fillRect(0, scanY, W, 1);
+  };
+}
+
+// ── VOID SIGNAL: phosphor + glitch tears ────────────────────────────────────
+function _sfxInitVoid() {
+  const lines = Array.from({length: 6}, () => ({
+    y: Math.random(),
+    alpha: 0,
+    width: 0.2 + Math.random() * 0.6,
+    life: 0,
+    maxLife: 4 + Math.floor(Math.random() * 8),
+  }));
+  let nextGlitch = 60 + Math.floor(Math.random() * 120);
+  let phosphorY = 0; // slow scanline burn
+
+  return (ctx, W, H, t) => {
+    ctx.clearRect(0, 0, W, H);
+
+    // Slow phosphor scanline — crawls top to bottom
+    phosphorY = (phosphorY + 0.4) % H;
+    const pGrad = ctx.createLinearGradient(0, phosphorY - 40, 0, phosphorY + 40);
+    pGrad.addColorStop(0, 'rgba(0,255,65,0)');
+    pGrad.addColorStop(0.5, 'rgba(0,255,65,0.03)');
+    pGrad.addColorStop(1, 'rgba(0,255,65,0)');
+    ctx.fillStyle = pGrad;
+    ctx.fillRect(0, phosphorY - 40, W, 80);
+
+    // Glitch horizontal tears
+    if (t >= nextGlitch) {
+      nextGlitch = t + 40 + Math.floor(Math.random() * 180);
+      const free = lines.find(l => l.life <= 0);
+      if (free) {
+        free.y = Math.random();
+        free.alpha = 0.12 + Math.random() * 0.18;
+        free.width = 0.15 + Math.random() * 0.7;
+        free.life = free.maxLife;
+        free.offsetX = (Math.random() - 0.5) * 0.04 * W;
+      }
+    }
+    lines.forEach(l => {
+      if (l.life <= 0) return;
+      l.life--;
+      const a = l.alpha * (l.life / l.maxLife);
+      const x = (0.5 - l.width / 2) * W + l.offsetX;
+      ctx.fillStyle = `rgba(0,255,65,${a.toFixed(3)})`;
+      ctx.fillRect(x, l.y * H, l.width * W, 1);
+      // second displaced copy — the glitch offset
+      ctx.fillStyle = `rgba(0,200,50,${(a * 0.5).toFixed(3)})`;
+      ctx.fillRect(x + 4, l.y * H + 2, l.width * W * 0.8, 1);
+    });
+  };
+}
+
+// ── Wire into applySkin ────────────────────────────────────────────────────
+const _SFX_INITS = {
+  ashen:     _sfxInitAshen,
+  neon:      _sfxInitNeon,
+  sakura:    _sfxInitSakura,
+  broadcast: _sfxInitBroadcast,
+  void:      _sfxInitVoid,
+};
+
+function _sfxStart(skinId) {
+  if (!_sfx.canvas) {
+    _sfx.canvas = document.getElementById('skinFxCanvas');
+    _sfx.ctx    = _sfx.canvas ? _sfx.canvas.getContext('2d') : null;
+    _sfxResize();
+    window.addEventListener('resize', _sfxResize);
+  }
+  // Stop previous
+  if (_sfx.raf) { cancelAnimationFrame(_sfx.raf); _sfx.raf = null; }
+  _sfx.t    = 0;
+  _sfx.skin = skinId;
+  const init = _SFX_INITS[skinId];
+  _sfx.tick = init ? init() : null;
+  if (_sfx.ctx) _sfx.ctx.clearRect(0, 0, _sfx.canvas.width, _sfx.canvas.height);
+  if (_sfx.tick) _sfxLoop();
+}
+
+// ── Boot sequence for Void Signal title ──────────────────────────────────────
+// When switching to void skin, the title scrambles then resolves — terminal boot.
+function _voidBootTitle() {
+  const el = document.getElementById('skinTitle');
+  if (!el) return;
+  const target = SKINS.void.title;
+  const chars  = '!@#$%^&*<>?/\\|01';
+  let frame = 0;
+  const total = 22;
+  const iv = setInterval(() => {
+    frame++;
+    if (frame >= total) {
+      el.childNodes[0].textContent = target;
+      clearInterval(iv);
+      return;
+    }
+    const progress = frame / total;
+    const resolved = Math.floor(progress * target.length);
+    let scrambled = '';
+    for (let i = 0; i < target.length; i++) {
+      scrambled += i < resolved
+        ? target[i]
+        : chars[Math.floor(Math.random() * chars.length)];
+    }
+    el.childNodes[0].textContent = scrambled;
+  }, 55);
+}
+
+// ── Ink-drop reveal for Sakura title ─────────────────────────────────────────
+function _sakuraRevealTitle() {
+  const el = document.getElementById('skinTitle');
+  if (!el) return;
+  el.style.transition = 'none';
+  el.style.opacity = '0';
+  el.style.filter = 'blur(8px)';
+  requestAnimationFrame(() => {
+    el.style.transition = 'opacity 1.2s ease, filter 1.4s ease';
+    el.style.opacity = '1';
+    el.style.filter = 'blur(0)';
+  });
+}
+
+// ── Override applySkin to also fire flair ─────────────────────────────────────
+const _applySkinBase = applySkin;
+applySkin = function(id, save) {
+  _applySkinBase(id, save);
+  _sfxStart(id);
+  // Skin-specific title effects on switch
+  if (id === 'void')   setTimeout(_voidBootTitle, 80);
+  if (id === 'sakura') setTimeout(_sakuraRevealTitle, 80);
+};
+
 // ── Init ──────────────────────────────────────────────────────────
 (function() {
   const bar = document.getElementById('zoneBar');
@@ -14780,6 +16015,12 @@ function setStatus(msg) { document.getElementById('status').textContent = msg; }
   buildJourneyMoodUI();
   buildPresetUI();
   buildOSTStepList();
+
+  // ── Skin: restore saved or apply default ────────────────────────────────
+  buildSkinBar();
+  let savedSkin = 'ashen';
+  try { savedSkin = localStorage.getItem('mf_skin') || 'ashen'; } catch(e) {}
+  applySkin(SKINS[savedSkin] ? savedSkin : 'ashen', false);
   Object.keys(layerOn).forEach(k => { if (layerOn[k]) document.getElementById('pill-' + k)?.classList.add('on'); });
   document.getElementById('dbg-scale').textContent = 'Zone Default';
   document.getElementById('dbg-mood').textContent = 'tense';
