@@ -346,6 +346,13 @@ canvas {
 .layer-pill.melody  { color: #246048; }
 .layer-pill.choir   { color: #6a5828; }
 .layer-pill.chaos   { color: #6e2438; }
+.layer-pill.guitar  { color: #3d5c2a; }
+.layer-pill.flute   { color: #2a4a5c; }
+.layer-pill.duduk   { color: #5c3a28; }
+.layer-pill.harp    { color: #4a2a5c; }
+.layer-pill.viola   { color: #28485c; }
+.layer-pill.oud     { color: #5c4a28; }
+.layer-pill.taiko   { color: #6e3028; }
 
 /* ── TAB NAV ──────────────────────────────────────────────── */
 .tabs-nav {
@@ -773,15 +780,22 @@ canvas {
         <button class="layer-toggle" id="btn-chains"   onclick="toggleLayer('chains')">Chains</button>
         <button class="layer-toggle" id="btn-march"    onclick="toggleLayer('march')">March Snare</button>
         <button class="layer-toggle" id="btn-stomp"    onclick="toggleLayer('stomp')">Ritual Stomp</button>
+        <button class="layer-toggle" id="btn-taiko"    onclick="toggleLayer('taiko')">Taiko</button>
       </div>
 
       <div class="layer-cat">Melodic</div>
       <div class="layer-grid">
         <button class="layer-toggle" id="btn-melody" onclick="toggleLayer('melody')">Melody</button>
         <button class="layer-toggle" id="btn-cello"  onclick="toggleLayer('cello')">Cello</button>
+        <button class="layer-toggle" id="btn-viola"  onclick="toggleLayer('viola')">Viola</button>
         <button class="layer-toggle" id="btn-choir"  onclick="toggleLayer('choir')">Choir</button>
         <button class="layer-toggle" id="btn-lute"   onclick="toggleLayer('lute')">Lute</button>
+        <button class="layer-toggle" id="btn-guitar" onclick="toggleLayer('guitar')">Guitar</button>
+        <button class="layer-toggle" id="btn-oud"    onclick="toggleLayer('oud')">Oud</button>
         <button class="layer-toggle" id="btn-horn"   onclick="toggleLayer('horn')">Horn Call</button>
+        <button class="layer-toggle" id="btn-flute"  onclick="toggleLayer('flute')">Flute</button>
+        <button class="layer-toggle" id="btn-duduk"  onclick="toggleLayer('duduk')">Duduk</button>
+        <button class="layer-toggle" id="btn-harp"   onclick="toggleLayer('harp')">Harp</button>
         <button class="layer-toggle" id="btn-bells"  onclick="toggleLayer('bells')">Bells</button>
         <button class="layer-toggle" id="btn-organ"  onclick="toggleLayer('organ')" oncontextmenu="cycleVoice('organ',event)">Pipe Organ <span id="voice-organ" style="font-size:7px;opacity:0.6;display:block;letter-spacing:0.05em;">sine</span></button>
       </div>
@@ -810,9 +824,9 @@ canvas {
           <input type="range" class="fx-slider" id="reverbSize" min="0" max="100" value="55" style="--pct:55%" oninput="onReverbSize(this)"/>
         </div>
         <div class="fx-item">
-          <div class="fx-label-row"><span class="fx-label">Reverb Mix</span><span class="fx-value" id="reverbMixVal">28%</span></div>
+          <div class="fx-label-row"><span class="fx-label">Reverb Mix</span><span class="fx-value" id="reverbMixVal">46%</span></div>
           <div class="fx-desc">Dry / wet blend</div>
-          <input type="range" class="fx-slider" id="reverbMix" min="0" max="100" value="28" style="--pct:28%" oninput="onReverbMix(this)"/>
+          <input type="range" class="fx-slider" id="reverbMix" min="0" max="100" value="46" style="--pct:46%" oninput="onReverbMix(this)"/>
         </div>
         <div class="fx-item">
           <div class="fx-label-row"><span class="fx-label">Echo Time</span><span class="fx-value" id="delayTimeVal">0.00s</span></div>
@@ -830,9 +844,9 @@ canvas {
           <input type="range" class="fx-slider mood-slider" id="moodSlider" min="0" max="100" value="50" style="--pct:50%" oninput="onMood(this)"/>
         </div>
         <div class="fx-item">
-          <div class="fx-label-row"><span class="fx-label">Saturation</span><span class="fx-value" id="saturationVal">20%</span></div>
+          <div class="fx-label-row"><span class="fx-label">Saturation</span><span class="fx-value" id="saturationVal">28%</span></div>
           <div class="fx-desc">Tube warmth / harmonic grit</div>
-          <input type="range" class="fx-slider" id="saturationSlider" min="0" max="100" value="8" style="--pct:20%" oninput="onSaturation(this)"/>
+          <input type="range" class="fx-slider" id="saturationSlider" min="0" max="100" value="28" style="--pct:28%" oninput="onSaturation(this)"/>
         </div>
       </div>
     </div>
@@ -983,9 +997,9 @@ let reverbNodeShort = null, reverbWetGainShort = null; // tight room for percuss
 let delayNode = null, delayFbGain = null, delayWetGain = null;
 let saturationNode = null, moodFilter = null, masterCompressor = null, masterHPF = null;
 
-let _reverbSize = 0.55, _reverbMix = 0.28, _delayTime = 0.0, _delayFb = 0.0;
+let _reverbSize = 0.65, _reverbMix = 0.46, _delayTime = 0.0, _delayFb = 0.0;
 let _mood = 0.5; // 0=calm, 0.5=tense, 1=nightmare
-let _saturation = 0.08;
+let _saturation = 0.28;
 
 // BPM Lock
 let bpmLocked = false;
@@ -1886,36 +1900,30 @@ function coherentPoolPick(required, pool, max, seed) {
 }
 
 const LAYER_ARCHETYPES = {
-  // Sparse opening — drone and strings as atmosphere, nothing rhythmic
   desolate:  { required: ['drone','strings'],
-               pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ'],
-               max: 2, floors: [1,99] },
+               pool: ['wind','heartbeat','whispers','firecrackle','bells','riser','organ','harp','viola','flute','duduk'],
+               max: 3, floors: [1,99] },
 
-  // Rhythm-led — bass and march define the section, strings are support not lead
   marching:  { required: ['bass','march','wardrums'],
-               pool: ['drone','strings','perc','stomp','chains','horn','cello','ritualchant'],
+               pool: ['drone','strings','perc','stomp','chains','horn','cello','ritualchant','taiko','viola'],
                max: 4, floors: [1,99] },
 
-  // Choir-led — choir and organ define the section, strings/drone fill in later
   choral:    { required: ['choir','organ'],
-               pool: ['bells','heartbeat','ritualchant','lute','cello','whispers','riser'],
+               pool: ['bells','heartbeat','ritualchant','lute','cello','whispers','riser','harp','viola','flute','duduk'],
                latePool: ['drone','strings'],
                max: 4, floors: [1,99] },
 
-  // Full combat — perc and bass anchor, strings and choir build on top
   combat:    { required: ['bass','perc','wardrums'],
-               pool: ['drone','strings','stomp','march','chaos','melody','cello','choir','horn','chains','ritualchant'],
+               pool: ['drone','strings','stomp','march','chaos','melody','cello','choir','horn','chains','ritualchant','taiko','viola'],
                max: 6, floors: [1,99] },
 
-  // Melody-led — melody and harmonic colour define the section, drone/strings fill in later
   arcane:    { required: ['melody','organ'],
-               pool: ['cello','lute','bells','riser','glitch','choir','whispers','heartbeat'],
+               pool: ['cello','lute','bells','riser','glitch','choir','whispers','heartbeat','guitar','harp','flute','viola','oud'],
                latePool: ['drone','strings'],
-               max: 4, floors: [1,99] },
+               max: 5, floors: [1,99] },
 
-  // Maximum density — everything, chaotic
   nightmare: { required: ['drone','bass','chaos','wardrums'],
-               pool: ['strings','stomp','glitch','ritualchant','riser','perc','march','choir','bells','horn'],
+               pool: ['strings','stomp','glitch','ritualchant','riser','perc','march','choir','bells','horn','taiko'],
                max: 7, floors: [1,99] },
 };
 
@@ -2195,64 +2203,99 @@ const JC_ENERGY_CURVES = {
 // This creates the classic orchestral build: sparse at low energy, full at peak,
 // then strips back as energy recedes toward resolution.
 const JC_LAYER_GROUPS = [
-  { id:'foundation', layers:['drone'],                  enter:0.00, exit:-1   }, // always present
-  { id:'harmonic',   layers:['strings'],                enter:0.05, exit:-1   }, // enters early, stays forever
-  { id:'bass_line',  layers:['bass'],                   enter:0.18, exit:-1   }, // enters early, stays
-  { id:'atmosphere', layers:['wind','heartbeat'],       enter:0.08, exit:0.72 }, // atmospheric — leaves at peak
-  { id:'organ_col',  layers:['organ'],                  enter:0.15, exit:0.80 }, // early harmonic colour
-  { id:'bells_det',  layers:['bells'],                  enter:0.18, exit:0.60 }, // delicate — exits before full density
-  { id:'choir_bed',  layers:['choir'],                  enter:0.25, exit:-1   }, // choral bed — stays once in
-  { id:'solo_voice', layers:['melody'],                 enter:0.18, exit:-1   }, // melody — stays once in
-  { id:'cello_cnt',  layers:['cello'],                  enter:0.32, exit:-1   }, // cello response — stays
-  { id:'tension_fx', layers:['riser'],                  enter:0.30, exit:0.75 }, // tension riser — exits at climax
-  { id:'rhythm_1',   layers:['perc'],                   enter:0.28, exit:-1   }, // perc — stays once in
-  { id:'horn_acc',   layers:['horn'],                   enter:0.45, exit:-1   }, // brass accent
-  { id:'chains_tex', layers:['chains'],                 enter:0.40, exit:0.85 }, // texture — exits near peak
-  { id:'rhythm_2',   layers:['wardrums'],               enter:0.48, exit:-1   }, // war drums — stays
-  { id:'ritual',     layers:['ritualchant','whispers'], enter:0.55, exit:0.90 }, // ritual — exits near peak
-  { id:'rhythm_3',   layers:['march','stomp'],          enter:0.65, exit:-1   }, // heavy march — stays
-  { id:'chaos_peak', layers:['chaos','glitch'],         enter:0.72, exit:-1   }, // chaos — only at peak
+  { id:'foundation', layers:['drone'],                  enter:0.00, exit:-1   },
+  { id:'harmonic',   layers:['strings'],                enter:0.05, exit:-1   },
+  { id:'bass_line',  layers:['bass'],                   enter:0.18, exit:-1   },
+  { id:'atmosphere', layers:['wind','heartbeat'],       enter:0.08, exit:0.72 },
+  { id:'organ_col',  layers:['organ'],                  enter:0.15, exit:0.80 },
+  { id:'bells_det',  layers:['bells'],                  enter:0.18, exit:0.60 },
+  { id:'choir_bed',  layers:['choir'],                  enter:0.25, exit:-1   },
+  { id:'solo_voice', layers:['melody'],                 enter:0.18, exit:-1   },
+  { id:'cello_cnt',  layers:['cello'],                  enter:0.32, exit:-1   },
+  { id:'tension_fx', layers:['riser'],                  enter:0.30, exit:0.75 },
+  { id:'rhythm_1',   layers:['perc'],                   enter:0.28, exit:-1   },
+  { id:'horn_acc',   layers:['horn'],                   enter:0.45, exit:-1   },
+  { id:'chains_tex', layers:['chains'],                 enter:0.40, exit:0.85 },
+  { id:'rhythm_2',   layers:['wardrums'],               enter:0.48, exit:-1   },
+  { id:'ritual',     layers:['ritualchant','whispers'], enter:0.55, exit:0.90 },
+  { id:'rhythm_3',   layers:['march','stomp'],          enter:0.65, exit:-1   },
+  { id:'chaos_peak', layers:['chaos','glitch'],         enter:0.72, exit:-1   },
+  // New instrument groups — split by role and character
+  { id:'guitar_col', layers:['guitar'],  enter:0.12, exit:0.78 }, // harmonic pluck — exits before peak density
+  { id:'lute_mel',   layers:['lute'],    enter:0.15, exit:-1   }, // melodic pluck — stays once in
+  { id:'flute_mel',  layers:['flute'],   enter:0.14, exit:-1   }, // bright wind — stays once in
+  { id:'duduk_mel',  layers:['duduk'],   enter:0.18, exit:0.85 }, // dark wind — exits near peak
+  { id:'harp_tex',   layers:['harp'],    enter:0.10, exit:0.72 }, // harp glimmer — exits at climax
+  { id:'viola_pad',  layers:['viola'],   enter:0.05, exit:-1   }, // inner voice — enters very early
+  { id:'oud_col',    layers:['oud'],     enter:0.20, exit:0.88 }, // oud colour
+  { id:'taiko_drv',  layers:['taiko'],   enter:0.55, exit:-1   }, // taiko — only at high intensity
 ];
 
 const JC_MOOD_SUPPRESS = {
-  meditative: new Set(['rhythm_2','rhythm_3','chains_tex','chaos_peak','ritual','horn_acc']),
-  arcane:     new Set(['rhythm_2','rhythm_3','chains_tex']),
-  tragic:     new Set(['horn_acc','chaos_peak']),
-  triumphant: new Set(['chaos_peak','ritual']),
-  // New moods
-  ritual:     new Set(['chaos_peak','bells_det','organ_col']),         // no chaos/bells — just drums and chant
-  paranoia:   new Set(['horn_acc','bells_det']),                       // no heroic brass or delicate bells
-  elegy:      new Set(['rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak','horn_acc']), // no drums ever
-  siege:      new Set(['bells_det','organ_col','atmosphere','ritual']), // no delicate/atmospheric — pure force
-  awakening:  new Set(['ritual','chains_tex']),
-  catharsis:  new Set(['chaos_peak','chains_tex']),       // no chaos — grief is clean
-  void:       new Set(['horn_acc','ritual','chains_tex']),// no heroic brass, no ritual — pure alien
-  // Genre moods — suppress defines the genre's "no-go" palette
+  // Instrument suppression philosophy:
+  //   - Suppress = "this instrument has no place in this emotional world"
+  //   - Viola stays in almost everything — harmonic filler, not colour
+  //   - Taiko only in high-intensity martial moods
+  //   - Duduk/harp only in grief/mournful/sacred contexts
+  //   - Guitar/flute/lute only in modal/folk/light contexts
+  //   - Oud only in arcane/alien/modal contexts
+  descent:    new Set([
+    'oud_col','taiko_drv','flute_mel','duduk_mel','guitar_col','harp_tex',
+  ]),
+  tragic:     new Set([
+    'horn_acc','chaos_peak','taiko_drv','flute_mel','guitar_col','oud_col',
+  ]),
+  triumphant: new Set([
+    'chaos_peak','ritual','oud_col','harp_tex','duduk_mel','flute_mel',
+  ]),
+  arcane:     new Set([
+    'rhythm_2','rhythm_3','chains_tex','taiko_drv','oud_col','guitar_col',
+  ]),
+  meditative: new Set([
+    'rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak',
+    'ritual','horn_acc','taiko_drv','oud_col','guitar_col','duduk_mel',
+  ]),
+  ritual:     new Set([
+    'chaos_peak','bells_det','organ_col','harp_tex','guitar_col','lute_mel','flute_mel','duduk_mel',
+  ]),
+  paranoia:   new Set([
+    'horn_acc','bells_det','harp_tex','guitar_col','flute_mel','duduk_mel','oud_col',
+  ]),
+  elegy:      new Set([
+    'rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak',
+    'horn_acc','taiko_drv','oud_col','guitar_col',
+  ]),
+  siege:      new Set([
+    'bells_det','organ_col','atmosphere','ritual',
+    'harp_tex','flute_mel','duduk_mel','guitar_col','lute_mel','oud_col',
+  ]),
+  awakening:  new Set([
+    'ritual','chains_tex','taiko_drv','guitar_col','oud_col',
+  ]),
+  catharsis:  new Set([
+    'chaos_peak','chains_tex','taiko_drv','oud_col','guitar_col',
+  ]),
+  void:       new Set([
+    'horn_acc','ritual','chains_tex','guitar_col','lute_mel','harp_tex','duduk_mel','flute_mel',
+  ]),
   gregorian:  new Set([
-    // No rhythm at all, no melody instruments, no chaos
     'rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak',
     'solo_voice','horn_acc','bass_line','atmosphere',
-    // Keep: choir_bed, organ_col, foundation, harmonic, bells_det (used as distant shimmer)
+    'taiko_drv','guitar_col','lute_mel','flute_mel','harp_tex','oud_col',
   ]),
   industrial: new Set([
-    // No delicate instruments, no melody, no brass, no chant, no atmosphere
     'solo_voice','horn_acc','bells_det','organ_col','cello_cnt',
     'atmosphere','ritual',
-    // Keep: all rhythm groups, chaos_peak, chains_tex, bass_line, foundation
+    'harp_tex','guitar_col','lute_mel','flute_mel','duduk_mel','oud_col','viola_pad',
   ]),
-  celtic: new Set([
-    // No war machinery, no chaos, no choir (too gothic), no sustained dread layers
+  celtic:     new Set([
     'rhythm_2','rhythm_3','chains_tex','chaos_peak',
-    'ritual','horn_acc',
-    // Keep: solo_voice (lute/melody), bells_det, organ_col (as drone replacement),
-    //        choir_bed at low energy only (controlled by enter threshold)
+    'ritual','horn_acc','taiko_drv','oud_col','duduk_mel',
   ]),
-  ambient: new Set([
-    // Almost everything suppressed — only texture, no rhythm, no melody spikes
+  ambient:    new Set([
     'rhythm_1','rhythm_2','rhythm_3','chains_tex','chaos_peak',
-    'horn_acc','ritual','bass_line','cello_cnt',
-    // Keep: foundation (drone), harmonic (strings), atmosphere (wind/heartbeat),
-    //        bells_det (distant shimmer), solo_voice (ethereal melody only)
+    'horn_acc','ritual','bass_line','cello_cnt','taiko_drv',
+    'oud_col','guitar_col','lute_mel','duduk_mel',
   ]),
 };
 
@@ -2327,19 +2370,19 @@ JC.computeTargetSet = function() {
 
   // Archetype suppressions — added on top of mood-level suppressions
   const ARCHETYPE_SUPPRESS = {
-    desolate:  ['rhythm_1','rhythm_2','rhythm_3','chains_tex','horn_acc'],
-    choral:    ['rhythm_1','rhythm_2','rhythm_3','chains_tex'],
-    marching:  ['organ_col','bells_det','choir_bed'],
-    combat:    [],
-    nightmare: ['bells_det','organ_col'],
-    arcane:    ['rhythm_2','rhythm_3','chains_tex'],
+    desolate:  ['rhythm_1','rhythm_2','rhythm_3','chains_tex','horn_acc','taiko_drv','oud_col','lute_mel'],
+    choral:    ['rhythm_1','rhythm_2','rhythm_3','chains_tex','taiko_drv','oud_col','guitar_col'],
+    marching:  ['organ_col','bells_det','choir_bed','harp_tex','guitar_col','flute_mel','duduk_mel'],
+    combat:    ['harp_tex','guitar_col','flute_mel','duduk_mel'],
+    nightmare: ['bells_det','organ_col','harp_tex','guitar_col','lute_mel','flute_mel','duduk_mel','viola_pad'],
+    arcane:    ['rhythm_2','rhythm_3','chains_tex','taiko_drv'],
   };
-  // Archetype threshold offsets — shift enter thresholds so some groups come in earlier
   const ARCHETYPE_EARLY = {
-    choral:    ['choir_bed','cello_cnt','harmonic'],  // choir enters earlier
-    marching:  ['rhythm_2','rhythm_3','rhythm_1'],    // drums enter earlier
-    nightmare: ['chaos_peak'],                        // chaos enters earlier
-    arcane:    ['solo_voice','bells_det','organ_col'], // melody/bells enter earlier
+    choral:    ['choir_bed','cello_cnt','harmonic','flute_mel','harp_tex','viola_pad'],
+    marching:  ['rhythm_2','rhythm_3','rhythm_1','taiko_drv'],
+    nightmare: ['chaos_peak','taiko_drv'],
+    arcane:    ['solo_voice','bells_det','organ_col','lute_mel','flute_mel','harp_tex','oud_col','viola_pad'],
+    desolate:  ['viola_pad','harp_tex','duduk_mel'],
   };
   const earlySet = new Set(ARCHETYPE_EARLY[archetype] || []);
 
@@ -2487,99 +2530,178 @@ JC.reconcile = function(preset, intensity) {
 
   const SUSTAIN_LAYERS = new Set([
     'drone','strings','choir','melody','cello','organ','bass',
-    'heartbeat','wind','whispers','ritualchant','bells','horn','lute'
+    'heartbeat','wind','whispers','ritualchant','bells','horn','lute',
+    'guitar','flute','duduk','harp','viola','oud',
   ]);
 
+  // ── PER-MOOD EARLY ENTRY OVERRIDES ───────────────────────────────────────
+  // Some moods need their identity instruments present from near-zero energy.
+  // This overrides the JC_LAYER_GROUPS enter threshold for specific groups
+  // within this mood only — guaranteeing they're heard from the start.
+  const MOOD_EARLY_ENTRY = {
+    celtic:     { flute_mel:0.04, guitar_col:0.04, harp_tex:0.05, lute_mel:0.05 },
+    gregorian:  { duduk_mel:0.02, viola_pad:0.02, choir_bed:0.00 },
+    elegy:      { duduk_mel:0.06, harp_tex:0.06, viola_pad:0.04 },
+    arcane:     { flute_mel:0.08, harp_tex:0.08, oud_col:0.10 },
+    ambient:    { flute_mel:0.04, harp_tex:0.04, viola_pad:0.03 },
+    meditative: { harp_tex:0.05, flute_mel:0.08, viola_pad:0.04 },
+    tragic:     { duduk_mel:0.08, harp_tex:0.10 },
+    catharsis:  { duduk_mel:0.10, harp_tex:0.10 },
+    void:       { oud_col:0.10, flute_mel:0.12 },
+  };
+
+  // Apply early entry overrides — lower the effective enter threshold
+  // for mood-specific identity instruments
+  const moodEarly = MOOD_EARLY_ENTRY[JC.mood] || {};
+  JC_LAYER_GROUPS.forEach(g => {
+    if (moodEarly[g.id] != null && !suppress.has(g.id)) {
+      // Re-evaluate this group with the overridden threshold
+      const overriddenEnter = moodEarly[g.id];
+      const jOffset = (JC._groupOffsets && JC._groupOffsets[g.id]) || 0;
+      const thresh  = Math.max(0, overriddenEnter + jOffset);
+      if (e >= thresh && (g.exit < 0 || e < g.exit)) {
+        g.layers.forEach(l => target.add(l));
+      }
+    }
+  });
+
+  // ── PER-MOOD MELODIC SLOT ALLOCATION ─────────────────────────────────────
+  // With 9 melodic instruments available, we need to tell the system which
+  // 2-3 are the identity instruments for this mood, and which are colour.
+  // Identity slots enter freely; colour slots only enter if identities are present.
+  const MOOD_MELODIC_IDENTITY = {
+    descent:    ['melody','choir'],
+    tragic:     ['choir','cello','duduk'],
+    triumphant: ['melody','horn','choir'],
+    arcane:     ['melody','flute','harp'],
+    meditative: ['choir','harp','flute'],
+    ritual:     ['ritualchant','choir'],
+    paranoia:   ['melody','glitch'],
+    elegy:      ['cello','duduk','harp'],
+    siege:      ['choir','horn'],
+    awakening:  ['choir','melody'],
+    catharsis:  ['choir','cello','duduk'],
+    void:       ['melody','oud'],
+    gregorian:  ['choir','duduk'],
+    industrial: ['chaos'],
+    celtic:     ['flute','lute','guitar'],
+    ambient:    ['flute','harp'],
+  };
+
   // ── MOOD CHARACTERS: instrument sets per phrase per mood ───────────────────
-  // Each mood defines what each phrase sounds like for that emotional context.
-  // Tragic tension sounds nothing like siege tension — different instruments,
-  // different texture, different emotional register.
   const MOOD_CHARACTERS = {
     descent: {
-      intro:      ['drone','strings','wind','heartbeat'],
-      build:      ['drone','strings','bass','melody','perc','choir'],
-      tension:    ['drone','strings','bass','perc','wardrums','riser','whispers'],
-      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','choir','melody','horn','chaos'],
-      resolution: ['drone','strings','melody','cello','choir','bells','organ'],
+      intro:      ['drone','strings','viola','wind','heartbeat'],
+      build:      ['drone','strings','viola','bass','melody','perc','choir'],
+      tension:    ['drone','strings','viola','bass','perc','wardrums','riser','whispers'],
+      climax:     ['drone','strings','viola','bass','perc','wardrums','march','stomp','choir','melody','horn','chaos'],
+      resolution: ['drone','strings','viola','melody','cello','choir','bells','organ'],
     },
     tragic: {
-      intro:      ['drone','strings','choir','wind'],             // choir from the start
-      build:      ['drone','strings','choir','melody','cello','organ'],
-      tension:    ['drone','strings','bass','choir','riser','whispers'], // no drums — grief not fear
-      climax:     ['drone','strings','bass','choir','melody','cello','perc','horn'], // one drum layer max
-      resolution: ['drone','strings','choir','cello','bells'],    // sparse, no melody — just sustained sound
+      intro:      ['drone','strings','viola','choir','duduk','wind'],
+      build:      ['drone','strings','viola','choir','melody','cello','organ','duduk'],
+      tension:    ['drone','strings','viola','bass','choir','riser','whispers','duduk'],
+      climax:     ['drone','strings','viola','bass','choir','melody','cello','perc','horn'],
+      resolution: ['drone','strings','viola','choir','cello','duduk','harp','bells'],
     },
     triumphant: {
-      intro:      ['drone','strings','bass','perc'],              // march from bar one
-      build:      ['drone','strings','bass','perc','wardrums','horn','melody'],
-      tension:    ['drone','strings','bass','perc','wardrums','march','riser','horn'],
-      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','horn','choir','melody','chaos'],
-      resolution: ['drone','strings','bass','perc','horn','choir','melody'], // triumphant doesn't quiet down much
+      intro:      ['drone','strings','viola','bass','perc'],
+      build:      ['drone','strings','viola','bass','perc','wardrums','horn','melody'],
+      tension:    ['drone','strings','viola','bass','perc','wardrums','march','riser','horn'],
+      climax:     ['drone','strings','viola','bass','perc','wardrums','march','stomp','horn','choir','melody','chaos'],
+      resolution: ['drone','strings','viola','bass','perc','horn','choir','melody'],
     },
     arcane: {
-      intro:      ['drone','strings','organ','bells','lute'],     // no drums, all shimmer
-      build:      ['drone','strings','organ','melody','lute','bells','choir'],
-      tension:    ['drone','strings','bass','organ','melody','riser','glitch'], // glitch as tension texture
-      climax:     ['drone','strings','bass','organ','melody','choir','bells','chaos','glitch'],
-      resolution: ['drone','strings','organ','bells','lute','choir'], // back to shimmer
+      intro:      ['drone','strings','viola','organ','harp','flute'],
+      build:      ['drone','strings','viola','organ','melody','flute','harp','bells','choir'],
+      tension:    ['drone','strings','viola','bass','organ','melody','flute','riser','glitch'],
+      climax:     ['drone','strings','viola','bass','organ','melody','choir','bells','chaos','glitch'],
+      resolution: ['drone','strings','viola','organ','harp','flute','choir'],
     },
     meditative: {
-      intro:      ['drone','strings','wind','bells'],
-      build:      ['drone','strings','choir','organ','bells','melody'],
-      tension:    ['drone','strings','bass','choir','riser','heartbeat'], // heartbeat as tension, no drums
-      climax:     ['drone','strings','bass','choir','melody','cello','organ','bells'], // no perc ever
-      resolution: ['drone','strings','choir','bells','organ'],
+      intro:      ['drone','strings','viola','harp','flute','wind'],
+      build:      ['drone','strings','viola','choir','organ','harp','flute','melody'],
+      tension:    ['drone','strings','viola','bass','choir','harp','riser','heartbeat'],
+      climax:     ['drone','strings','viola','bass','choir','melody','cello','organ','harp','bells'],
+      resolution: ['drone','strings','viola','choir','harp','flute','bells','organ'],
     },
     ritual: {
-      intro:      ['drone','strings','wardrums','ritualchant'],   // drums and chant from start
-      build:      ['drone','strings','bass','wardrums','march','ritualchant','choir'],
-      tension:    ['drone','strings','bass','wardrums','march','stomp','chains','ritualchant'],
-      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','chains','chaos','choir'],
-      resolution: ['drone','strings','ritualchant','choir','wind'], // ritual wind-down
+      intro:      ['drone','strings','viola','wardrums','ritualchant'],
+      build:      ['drone','strings','viola','bass','wardrums','march','ritualchant','choir'],
+      tension:    ['drone','strings','viola','bass','wardrums','march','stomp','chains','ritualchant'],
+      climax:     ['drone','strings','viola','bass','perc','wardrums','march','stomp','chains','chaos','choir'],
+      resolution: ['drone','strings','viola','ritualchant','choir','wind'],
     },
     paranoia: {
-      intro:      ['drone','strings','glitch','wind','riser'],    // unsettled from bar 1
-      build:      ['drone','strings','bass','perc','glitch','melody','riser'],
-      tension:    ['drone','strings','bass','perc','chaos','glitch','riser','whispers'],
-      climax:     ['drone','strings','bass','perc','wardrums','chaos','glitch','melody','choir'],
-      resolution: ['drone','strings','glitch','melody','whispers'], // never fully resolves
+      intro:      ['drone','strings','viola','glitch','wind','riser'],
+      build:      ['drone','strings','viola','bass','perc','glitch','melody','riser'],
+      tension:    ['drone','strings','viola','bass','perc','chaos','glitch','riser','whispers'],
+      climax:     ['drone','strings','viola','bass','perc','wardrums','chaos','glitch','melody','choir'],
+      resolution: ['drone','strings','viola','glitch','melody','whispers'],
     },
     elegy: {
-      intro:      ['drone','strings','cello','wind'],             // no percussion ever
-      build:      ['drone','strings','cello','choir','organ'],
-      tension:    ['drone','strings','cello','choir','riser'],    // no drums — elegy has no fight
-      climax:     ['drone','strings','cello','choir','melody','organ','horn'], // orchestral but no rhythm
-      resolution: ['drone','strings','cello','bells'],            // stripped to essence
+      intro:      ['drone','strings','viola','cello','duduk','wind'],
+      build:      ['drone','strings','viola','cello','choir','organ','harp','duduk'],
+      tension:    ['drone','strings','viola','cello','choir','harp','riser'],
+      climax:     ['drone','strings','viola','cello','choir','melody','organ','horn','duduk'],
+      resolution: ['drone','strings','viola','cello','harp','duduk','bells'],
     },
     siege: {
-      intro:      ['drone','strings','bass','perc','wardrums'],   // full assault from start
-      build:      ['drone','strings','bass','perc','wardrums','march','stomp','horn'],
-      tension:    ['drone','strings','bass','perc','wardrums','march','stomp','chains','riser'],
-      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','chains','horn','chaos','choir'],
-      resolution: ['drone','strings','bass','perc','wardrums','horn'], // siege never fully stops
+      intro:      ['drone','strings','bass','perc','wardrums','taiko'],
+      build:      ['drone','strings','bass','perc','wardrums','march','stomp','horn','taiko'],
+      tension:    ['drone','strings','bass','perc','wardrums','march','stomp','chains','riser','taiko'],
+      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','chains','horn','chaos','choir','taiko'],
+      resolution: ['drone','strings','bass','perc','wardrums','horn','taiko'],
     },
     awakening: {
-      intro:      ['drone','strings','bass','perc','wardrums','march','chaos','choir'],
-      build:      ['drone','strings','bass','perc','wardrums','choir','melody','horn'],
-      tension:    ['drone','strings','bass','perc','choir','melody','riser'],
-      climax:     ['drone','strings','bass','choir','melody','cello','organ'],
-      resolution: ['drone','strings','wind','bells'],
+      intro:      ['drone','strings','viola','bass','perc','wardrums','march','chaos','choir'],
+      build:      ['drone','strings','viola','bass','perc','wardrums','choir','melody','horn'],
+      tension:    ['drone','strings','viola','bass','perc','choir','melody','riser'],
+      climax:     ['drone','strings','viola','bass','choir','melody','cello','organ'],
+      resolution: ['drone','strings','viola','harp','wind','bells'],
     },
-
     catharsis: {
-      intro:      ['drone','strings','cello','wind'],              // sparse, aching
-      build:      ['drone','strings','cello','choir','bass'],      // choir enters slowly
-      tension:    ['drone','strings','bass','perc','choir','cello','riser'], // one drum layer, choir holds
-      climax:     ['drone','strings','bass','choir','melody','cello','organ','horn','bells'], // the release — full and beautiful
-      resolution: ['drone','strings','choir','cello','organ','bells'], // warm, not quiet — earned warmth
+      intro:      ['drone','strings','viola','cello','duduk','wind'],
+      build:      ['drone','strings','viola','cello','choir','bass','harp','duduk'],
+      tension:    ['drone','strings','viola','bass','perc','choir','cello','duduk','riser'],
+      climax:     ['drone','strings','viola','bass','choir','melody','cello','organ','horn','bells','harp'],
+      resolution: ['drone','strings','viola','choir','cello','organ','bells','harp','duduk'],
     },
-
     void: {
-      intro:      ['drone','strings','organ','glitch'],            // unsettling from start
-      build:      ['drone','strings','bass','organ','melody','glitch','chaos'],
-      tension:    ['drone','strings','bass','chaos','glitch','riser','whispers'], // alien texture
-      climax:     ['drone','strings','bass','chaos','glitch','melody','choir','organ'], // wrong but full
-      resolution: ['drone','strings','organ','glitch','whispers'], // never resolves — just gets quieter and stranger
+      intro:      ['drone','strings','viola','organ','glitch','oud'],
+      build:      ['drone','strings','viola','bass','organ','melody','glitch','chaos','oud'],
+      tension:    ['drone','strings','viola','bass','chaos','glitch','riser','whispers','oud'],
+      climax:     ['drone','strings','viola','bass','chaos','glitch','melody','choir','organ'],
+      resolution: ['drone','strings','viola','organ','glitch','whispers','oud'],
+    },
+    // ── GENRE MOODS ──────────────────────────────────────────────────────────
+    gregorian: {
+      intro:      ['drone','strings','viola','choir','duduk'],
+      build:      ['drone','strings','viola','choir','organ','duduk'],
+      tension:    ['drone','strings','viola','choir','organ','riser','duduk'],
+      climax:     ['drone','strings','viola','choir','organ','duduk'],
+      resolution: ['drone','strings','viola','choir','duduk'],
+    },
+    industrial: {
+      intro:      ['drone','strings','bass','perc','wardrums','taiko'],
+      build:      ['drone','strings','bass','perc','wardrums','march','stomp','taiko'],
+      tension:    ['drone','strings','bass','perc','wardrums','march','stomp','chains','chaos','taiko'],
+      climax:     ['drone','strings','bass','perc','wardrums','march','stomp','chains','chaos','glitch','taiko'],
+      resolution: ['drone','strings','bass','perc','wardrums','taiko'],
+    },
+    celtic: {
+      intro:      ['drone','strings','viola','flute','guitar','harp'],
+      build:      ['drone','strings','viola','flute','guitar','lute','harp','bells','choir'],
+      tension:    ['drone','strings','viola','bass','flute','lute','riser','choir'],
+      climax:     ['drone','strings','viola','bass','perc','flute','lute','guitar','choir','bells'],
+      resolution: ['drone','strings','viola','flute','harp','guitar','bells'],
+    },
+    ambient: {
+      intro:      ['drone','strings','viola','harp','flute'],
+      build:      ['drone','strings','viola','harp','flute','melody','wind'],
+      tension:    ['drone','strings','viola','harp','flute','riser','heartbeat'],
+      climax:     ['drone','strings','viola','harp','flute','melody','bells','wind'],
+      resolution: ['drone','strings','viola','harp','flute'],
     },
   };
 
@@ -2595,24 +2717,30 @@ JC.reconcile = function(preset, intensity) {
   };
 
   // ── ROLE CAPS: max active layers per role group ───────────────────────────
-  // Rhythm cap varies by mood — elegy/meditative have no rhythm, siege has lots
   const rhythmCap = {
-    elegy: 0, meditative: 0, arcane: 0,          // no rhythm ever
-    tragic: 1, awakening: 2, catharsis: 1, void: 1, // limited rhythm
+    elegy: 0, meditative: 0, arcane: 0, gregorian: 0, ambient: 0,
+    tragic: 1, awakening: 2, catharsis: 1, void: 1,
     descent: e > 0.70 ? 4 : 2,
     triumphant: e > 0.50 ? 4 : 3,
     ritual: e > 0.50 ? 5 : 3,
     paranoia: e > 0.60 ? 3 : 2,
-    siege: e > 0.40 ? 5 : 4,                      // siege always heavy on rhythm
+    siege: e > 0.40 ? 5 : 4,
+    industrial: e > 0.30 ? 5 : 4,
+    celtic: e > 0.60 ? 2 : 1,
   }[JC.mood] ?? (e > 0.70 ? 4 : 2);
 
   const ROLE_CAPS = {
-    melodic:  e > 0.65 ? 3 : 2,
+    melodic:  e > 0.70 ? 4 : e > 0.40 ? 3 : 2, // tighter — no endless melodic stacking
     rhythmic: rhythmCap,
     harmonic: 3,
     pulse:    2,
-    texture:  2,
+    texture:  e > 0.60 ? 3 : 2,
   };
+
+  // Identity instruments for this mood get priority — they bypass the role cap check.
+  // Colour instruments only enter if identity instruments are already present and
+  // there's still room under the cap.
+  const identitySet = new Set(MOOD_MELODIC_IDENTITY[JC.mood] || []);
 
   // Count current active layers per role
   const roleCounts = {};
@@ -2628,44 +2756,43 @@ JC.reconcile = function(preset, intensity) {
   // Foundation layers enter first, texture last.
   // On exit, texture leaves first, foundation last.
   const ENTER_ORDER = [
-    'drone','strings','bass',          // foundation — always first
-    'perc','wardrums',                 // rhythm anchor
-    'choir','melody',                  // primary voice
-    'cello','organ','horn',            // secondary voice
-    'march','stomp','chains',          // heavy rhythm
-    'heartbeat','wind','riser',        // atmosphere
-    'bells','lute','whispers',         // detail
-    'ritualchant','chaos','glitch',    // edge
+    'drone','strings','bass','viola',       // foundation — always first
+    'perc','wardrums','taiko',              // rhythm anchor
+    'choir','melody','duduk',              // primary voice
+    'cello','organ','horn','flute',        // secondary voice
+    'march','stomp','chains',              // heavy rhythm
+    'heartbeat','wind','riser',            // atmosphere
+    'bells','lute','guitar','harp','oud','whispers', // detail/colour
+    'ritualchant','chaos','glitch',        // edge
     'firecrackle',
   ];
   const EXIT_ORDER = [...ENTER_ORDER].reverse(); // texture exits first
 
   // ── DECIDE WHAT SHOULD ENTER ─────────────────────────────────────────────
-  // A layer should enter if:
-  //   1. target set wants it
-  //   2. phrase character includes it (or energy is high enough to override)
-  //   3. its role is under cap (or there's a candidate to swap out)
   const wantsIn = ENTER_ORDER.filter(name => {
-    if (!(name in layerOn) || layerOn[name]) return false;   // already on or unknown
-    if (!target.has(name)) return false;                     // not wanted by energy
-    const inChar = char.has(name);
-    const charOverride = e > 0.82; // near-climax: character cap lifts
-    return inChar || charOverride;
+    if (!(name in layerOn) || layerOn[name]) return false;
+    if (!target.has(name)) return false;
+    const inChar     = char.has(name);
+    const charOverride = e > 0.82;
+    if (!inChar && !charOverride) return false;
+    const role       = MIX_ROLE_OF[name] ?? 'texture';
+    const cap        = ROLE_CAPS[role] ?? 2;
+    const isIdentity = identitySet.has(name);
+    const count      = roleCounts[role] || 0;
+    return isIdentity ? true : count < cap;
   });
 
   // ── DECIDE WHAT SHOULD EXIT ──────────────────────────────────────────────
-  // A layer should exit if:
-  //   1. target set no longer wants it, OR
-  //   2. it's outside the phrase character AND role is over cap AND energy isn't peaking
   const wantsOut = EXIT_ORDER.filter(name => {
-    if (!(name in layerOn) || !layerOn[name]) return false;  // already off or unknown
-    if (!target.has(name)) return true;                      // energy says leave
+    if (!(name in layerOn) || !layerOn[name]) return false;
+    if (!target.has(name)) return true;
     const inChar = char.has(name);
-    if (inChar) return false;                                // character says stay
-    // Outside character — exit if role is over cap and energy not at peak
-    const role = MIX_ROLE_OF[name] ?? 'texture';
-    const cap  = ROLE_CAPS[role] ?? 2;
-    return (roleCounts[role] || 0) > cap && e < 0.80;
+    if (inChar) return false;
+    const role       = MIX_ROLE_OF[name] ?? 'texture';
+    const cap        = ROLE_CAPS[role] ?? 2;
+    const isIdentity = identitySet.has(name);
+    if (isIdentity) return false;
+    return (roleCounts[role] || 0) > cap && e < 0.82;
   });
 
   // ── APPLY: one entrance, one exit per call ────────────────────────────────
@@ -2803,10 +2930,15 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
 
   CE.onZoneChange(preset);
   if(!bpmLocked) barLength=(60/preset.bpm)*4;
-  // Use the per-run scale arc if available, else fall back to chapter's static scale
+  // Defer scale change by one bar — the pivot chord needs to establish
+  // before the scale shifts, otherwise layers retune twice in quick succession.
   const _chapterScaleName = (JC._scaleArc && JC._scaleArc[JC.step]) || toChapter.scale;
   const moodScales = SCALE_MOODS[_chapterScaleName] || SCALE_MOODS.dark;
-  selectScale(moodScales[Math.floor(rng()*moodScales.length)]);
+  const _newScale  = moodScales[Math.floor(rng()*moodScales.length)];
+  JC.timers.push(setTimeout(() => {
+    if (!JC.active || !isPlaying) return;
+    selectScale(_newScale);
+  }, (barLength || 4) * 1000)); // one bar delay
 
   // Use the chapter's own phrase arc — not a global sequence.
   // The JC phrase engine drives from this arc, cycling through it
@@ -3378,8 +3510,9 @@ function triggerEvent(name, e) {
 const LAYER_NAMES = [
   'drone','strings','bass','heartbeat',
   'wind','riser','firecrackle',
-  'perc','wardrums','chains','march','stomp',
+  'perc','wardrums','chains','march','stomp','taiko',
   'melody','cello','choir','lute','horn','bells','organ',
+  'guitar','flute','duduk','harp','viola','oud',
   'chaos','whispers','ritualchant','glitch',
   'boss'
 ];
@@ -3395,8 +3528,9 @@ const VIZ_MODES = ['spectrum', 'waveform', 'rune'];
 const layerOn = {
   drone:true, strings:false, bass:false, heartbeat:false,
   wind:false, riser:false, firecrackle:false,
-  perc:false, wardrums:false, chains:false, march:false, stomp:false,
+  perc:false, wardrums:false, chains:false, march:false, stomp:false, taiko:false,
   melody:false, cello:false, choir:false, lute:false, horn:false, bells:false, organ:false,
+  guitar:false, flute:false, duduk:false, harp:false, viola:false, oud:false,
   chaos:false, whispers:false, ritualchant:false, glitch:false
 };
 const FADE_IN = 2.4, FADE_OUT = 8.0;
@@ -3626,19 +3760,17 @@ function initAudio() {
   ctx.resume();
 
   masterGain = ctx.createGain();
-  masterGain.gain.value = 0.38; // was 0.55 — headroom for multiple layers
+  masterGain.gain.value = 0.72; // healthy starting level
 
   // ── GLOBAL BREATH — the room itself breathes ─────────────────────────────
-  // A very slow LFO (0.03–0.07 Hz, rate varies per session) applied to masterGain.
-  // This is not per-layer — the entire mix swells and recedes together,
-  // creating the "air movement" that dark ambient producers rely on.
-  // Depth is kept subtle (±0.028) so it never fights the adaptive mix loop.
-  const _breathRate  = 0.032 + (rng() * 0.038); // different each session
+  // A very slow LFO (0.03–0.07 Hz) on masterGain — the whole mix swells
+  // together. Deeper depth (±0.055) gives that living, organic quality.
+  const _breathRate  = 0.032 + (rng() * 0.038);
   const _breathLfo   = ctx.createOscillator();
   const _breathLfoG  = ctx.createGain();
   _breathLfo.type    = 'sine';
   _breathLfo.frequency.value = _breathRate;
-  _breathLfoG.gain.value     = 0.028;
+  _breathLfoG.gain.value     = 0.055; // deeper swell — felt, not just heard
   _breathLfo.connect(_breathLfoG);
   _breathLfoG.connect(masterGain.gain);
   _breathLfo.start();
@@ -3648,28 +3780,32 @@ function initAudio() {
   masterHPF.type = 'highpass';
   masterHPF.frequency.value = 18; // lowered from 30Hz — was eating zone 1-3 sub bass
 
-  // Saturation (WaveShaper)
+  // Saturation (WaveShaper) — warm harmonic exciter, not a distortion unit
+  // 0.28 gives rich even-order harmonics that fatten the low-mids
   saturationNode = ctx.createWaveShaper();
-  saturationNode.curve = makeSatCurve(_saturation);
+  saturationNode.curve = makeSatCurve(0.28);
   saturationNode.oversample = '4x';
 
+  // Makeup gain — saturation compresses RMS, we need this back
   const satMakeup = ctx.createGain();
-  satMakeup.gain.value = 1.0; // was 1.4 — no makeup boost needed
+  satMakeup.gain.value = 1.45; // restore the level lost to soft-clipping
   saturationNode.connect(satMakeup);
-  
-  // Mood filter (master lowpass modulated by mood)
+
+  // Mood filter — wide open by default so harmonics breathe
+  // High cutoff preserves the choir shimmer and string air
   moodFilter = ctx.createBiquadFilter();
   moodFilter.type = 'lowpass';
-  moodFilter.frequency.value = 4000 + _mood * 8000;
-  moodFilter.Q.value = 0.5 + _mood * 2;
+  moodFilter.frequency.value = 18000; // effectively bypassed at default
+  moodFilter.Q.value = 0.5;
 
-  // Master compressor — gentle glue, not a limiter
+  // Master compressor — cinematic glue, not transparent limiting
+  // Lower threshold + softer knee = everything locks together as one mass
   masterCompressor = ctx.createDynamicsCompressor();
-  masterCompressor.threshold.value = -14; // raised from -18 — less compression on sub bass
-  masterCompressor.knee.value = 12;
-  masterCompressor.ratio.value = 3.0;
-  masterCompressor.attack.value = 0.008;  // 8ms — fast enough to catch peaks, slow enough to let transients breathe
-  masterCompressor.release.value = 0.45;
+  masterCompressor.threshold.value = -22; // catches more of the mix
+  masterCompressor.knee.value      = 18;  // wide soft knee — musical, not clinical
+  masterCompressor.ratio.value     = 4.5; // stronger glue
+  masterCompressor.attack.value    = 0.005; // 5ms — catches peaks cleanly
+  masterCompressor.release.value   = 0.35;  // slightly faster release for punch
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
@@ -3690,13 +3826,13 @@ function initAudio() {
   // Per-layer reverb send amounts — spatial depth hierarchy
   // Strings/choir/bells live in the room; bass/perc are dry and close
   const REVERB_SENDS = {
-    drone: 0.72, strings: 0.70, bass: 0.32, heartbeat: 0.06, // drone+bass boosted for sub presence
-    wind: 0.60, riser: 0.45, firecrackle: 0.35,
-    perc: 0.18, wardrums: 0.20, chains: 0.22, march: 0.18, stomp: 0.16,
-    melody: 0.84, cello: 0.55, choir: 0.65, lute: 0.40, horn: 0.50,
-    bells: 0.70, organ: 0.40,
-    chaos: 0.30, whispers: 0.55, ritualchant: 0.60, glitch: 0.20,
-    boss: 0.25,
+    drone: 0.82, strings: 0.82, bass: 0.38, heartbeat: 0.06,
+    wind: 0.72, riser: 0.58, firecrackle: 0.40,
+    perc: 0.22, wardrums: 0.24, chains: 0.28, march: 0.22, stomp: 0.20,
+    melody: 0.92, cello: 0.68, choir: 0.80, lute: 0.52, horn: 0.65,
+    bells: 0.85, organ: 0.55,
+    chaos: 0.35, whispers: 0.68, ritualchant: 0.75, glitch: 0.22,
+    boss: 0.30,
   };
 
   LAYER_NAMES.forEach(name => {
@@ -3959,13 +4095,18 @@ const MIX_CEILING = {
   whispers:    0.32,  ritualchant: 0.68,  glitch:      0.36,  boss:        0.80,
   melody:      0.90,  choir:       0.88,  cello:       0.74,  organ:       0.58,
   horn:        0.78,  lute:        0.60,  bells:       0.60,  chaos:       0.50,
+  // New instruments
+  taiko:       0.92,  guitar:      0.62,  flute:       0.70,  duduk:       0.72,
+  harp:        0.65,  viola:       0.76,  oud:         0.62,
 };
 
 // Role membership — every layer belongs to exactly one role
 const MIX_ROLE_OF = {
   melody:'melodic', choir:'melodic', horn:'melodic', cello:'melodic', organ:'melodic',
   lute:'melodic',   bells:'melodic',
-  perc:'rhythmic',  wardrums:'rhythmic', march:'rhythmic', stomp:'rhythmic',
+  guitar:'melodic', flute:'melodic', duduk:'melodic', harp:'melodic', oud:'melodic',
+  viola:'harmonic',
+  perc:'rhythmic',  wardrums:'rhythmic', march:'rhythmic', stomp:'rhythmic', taiko:'rhythmic',
   strings:'harmonic', drone:'harmonic', bass:'harmonic',
   heartbeat:'pulse', chains:'pulse', ritualchant:'pulse', boss:'pulse',
   wind:'texture',   riser:'texture', firecrackle:'texture',
@@ -4137,7 +4278,15 @@ const VOICE_BANKS = {
   chains:     ['chain1', 'chain2', 'metalHit'],
   march:      ['snare', 'bassDrum', 'rim'],
   stomp:      ['stomp1', 'stomp2', 'stomp3'],
-  lute:       ['sawtooth', 'sine', 'lute', 'plucked']
+  lute:       ['sawtooth', 'sine', 'lute', 'plucked'],
+  // New instruments
+  guitar:     ['nylon', 'steel', 'fingerpicked'],
+  flute:      ['concert', 'breathy', 'alto'],
+  duduk:      ['low', 'mid', 'high'],
+  harp:       ['concert', 'celtic', 'electric'],
+  viola:      ['arco', 'sul_tasto', 'tremolo'],
+  oud:        ['arabic', 'turkish', 'persian'],
+  taiko:      ['ensemble', 'solo', 'odaiko'],
 };
 
 // ── PICK RANDOM VOICE HELPER ─────────────────
@@ -4412,12 +4561,16 @@ const CE = (() => {
   function onPhrase(phraseName, zone) {
     const newKey = PHRASE_TO_PROG[phraseName] || 'normal';
     if (newKey !== _progKey) {
-      _progKey  = newKey;
-      _chordIdx = 0; // reset to start of new progression
+      _progKey = newKey;
+      // Don't reset _chordIdx to 0 — continue from current position in
+      // the new progression. This avoids a root-snap every phrase change.
+      // Just rebuild the chord at the current index with the new progression.
       if (zone && !_eventOverride) {
-        const prog      = getProgression(zone);
-        const [deg, qual] = prog[0];
-        currentChord    = buildChord(zone, deg, qual);
+        const prog = getProgression(zone);
+        // Clamp _chordIdx to the new progression's length
+        _chordIdx = _chordIdx % prog.length;
+        const [deg, qual] = prog[_chordIdx];
+        currentChord = buildChord(zone, deg, qual);
       }
     }
     updateDebugDisplay();
@@ -4437,21 +4590,51 @@ const CE = (() => {
     updateDebugDisplay();
   }
  
-  // ── Public: zone change — reset progression ───────────────────
+  // ── Public: zone change — smooth pivot modulation ─────────────
   function onZoneChange(zone) {
     _zone     = zone;
-    // Offset progression start by a seeded amount per journey — same chords,
-    // different entry point each run so the harmonic cycle feels fresh.
-    // Use a wide hash of startTime so all 4 chord slots are reachable.
+    // Offset progression start by a seeded amount per journey
     const jSeed = JC.active
       ? (Math.imul(JC.startTime ^ 0xDEADBEEF, 0x9E3779B9) >>> 0)
       : 0;
     _chordIdx = jSeed % Math.max(1, (getProgression(zone)?.length || 4));
-    if (!_eventOverride) {
-      const prog      = getProgression(zone);
-      const [deg, qual] = prog[0];
-      currentChord    = buildChord(zone, deg, qual);
+
+    if (_eventOverride) { updateDebugDisplay(); return; }
+
+    // ── PIVOT MODULATION ─────────────────────────────────────────
+    // Rather than snapping to the new zone's root chord, find the chord
+    // degree in the new zone whose root frequency is closest to the current
+    // chord root. Land there first, then advance normally — this creates a
+    // common-tone pivot that the ear follows rather than lurches through.
+    const oldRoot = currentChord?.root || 0;
+    const prog    = getProgression(zone);
+
+    if (oldRoot > 0) {
+      // Score each chord in the new progression by how close its root is
+      // to our current root (ratio distance, log scale)
+      let bestIdx = 0, bestDist = Infinity;
+      prog.forEach(([deg, qual], i) => {
+        const candidate = buildChord(zone, deg, qual);
+        // Distance measured across octaves — find the nearest octave equivalent
+        const r = candidate.root / oldRoot;
+        const normalised = r > 0 ? Math.log2(r) : 0;
+        const octDist = Math.abs(normalised - Math.round(normalised));
+        if (octDist < bestDist) { bestDist = octDist; bestIdx = i; }
+      });
+      // Only use the pivot if it's actually close (within a major third ~0.29 log2)
+      // — if the keys are genuinely distant, just start at prog[0] normally
+      if (bestDist < 0.30) {
+        _chordIdx    = bestIdx;
+        currentChord = buildChord(zone, prog[bestIdx][0], prog[bestIdx][1]);
+      } else {
+        _chordIdx    = 0;
+        currentChord = buildChord(zone, prog[0][0], prog[0][1]);
+      }
+    } else {
+      _chordIdx    = 0;
+      currentChord = buildChord(zone, prog[0][0], prog[0][1]);
     }
+
     updateDebugDisplay();
   }
  
@@ -4495,6 +4678,13 @@ const CE = (() => {
       chaos:       [80,  2000],
       ritualchant: [100, 500],
       whispers:    [200, 1000],
+      // New instruments
+      guitar:      [82,  1200],  // classical guitar range E2-E6 approx
+      flute:       [262, 2093],  // C4-C7 concert flute
+      duduk:       [110, 880],   // A2-A5 duduk range
+      harp:        [48,  3000],  // wide harp range
+      viola:       [55,  1000],  // C3-B5 viola range
+      oud:         [110, 1600],  // oud range, fretless so allow wider
     };
     const [lo, hi] = ranges[layerName] || [80, 2000];
     const inRange  = candidates.filter(c => c.freq >= lo && c.freq <= hi);
@@ -7569,70 +7759,972 @@ function buildWhispers(preset, intensity, name) {
 }
 
 function buildRitualChant(preset, intensity, name) {
-  const b   = bus[name];
-  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  // ── RITUAL CHANT — monophonic unison choir, slow and deliberate ──────────
+  // Multiple vowel formant stages: /u/ → /o/ → /a/ over the held note.
+  // Three layered voices slightly detuned for the "many voices as one" quality.
+  // Scheduling is note-duration-accurate — no drift from fixed timer.
+  const b    = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
 
-  // Chant degrees — slow, deliberate, pentatonic feel
-  const chantDegs = [0, 0, 3, 0, 5, 3, 0, 2];
-  let idx = 0, t = ctx.currentTime + 0.1;
+  // Chant phrase — scale degree sequence, slow and liturgical
+  const CHANT_DEGS  = [0, 0, 2, 3, 2, 0, 5, 3, 0, 0, 2, 0];
+  const CHANT_DURS  = [2, 3, 1, 2, 1, 3, 2, 1, 2, 4, 2, 4]; // in beats
+  let idx = 0;
+  let t   = ctx.currentTime + beat * 2;
 
-  function schedHit() {
+  function playChantNote(bt, freq, dur) {
     if (!layerOn[name]) return;
-    const bt   = t;
-    const freq = CE.chordTone('ritualchant', 1, idx % Math.max(1, CE.currentChord.ratios.length));
+    const vol = 0.18 + intensity * 0.14;
+    const atk = 0.18 + (1 - intensity) * 0.12; // slower attack at low energy
+    const rel = 0.55;
 
-    // Voice source — sawtooth through saturation gives it chest resonance
-    // Square alone was hollow; this adds the odd+even harmonic mix of a real voice
-    const o1   = mkOsc(freq,       'sawtooth',  0);
-    const o2   = mkOsc(freq,       'square',    1); // blend in odd harmonics
-    const o3   = mkOsc(freq * 2,   'sine',      0); // octave reinforcement
-    const g1   = mkGain(0.5), g2 = mkGain(0.2), g3 = mkGain(0.15);
+    // Three voice unison — slight detune creates the "many monks" effect
+    const DETUNES = [-4, 0, 4];
+    DETUNES.forEach(det => {
+      const o1 = mkOsc(freq,       'sawtooth', det);      // chest resonance
+      const o2 = mkOsc(freq,       'square',   det * 0.5); // odd harmonics
+      const o3 = mkOsc(freq * 2,   'sine',     0);         // head voice octave
+      const g1 = mkGain(0.42), g2 = mkGain(0.18), g3 = mkGain(0.10);
 
-    // Vocal formants — two bandpass nodes tuned to a low vowel
-    const f1   = mkFilt(480  + intensity * 120, 'bandpass', 6);
-    const f2   = mkFilt(1050 + intensity * 200, 'bandpass', 4);
-    const sat  = ctx.createWaveShaper(); sat.curve = makeSatCurve(0.22); // vocal warmth
-    const env  = mkGain(0);
+      // Three-formant vowel model /u/ → /o/ → /a/
+      const F1 = mkFilt(280,  'bandpass', 9);  // F1 low: closed vowel /u/
+      const F2 = mkFilt(900,  'bandpass', 5);  // F2 mid: chest resonance
+      const F3 = mkFilt(2200, 'bandpass', 3);  // F3 high: presence/sibilance
+      const sat = ctx.createWaveShaper();
+      sat.curve = makeSatCurve(0.18);          // vocal warmth without buzziness
+      const env = mkGain(0);
 
-    o1.connect(g1); o2.connect(g2); o3.connect(g3);
-    g1.connect(f1); g2.connect(f1);
-    g1.connect(f2); g2.connect(f2);
-    g3.connect(f2);
-    f1.connect(sat); f2.connect(sat);
-    chain(sat, env, b);
+      o1.connect(g1); o2.connect(g2); o3.connect(g3);
+      [g1, g2, g3].forEach(g => { g.connect(F1); g.connect(F2); g.connect(F3); });
+      F1.connect(sat); F2.connect(sat); F3.connect(sat);
+      chain(sat, env, b);
 
-    const dur = beat * (0.75 + (idx % 3 === 0 ? 0.5 : 0)); // every 3rd note is held longer
-    const vol = 0.08 + intensity * 0.08;
+      // Envelope: slow attack, hold, slow release — monastic legato
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vol, bt + atk);
+      env.gain.setValueAtTime(vol * 0.88, bt + dur - rel);
+      env.gain.linearRampToValueAtTime(0.0001, bt + dur + rel * 0.5);
 
-    env.gain.setValueAtTime(0, bt);
-    env.gain.linearRampToValueAtTime(vol, bt + 0.035);         // slow vocal attack
-    env.gain.setValueAtTime(vol * 0.82, bt + dur * 0.5);
-    env.gain.linearRampToValueAtTime(0.001, bt + dur);
+      // Vowel morph: F1 opens from /u/ (280Hz) to /o/ (500Hz) to /a/ (800Hz)
+      F1.frequency.setValueAtTime(280, bt);
+      F1.frequency.linearRampToValueAtTime(500, bt + dur * 0.4);
+      F1.frequency.linearRampToValueAtTime(800, bt + dur * 0.75);
+      F1.frequency.linearRampToValueAtTime(400, bt + dur + rel * 0.3); // close on release
 
-    // Formant shift mid-note — vowel morphs slightly as note sustains
-    f1.frequency.setValueAtTime(480 + intensity * 120, bt);
-    f1.frequency.linearRampToValueAtTime(550 + intensity * 150, bt + dur * 0.6);
+      // Vibrato — enters late, narrow, liturgical (not operatic)
+      const vib  = mkOsc(3.8 + rng() * 0.5, 'sine');
+      const vibG = mkGain(0);
+      chain(vib, vibG);
+      vibG.connect(o1.frequency);
+      vibG.connect(o2.frequency);
+      vibG.gain.setValueAtTime(0, bt + atk + 0.2);
+      vibG.gain.linearRampToValueAtTime(1.8 + intensity * 1.5, bt + atk + 0.7);
+      vibG.gain.setValueAtTime(1.8 + intensity * 1.5, bt + dur - rel);
+      vibG.gain.linearRampToValueAtTime(0, bt + dur + rel * 0.2);
+      vib.start(bt); vib.stop(bt + dur + rel + 0.1);
 
-    // Subtle vibrato — human voices always wobble slightly
-    const vib  = mkOsc(4.5 + rng() * 0.8, 'sine');
-    const vibG = mkGain(0);
-    chain(vib, vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
-    vibG.gain.setValueAtTime(0, bt + 0.08);
-    vibG.gain.linearRampToValueAtTime(2.5 + intensity * 2, bt + 0.3);
-    vib.start(bt); vib.stop(bt + dur + 0.1);
+      const stopT = bt + dur + rel + 0.15;
+      o1.start(bt); o1.stop(stopT);
+      o2.start(bt); o2.stop(stopT);
+      o3.start(bt); o3.stop(stopT);
+      reg(name, o1, o2, o3, g1, g2, g3, F1, F2, F3, sat, env, vib, vibG);
+    });
 
-    o1.start(bt); o1.stop(bt + dur + 0.1);
-    o2.start(bt); o2.stop(bt + dur + 0.1);
-    o3.start(bt); o3.stop(bt + dur + 0.1);
-    reg(name, o1, o2, o3, g1, g2, g3, f1, f2, sat, env, vib, vibG);
-
-    idx++;
-    t += beat * (1 + (idx % 3 === 0 ? 0.5 : 0));
-    regT(name, setTimeout(schedHit, beat * 0.88 * 1000));
+    // Breath layer — a chorus has audible air
+    const bLen  = Math.min(Math.floor(ctx.sampleRate * dur * 0.8), ctx.sampleRate * 4);
+    const bBuf  = ctx.createBuffer(1, bLen, ctx.sampleRate);
+    const bData = bBuf.getChannelData(0);
+    for (let i = 0; i < bLen; i++) bData[i] = Math.random() * 2 - 1;
+    const bSrc  = ctx.createBufferSource(); bSrc.buffer = bBuf;
+    const bFilt = mkFilt(1800, 'bandpass', 0.6);
+    const bEnv  = mkGain(0);
+    chain(bSrc, bFilt, bEnv, b);
+    bEnv.gain.setValueAtTime(0, bt);
+    bEnv.gain.linearRampToValueAtTime(0.008 + intensity * 0.006, bt + atk);
+    bEnv.gain.linearRampToValueAtTime(0, bt + dur);
+    bSrc.start(bt); bSrc.stop(bt + dur + 0.1);
+    reg(name, bSrc, bFilt, bEnv);
   }
 
-  schedHit();
+  function schedNote() {
+    if (!layerOn[name]) return;
+    const deg  = CHANT_DEGS[idx % CHANT_DEGS.length];
+    const durB = CHANT_DURS[idx % CHANT_DURS.length];
+    const freq = CE.chordTone('ritualchant', 1, deg % Math.max(1, CE.currentChord.ratios.length));
+    const dur  = beat * durB;
+
+    playChantNote(t, freq, dur);
+    t += dur;
+    idx++;
+    // Schedule next note to start exactly when this one ends (with tiny overlap for legato)
+    regT(name, setTimeout(schedNote, (dur - beat * 0.1) * 1000));
+  }
+
+  schedNote();
+}
+
+// ── CLASSICAL GUITAR ──────────────────────────────────────────────────────────
+// Nylon-string character: warm pluck, fast decay, strong body resonance.
+// Uses a Karplus-Strong-inspired approach: short noise burst filtered through
+// a tuned resonator, giving the characteristic guitar "thwack + ring" envelope.
+// Plays arpeggiated chord tones — idiomatic guitar texture, not melody.
+function buildGuitar(preset, intensity, name) {
+  // ── CLASSICAL GUITAR ────────────────────────────────────────────────────────
+  // Nylon-string character: Karplus-Strong-style synthesis via a noise exciter
+  // fed through a tuned comb filter (delay line approximation using multiple
+  // staggered bandpass resonators). Fingerpicked arpeggios, not strummed.
+  // Three dynamic modes: thumb bass (warm, slow), finger treble (bright, fast),
+  // and rasguado accent (rare, emphatic).
+  const b    = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+
+  // Arpeggio patterns [voiceIdx, octave multiplier, role]
+  // role: 'bass'=thumb, 'mid'=index, 'treble'=middle/ring
+  const ARPS = [
+    // p-i-m-a classical pattern
+    [[0,0.5,'bass'],[1,1,'mid'],[2,1,'treble'],[1,1,'mid']],
+    // p-i-a-m-i
+    [[0,0.5,'bass'],[1,1,'mid'],[2,1,'treble'],[2,2,'treble'],[1,1,'mid']],
+    // Alternating bass
+    [[0,0.5,'bass'],[1,1,'mid'],[2,1,'treble'],[2,0.5,'bass'],[1,1,'mid'],[2,1,'treble']],
+  ];
+  const patIdx = Math.floor(rng() * ARPS.length);
+  let arpStep = 0;
+  let t = ctx.currentTime + beat * 0.8;
+
+  function pluckString(bt, freq, role) {
+    if (!freq || freq < 60 || !layerOn[name]) return;
+    const isBass   = role === 'bass';
+    const isTreble = role === 'treble';
+
+    // Exciter: noise burst shaped by finger/thumb contact time
+    // Bass strings: longer contact, warmer; treble: shorter, brighter
+    const contactMs = isBass ? 0.022 : isTreble ? 0.008 : 0.014;
+    const excLen    = Math.floor(ctx.sampleRate * 0.1);
+    const excBuf    = ctx.createBuffer(1, excLen, ctx.sampleRate);
+    const excData   = excBuf.getChannelData(0);
+    for (let i = 0; i < excLen; i++) {
+      const tt = i / ctx.sampleRate;
+      excData[i] = (Math.random() * 2 - 1) * Math.exp(-tt / contactMs);
+    }
+    const excSrc = ctx.createBufferSource(); excSrc.buffer = excBuf;
+
+    // String resonance: 5 tuned bandpass filters simulating harmonic series
+    // Each partial decays at a different rate — lower partials ring longer
+    const PARTIALS = [
+      { f: freq,     Q: 80,  gv: 0.55, decay: isBass ? 2.8 : 1.6 },
+      { f: freq * 2, Q: 60,  gv: 0.28, decay: isBass ? 1.8 : 0.9 },
+      { f: freq * 3, Q: 45,  gv: 0.14, decay: isBass ? 1.1 : 0.5 },
+      { f: freq * 4, Q: 30,  gv: 0.07, decay: isBass ? 0.7 : 0.3 },
+      { f: freq * 5, Q: 20,  gv: 0.03, decay: isBass ? 0.4 : 0.15 },
+    ];
+
+    PARTIALS.forEach(({ f, Q, gv, decay }) => {
+      if (f > 9000) return;
+      const res = mkFilt(f, 'bandpass', Q);
+      const env = mkGain(0);
+      excSrc.connect(res);
+      chain(res, env, b);
+      const vol = gv * (0.14 + intensity * 0.09) * (isBass ? 1.3 : 1.0);
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(vol, bt + 0.003);
+      env.gain.exponentialRampToValueAtTime(0.0001, bt + decay);
+      reg(name, res, env);
+    });
+
+    // Body thump — the guitar box resonance, fixed pitch
+    const bodyFreq = isBass ? 180 : 260; // body resonance independent of string pitch
+    const bodyBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.06), ctx.sampleRate);
+    const bodyData = bodyBuf.getChannelData(0);
+    for (let i = 0; i < bodyData.length; i++)
+      bodyData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.018);
+    const bodySrc  = ctx.createBufferSource(); bodySrc.buffer = bodyBuf;
+    const bodyFilt = mkFilt(bodyFreq, 'bandpass', 4);
+    const bodyG    = mkGain((0.05 + intensity * 0.04) * (isBass ? 1.4 : 0.8));
+    chain(bodySrc, bodyFilt, bodyG, b);
+    bodySrc.start(bt);
+    reg(name, bodySrc, bodyFilt, bodyG);
+
+    // Nail transient — fret buzz on bass strings occasionally
+    if (isTreble && rng() < 0.5) {
+      const nailBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.003), ctx.sampleRate);
+      const nailData = nailBuf.getChannelData(0);
+      for (let i = 0; i < nailData.length; i++)
+        nailData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.0008);
+      const nailSrc  = ctx.createBufferSource(); nailSrc.buffer = nailBuf;
+      const nailFilt = mkFilt(5000 + rng() * 2000, 'highpass', 0.4);
+      const nailG    = mkGain(0.03 + intensity * 0.02);
+      chain(nailSrc, nailFilt, nailG, b);
+      nailSrc.start(bt);
+      reg(name, nailSrc, nailFilt, nailG);
+    }
+
+    excSrc.start(bt); excSrc.stop(bt + 0.12);
+    reg(name, excSrc);
+  }
+
+  function schedArp() {
+    if (!layerOn[name]) return;
+    const pat    = ARPS[patIdx];
+    const step   = pat[arpStep % pat.length];
+    const vIdx   = step[0], octM = step[1], role = step[2];
+    const freq   = CE.chordTone('guitar', octM, vIdx % Math.max(1, CE.currentChord.ratios.length));
+
+    pluckString(t, freq, role);
+
+    // Breathing room — guitar strokes are never perfectly even
+    const baseStep = role === 'bass' ? beat * 0.55 : beat * 0.45;
+    const stepDur  = baseStep * (0.91 + rng() * 0.18);
+    t += stepDur;
+    arpStep++;
+    regT(name, setTimeout(schedArp, stepDur * 1000));
+  }
+
+  schedArp();
+}
+
+// ── FLUTE ─────────────────────────────────────────────────────────────────────
+// Breathy sustained tone: sine + triangle for the pure/airy quality, with a
+// strong breath noise component that gives it the distinctive flutter.
+// Plays slow melodic phrases — the flute floats above everything else.
+function buildFlute(preset, intensity, name) {
+  // ── CONCERT FLUTE ───────────────────────────────────────────────────────────
+  // The flute is primarily breath noise shaped by the embouchure hole and bore.
+  // Synthesis: broadband noise → embouchure bandpass (air column entrance) →
+  // bore resonance (narrow bandpass at pitch) → gentle sine fundamental.
+  // The sine is much quieter than in other instruments — the flute is mostly air.
+  // Phrase character: legato arcs with clear phrase shaping, long rests between.
+  const b    = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const oct  = preset.melodyOctave + 2; // concert flute sits two octaves up
+
+  const FLUTE_PHRASES = [
+    [[0,2.5,0.5],[2,1.5,0],[1,2,0.5],[3,1,0],[2,3,1.5],[0,2,3]],
+    [[4,2,0.5],[3,1,0],[2,1.5,0.5],[4,2,0],[5,3,1],[4,2,3]],
+    [[2,1,0],[3,1,0],[4,2,0.5],[5,1,0],[4,1.5,0],[3,1,0],[2,3,3]],
+  ];
+  const phraseIdx = (JC.active && JC._scoreVariant != null)
+    ? JC._scoreVariant % FLUTE_PHRASES.length : Math.floor(rng() * FLUTE_PHRASES.length);
+  let t = ctx.currentTime + beat * 2;
+
+  function playFluteNote(bt, freq, dur) {
+    if (!freq || freq < 200 || !layerOn[name]) return;
+    const atk = 0.05 + (1 - intensity) * 0.04;
+    const rel = 0.20;
+
+    // ── Embouchure: broadband noise shaped at the embouchure hole ────────────
+    // Real flutes: ~40% of the sound is audible breath/air noise
+    const bLen  = Math.min(Math.floor(ctx.sampleRate * (dur + 0.3)), ctx.sampleRate * 6);
+    const bBuf  = ctx.createBuffer(1, bLen, ctx.sampleRate);
+    const bData = bBuf.getChannelData(0);
+    for (let i = 0; i < bLen; i++) bData[i] = Math.random() * 2 - 1;
+    const bSrc = ctx.createBufferSource(); bSrc.buffer = bBuf;
+
+    // Embouchure bandpass: wide, centred 2 octaves above fundamental
+    const embouchure = mkFilt(freq * 3, 'bandpass', 0.7); // broad air shaping
+    // Bore resonance: narrow, centred at fundamental — gives pitch to the air
+    const bore       = mkFilt(freq, 'bandpass', 18);
+    // Upper harmonic tone: narrow at 2nd partial
+    const bore2      = mkFilt(freq * 2, 'bandpass', 12);
+
+    const breathMix = mkGain(1.0);
+    bSrc.connect(embouchure); embouchure.connect(breathMix);
+    bSrc.connect(bore);       bore.connect(breathMix);
+    bSrc.connect(bore2);      bore2.connect(breathMix);
+
+    const breathVol = 0.055 + intensity * 0.025;
+    const bEnv = mkGain(0);
+    chain(breathMix, bEnv, b);
+    bEnv.gain.setValueAtTime(0, bt);
+    bEnv.gain.linearRampToValueAtTime(breathVol, bt + atk);
+    bEnv.gain.setValueAtTime(breathVol * 0.85, bt + dur - rel);
+    bEnv.gain.linearRampToValueAtTime(0, bt + dur + rel);
+    bSrc.start(bt); bSrc.stop(bt + dur + rel + 0.1);
+    reg(name, bSrc, embouchure, bore, bore2, breathMix, bEnv);
+
+    // ── Tone: sine fundamental much quieter than breath — this is correct ────
+    const o1  = mkOsc(freq,     'sine',     0);
+    const o2  = mkOsc(freq * 2, 'sine',     1); // 2nd partial, very quiet
+    const g1  = mkGain(0.30), g2 = mkGain(0.08);
+    const lpf = mkFilt(Math.min(freq * 5, 8000), 'lowpass', 0.5);
+    const env = mkGain(0);
+    chain(o1, g1, lpf); chain(o2, g2, lpf);
+    chain(lpf, env, b);
+    const toneVol = 0.09 + intensity * 0.07;
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(toneVol, bt + atk + 0.02);
+    env.gain.setValueAtTime(toneVol * 0.88, bt + dur - rel);
+    env.gain.linearRampToValueAtTime(0, bt + dur + rel);
+
+    // ── Flutter vibrato: enters 80ms in, rate 5.5–6.5Hz ─────────────────────
+    const vib  = mkOsc(5.5 + rng() * 1.0, 'sine');
+    const vibG = mkGain(0);
+    chain(vib, vibG); vibG.connect(o1.frequency);
+    vibG.gain.setValueAtTime(0, bt + 0.08);
+    vibG.gain.linearRampToValueAtTime(freq * 0.007, bt + atk + 0.12);
+    // Subtle crescendo vibrato at phrase end
+    vibG.gain.linearRampToValueAtTime(freq * 0.010, bt + dur - rel);
+    vib.start(bt); vib.stop(bt + dur + rel + 0.1);
+
+    const stopT = bt + dur + rel + 0.1;
+    o1.start(bt); o1.stop(stopT);
+    o2.start(bt); o2.stop(stopT);
+    reg(name, o1, o2, g1, g2, lpf, env, vib, vibG);
+  }
+
+  function schedPhrase() {
+    if (!layerOn[name]) return;
+    const phrase = FLUTE_PHRASES[phraseIdx];
+    phrase.forEach(([deg, durB, restB]) => {
+      const freq = CE.chordTone('flute', oct, deg % Math.max(1, CE.currentChord.ratios.length));
+      playFluteNote(t, freq, beat * durB);
+      t += beat * (durB + restB);
+    });
+    const phraseDur = phrase.reduce((s, [, d, r]) => s + d + r, 0) * beat;
+    // Long breath between phrases — the flute player needs to breathe
+    const rest = beat * (4 + rng() * 3);
+    t += rest;
+    regT(name, setTimeout(schedPhrase, (phraseDur + rest - beat * 0.25) * 1000));
+  }
+
+  schedPhrase();
+}
+
+// ── DUDUK ─────────────────────────────────────────────────────────────────────
+// Armenian double-reed: dark, nasal, mournful. The most human-sounding wind.
+// Double reed character: strong odd harmonics (square-ish), heavy low formants,
+// slow vibrato. Plays long held tones with sparse movement — each note is felt.
+function buildDuduk(preset, intensity, name) {
+  // ── DUDUK ────────────────────────────────────────────────────────────────────
+  // Armenian double-reed instrument. Two components:
+  //   1. Lead voice: the melody reed, nasal and mournful
+  //   2. Dam (drone): a second player holds a constant drone tonic beneath — 
+  //      this is how duduk is always traditionally performed.
+  // Lead: square + sawtooth blend (double-reed character), 3 dark formants.
+  // Dam: sustained sine on the tonic, much quieter, slightly detuned for beating.
+  const b    = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const oct  = preset.melodyOctave;
+
+  // ── Dam (drone string) ────────────────────────────────────────────────────
+  // Starts immediately, sustains throughout — the duduk never plays alone
+  const damFreq  = CE.chordTone('duduk', oct - 1, 0); // tonic one octave down
+  const damFreq2 = damFreq * 1.004; // slight detune for natural beating
+  const damO1    = mkOsc(Math.max(30, damFreq),  'sine', 0);
+  const damO2    = mkOsc(Math.max(30, damFreq2), 'sine', 0);
+  const damG1    = mkGain(0.14), damG2 = mkGain(0.10);
+  const damFilt  = mkFilt(500, 'lowpass', 0.6); // dark, stays out of the way
+  const damGain  = mkGain(0);
+  damO1.connect(damG1); damO2.connect(damG2);
+  damG1.connect(damFilt); damG2.connect(damFilt);
+  chain(damFilt, damGain, b);
+  const now0 = ctx.currentTime;
+  damGain.gain.setValueAtTime(0, now0);
+  damGain.gain.linearRampToValueAtTime(0.55, now0 + 2.0); // dam swells in slowly
+  damO1.start(); damO2.start();
+  reg(name, damO1, damO2, damG1, damG2, damFilt, damGain);
+
+  // ── Lead melody scheduling ────────────────────────────────────────────────
+  const DEGS = [0, 0, 2, 1, 0, 3, 2, 0, 5, 3, 2, 0];
+  const DURS = [3, 4, 2, 3, 4, 2, 3, 5, 2, 3, 2, 6];
+  let idx = 0, t = ctx.currentTime + beat * 2;
+
+  function playDudukNote(bt, freq, dur) {
+    if (!freq || freq < 80 || !layerOn[name]) return;
+    const vol = 0.22 + intensity * 0.12;
+    const atk = 0.14;
+    const rel = 0.40;
+
+    // Double reed: square (strong odd harmonics = reed buzz) + sawtooth (body)
+    const o1 = mkOsc(freq,       'square',   0);
+    const o2 = mkOsc(freq,       'sawtooth', 2);
+    const o3 = mkOsc(freq * 0.5, 'sine',     0); // sub warmth — fundamental reinforcement
+    const g1 = mkGain(0.35), g2 = mkGain(0.30), g3 = mkGain(0.22);
+
+    // Formants — duduk is dark and nasal, NOT bright
+    // F1: ~350Hz (dark /u/ → /o/ vowel), F2: ~1000Hz (nasal body)
+    // F3 is removed — duduk has no upper presence peak, it's all warmth
+    const F1  = mkFilt(350,  'bandpass', 8);
+    const F2  = mkFilt(980,  'bandpass', 4);
+    const lpf = mkFilt(2800, 'lowpass',  0.6); // aggressive rolloff — no harsh highs
+
+    const mix = mkGain(1.0);
+    [g1, g2, g3].forEach(g => { g.connect(F1); g.connect(F2); });
+    F1.connect(mix); F2.connect(mix);
+    chain(mix, lpf);
+    const env = mkGain(0);
+    chain(lpf, env, b);
+
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(vol, bt + atk);
+    env.gain.setValueAtTime(vol * 0.90, bt + Math.max(atk + 0.01, dur - rel));
+    env.gain.linearRampToValueAtTime(0.0001, bt + dur + rel * 0.6);
+
+    // Vowel morph: F1 opens slightly as note sustains (/u/ → /o/)
+    F1.frequency.setValueAtTime(320, bt);
+    F1.frequency.linearRampToValueAtTime(420, bt + dur * 0.5);
+    F1.frequency.linearRampToValueAtTime(350, bt + dur + rel * 0.3);
+
+    // Reed breath — coarser and rougher than flute
+    const bLen = Math.min(Math.floor(ctx.sampleRate * dur), ctx.sampleRate * 5);
+    const bBuf = ctx.createBuffer(1, bLen, ctx.sampleRate);
+    const bd   = bBuf.getChannelData(0);
+    for (let i = 0; i < bLen; i++) bd[i] = Math.random() * 2 - 1;
+    const bSrc  = ctx.createBufferSource(); bSrc.buffer = bBuf;
+    const bFilt = mkFilt(800, 'bandpass', 1.0); // broad reed roughness
+    const bEnv  = mkGain(0);
+    chain(bSrc, bFilt, bEnv, b);
+    bEnv.gain.setValueAtTime(0.020 + intensity * 0.010, bt);
+    bEnv.gain.setValueAtTime(0.020 + intensity * 0.010, bt + dur - rel);
+    bEnv.gain.linearRampToValueAtTime(0, bt + dur + rel * 0.4);
+    bSrc.start(bt); bSrc.stop(bt + dur + rel + 0.1);
+    reg(name, bSrc, bFilt, bEnv);
+
+    // Expressive vibrato — slow, wide, enters after attack
+    const vib  = mkOsc(3.8 + rng() * 0.6, 'sine');
+    const vibG = mkGain(0);
+    chain(vib, vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
+    vibG.gain.setValueAtTime(0, bt + atk + 0.25);
+    vibG.gain.linearRampToValueAtTime(freq * 0.014, bt + atk + 0.9);
+    vibG.gain.setValueAtTime(freq * 0.014, bt + dur - rel);
+    vibG.gain.linearRampToValueAtTime(0, bt + dur + rel * 0.3);
+    vib.start(bt); vib.stop(bt + dur + rel + 0.1);
+
+    const stopT = bt + dur + rel + 0.15;
+    o1.start(bt); o1.stop(stopT);
+    o2.start(bt); o2.stop(stopT);
+    o3.start(bt); o3.stop(stopT);
+    reg(name, o1, o2, o3, g1, g2, g3, F1, F2, lpf, mix, env, vib, vibG);
+  }
+
+  function schedNote() {
+    if (!layerOn[name]) return;
+    const deg  = DEGS[idx % DEGS.length];
+    const durB = DURS[idx % DURS.length];
+    const freq = CE.chordTone('duduk', oct, deg % Math.max(1, CE.currentChord.ratios.length));
+    const dur  = beat * durB;
+    playDudukNote(t, freq, dur);
+    t += dur;
+    idx++;
+    regT(name, setTimeout(schedNote, (dur - beat * 0.10) * 1000));
+  }
+
+  schedNote();
+}
+
+// ── HARP ──────────────────────────────────────────────────────────────────────
+// Glissando-style arpeggios across the chord: fast sweeps up or down,
+// then a held chord tone. Inharmonic decay: upper partials fade faster than lower.
+// The harp's defining quality is the way it glimmers and then disappears.
+function buildHarp(preset, intensity, name) {
+  // ── CONCERT HARP ────────────────────────────────────────────────────────────
+  // Three gesture types: glissando sweep (fast arpeggio), chord pluck (all at once),
+  // and isolated single string (very quiet, atmospheric).
+  // Decay hierarchy: fundamental rings 2-4s, upper partials die fast.
+  // Body resonance is fixed pitch (the harp body has its own resonance ~200-350Hz)
+  // not pitch-relative — a critical detail for realism.
+  const b    = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+
+  function pluckHarpString(bt, freq, decay, vol) {
+    if (!freq || freq < 60 || !layerOn[name]) return;
+    // Inharmonic partial structure — harp strings are slightly inharmonic
+    const PARTIALS = [
+      {r:1,    a:0.60, d:decay},
+      {r:2.005,a:0.24, d:decay * 0.52}, // slightly inharmonic 2nd
+      {r:3.012,a:0.11, d:decay * 0.30},
+      {r:4.022,a:0.05, d:decay * 0.18},
+      {r:5.035,a:0.02, d:decay * 0.10},
+    ];
+    PARTIALS.forEach(({r, a, d}) => {
+      if (freq * r > 9000) return;
+      const o   = mkOsc(freq * r, 'sine', rng() < 0.5 ? 1 : -1);
+      const env = mkGain(0);
+      chain(o, env, b);
+      env.gain.setValueAtTime(0, bt);
+      env.gain.linearRampToValueAtTime(a * vol, bt + 0.002);
+      env.gain.exponentialRampToValueAtTime(0.0001, bt + d);
+      o.start(bt); o.stop(bt + d + 0.1);
+      reg(name, o, env);
+    });
+
+    // Soundboard resonance — FIXED frequencies, independent of string pitch
+    // Harp body resonates around 200-350Hz regardless of which string is plucked
+    const bodyFreqs = [210, 290, 340];
+    bodyFreqs.forEach((bf, i) => {
+      const bBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.08), ctx.sampleRate);
+      const bData = bBuf.getChannelData(0);
+      for (let j = 0; j < bData.length; j++)
+        bData[j] = (Math.random() * 2 - 1) * Math.exp(-j / ctx.sampleRate / 0.020);
+      const bSrc  = ctx.createBufferSource(); bSrc.buffer = bBuf;
+      const bFilt = mkFilt(bf, 'bandpass', 5 - i);
+      const bG    = mkGain(vol * (0.10 - i * 0.025));
+      chain(bSrc, bFilt, bG, b); bSrc.start(bt);
+      reg(name, bSrc, bFilt, bG);
+    });
+  }
+
+  function doGliss() {
+    // Glissando: sweep up or down across 3-6 strings
+    const oct    = preset.melodyOctave + 1;
+    const nTones = 3 + Math.floor(rng() * 4); // 3-6 strings
+    const goUp   = rng() < 0.60;
+    const vol    = 0.14 + intensity * 0.10;
+    const nRat   = Math.max(1, CE.currentChord.ratios.length);
+
+    for (let i = 0; i < nTones; i++) {
+      const vIdx  = goUp ? i % nRat : (nTones - 1 - i) % nRat;
+      const octM  = Math.floor(i / nRat) + 1; // spread across octaves for wide sweeps
+      const freq  = CE.chordTone('harp', octM, vIdx);
+      const bt    = ctx.currentTime + i * beat * 0.055; // 55ms between strings
+      // Lower strings ring longer — realistic harp decay
+      const decay = 2.0 + rng() * 1.5 - (vIdx / nRat) * 0.8;
+      pluckHarpString(bt, freq, Math.max(0.8, decay), vol * (1 - i * 0.06));
+    }
+  }
+
+  function doChordPluck() {
+    // All chord tones together — a harp chord
+    const oct  = preset.melodyOctave + 1;
+    const vol  = 0.10 + intensity * 0.08;
+    const nRat = Math.max(1, CE.currentChord.ratios.length);
+    for (let i = 0; i < nRat; i++) {
+      const freq = CE.chordTone('harp', oct, i);
+      // Chord tones spread 8ms apart — chord not simultaneously struck
+      pluckHarpString(ctx.currentTime + i * 0.008, freq, 2.5 + rng(), vol * (0.9 - i * 0.08));
+    }
+  }
+
+  function doSingleString() {
+    // One isolated string — atmospheric, quiet
+    const oct  = preset.melodyOctave + (rng() < 0.5 ? 1 : 2);
+    const vIdx = Math.floor(rng() * Math.max(1, CE.currentChord.ratios.length));
+    const freq = CE.chordTone('harp', oct, vIdx);
+    pluckHarpString(ctx.currentTime, freq, 3.0 + rng() * 1.5, 0.08 + intensity * 0.05);
+  }
+
+  function schedGesture() {
+    if (!layerOn[name]) return;
+
+    // Choose gesture type weighted by intensity
+    const roll = rng();
+    if (roll < 0.50)      doGliss();
+    else if (roll < 0.75) doChordPluck();
+    else                  doSingleString();
+
+    // Harp gestures need space — they're punctuation, not rhythm
+    const wait = intensity > 0.6
+      ? beat * (2 + rng() * 2)   // faster at high intensity
+      : beat * (4 + rng() * 4);  // slow and sparse at low intensity
+    regT(name, setTimeout(schedGesture, wait * 1000));
+  }
+
+  schedGesture();
+}
+
+// ── VIOLA ─────────────────────────────────────────────────────────────────────
+// Fills the harmonic gap between violin strings and cello.
+// Darker than violin, less weighty than cello — the inner voice of the orchestra.
+// Sustained pad: chord tones in the middle register, slow bow, rich resonance.
+function buildViola(preset, intensity, name) {
+  // ── VIOLA ────────────────────────────────────────────────────────────────────
+  // Alto bowed string. Sits between cello and violin — darker than violin,
+  // less weighty than cello. The inner voice that glues the orchestra together.
+  // Three voices: root, 3rd, and an octave-lower 5th for depth.
+  // Bow pressure LFO modulates a separate tremolo gain, not the master gain
+  // directly — prevents overshoot.
+  const b   = bus[name];
+  const now = ctx.currentTime;
+  const MAX_STOP = now + 86400; // 24h — large but finite, avoids WebAudio error
+
+  const VOICES = [
+    { vIdx: 0, oct: 1.0, det: -3, gv: 0.42 }, // root
+    { vIdx: 1, oct: 1.0, det:  3, gv: 0.34 }, // 3rd
+    { vIdx: 2, oct: 0.5, det: -2, gv: 0.24 }, // 5th below
+  ];
+  const violaOscs = [];
+
+  // Signal chain: oscs → lpf → tremMod (bow pressure) → swellEnv → b
+  const lpf      = mkFilt(1700 + intensity * 350, 'lowpass', 0.7);
+  const swellEnv = mkGain(0); // master swell — rises slowly
+  lpf.connect(swellEnv); swellEnv.connect(b);
+  reg(name, lpf, swellEnv);
+
+  // Slow bow swell
+  swellEnv.gain.setValueAtTime(0, now);
+  swellEnv.gain.linearRampToValueAtTime(0.80, now + 2.5);
+
+  // Bow pressure tremolo — separate node so it doesn't fight the swell
+  const bowTrem  = mkOsc(0.058 + rng() * 0.025, 'sine');
+  const bowTremG = mkGain(0.06 + intensity * 0.035);
+  chain(bowTrem, bowTremG); bowTremG.connect(swellEnv.gain);
+  bowTrem.start(); bowTrem.stop(MAX_STOP);
+  reg(name, bowTrem, bowTremG);
+
+  VOICES.forEach(({ vIdx, oct, det, gv }) => {
+    const freq = CE.chordTone('viola', 1, vIdx) * oct;
+    if (!freq || freq < 40) return;
+    const o = mkOsc(freq, 'sawtooth', det);
+    const g = mkGain(gv);
+    chain(o, g, lpf);
+
+    // Vibrato — slower and wider than violin (~4.8Hz, ~1% deviation)
+    const vib  = mkOsc(4.8 + rng() * 0.4, 'sine');
+    const vibG = mkGain(0);
+    chain(vib, vibG); vibG.connect(o.frequency);
+    vibG.gain.setValueAtTime(0, now + 1.5);
+    vibG.gain.linearRampToValueAtTime(freq * 0.010, now + 3.2);
+    vib.start(); vib.stop(MAX_STOP);
+    reg(name, vib, vibG);
+
+    o.start(); reg(name, o, g);
+    violaOscs.push({ osc: o, vIdx, oct });
+  });
+
+  function retuneViola() {
+    if (!layerOn[name]) return;
+    const now2 = ctx.currentTime;
+    violaOscs.forEach(({ osc, vIdx, oct }) => {
+      const newFreq = CE.chordTone('viola', 1, vIdx) * oct;
+      if (newFreq && newFreq > 40) {
+        osc.frequency.cancelScheduledValues(now2);
+        osc.frequency.setValueAtTime(osc.frequency.value, now2);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, newFreq), now2 + 1.8);
+      }
+    });
+    regT(name, setTimeout(retuneViola, Math.max(200, (barLength || 2) * 2000)));
+  }
+  regT(name, setTimeout(retuneViola, (barLength || 2) * 1000));
+}
+
+function buildOud(preset, intensity, name) {
+  // ── OUD ─────────────────────────────────────────────────────────────────────
+  // Middle Eastern short-neck lute, played with an eagle-feather (now plastic)
+  // plectrum. Key qualities:
+  //   - Plectrum attack: a sharp mid-frequency transient (not a fingernail click)
+  //   - Body resonance: fixed ~850Hz regardless of string pitch (pear-shaped body)
+  //   - 11-12 strings in unison courses — modelled as two detuned saws
+  //   - Sympathetic strings: 3 fixed pitches that always ring after any pluck
+  //   - Phrase character: sparse, ornamental, long rests, occasional tremolo burst
+  const b    = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const oct  = preset.melodyOctave + 1;
+
+  // Sympathetic string frequencies — tuned to scale degrees 0, 4, 7 of the zone
+  // These ring quietly on every pluck regardless of which string was played
+  const sympFreqs = [0, 4, 7].map(d =>
+    CE.chordTone('oud', oct - 1, d % Math.max(1, CE.currentChord.ratios.length))
+  );
+
+  // Phrase library — [scaleDeg, beatDur, restAfter, ornament]
+  // ornament: null | 'trill' | 'mordent' | 'tremolo'
+  const OUD_PHRASES = [
+    // Phrase A — descending, mournful
+    [[0,1.5,0.5,null],[3,1,0,null],[2,1,0.25,'mordent'],[1,1.5,0.5,null],[0,2.5,2,null]],
+    // Phrase B — ascending with trill
+    [[3,1,0,null],[4,1,0,'trill'],[3,0.5,0,null],[5,2,0.5,null],[3,1,0,null],[0,2,2,null]],
+    // Phrase C — sparse, modal
+    [[0,2,1,null],[2,1,0,'mordent'],[3,2,0.5,null],[5,1,0,null],[3,1,0,null],[0,3,3,null]],
+  ];
+  const pIdx = (JC.active && JC._scoreVariant != null)
+    ? JC._scoreVariant % OUD_PHRASES.length : Math.floor(rng() * OUD_PHRASES.length);
+  let t = ctx.currentTime + beat * 1.5;
+
+  function pluckOud(bt, freq, dur, ornament) {
+    if (!freq || freq < 80 || !layerOn[name]) return;
+
+    // ── String courses: two detuned saws (unison courses) ──────────────────
+    const o1 = mkOsc(freq,       'sawtooth', -5);  // course 1
+    const o2 = mkOsc(freq,       'sawtooth',  5);  // course 2 (slight detune)
+    const o3 = mkOsc(freq * 2,   'sawtooth', -2);  // octave course (some ouds)
+    const g1 = mkGain(0.42), g2 = mkGain(0.38), g3 = mkGain(0.14);
+
+    // Body resonance — fixed at ~850Hz (pear-shaped oud body)
+    // This does NOT change with string pitch — crucial for realism
+    const bodyRes  = mkFilt(850,  'bandpass', 6);  // main body resonance
+    const bodyRes2 = mkFilt(1400, 'bandpass', 3);  // upper body partial
+    const nasal    = mkFilt(500,  'bandpass', 4);  // nasal lower-mid tone
+    const lpf      = mkFilt(4500, 'lowpass',  0.7);
+
+    const mix = mkGain(1.0);
+    [g1, g2, g3].forEach(g => {
+      g.connect(bodyRes); g.connect(bodyRes2); g.connect(nasal);
+    });
+    bodyRes.connect(mix); bodyRes2.connect(mix); nasal.connect(mix);
+    chain(mix, lpf);
+    const env = mkGain(0);
+    chain(lpf, env, b);
+
+    const vol   = 0.16 + intensity * 0.10;
+    const decay = dur * 1.2 + (1 - intensity) * 0.4;
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(vol, bt + 0.004);
+    env.gain.exponentialRampToValueAtTime(0.0001, bt + decay);
+
+    // ── Plectrum transient — the pick strike ───────────────────────────────
+    // Harder mid-frequency click than a fingernail (eagle feather is stiff)
+    const pickBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.006), ctx.sampleRate);
+    const pickData = pickBuf.getChannelData(0);
+    for (let i = 0; i < pickData.length; i++)
+      pickData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.0015);
+    const pickSrc  = ctx.createBufferSource(); pickSrc.buffer = pickBuf;
+    const pickFilt = mkFilt(2200, 'bandpass', 2.0); // mid-range click, not bright
+    const pickG    = mkGain(0.06 + intensity * 0.04);
+    chain(pickSrc, pickFilt, pickG, b);
+    pickSrc.start(bt);
+    reg(name, pickSrc, pickFilt, pickG);
+
+    // ── Sympathetic strings — always ring, quiet, tuned to scale ───────────
+    sympFreqs.forEach((sf, i) => {
+      if (!sf || sf < 40) return;
+      const so  = mkOsc(sf, 'sine');
+      const se  = mkGain(0);
+      chain(so, se, b);
+      se.gain.setValueAtTime(0, bt + 0.010);
+      se.gain.linearRampToValueAtTime(0.010 - i * 0.002, bt + 0.05);
+      se.gain.exponentialRampToValueAtTime(0.0001, bt + decay * 3);
+      so.start(bt + 0.010); so.stop(bt + decay * 3.2);
+      reg(name, so, se);
+    });
+
+    const stopT = bt + decay + 0.1;
+    o1.start(bt); o1.stop(stopT);
+    o2.start(bt); o2.stop(stopT);
+    o3.start(bt); o3.stop(stopT);
+    reg(name, o1, o2, o3, g1, g2, g3, bodyRes, bodyRes2, nasal, lpf, mix, env);
+
+    // ── Ornaments ──────────────────────────────────────────────────────────
+    if (ornament === 'mordent') {
+      // Upper mordent: main note → one step up → main note (very fast)
+      const upperFreq = CE.chordTone('oud', oct, 1 % Math.max(1, CE.currentChord.ratios.length));
+      if (upperFreq && upperFreq > freq) {
+        pluckOud(bt + beat * 0.08, upperFreq, beat * 0.08, null);
+        pluckOud(bt + beat * 0.16, freq,      beat * 0.12, null);
+      }
+    } else if (ornament === 'trill') {
+      // Trill: rapid alternation x3
+      const trillFreq = CE.chordTone('oud', oct, 1 % Math.max(1, CE.currentChord.ratios.length));
+      if (trillFreq && trillFreq > freq) {
+        [0.10, 0.20, 0.30].forEach(off => pluckOud(bt + beat * off, trillFreq, beat * 0.09, null));
+      }
+    }
+  }
+
+  function doTremoloBurst(bt, freq, dur) {
+    // Tremolo: rapid repeated plucks on one note — a signature oud technique
+    const nStrokes = Math.floor(dur / (beat * 0.08));
+    for (let i = 0; i < nStrokes; i++) {
+      const vel = 0.12 + (i / nStrokes) * 0.05; // slight crescendo through tremolo
+      const trBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.005), ctx.sampleRate);
+      const trData = trBuf.getChannelData(0);
+      for (let j = 0; j < trData.length; j++)
+        trData[j] = (Math.random() * 2 - 1) * Math.exp(-j / ctx.sampleRate / 0.001);
+      const trSrc  = ctx.createBufferSource(); trSrc.buffer = trBuf;
+      const trRes  = mkFilt(850, 'bandpass', 6);
+      const trEnv  = mkGain(0);
+      chain(trSrc, trRes, trEnv, b);
+      const tbt = bt + i * beat * 0.08;
+      trEnv.gain.setValueAtTime(0, tbt);
+      trEnv.gain.linearRampToValueAtTime(vel, tbt + 0.003);
+      trEnv.gain.exponentialRampToValueAtTime(0.0001, tbt + 0.18);
+      trSrc.start(tbt); trSrc.stop(tbt + 0.25);
+      reg(name, trSrc, trRes, trEnv);
+    }
+  }
+
+  function schedPhrase() {
+    if (!layerOn[name]) return;
+    const phrase = OUD_PHRASES[pIdx];
+
+    phrase.forEach(([deg, durB, restB, orn]) => {
+      const freq = CE.chordTone('oud', oct, deg % Math.max(1, CE.currentChord.ratios.length));
+      const dur  = beat * durB;
+      // 15% chance of a tremolo burst instead of a regular pluck on longer notes
+      if (durB >= 2 && rng() < 0.15) {
+        doTremoloBurst(t, freq, dur);
+      } else {
+        pluckOud(t, freq, dur, orn);
+      }
+      t += beat * (durB + restB);
+    });
+
+    const phraseDur = phrase.reduce((s, [, d, r]) => s + d + r, 0) * beat;
+    // Oud players pause meaningfully between phrases — space is part of the music
+    const rest = beat * (3 + rng() * 4);
+    t += rest;
+    regT(name, setTimeout(schedPhrase, (phraseDur + rest - beat * 0.2) * 1000));
+  }
+
+  schedPhrase();
+}
+
+// ── TAIKO ─────────────────────────────────────────────────────────────────────
+function buildTaiko(preset, intensity, name) {
+  // ── TAIKO ENSEMBLE ──────────────────────────────────────────────────────────
+  // Three drum sizes with distinct roles:
+  //   O-daiko  — massive, tuned, long decay. The heartbeat. Beats 1 & 3.
+  //   Chu-daiko — mid-size, punchy. Beats 2 & 4.
+  //   Shime-daiko — high, tight, snappy. Fill patterns and off-beats.
+  //
+  // Key fixes from previous version:
+  //   - Running t cursor prevents tempo drift (was recalculating from ctx.currentTime each bar)
+  //   - Fixed pitch per performance (not randomised every hit — detuning artifacts)
+  //   - Kiai transient: sharp mid-frequency crack on downbeats
+  //   - Fills scheduled from accumulated t, not stale now2
+  //   - Pattern varies by phrase: build=quarter hits, climax=16th fills
+  const b    = bus[name];
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+
+  // Fix pitches per performance — taiko drums are tuned instruments
+  // Slight variation per session but stable within a run
+  const O_PITCH   = 58 + Math.floor(rng() * 10);    // 58-68Hz, fixed
+  const CHU_PITCH = 105 + Math.floor(rng() * 25);   // 105-130Hz, fixed
+  const SHIME_PITCH = 260 + Math.floor(rng() * 50); // 260-310Hz, fixed
+
+  function strikeODaiko(bt, vel) {
+    const vol   = vel * (0.80 + intensity * 0.20);
+    const decay = 2.8 + rng() * 0.6;
+
+    // Two sines at fundamental + slight interval for membrane beating
+    const o1  = mkOsc(O_PITCH,         'sine', 0);
+    const o2  = mkOsc(O_PITCH * 1.006, 'sine', 0); // 6 cents apart → ~0.35Hz beat
+    const o3  = mkOsc(O_PITCH * 0.5,   'sine', 0); // sub octave boom
+    const g1  = mkGain(0.52), g2 = mkGain(0.42), g3 = mkGain(0.30);
+    const lpf = mkFilt(320, 'lowpass', 0.9);
+    const env = mkGain(0);
+    [g1, g2, g3].forEach(g => g.connect(lpf));
+    chain(lpf, env, b);
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(vol, bt + 0.004);
+    env.gain.exponentialRampToValueAtTime(vol * 0.55, bt + 0.10);
+    env.gain.exponentialRampToValueAtTime(0.0001, bt + decay);
+
+    // Bachi attack transient — the mallet head striking the drum face
+    const aBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.030), ctx.sampleRate);
+    const aData = aBuf.getChannelData(0);
+    for (let i = 0; i < aData.length; i++)
+      aData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.007);
+    const aSrc  = ctx.createBufferSource(); aSrc.buffer = aBuf;
+    const aFilt = mkFilt(180, 'lowpass', 0.6); // thuddy, not clicky
+    const aG    = mkGain(vol * 0.55);
+    chain(aSrc, aFilt, aG, b); aSrc.start(bt);
+    reg(name, aSrc, aFilt, aG);
+
+    // Kiai transient — the sharp high-mid crack on the downbeat strike
+    // This is the "presence" that makes taiko physically felt
+    const kBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.008), ctx.sampleRate);
+    const kData = kBuf.getChannelData(0);
+    for (let i = 0; i < kData.length; i++)
+      kData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.002);
+    const kSrc  = ctx.createBufferSource(); kSrc.buffer = kBuf;
+    const kFilt = mkFilt(800, 'bandpass', 2.5); // mid-frequency crack
+    const kG    = mkGain(vol * 0.35);
+    chain(kSrc, kFilt, kG, b); kSrc.start(bt);
+    reg(name, kSrc, kFilt, kG);
+
+    const stopT = bt + decay + 0.1;
+    o1.start(bt); o1.stop(stopT);
+    o2.start(bt); o2.stop(stopT);
+    o3.start(bt); o3.stop(stopT);
+    reg(name, o1, o2, o3, g1, g2, g3, lpf, env);
+  }
+
+  function strikeChuDaiko(bt, vel) {
+    const vol   = vel * (0.62 + intensity * 0.20);
+    const decay = 1.1 + rng() * 0.4;
+    const o1    = mkOsc(CHU_PITCH,         'sine', 0);
+    const o2    = mkOsc(CHU_PITCH * 1.008, 'sine', 0);
+    const g1    = mkGain(0.48), g2 = mkGain(0.38);
+    const lpf   = mkFilt(650, 'lowpass', 0.9);
+    const env   = mkGain(0);
+    g1.connect(lpf); g2.connect(lpf); chain(lpf, env, b);
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(vol, bt + 0.003);
+    env.gain.exponentialRampToValueAtTime(0.0001, bt + decay);
+
+    // Chu-daiko also gets an attack transient
+    const aBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.018), ctx.sampleRate);
+    const aData = aBuf.getChannelData(0);
+    for (let i = 0; i < aData.length; i++)
+      aData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.004);
+    const aSrc  = ctx.createBufferSource(); aSrc.buffer = aBuf;
+    const aFilt = mkFilt(350, 'lowpass', 0.7);
+    const aG    = mkGain(vol * 0.40);
+    chain(aSrc, aFilt, aG, b); aSrc.start(bt);
+    reg(name, aSrc, aFilt, aG);
+
+    o1.start(bt); o1.stop(bt + decay + 0.1);
+    o2.start(bt); o2.stop(bt + decay + 0.1);
+    reg(name, o1, o2, g1, g2, lpf, env);
+  }
+
+  function strikeShimeDaiko(bt, vel) {
+    const vol   = vel * (0.48 + intensity * 0.22);
+    const decay = 0.28 + rng() * 0.12;
+    const o1    = mkOsc(SHIME_PITCH, 'sine', 0);
+    const g1    = mkGain(0.32);
+    const env   = mkGain(0);
+    chain(o1, g1, env, b);
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(vol, bt + 0.002);
+    env.gain.exponentialRampToValueAtTime(0.0001, bt + decay);
+
+    // Tight snap — small noise burst, not a long crack
+    const sBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.015), ctx.sampleRate);
+    const sData = sBuf.getChannelData(0);
+    for (let i = 0; i < sData.length; i++)
+      sData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.003);
+    const sSrc  = ctx.createBufferSource(); sSrc.buffer = sBuf;
+    const sFilt = mkFilt(3000, 'bandpass', 1.8);
+    const sG    = mkGain(vol * 0.45);
+    chain(sSrc, sFilt, sG, b); sSrc.start(bt);
+    reg(name, sSrc, sFilt, sG);
+
+    o1.start(bt); o1.stop(bt + decay + 0.05);
+    reg(name, o1, g1, env);
+  }
+
+  // Running time cursor — eliminates tempo drift
+  let t = ctx.currentTime + beat * 0.1;
+
+  function schedBar() {
+    if (!layerOn[name]) return;
+    const step16 = beat * 0.25; // one 16th note
+    const dense  = currentPhrase === 'climax' || isBoss;
+
+    // O-daiko: beats 1 and 3
+    strikeODaiko(t,              0.92);
+    strikeODaiko(t + beat * 2,   0.82);
+
+    // Chu-daiko: beats 2 and 4
+    strikeChuDaiko(t + beat,     0.72);
+    strikeChuDaiko(t + beat * 3, 0.66);
+
+    // Shime-daiko fills — all relative to t (the bar start), not ctx.currentTime
+    for (let i = 0; i < 16; i++) {
+      // Skip main beats
+      if (i === 0 || i === 4 || i === 8 || i === 12) continue;
+      const fillProb = dense
+        ? (intensity > 0.8 ? 0.45 : 0.28)
+        : (intensity > 0.6 ? 0.20 : 0.08);
+      if (rng() < fillProb) {
+        strikeShimeDaiko(t + i * step16, 0.35 + rng() * 0.35);
+      }
+    }
+
+    // Advance t by exactly one bar — preserves tempo across calls
+    t += beat * 4;
+    regT(name, setTimeout(schedBar, beat * 3.90 * 1000));
+  }
+
+  schedBar();
 }
 function buildGlitch(preset, intensity, name) {
   const b = bus[name], sr = ctx.sampleRate;
@@ -8072,7 +9164,9 @@ const BUILDERS = {
   drone:buildDrone, strings:buildStrings, bass:buildBass, heartbeat:buildHeartbeat,
   wind:buildWind, riser:buildRiser, firecrackle:buildFireCrackle,
   perc:buildPerc, wardrums:buildWarDrums, chains:buildChains, march:buildMarch, stomp:buildStomp,
+  taiko:buildTaiko,
   melody:buildMelody, cello:buildCello, choir:buildChoir, lute:buildLute, horn:buildHorn, bells:buildBells, organ:buildOrgan,
+  guitar:buildGuitar, flute:buildFlute, duduk:buildDuduk, harp:buildHarp, viola:buildViola, oud:buildOud,
   chaos:buildChaos, whispers:buildWhispers, ritualchant:buildRitualChant, glitch:buildGlitch,
   boss:buildBoss
 };
@@ -8081,7 +9175,8 @@ const PERC_BUF_LAYERS = new Set(['perc','wardrums','chains','march','stomp']);
 // Sustain layers that retune themselves internally — same set as JC.reconcile uses
 const SUSTAIN_LAYER_SET = new Set([
   'drone','strings','choir','melody','cello','organ','bass',
-  'heartbeat','wind','whispers','ritualchant','bells','horn','lute'
+  'heartbeat','wind','whispers','ritualchant','bells','horn','lute',
+  'guitar','flute','duduk','harp','viola','oud',
 ]);
 
 function startLayer(name, preset, intensity, percBufs) {
