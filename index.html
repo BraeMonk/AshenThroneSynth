@@ -2746,11 +2746,13 @@ JC.reconcile = function(preset, intensity) {
   }[JC.mood] ?? (e > 0.70 ? 4 : 2);
 
   const ROLE_CAPS = {
-    melodic:  e > 0.70 ? 4 : e > 0.40 ? 3 : 2, // tighter — no endless melodic stacking
-    rhythmic: rhythmCap,
-    harmonic: 3,
-    pulse:    2,
-    texture:  e > 0.60 ? 3 : 2,
+    melodic_lead:   e > 0.70 ? 3 : e > 0.40 ? 2 : 1, // tight — max 3 lead voices ever
+    melodic_colour: e > 0.70 ? 5 : e > 0.40 ? 4 : 3, // colour layers share space
+    rhythmic:       rhythmCap,
+    foundation:     3,  // drone + strings + bass — all always allowed
+    harmonic:       1,  // only viola
+    pulse:          2,
+    texture:        e > 0.60 ? 3 : 2,
   };
 
   // Identity instruments for this mood get priority — they bypass the role cap check.
@@ -4227,128 +4229,178 @@ function killLayer(name) {
   nodes[name] = [];
 }
 
-// ── ADAPTIVE CINEMATIC MIXER ─────────────────────────────────────────
-// Professional orchestral film mixing model:
-//   One role group leads at any moment. All others are scaled relative
-//   to the lead. Priority is determined by phrase arc + real-time energy.
-//   Layers within the same role share headroom proportionally.
-//   The mix shifts every 80ms with a 0.6s ramp — feels like a human
-//   engineer riding faders, not a robot snapping between presets.
+// ── ADAPTIVE CINEMATIC MIXER v2 ───────────────────────────────────────────────
+// Film-scoring mixing model with 7 distinct roles.
+// Key improvements over v1:
+//   - Foundation (drone/strings/bass) is independent — never ducks below 0.5
+//   - Melodic split: lead voices (melody/choir/horn/cello/duduk) vs colour
+//     (lute/bells/guitar/flute/harp/oud/organ/viola). Colour ducks 6dB when
+//     lead is present, preventing the 12-way melodic pile-up
+//   - depthScale range 0.65–1.0 (was 0.85–1.0) — real dynamic range across zones
+//   - Sibling scale is role-aware: lead voices duck faster, colour slower,
+//     foundation barely ducks at all
+//   - Tension phrase lifts riser/whispers (texture) so they're actually heard
+//   - Resolution phrase lifts harmonic (viola inner voice) to breathe
 
-// Absolute gain ceiling per layer — hard limit regardless of mix state
+// Absolute gain ceiling per layer
 const MIX_CEILING = {
-  drone:       0.72,  strings:     0.80,  bass:        0.78,  heartbeat:   0.70,
-  perc:        0.95,  wardrums:    0.92,  march:       0.88,  stomp:       0.84,
-  chains:      0.55,  wind:        0.42,  riser:       0.52,  firecrackle: 0.32,
-  whispers:    0.32,  ritualchant: 0.68,  glitch:      0.36,  boss:        0.80,
-  melody:      0.90,  choir:       0.88,  cello:       0.74,  organ:       0.58,
-  horn:        0.78,  lute:        0.60,  bells:       0.60,  chaos:       0.50,
-  // New instruments
-  taiko:       0.88,  guitar:      0.60,  flute:       0.68,  duduk:       0.70,
-  harp:        0.62,  viola:       0.58,  oud:         0.60,
+  // Foundation
+  drone:       0.72,  strings:     0.82,  bass:        0.76,
+  // Harmonic inner voice
+  viola:       0.62,
+  // Melodic lead
+  melody:      0.90,  choir:       0.88,  horn:        0.78,
+  cello:       0.76,  duduk:       0.72,
+  // Melodic colour
+  lute:        0.54,  bells:       0.56,  guitar:      0.54,
+  flute:       0.62,  harp:        0.58,  oud:         0.56,
+  organ:       0.60,
+  // Rhythmic
+  perc:        0.95,  wardrums:    0.92,  march:       0.88,
+  stomp:       0.84,  taiko:       0.88,  chains:      0.52,
+  // Pulse
+  heartbeat:   0.68,  ritualchant: 0.68,  boss:        0.82,
+  // Texture
+  wind:        0.44,  riser:       0.54,  firecrackle: 0.30,
+  whispers:    0.34,  glitch:      0.38,  chaos:       0.52,
 };
 
-// Role membership — every layer belongs to exactly one role
+// Role membership — 7 roles
 const MIX_ROLE_OF = {
-  melody:'melodic', choir:'melodic', horn:'melodic', cello:'melodic', organ:'melodic',
-  lute:'melodic',   bells:'melodic',
-  guitar:'melodic', flute:'melodic', duduk:'melodic', harp:'melodic', oud:'melodic',
+  // Foundation: the room itself — never ducks aggressively
+  drone:'foundation',    strings:'foundation',   bass:'foundation',
+  // Harmonic inner voice
   viola:'harmonic',
-  perc:'rhythmic',  wardrums:'rhythmic', march:'rhythmic', stomp:'rhythmic', taiko:'rhythmic',
-  strings:'harmonic', drone:'harmonic', bass:'harmonic',
-  heartbeat:'pulse', chains:'pulse', ritualchant:'pulse', boss:'pulse',
-  wind:'texture',   riser:'texture', firecrackle:'texture',
-  whispers:'texture', glitch:'texture', chaos:'texture',
+  // Melodic lead: primary voice carriers — only 2-3 active at once ideally
+  melody:'melodic_lead', choir:'melodic_lead',   horn:'melodic_lead',
+  cello:'melodic_lead',  duduk:'melodic_lead',
+  // Melodic colour: texture/detail — ducks under lead voices
+  lute:'melodic_colour', bells:'melodic_colour', guitar:'melodic_colour',
+  flute:'melodic_colour',harp:'melodic_colour',  oud:'melodic_colour',
+  organ:'melodic_colour',
+  // Rhythmic
+  perc:'rhythmic',       wardrums:'rhythmic',    march:'rhythmic',
+  stomp:'rhythmic',      taiko:'rhythmic',        chains:'rhythmic',
+  // Pulse
+  heartbeat:'pulse',     ritualchant:'pulse',    boss:'pulse',
+  // Texture
+  wind:'texture',        riser:'texture',        firecrackle:'texture',
+  whispers:'texture',    glitch:'texture',       chaos:'texture',
 };
 
-// How loudly each role plays when it is the lead (1.0) or supporting
-// Rows = this role. Cols = which role is currently leading.
-//                         melodic  rhythmic  harmonic  pulse   texture
+// Relation matrix: rows = this role, cols = current lead role.
+// How loud this role plays relative to its ceiling when that role leads.
+// Design principles:
+//   Foundation never drops below 0.60 — it's the room, always present
+//   melodic_colour ducks hard (0.40) when melodic_lead is present
+//   texture ducks to near-nothing except when it leads (tension/intro)
+//   rhythmic and foundation are roughly co-equal — drums sit on the floor
+//                              fnd    harm   m_ld   m_col  rhy    pulse  tex
 const MIX_RELATION = {
-  melodic:  { melodic:1.00, rhythmic:0.70, harmonic:0.85, pulse:0.75, texture:0.90 },
-  rhythmic: { melodic:0.65, rhythmic:1.00, harmonic:0.55, pulse:0.80, texture:0.60 },
-  harmonic: { melodic:0.55, rhythmic:0.45, harmonic:1.00, pulse:0.50, texture:0.80 },
-  pulse:    { melodic:0.60, rhythmic:0.75, harmonic:0.55, pulse:1.00, texture:0.65 },
-  texture:  { melodic:0.35, rhythmic:0.30, harmonic:0.40, pulse:0.35, texture:1.00 },
+  foundation:    { foundation:0.82, harmonic:0.80, melodic_lead:0.72, melodic_colour:0.75, rhythmic:0.68, pulse:0.70, texture:0.78 },
+  harmonic:      { foundation:0.72, harmonic:0.90, melodic_lead:0.65, melodic_colour:0.70, rhythmic:0.48, pulse:0.55, texture:0.80 },
+  melodic_lead:  { foundation:0.78, harmonic:0.82, melodic_lead:1.00, melodic_colour:0.88, rhythmic:0.62, pulse:0.70, texture:0.85 },
+  melodic_colour:{ foundation:0.52, harmonic:0.60, melodic_lead:0.40, melodic_colour:0.82, rhythmic:0.38, pulse:0.48, texture:0.68 },
+  rhythmic:      { foundation:0.72, harmonic:0.55, melodic_lead:0.60, melodic_colour:0.65, rhythmic:1.00, pulse:0.78, texture:0.55 },
+  pulse:         { foundation:0.65, harmonic:0.60, melodic_lead:0.65, melodic_colour:0.60, rhythmic:0.78, pulse:1.00, texture:0.62 },
+  texture:       { foundation:0.40, harmonic:0.45, melodic_lead:0.32, melodic_colour:0.40, rhythmic:0.28, pulse:0.38, texture:1.00 },
 };
 
-// Which role leads in each phrase — base priority before energy modulation
+// Which role leads each phrase
 const PHRASE_LEAD = {
-  intro:      'harmonic',
-  build:      'rhythmic',
-  tension:    'pulse',
-  climax:     'rhythmic',
-  resolution: 'melodic',
+  intro:      'foundation',    // sparse open — the room breathes, not melody
+  build:      'rhythmic',      // rhythm builds the tension
+  tension:    'pulse',         // pulse/heartbeat drives — coiled
+  climax:     'rhythmic',      // drums take over completely
+  resolution: 'melodic_lead',  // melody finally speaks alone
 };
 
-// Determine the lead role this frame — phrase sets the default,
-// real-time energy can shift it toward rhythm or melody
+// Per-phrase depth multiplier — the arc breathes at mix level
+// Wider range than v1 (0.68–1.00 vs 0.72–1.00) for real dynamics
+const PHRASE_DEPTH = {
+  intro:      0.68,
+  build:      0.84,
+  tension:    0.94,
+  climax:     1.00,
+  resolution: 0.76,
+};
+
+// Per-phrase per-role lift — specific roles get extra presence in their moment
+const PHRASE_ROLE_LIFT = {
+  // Resolution: melody leads AND inner harmonic voice can breathe
+  resolution: { melodic_lead: 1.28, harmonic: 1.35, melodic_colour: 0.85 },
+  // Intro: foundation and harmonic lifted, everything else quiet
+  intro:      { foundation: 1.12, harmonic: 1.18, melodic_colour: 0.72, rhythmic: 0.80 },
+  // Tension: texture (riser/whispers) actually needs to be heard
+  tension:    { texture: 1.45, pulse: 1.20, melodic_colour: 0.70 },
+  // Climax: everything pushed, colour steps back to avoid mudding the peak
+  climax:     { rhythmic: 1.15, melodic_lead: 1.10, melodic_colour: 0.65, texture: 0.60 },
+  // Build: rhythmic lifts, colour starts entering
+  build:      { rhythmic: 1.05, melodic_colour: 0.92 },
+};
+
+// Sibling scale — per-role curves. More aggressive for crowded roles.
+// foundation: barely ducks (max 3 layers, all should be audible)
+// melodic_lead: ducks fast (prevent 5-voice melodic wall)
+// melodic_colour: moderate (they share space gracefully)
+function getSiblingScale(role, siblings) {
+  switch (role) {
+    case 'foundation':     return siblings === 0 ? 1.00 : siblings === 1 ? 0.94 : 0.88;
+    case 'harmonic':       return 1.00; // only viola — always solo
+    case 'melodic_lead':   return siblings === 0 ? 1.00 : siblings === 1 ? 0.82 : siblings === 2 ? 0.68 : 0.58;
+    case 'melodic_colour': return siblings === 0 ? 1.00 : siblings === 1 ? 0.86 : siblings === 2 ? 0.74 : siblings === 3 ? 0.64 : 0.56;
+    case 'rhythmic':       return siblings === 0 ? 1.00 : siblings === 1 ? 0.85 : siblings === 2 ? 0.74 : 0.66;
+    case 'pulse':          return siblings === 0 ? 1.00 : siblings === 1 ? 0.88 : 0.78;
+    case 'texture':        return siblings === 0 ? 1.00 : siblings === 1 ? 0.82 : siblings === 2 ? 0.70 : 0.60;
+    default:               return 0.75;
+  }
+}
+
+// Determine lead role — phrase-based with real-time energy vote
 function getLeadRole(intensity) {
-  const phrase  = currentPhrase || 'intro';
-  const bass    = CIN?.smoothBass   ?? 0;
-  const mid     = CIN?.smoothMid    ?? 0;
-  const energy  = CIN?.smoothEnergy ?? 0;
-  const boss    = isBoss;
+  const phrase = currentPhrase || 'intro';
+  if (isBoss) return 'rhythmic';
 
-  if (boss) return 'rhythmic'; // boss always drives rhythm
+  const bass   = CIN?.smoothBass   ?? 0;
+  const mid    = CIN?.smoothMid    ?? 0;
+  const energy = CIN?.smoothEnergy ?? 0;
 
-  // Energy votes — strong bass pushes toward rhythmic, strong mid toward melodic
   const rhythmicVote = bass * 0.7 + energy * 0.3;
   const melodicVote  = mid  * 0.6 + (1 - energy) * 0.2;
 
-  const base = PHRASE_LEAD[phrase] ?? 'harmonic';
+  const base = PHRASE_LEAD[phrase] ?? 'foundation';
 
-  // Only override if energy vote is strongly dominant (>0.55 threshold)
-  // — prevents constant flickering from subtle energy variations
+  // Only override base if a vote is strongly dominant — prevents flicker
   if (rhythmicVote > 0.55 && rhythmicVote > melodicVote + 0.15) return 'rhythmic';
-  if (melodicVote  > 0.55 && melodicVote  > rhythmicVote + 0.15) return 'melodic';
+  if (melodicVote  > 0.55 && melodicVote  > rhythmicVote + 0.15) return 'melodic_lead';
   return base;
 }
 
-// Phrase arc depth multiplier — controls overall energy envelope per phrase.
-// This is what separates a resolution from a climax at the mix level.
-// Applies on top of role relations so the hierarchy is preserved, just quieter.
-const PHRASE_DEPTH = {
-  intro:      0.72,   // sparse but present — this is still a film score opening
-  build:      0.88,   // growing — layers entering, mix opening up
-  tension:    0.96,   // taut — full and coiled
-  climax:     1.00,   // everything — full release
-  resolution: 0.78,   // exhale — melody carries, but it's still grand
-};
-
 function adaptiveMixTarget(name, intensity) {
-  const role    = MIX_ROLE_OF[name] ?? 'texture';
-  const ceiling = MIX_CEILING[name] ?? 0.35;
+  const role    = MIX_ROLE_OF[name]  ?? 'texture';
+  const ceiling = MIX_CEILING[name]  ?? 0.35;
   const lead    = getLeadRole(intensity);
-  const depth   = intensity; // 0→1
 
-  // Relational scale: how loud this role plays given who's leading
+  // Relational scale — role hierarchy
   const relation = MIX_RELATION[role]?.[lead] ?? 0.5;
 
-  // Within-role headroom sharing — layers in same role share proportionally
-  // Count active siblings in same role
+  // Sibling headroom sharing — role-aware curves
   const siblings = Object.entries(MIX_ROLE_OF)
     .filter(([n, r]) => r === role && layerOn[n] && n !== name).length;
-  // Lead layer in its own role gets priority; siblings step back slightly
-  // First active sibling = full share, each additional = gentle reduction
-  const siblingScale = siblings === 0 ? 1.0
-                     : siblings === 1 ? 0.88
-                     : siblings === 2 ? 0.78
-                     : 0.70;
+  const siblingScale = getSiblingScale(role, siblings);
 
-  // Depth scale — removed the low-end floor suppression that was stacking
-  // with phrase depth and relation to make everything inaudible
-  const depthScale = 0.85 + depth * 0.15;
+  // Depth scale — real dynamic range: 0.65 at floor 1 → 1.0 at floor 99
+  const depthScale = 0.65 + intensity * 0.35;
 
-  // Boss lift — everything up, hierarchy preserved
-  const bossLift = isBoss ? 1.25 : 1.0;
+  // Boss lift
+  const bossLift = isBoss ? 1.22 : 1.0;
 
-  // Phrase arc multiplier — the arc breathes, not just the layers
+  // Phrase depth arc
   const phraseDepth = PHRASE_DEPTH[currentPhrase] ?? 0.80;
-  // Melodic role in resolution gets a lift to carry the exhale
-  const phraseLift  = (currentPhrase === 'resolution' && role === 'melodic') ? 1.22 : 1.0;
 
-  // Final target — relation sets the hierarchy, ceiling caps it
+  // Per-phrase per-role lift (replaces the single resolution/melodic hack)
+  const phraseLift = PHRASE_ROLE_LIFT[currentPhrase]?.[role] ?? 1.0;
+
   const raw = ceiling * relation * siblingScale * depthScale * bossLift * phraseDepth * phraseLift;
   return Math.min(ceiling, Math.max(0.04, raw));
 }
@@ -4826,11 +4878,17 @@ const CE = (() => {
       chaos:       [80,  2000],
       ritualchant: [100, 500],
       whispers:    [200, 1000],
-      // New instruments
-      guitar:      [82,  1200],  // classical guitar range E2-E6 approx
+      // Instrument ranges tuned to their real-world sweet spot:
+      // guitar: E3–A5 — the strumming register of an acoustic guitar.
+      //   E2 (82Hz) exists on guitar but sounds like bass guitar when soloed.
+      //   CE center bias at [165,880] → ~522Hz (D5) keeps chords in guitar territory.
+      guitar:      [165, 880],
+      // harp: G2–F6 — orchestral harp warm register. The full range goes lower
+      //   but the sweet spot that reads as "harp" not "bass" or "piccolo" is here.
+      //   CE center bias at [98,1400] → ~749Hz keeps glissandos in the warm mid.
+      harp:        [98,  1400],
       flute:       [262, 2093],  // C4-C7 concert flute
       duduk:       [110, 880],   // A2-A5 duduk range
-      harp:        [48,  3000],  // wide harp range
       viola:       [55,  1000],  // C3-B5 viola range
       oud:         [110, 1600],  // oud range, fretless so allow wider
     };
@@ -8120,136 +8178,133 @@ function buildRitualChant(preset, intensity, name) {
   schedNote();
 }
 
-// ── CLASSICAL GUITAR ──────────────────────────────────────────────────────────
-// Three voices: nylon (warm classical), steel (bright steel-string), fingerpicked
-// (deliberate separated notes, thumb vs finger timing asymmetry).
-// All voices share additive partial synthesis with inharmonicity and body resonance.
-// Real improvements over v30: pitch droop at onset, per-voice partial shape,
-// per-voice attack noise brightness, humanised timing with occasional micro-pauses.
+// ── KARPLUS-STRONG GUITAR ─────────────────────────────────────────────────────
+// Physical string model: shaped noise excitation → delay line → loop filter →
+// feedback → body EQ. Resonant frequency emerges from f = sampleRate / delayLen.
+// Produces the two-stage decay, natural inharmonicity from the allpass in the loop,
+// and correct timbral evolution — none of which additive sines can replicate.
+// Min reliable WebAudio delay ~3ms (333Hz). Guitar range [165,880Hz] — min 5ms. Safe.
 function buildGuitar(preset, intensity, name) {
   const voice = sessionVoices[name] || 'nylon';
   const b     = bus[name];
   const bpm   = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat  = 60 / bpm;
+  const sr    = ctx.sampleRate;
 
-  // ── Voice config ─────────────────────────────────────────────────────────
-  // bassPartials / treblePartials: [{n, a, tau}] — harmonic series shape per voice
-  // atkFc: attack noise filter centre multiplier (relative to fundamental)
-  // atkQ: attack noise filter Q
-  // atkVolMult: attack noise volume scalar
-  // droopCents: pitch droop at onset in cents (resolved over droopMs)
-  // droopMs: pitch droop duration in ms
-  // timingBassBeats / timingTrebBeats: step duration as beat fraction
-  // timingJitter: random timing multiplier range [1-x .. 1+x]
+  // excBW: excitation noise bandwidth — higher = brighter attack
+  // loopCutoffMult: loop LPF cutoff as multiple of fundamental — tone colour
+  // feedback: loop gain (<1) — controls decay rate, higher = longer ring
+  // inharmonicity: allpass Q for partial stretching (wound string stiffness)
+  // droopCents/droopMs: pitch sag at onset (string under pluck force)
   const VOICE_CFG = {
     nylon: {
-      bassPartials:   [{n:1,a:0.62,tau:1.10},{n:2,a:0.24,tau:0.60},{n:3,a:0.10,tau:0.32},{n:4,a:0.04,tau:0.18},{n:5,a:0.02,tau:0.09}],
-      treblePartials: [{n:1,a:0.58,tau:0.65},{n:2,a:0.26,tau:0.35},{n:3,a:0.12,tau:0.18},{n:4,a:0.05,tau:0.10},{n:5,a:0.02,tau:0.05}],
-      atkFcMult: 2.5, atkQ: 2.5, atkVolMult: 1.0,
+      excBW: 3000, loopCutoffMult: 12, feedback: 0.9985, inharmonicity: 0.018,
       droopCents: 12, droopMs: 18,
-      volBase: 0.24, volInt: 0.14,
+      volBase: 0.52, volInt: 0.22,
       timingBass: 0.38, timingTreb: 0.26, jitter: 0.10,
     },
     steel: {
-      // Steel: stronger upper partials, faster treble decay, brighter attack click
-      bassPartials:   [{n:1,a:0.52,tau:0.90},{n:2,a:0.30,tau:0.50},{n:3,a:0.14,tau:0.28},{n:4,a:0.08,tau:0.15},{n:5,a:0.04,tau:0.08},{n:6,a:0.02,tau:0.05}],
-      treblePartials: [{n:1,a:0.48,tau:0.45},{n:2,a:0.32,tau:0.26},{n:3,a:0.16,tau:0.14},{n:4,a:0.09,tau:0.08},{n:5,a:0.04,tau:0.04}],
-      atkFcMult: 4.0, atkQ: 3.5, atkVolMult: 1.6, // pick attack is bright and punchy
-      droopCents: 6,  droopMs: 10,                 // steel stays in tune faster
-      volBase: 0.26, volInt: 0.16,
-      timingBass: 0.36, timingTreb: 0.24, jitter: 0.08, // tighter, more rhythmic
+      excBW: 6000, loopCutoffMult: 22, feedback: 0.9992, inharmonicity: 0.010,
+      droopCents: 6, droopMs: 10,
+      volBase: 0.54, volInt: 0.24,
+      timingBass: 0.36, timingTreb: 0.24, jitter: 0.08,
     },
     fingerpicked: {
-      // Fingerpicked: deliberate note separation, longer decay allowed to bloom,
-      // softer attack (no nail), more dynamic variation between thumb and fingers
-      bassPartials:   [{n:1,a:0.68,tau:1.40},{n:2,a:0.20,tau:0.75},{n:3,a:0.08,tau:0.38},{n:4,a:0.03,tau:0.18},{n:5,a:0.01,tau:0.09}],
-      treblePartials: [{n:1,a:0.62,tau:0.90},{n:2,a:0.22,tau:0.46},{n:3,a:0.10,tau:0.22},{n:4,a:0.04,tau:0.11},{n:5,a:0.01,tau:0.06}],
-      atkFcMult: 1.8, atkQ: 1.8, atkVolMult: 0.6, // flesh not nail — softer transient
-      droopCents: 18, droopMs: 25,                 // more expressive pitch sag
-      volBase: 0.22, volInt: 0.12,
-      timingBass: 0.52, timingTreb: 0.36, jitter: 0.18, // deliberate, variable spacing
+      excBW: 2000, loopCutoffMult: 9, feedback: 0.9978, inharmonicity: 0.024,
+      droopCents: 18, droopMs: 25,
+      volBase: 0.48, volInt: 0.18,
+      timingBass: 0.52, timingTreb: 0.36, jitter: 0.18,
     },
   };
   const vc = VOICE_CFG[voice] || VOICE_CFG.nylon;
 
-  // ── Arp patterns: [chordVoiceIdx, octaveMultiplier, role] ────────────────
-  // fingerpicked gets a sparser, more intentional set
   const ARPS_STD = [
-    [[0,0.5,'bass'],[1,1,'mid'],[2,1,'treble'],[1,1,'mid']],
-    [[0,0.5,'bass'],[1,1,'mid'],[2,1,'treble'],[2,2,'treble'],[1,1,'mid']],
-    [[0,0.5,'bass'],[2,1,'treble'],[1,1,'mid'],[2,1,'treble'],[0,0.5,'bass'],[2,1,'treble']],
+    [[0,1,'bass'],[1,1,'mid'],[2,1,'treble'],[1,1,'mid']],
+    [[0,1,'bass'],[1,1,'mid'],[2,1,'treble'],[2,1,'treble'],[1,1,'mid']],
+    [[0,1,'bass'],[2,1,'treble'],[1,1,'mid'],[2,1,'treble'],[0,1,'bass'],[2,1,'treble']],
   ];
   const ARPS_FP = [
-    [[0,0.5,'bass'],[2,1,'treble'],[1,1,'mid']],
-    [[0,0.5,'bass'],[1,1,'treble'],[2,1,'treble'],[0,0.5,'bass'],[2,1,'mid']],
-    [[0,0.5,'bass'],[2,1,'treble'],[1,1,'mid'],[2,1,'treble']],
+    [[0,1,'bass'],[2,1,'treble'],[1,1,'mid']],
+    [[0,1,'bass'],[1,1,'treble'],[2,1,'treble'],[0,1,'bass'],[2,1,'mid']],
+    [[0,1,'bass'],[2,1,'treble'],[1,1,'mid'],[2,1,'treble']],
   ];
   const ARPS   = voice === 'fingerpicked' ? ARPS_FP : ARPS_STD;
   const patIdx = Math.floor(Math.random() * ARPS.length);
   let arpStep  = 0;
   let t        = ctx.currentTime + beat * 0.5;
-  // Tracks consecutive treble notes — used to insert occasional micro-pause
   let trebleRun = 0;
 
   function pluckString(bt, freq, role) {
-    if (!freq || freq < 55 || !layerOn[name]) return;
-    const isBass   = role === 'bass';
-    const PARTIALS = isBass ? vc.bassPartials : vc.treblePartials;
-    const vol      = (vc.volBase + intensity * vc.volInt) * (isBass ? 1.2 : 1.0);
-    const body     = makeBodyFilter(name, 'guitar');
+    if (!freq || freq < 100 || !layerOn[name]) return;
+
+    const baseDelay = 1 / freq;
+    const droopDelay = baseDelay * Math.pow(2, vc.droopCents / 1200);
+    const droopS     = vc.droopMs / 1000;
+
+    // Excitation: shaped noise burst — length 2 periods, 1ms fade-in/out
+    const excLen  = Math.max(64, Math.ceil(sr * Math.min(baseDelay * 2, 0.012)));
+    const excBuf  = ctx.createBuffer(1, excLen, sr);
+    const excData = excBuf.getChannelData(0);
+    const fadeRamp = Math.floor(sr * 0.001);
+    for (let i = 0; i < excLen; i++) {
+      let env = 1.0;
+      if (i < fadeRamp)             env = i / fadeRamp;
+      if (i > excLen - fadeRamp)    env = (excLen - i) / fadeRamp;
+      excData[i] = (Math.random() * 2 - 1) * env;
+    }
+    const excSrc  = ctx.createBufferSource(); excSrc.buffer = excBuf;
+    const excFilt = mkFilt(vc.excBW, 'lowpass', 0.7);
+
+    // Delay line — the string length
+    const delay = ctx.createDelay(0.05);
+    delay.delayTime.setValueAtTime(droopDelay, bt);
+    delay.delayTime.linearRampToValueAtTime(baseDelay, bt + droopS);
+
+    // Loop lowpass — shapes tone, controls high-frequency decay rate
+    const loopLPF = mkFilt(Math.min(freq * vc.loopCutoffMult, sr * 0.45), 'lowpass', 0.5);
+
+    // Inharmonicity allpass — stretches upper partials sharp (wound string stiffness)
+    const inh = ctx.createBiquadFilter();
+    inh.type  = 'allpass';
+    inh.frequency.value = freq * 2.1;
+    inh.Q.value         = vc.inharmonicity * 80;
+
+    // Feedback gain — energy loss per cycle → natural exponential decay
+    // High strings decay faster (lower feedback) matching real string physics
+    const freqFactor = Math.min(1.0, 165 / freq);
+    const fb  = Math.min(0.9999, vc.feedback - freqFactor * 0.0006);
+    const fbG = mkGain(fb);
+
+    // Body EQ + output
+    const body = makeBodyFilter(name, 'guitar');
     body.output.connect(b);
+    const isBass = role === 'bass';
+    const vol    = (vc.volBase + intensity * vc.volInt) * (isBass ? 0.9 : 1.0);
+    const outG   = mkGain(vol);
 
-    PARTIALS.forEach(({n, a, tau}) => {
-      const pFreq    = freq * n;
-      if (pFreq > 8500) return;
-      const stiffness = n * n * 0.0002;
-      const targetF   = pFreq * (1 + stiffness);
-      const o   = mkOsc(targetF, 'sine', 0);
-      const env = mkGain(0);
-      o.connect(env); env.connect(body.input);
+    // Signal chain:
+    // excSrc → excFilt → delay ←──────────────────────┐
+    //                       ↓                          │
+    //                     outG                    fbG ← inh ← loopLPF ← delay
+    //                       ↓
+    //                    body → b
+    chain(excSrc, excFilt, delay);
+    chain(delay, loopLPF, inh, fbG);
+    fbG.connect(delay);
+    delay.connect(outG);
+    outG.connect(body.input);
 
-      // ── Pitch droop: string sags slightly under finger pressure at onset ──
-      // Only meaningful on fundamental; upper partials droop proportionally.
-      const droopS  = vc.droopMs / 1000;
-      const droopHz = targetF * (vc.droopCents / 1200);
-      o.frequency.setValueAtTime(targetF + droopHz, bt);
-      o.frequency.linearRampToValueAtTime(targetF, bt + droopS);
+    excSrc.start(bt);
+    excSrc.stop(bt + baseDelay + 0.002);
 
-      const pk = a * vol;
-      env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(pk, bt + 0.003);
-      env.gain.setValueAtTime(pk, bt + 0.003);
-      env.gain.exponentialRampToValueAtTime(0.0001, bt + tau);
+    const ringTime = Math.min(6.0, Math.log(0.001) / Math.log(fb) / freq);
+    // Schedule a hard stop on delay node to free resources after ring dies
+    const stopAt = bt + droopS + ringTime + 0.1;
+    regT(name, setTimeout(() => {
+      try { delay.disconnect(); loopLPF.disconnect(); inh.disconnect(); fbG.disconnect(); outG.disconnect(); } catch(e){}
+    }, (stopAt - ctx.currentTime) * 1000));
 
-      o.start(bt); o.stop(bt + tau + 0.05);
-      reg(name, o, env);
-    });
-
-    // ── Attack transient: pitched noise burst (nail/pick click) ──────────
-    const atkLen  = Math.floor(ctx.sampleRate * 0.004);
-    const atkBuf  = ctx.createBuffer(1, atkLen, ctx.sampleRate);
-    const atkData = atkBuf.getChannelData(0);
-    for (let i = 0; i < atkLen; i++)
-      atkData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.001);
-    const atkSrc  = ctx.createBufferSource(); atkSrc.buffer = atkBuf;
-    const atkFilt = mkFilt(Math.min(freq * vc.atkFcMult, 5500), 'bandpass', vc.atkQ);
-    const atkG    = mkGain(vol * (isBass ? 0.12 : 0.18) * vc.atkVolMult);
-    chain(atkSrc, atkFilt, atkG, b);
-    atkSrc.start(bt);
-    reg(name, atkSrc, atkFilt, atkG);
-
-    // ── Body resonance: fixed ~200Hz hollow-box bloom ─────────────────────
-    const bLen  = Math.floor(ctx.sampleRate * 0.05);
-    const bBuf  = ctx.createBuffer(1, bLen, ctx.sampleRate);
-    const bData = bBuf.getChannelData(0);
-    for (let i = 0; i < bLen; i++)
-      bData[i] = (Math.random() * 2 - 1) * Math.exp(-i / ctx.sampleRate / 0.010);
-    const bSrc  = ctx.createBufferSource(); bSrc.buffer = bBuf;
-    const bFilt = mkFilt(200, 'bandpass', 5);
-    const bG    = mkGain(vol * 0.08);
-    chain(bSrc, bFilt, bG, b);
-    bSrc.start(bt);
-    reg(name, bSrc, bFilt, bG);
+    reg(name, excSrc, excFilt, delay, loopLPF, inh, fbG, outG);
   }
 
   function schedArp() {
@@ -8266,12 +8321,10 @@ function buildGuitar(preset, intensity, name) {
     const isBass = role === 'bass';
     if (isBass) trebleRun = 0; else trebleRun++;
 
-    // Human timing: bass notes slightly longer, treble brisk, plus random jitter.
-    // Fingerpicked: occasional micro-pause after 3+ treble notes in a row.
     const base    = isBass ? beat * vc.timingBass : beat * vc.timingTreb;
     let   stepDur = base * (1 - vc.jitter + Math.random() * vc.jitter * 2);
     if (voice === 'fingerpicked' && trebleRun >= 3 && Math.random() < 0.25) {
-      stepDur += beat * 0.15; // breath between phrases
+      stepDur += beat * 0.15;
       trebleRun = 0;
     }
 
@@ -8582,162 +8635,159 @@ function buildDuduk(preset, intensity, name) {
   schedNote();
 }
 
-// ── HARP ──────────────────────────────────────────────────────────────────────
-// Three voices: concert (warm orchestral), celtic (bright fast gliss, higher
-// register), electric (tight short decay, harder transient, subtle chorus detune).
-// Key improvements over v30: per-voice attack onset stagger on partials (lower
-// strings speak slightly later than upper), per-voice glissando speed, and
-// per-voice decay curve shape.
+// ── KARPLUS-STRONG HARP ───────────────────────────────────────────────────────
+// Same KS model as guitar but tuned for harp character:
+// longer decay, cleaner excitation (no nail — flesh of the finger or pick),
+// prominent soundboard resonance in 200-350Hz, and three gesture types.
+// Range [98, 1400Hz] — min delay ~7ms at 98Hz. Reliable in WebAudio.
 function buildHarp(preset, intensity, name) {
   const voice = sessionVoices[name] || 'concert';
   const b     = bus[name];
   const bpm   = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat  = 60 / bpm;
+  const sr    = ctx.sampleRate;
 
-  // ── Voice config ──────────────────────────────────────────────────────────
-  // partials:       [{r, a, dMult}] — ratio, amplitude, decay multiplier
-  // atkStagger:     seconds of stagger between successive partials at onset
-  //                 (simulates bow/lever string speak time difference)
-  // glissSpacingMs: ms between consecutive strings in a gliss sweep
-  // decayBase:      base decay seconds for fundamental
-  // decayRng:       random additional decay range
-  // volBase/volInt: volume formula
-  // octBias:        octave offset for preferred register (0=normal, 1=higher)
-  // chordSpread:    ms between chord tone spread in doChordPluck
-  // chorus:         if true, add a second pluck slightly detuned (electric only)
   const VOICE_CFG = {
     concert: {
-      partials: [
-        {r:1,      a:0.60, dMult:1.00},
-        {r:2.005,  a:0.24, dMult:0.52},
-        {r:3.012,  a:0.11, dMult:0.30},
-        {r:4.022,  a:0.05, dMult:0.18},
-        {r:5.035,  a:0.02, dMult:0.10},
-      ],
-      atkStagger: 0.0008, glissSpacingMs: 55,
-      decayBase: 2.0, decayRng: 1.5,
-      volBase: 0.28, volInt: 0.14,
-      octBias: 0, chordSpread: 8, chorus: false,
+      // Orchestral concert harp: warm, long ring, clear fundamental
+      excBW: 4000, loopCutoffMult: 16, feedback: 0.9988, inharmonicity: 0.006,
+      droopCents: 8, droopMs: 12,
+      volBase: 0.58, volInt: 0.24,
+      glissSpacingMs: 55, decayMult: 1.0, octBias: 0,
     },
     celtic: {
-      // Brighter, faster sweeps, higher register, shorter fundamental decay
-      partials: [
-        {r:1,      a:0.52, dMult:0.75},
-        {r:2.004,  a:0.30, dMult:0.48},
-        {r:3.010,  a:0.14, dMult:0.28},
-        {r:4.018,  a:0.07, dMult:0.16},
-        {r:5.028,  a:0.03, dMult:0.08},
-        {r:6.040,  a:0.01, dMult:0.04},
-      ],
-      atkStagger: 0.0004, glissSpacingMs: 35, // faster sweep = more liquid
-      decayBase: 1.4, decayRng: 0.9,
-      volBase: 0.30, volInt: 0.14,
-      octBias: 1, chordSpread: 5, chorus: false, // prefers higher register
+      // Celtic/lever harp: faster decay, brighter, higher register
+      excBW: 5000, loopCutoffMult: 20, feedback: 0.9984, inharmonicity: 0.004,
+      droopCents: 5, droopMs: 8,
+      volBase: 0.60, volInt: 0.22,
+      glissSpacingMs: 35, decayMult: 0.75, octBias: 1,
     },
     electric: {
-      // Electric/lever harp: much tighter decay, harder transient, slight chorus
-      partials: [
-        {r:1,      a:0.65, dMult:0.55},
-        {r:2.002,  a:0.22, dMult:0.30},
-        {r:3.006,  a:0.09, dMult:0.18},
-        {r:4.012,  a:0.04, dMult:0.10},
-      ],
-      atkStagger: 0.0002, glissSpacingMs: 45,
-      decayBase: 1.0, decayRng: 0.6,
-      volBase: 0.32, volInt: 0.16,
-      octBias: 0, chordSpread: 6, chorus: true,
+      // Electric/lever harp: tight, fast decay, hard transient, slight brightness
+      excBW: 7000, loopCutoffMult: 28, feedback: 0.9975, inharmonicity: 0.003,
+      droopCents: 3, droopMs: 5,
+      volBase: 0.62, volInt: 0.26,
+      glissSpacingMs: 45, decayMult: 0.55, octBias: 0,
     },
   };
   const vc = VOICE_CFG[voice] || VOICE_CFG.concert;
 
-  function pluckHarpString(bt, freq, decay, vol) {
-    if (!freq || freq < 60 || !layerOn[name]) return;
+  function pluckHarpString(bt, freq, decayScale, vol) {
+    if (!freq || freq < 70 || !layerOn[name]) return;
+
+    const baseDelay  = 1 / freq;
+    const droopDelay = baseDelay * Math.pow(2, vc.droopCents / 1200);
+    const droopS     = vc.droopMs / 1000;
+
+    // Excitation: slightly longer than guitar — harp strings are thicker/longer
+    const excLen  = Math.max(64, Math.ceil(sr * Math.min(baseDelay * 2.5, 0.018)));
+    const excBuf  = ctx.createBuffer(1, excLen, sr);
+    const excData = excBuf.getChannelData(0);
+    const fadeRamp = Math.floor(sr * 0.0015); // 1.5ms — slightly softer onset than guitar
+    for (let i = 0; i < excLen; i++) {
+      let env = 1.0;
+      if (i < fadeRamp)           env = i / fadeRamp;
+      if (i > excLen - fadeRamp)  env = (excLen - i) / fadeRamp;
+      excData[i] = (Math.random() * 2 - 1) * env;
+    }
+    const excSrc  = ctx.createBufferSource(); excSrc.buffer = excBuf;
+    const excFilt = mkFilt(vc.excBW, 'lowpass', 0.6);
+
+    // Delay line
+    const delay = ctx.createDelay(0.05);
+    delay.delayTime.setValueAtTime(droopDelay, bt);
+    delay.delayTime.linearRampToValueAtTime(baseDelay, bt + droopS);
+
+    // Loop LPF — harp uses lower cutoffMult than guitar = warmer/darker tone
+    const loopLPF = mkFilt(Math.min(freq * vc.loopCutoffMult, sr * 0.45), 'lowpass', 0.5);
+
+    // Inharmonicity — harp strings are less stiff than guitar (lower inharmonicity)
+    const inh = ctx.createBiquadFilter();
+    inh.type  = 'allpass';
+    inh.frequency.value = freq * 2.2;
+    inh.Q.value         = vc.inharmonicity * 80;
+
+    // Feedback — modulated by decayScale so gesture type affects ring length
+    // Lower strings ring longer (physics: thicker strings lose energy slower)
+    const freqFactor = Math.min(1.0, 200 / freq);
+    const fb  = Math.min(0.9999, (vc.feedback - freqFactor * 0.0004) * decayScale);
+    const fbG = mkGain(Math.max(0.9, fb)); // floor at 0.9 to prevent silence
+
+    // Body EQ
     const body = makeBodyFilter(name, 'harp');
     body.output.connect(b);
+    const outG = mkGain(vol);
 
-    vc.partials.forEach(({r, a, d: _d, dMult}, pi) => {
-      if (freq * r > 9000) return;
-      const o   = mkOsc(freq * r, 'sine', rng() < 0.5 ? 1 : -1);
-      const env = mkGain(0);
-      o.connect(env); env.connect(body.input);
-      // Per-partial onset stagger: lower partials (larger r·freq) speak first
-      // on real harps because the string speaks from the bridge end.
-      // We invert: fundamental has max stagger, upper partials are immediate.
-      const stagger = vc.atkStagger * (vc.partials.length - pi);
-      const d = decay * dMult;
-      env.gain.setValueAtTime(0, bt + stagger);
-      env.gain.linearRampToValueAtTime(a * vol, bt + stagger + 0.002);
-      env.gain.exponentialRampToValueAtTime(0.0001, bt + stagger + d);
-      o.start(bt); o.stop(bt + stagger + d + 0.1);
-      reg(name, o, env);
+    // Soundboard resonance — harp soundboard has strong fixed-pitch modes
+    // at ~200, 290, 340Hz. Short noise burst through narrow bandpass.
+    [210, 290, 340].forEach((bf, i) => {
+      const sbLen  = Math.floor(sr * 0.06);
+      const sbBuf  = ctx.createBuffer(1, sbLen, sr);
+      const sbData = sbBuf.getChannelData(0);
+      for (let j = 0; j < sbLen; j++)
+        sbData[j] = (Math.random() * 2 - 1) * Math.exp(-j / sr / 0.018);
+      const sbSrc  = ctx.createBufferSource(); sbSrc.buffer = sbBuf;
+      const sbFilt = mkFilt(bf, 'bandpass', 5 - i);
+      const sbG    = mkGain(vol * (0.12 - i * 0.03));
+      chain(sbSrc, sbFilt, sbG, b);
+      sbSrc.start(bt);
+      reg(name, sbSrc, sbFilt, sbG);
     });
 
-    // Electric chorus: second slightly detuned pluck for a pickup shimmer
-    if (vc.chorus) {
-      const chorusFreq = freq * 1.006;
-      const co  = mkOsc(chorusFreq, 'sine', 0);
-      const cen = mkGain(0);
-      co.connect(cen); cen.connect(body.input);
-      const cd = decay * vc.partials[0].dMult * 0.7;
-      cen.gain.setValueAtTime(0, bt + 0.004);
-      cen.gain.linearRampToValueAtTime(vol * 0.18, bt + 0.006);
-      cen.gain.exponentialRampToValueAtTime(0.0001, bt + cd);
-      co.start(bt); co.stop(bt + cd + 0.1);
-      reg(name, co, cen);
-    }
+    // Signal chain (same as guitar)
+    chain(excSrc, excFilt, delay);
+    chain(delay, loopLPF, inh, fbG);
+    fbG.connect(delay);
+    delay.connect(outG);
+    outG.connect(body.input);
 
-    // Soundboard resonance — fixed frequencies, independent of string pitch
-    const bodyFreqs = [210, 290, 340];
-    bodyFreqs.forEach((bf, i) => {
-      const bBuf  = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.08), ctx.sampleRate);
-      const bData = bBuf.getChannelData(0);
-      for (let j = 0; j < bData.length; j++)
-        bData[j] = (Math.random() * 2 - 1) * Math.exp(-j / ctx.sampleRate / 0.020);
-      const bSrc  = ctx.createBufferSource(); bSrc.buffer = bBuf;
-      const bFilt = mkFilt(bf, 'bandpass', 5 - i);
-      const bG    = mkGain(vol * (0.10 - i * 0.025));
-      chain(bSrc, bFilt, bG, b); bSrc.start(bt);
-      reg(name, bSrc, bFilt, bG);
-    });
+    excSrc.start(bt);
+    excSrc.stop(bt + baseDelay + 0.002);
+
+    const ringTime = Math.min(8.0, Math.log(0.001) / Math.log(Math.max(0.9001, fb)) / freq);
+    const stopAt = bt + droopS + ringTime + 0.1;
+    regT(name, setTimeout(() => {
+      try { delay.disconnect(); loopLPF.disconnect(); inh.disconnect(); fbG.disconnect(); outG.disconnect(); } catch(e){}
+    }, (stopAt - ctx.currentTime) * 1000));
+
+    reg(name, excSrc, excFilt, delay, loopLPF, inh, fbG, outG);
   }
 
   function doGliss() {
-    const oct    = preset.melodyOctave + 1 + vc.octBias;
-    const nTones = 3 + Math.floor(rng() * 4);
-    const goUp   = rng() < 0.60;
-    const vol    = vc.volBase + intensity * vc.volInt;
-    const nRat   = Math.max(1, CE.currentChord.ratios.length);
+    const nTones   = 3 + Math.floor(rng() * 4);
+    const goUp     = rng() < 0.60;
+    const vol      = vc.volBase + intensity * vc.volInt;
+    const nRat     = Math.max(1, CE.currentChord.ratios.length);
     const spacingS = vc.glissSpacingMs / 1000;
+    const octBias  = vc.octBias;
 
     for (let i = 0; i < nTones; i++) {
       const vIdx  = goUp ? i % nRat : (nTones - 1 - i) % nRat;
-      const octM  = Math.floor(i / nRat) + 1;
+      const octM  = Math.floor(i / nRat) + 1 + octBias;
       const freq  = CE.chordTone('harp', octM, vIdx);
       const bt    = ctx.currentTime + i * spacingS;
-      const decay = vc.decayBase + rng() * vc.decayRng - (vIdx / nRat) * 0.8;
-      pluckHarpString(bt, freq, Math.max(0.5, decay), vol * (1 - i * 0.06));
+      // Lower strings ring longer — decayScale decreases with pitch
+      const decayScale = vc.decayMult * (0.9 + (1 - vIdx / Math.max(1, nRat)) * 0.2);
+      pluckHarpString(bt, freq, decayScale, vol * (1 - i * 0.05));
     }
   }
 
   function doChordPluck() {
-    const oct   = preset.melodyOctave + 1 + vc.octBias;
-    const vol   = (vc.volBase - 0.08) + intensity * vc.volInt;
+    const vol   = (vc.volBase - 0.06) + intensity * vc.volInt;
     const nRat  = Math.max(1, CE.currentChord.ratios.length);
-    const spreadS = vc.chordSpread / 1000;
+    const spreadS = (vc.glissSpacingMs * 0.15) / 1000;
     for (let i = 0; i < nRat; i++) {
-      const freq = CE.chordTone('harp', oct, i);
-      pluckHarpString(ctx.currentTime + i * spreadS, freq,
-        vc.decayBase * 1.1 + rng(), vol * (0.9 - i * 0.08));
+      const freq = CE.chordTone('harp', 1 + vc.octBias, i);
+      pluckHarpString(ctx.currentTime + i * spreadS, freq, vc.decayMult * 1.1, vol * (0.9 - i * 0.08));
     }
   }
 
   function doSingleString() {
-    const oct  = preset.melodyOctave + (rng() < 0.5 ? 1 : 2) + vc.octBias;
+    const octChoice = (rng() < 0.5 ? 1 : 2) + vc.octBias;
     const vIdx = Math.floor(rng() * Math.max(1, CE.currentChord.ratios.length));
-    const freq = CE.chordTone('harp', oct, vIdx);
-    pluckHarpString(ctx.currentTime, freq,
-      vc.decayBase * 1.4 + Math.random() * vc.decayRng,
-      (vc.volBase - 0.12) + intensity * vc.volInt);
+    const freq = CE.chordTone('harp', octChoice, vIdx);
+    pluckHarpString(ctx.currentTime, freq, vc.decayMult * 1.4,
+      (vc.volBase - 0.10) + intensity * vc.volInt);
   }
 
   function schedGesture() {
@@ -8755,7 +8805,6 @@ function buildHarp(preset, intensity, name) {
 
   schedGesture();
 }
-
 // ── VIOLA ─────────────────────────────────────────────────────────────────────
 // Fills the harmonic gap between violin strings and cello.
 // Darker than violin, less weighty than cello — the inner voice of the orchestra.
