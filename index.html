@@ -8281,6 +8281,24 @@ function buildGuitar(preset, intensity, name) {
   // reuse the same buffer (saves CPU on dense arpeggios).
   const bufCache = {};
 
+  // Track ringing sources so we can mute them on chord change
+  const ringSources = []; // { src, gainNode }
+  let guitarLastChord = CE.currentChord.label;
+
+  function muteRingSources() {
+    const now2 = ctx.currentTime;
+    const MUTE_TIME = 0.15;
+    ringSources.forEach(({ src, gainNode }) => {
+      try {
+        gainNode.gain.cancelScheduledValues(now2);
+        gainNode.gain.setValueAtTime(gainNode.gain.value, now2);
+        gainNode.gain.linearRampToValueAtTime(0, now2 + MUTE_TIME);
+        src.stop(now2 + MUTE_TIME + 0.05);
+      } catch(e) {}
+    });
+    ringSources.length = 0;
+  }
+
   function buildStringBuffer(freq) {
     if (bufCache[freq]) return bufCache[freq];
 
@@ -8363,11 +8381,25 @@ function buildGuitar(preset, intensity, name) {
     src.start(bt);
     // Stop after the buffer plays through once — no looping
     src.stop(bt + strBuf.duration + 0.05);
+    const entry = { src, gainNode: outG };
+    ringSources.push(entry);
+    src.onended = () => {
+      const idx = ringSources.indexOf(entry);
+      if (idx !== -1) ringSources.splice(idx, 1);
+    };
     reg(name, src, outG);
   }
 
   function schedArp() {
     if (!layerOn[name]) return;
+
+    // Mute ringing notes on chord change to prevent harmonic clash
+    const currentChordLabel = CE.currentChord.label;
+    if (currentChordLabel !== guitarLastChord) {
+      muteRingSources();
+      guitarLastChord = currentChordLabel;
+    }
+
     const pat  = ARPS[patIdx];
     const step = pat[arpStep % pat.length];
     const vIdx = step[0];
