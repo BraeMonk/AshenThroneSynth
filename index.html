@@ -5187,6 +5187,11 @@ function startRandomJourney() {
   // array, held constant for the whole journey so the character is consistent
   JC._scoreVariant = Math.floor(rng() * 3);
 
+  // Apply skin-specific journey rules — bends scale arc, archetype arc,
+  // chapter openers, and group offsets toward the skin's musical identity.
+  // Runs after all randomisation so every journey is still unique.
+  applySkinJourneyRules();
+
   journeyActive=true; journeyDepth=0;
 
   // Knight legend
@@ -7197,6 +7202,225 @@ function getLeadRole(intensity) {
 //
 // Values: 1.0 = unchanged, >1.0 = pushed forward, <1.0 = pulled back.
 // Keep ranges reasonable — 0.2–1.6. The mix system handles everything else.
+
+// ── SKIN JOURNEY RULES ────────────────────────────────────────────────────────
+// Applied after per-journey randomisation runs, these rules bend the generated
+// JC fields toward each skin's musical identity. Randomisation still fires first
+// so every journey is unique — the skin rules then shape the result without
+// overriding it completely. Think of it as the randomisation laying down a sketch
+// and the skin rules deciding how it gets finished.
+//
+// Fields available to bend:
+//   JC._scaleArc[]         — array of 8 concrete scale names
+//   JC._scrambledLayerArc[]— array of 8 archetype names
+//   JC._energyCurve[]      — array of 8 energy floats
+//   JC._groupOffsets{}     — per-layer-group entry threshold offsets
+//   JC._chapterOpeners[]   — array of 8 opening phrase names
+//
+// Approach: bend, don't override. Replace individual slots probabilistically
+// so the arc still feels varied, just tilted toward the skin's flavour.
+
+const SKIN_JOURNEY_RULES = {
+
+  // ── ASHEN — dark fantasy dungeon. The reference. No extra bending.
+  ashen: null,
+
+  // ── NEON — synthwave / cyberpunk. Groove-driven, never fully resolves.
+  // Scales: bias toward dorian (groove minor) and mixolydian (lifted 7th).
+  // Archetypes: combat and marching dominate — the city is always moving.
+  // Phrase openers: tension and build bias — intro is rare, resolution is brief.
+  // Energy: floor raised, mid-chapters stay high — no lulls in the grid.
+  neon: {
+    scaleBias: {
+      // Replace 'dark' slots with dorian/mixolydian (epic) 60% of the time
+      dark:  { target: 'epic',   chance: 0.60 },
+      // Replace 'dread' with eerie 40% — neon is tense, not despairing
+      dread: { target: 'eerie',  chance: 0.40 },
+      // Keep arcane/eerie — digital strangeness fits
+    },
+    archetypeBias: {
+      // Replace desolate/choral with combat 70% — the city doesn't stop
+      desolate: { target: 'combat',   chance: 0.70 },
+      choral:   { target: 'marching', chance: 0.60 },
+    },
+    // Bias chapter openers toward tension and build — neon opens hard
+    openerBias: {
+      0: ['build','tension','build'],           // ch 0: never intro
+      1: ['tension','build','tension'],          // ch 1: straight to tension
+      7: ['build','tension','resolution'],       // ch 7: don't fully resolve
+    },
+    // Group offsets: push rhythm layers earlier, pull soft layers later
+    groupOffsetBias: {
+      rhythm_1: -0.10,  // perc enters earlier
+      rhythm_2: -0.08,  // wardrums earlier
+      choir_bed: +0.08, // choir later
+      harp_tex:  +0.12, // harp much later
+    },
+  },
+
+  // ── SAKURA — emotional anime / drama. Feelings linger, resolutions are earned.
+  // Scales: lydian and arcane (dreamy, unresolved) dominate.
+  // Archetypes: choral everywhere — it's always about the voice and strings.
+  // Phrase openers: intro and resolution bias — emotions begin quietly, return often.
+  // Energy: gentle arch, no brutal combat chapters.
+  sakura: {
+    scaleBias: {
+      // Replace 'dark' with arcane (lydian/pentatonic) 50% — emotional not dark
+      dark:  { target: 'arcane', chance: 0.50 },
+      // Replace 'dread' with eerie 60% — tension not terror
+      dread: { target: 'eerie',  chance: 0.60 },
+      // Replace 'epic' with arcane 40% — sakura doesn't do triumph
+      epic:  { target: 'arcane', chance: 0.40 },
+    },
+    archetypeBias: {
+      // Replace combat with choral 70% — no fighting in the garden
+      combat:    { target: 'choral',  chance: 0.70 },
+      // Replace marching with choral 80% — no marching either
+      marching:  { target: 'choral',  chance: 0.80 },
+      // Replace nightmare with arcane 90% — nothing truly nightmarish
+      nightmare: { target: 'arcane',  chance: 0.90 },
+    },
+    openerBias: {
+      0: ['intro','intro','intro','build'],      // ch 0: always starts quiet
+      1: ['intro','build','resolution'],          // ch 1: can resolve early (sadness visits)
+      7: ['resolution','resolution','intro'],     // ch 7: resolution or return to stillness
+    },
+    groupOffsetBias: {
+      flute_mel:  -0.12, // flute enters very early
+      harp_tex:   -0.10, // harp early
+      viola_pad:  -0.12, // viola early
+      choir_bed:  -0.08, // choir early
+      rhythm_2:   +0.15, // wardrums much later
+      rhythm_3:   +0.18, // march/stomp almost never
+      chains_tex: +0.20, // chains never
+    },
+  },
+
+  // ── BROADCAST — documentary / professional. Structured, confident, resolved.
+  // Scales: ionian/mixolydian (major modes) dominate — professional positivity.
+  // Archetypes: marching and choral — structured movement, clean ensemble.
+  // Phrase openers: build bias — broadcast opens with purpose, not hesitation.
+  // Energy: steady climb, strong peak, clean resolution.
+  broadcast: {
+    scaleBias: {
+      // Replace 'dark' with epic (dorian/mixolydian/major) 55% — broadcast is positive
+      dark:    { target: 'epic',  chance: 0.55 },
+      // Replace 'dread' with epic 50% — tension exists but not horror
+      dread:   { target: 'epic',  chance: 0.50 },
+      // Replace 'eerie' with epic 40% — keep some tension but resolve it
+      eerie:   { target: 'epic',  chance: 0.40 },
+    },
+    archetypeBias: {
+      // Replace nightmare with combat 80% — broadcast doesn't go nightmare
+      nightmare: { target: 'combat',   chance: 0.80 },
+      // Replace desolate with choral 60% — broadcast opens with presence
+      desolate:  { target: 'choral',   chance: 0.60 },
+    },
+    openerBias: {
+      0: ['build','build','intro'],              // ch 0: starts with purpose
+      7: ['resolution','resolution','build'],    // ch 7: clean resolution
+    },
+    groupOffsetBias: {
+      solo_voice: -0.08,  // melody enters early
+      harmonic:   -0.06,  // strings early
+      choir_bed:  -0.06,  // choir early
+      chains_tex: +0.25,  // chains never
+      chaos_peak: +0.25,  // chaos never
+    },
+  },
+
+  // ── VOID — industrial machine horror. Nothing resolves. The machine grinds.
+  // Scales: dread and eerie always — chromatic, diminished, locrian.
+  // Archetypes: nightmare and combat — never desolate (desolate implies peace).
+  // Phrase openers: tension everywhere — no intro, no resolution.
+  // Energy: high floor, jagged, never settles.
+  void: {
+    scaleBias: {
+      // Replace everything non-dark with dread/eerie
+      dark:    { target: 'dread',  chance: 0.50 },
+      epic:    { target: 'dread',  chance: 0.80 },
+      arcane:  { target: 'eerie',  chance: 0.70 },
+    },
+    archetypeBias: {
+      // Replace desolate with arcane (glitch-quiet, not peace-quiet)
+      desolate: { target: 'arcane',    chance: 0.85 },
+      // Replace choral with combat — the machine has no choir
+      choral:   { target: 'nightmare', chance: 0.65 },
+      // Push marching to nightmare at high steps
+      marching: { target: 'nightmare', chance: 0.45 },
+    },
+    openerBias: {
+      0: ['tension','build','tension'],          // ch 0: no gentle intro
+      1: ['tension','tension','climax'],
+      7: ['tension','climax','build'],           // ch 7: never resolves
+    },
+    groupOffsetBias: {
+      chaos_peak: -0.15, // chaos enters much earlier
+      rhythm_1:   -0.08, // perc early
+      rhythm_2:   -0.10, // wardrums early
+      choir_bed:  +0.18, // choir barely appears
+      harp_tex:   +0.25, // harp never
+      flute_mel:  +0.25, // flute never
+    },
+  },
+};
+
+function applySkinJourneyRules() {
+  const rules = SKIN_JOURNEY_RULES[_activeSkin];
+  if (!rules) return; // ashen — no rules, use as-is
+
+  // ── Scale arc bending ──────────────────────────────────────────────────────
+  // Walk the generated _scaleArc and replace individual scale names based on
+  // the skin's scaleBias. Each slot is bent independently so the arc varies.
+  if (rules.scaleBias && JC._scaleArc) {
+    // Reverse-map: find which SCALE_MOODS pool each concrete scale came from
+    const scaleMoodOf = {};
+    Object.entries(SCALE_MOODS).forEach(([mood, scales]) => {
+      scales.forEach(s => { if (!scaleMoodOf[s]) scaleMoodOf[s] = mood; });
+    });
+
+    JC._scaleArc = JC._scaleArc.map(scaleName => {
+      const sourceMood = scaleMoodOf[scaleName] || 'dark';
+      const bias = rules.scaleBias[sourceMood];
+      if (bias && rng() < bias.chance) {
+        const pool = SCALE_MOODS[bias.target] || SCALE_MOODS.dark;
+        return pool[Math.floor(rng() * pool.length)];
+      }
+      return scaleName;
+    });
+  }
+
+  // ── Archetype arc bending ──────────────────────────────────────────────────
+  // Walk the scrambled layer arc and probabilistically replace archetypes.
+  // Chapters 6-7 (peak/resolution) are protected — don't bend them.
+  if (rules.archetypeBias && JC._scrambledLayerArc) {
+    JC._scrambledLayerArc = JC._scrambledLayerArc.map((arch, i) => {
+      if (i >= 6) return arch; // protect peak and resolution chapters
+      const bias = rules.archetypeBias[arch];
+      if (bias && rng() < bias.chance) return bias.target;
+      return arch;
+    });
+  }
+
+  // ── Chapter opener bending ─────────────────────────────────────────────────
+  if (rules.openerBias && JC._chapterOpeners) {
+    JC._chapterOpeners = JC._chapterOpeners.map((opener, i) => {
+      const pool = rules.openerBias[i];
+      if (pool && rng() < 0.70) { // 70% chance to apply skin opener bias
+        return pool[Math.floor(rng() * pool.length)];
+      }
+      return opener;
+    });
+  }
+
+  // ── Group offset bending ───────────────────────────────────────────────────
+  // Shift layer entry thresholds additively on top of the random per-run offsets.
+  if (rules.groupOffsetBias && JC._groupOffsets) {
+    Object.entries(rules.groupOffsetBias).forEach(([groupId, offset]) => {
+      JC._groupOffsets[groupId] = (JC._groupOffsets[groupId] || 0) + offset;
+    });
+  }
+}
 
 const SKIN_LAYER_BIAS = {
   ashen: {
