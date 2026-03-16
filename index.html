@@ -6400,6 +6400,8 @@ limiter.connect(masterHPF);
   satMakeup.connect(moodFilter);
   moodFilter.connect(masterHighShelf);
   masterHighShelf.connect(masterCompressor);
+  // Brick-wall limiter — catches anything the compressor lets through
+  const limiter = ctx.createDynamicsCompressor();
   limiter.threshold.value = -1.0;   // just below 0dBFS
   limiter.knee.value      = 0.0;    // hard knee — true limiting
   limiter.ratio.value     = 20.0;   // near-infinite ratio
@@ -18335,7 +18337,7 @@ function cinematicEnergyCurve() {
 
 function orchestralSwell() {
 
-  if (!ctx) return;
+  if (typeof ctx === "undefined") return;
 
   const now = ctx.currentTime;
 
