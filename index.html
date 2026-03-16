@@ -3773,7 +3773,7 @@ const JOURNEY_MOODS = {
       choirFormants: [700, 1100, 2600], choirVibRate: 4.2, choirVibDepth: 5.0,
       melodyWave: 'triangle',
       bassWave: 'sine',
-      reverbWetBase: 0.88,
+      reverbWetBase: 0.68,
       satBase: 0.06,
       moodFilterFreq: 7500,    // slightly muffled — sound of grief
       highShelfGain: -7,
@@ -3819,7 +3819,7 @@ const JOURNEY_MOODS = {
       choirFormants: [1100, 2200, 4000], choirVibRate: 6.0, choirVibDepth: 4.0,
       melodyWave: 'sine',
       bassWave: 'sine',
-      reverbWetBase: 0.95,
+      reverbWetBase: 0.68,
       satBase: 0.04,
       moodFilterFreq: 18000,   // fully open — all shimmer preserved
       highShelfGain: 2,
@@ -3841,7 +3841,7 @@ const JOURNEY_MOODS = {
       choirFormants: [800, 1400, 2800], choirVibRate: 1.5, choirVibDepth: 0.8,
       melodyWave: 'sine',
       bassWave: 'sine',
-      reverbWetBase: 0.92,
+      reverbWetBase: 0.68,
       satBase: 0.02,
       moodFilterFreq: 12000,   // warm, not bright — the sound of stone absorbing
       highShelfGain: -3,
@@ -3915,7 +3915,7 @@ const JOURNEY_MOODS = {
       choirFormants: [600, 950, 2200], choirVibRate: 2.8, choirVibDepth: 6.5,
       melodyWave: 'triangle',
       bassWave: 'triangle',
-      reverbWetBase: 0.94,
+      reverbWetBase: 0.68,
       satBase: 0.04,
       moodFilterFreq: 6500,    // muffled like weeping through stone walls
       highShelfGain: -8,
@@ -3987,7 +3987,7 @@ const JOURNEY_MOODS = {
       choirFormants: [650, 1050, 2400], choirVibRate: 3.5, choirVibDepth: 4.5,
       melodyWave: 'triangle',
       bassWave: 'sine',
-      reverbWetBase: 0.82,
+      reverbWetBase: 0.68,
       satBase: 0.08,
       moodFilterFreq: 9500,
       highShelfGain: -2,
@@ -4011,7 +4011,7 @@ const JOURNEY_MOODS = {
       choirFormants: [1400, 2800, 4500], choirVibRate: 8.5, choirVibDepth: 7.0,
       melodyWave: 'sine',
       bassWave: 'sine',
-      reverbWetBase: 0.90,
+      reverbWetBase: 0.68,
       satBase: 0.01,
       moodFilterFreq: 5000,    // alien muffled — as if heard through vacuum
       highShelfGain: -10,
@@ -4036,7 +4036,7 @@ const JOURNEY_MOODS = {
       choirFormants: [520, 800, 2000], choirVibRate: 0.5, choirVibDepth: 0.3,
       melodyWave: 'sine',
       bassWave: 'sine',
-      reverbWetBase: 0.96,
+      reverbWetBase: 0.68,
       satBase: 0.01,
       moodFilterFreq: 8000,    // warm stone, centuries of absorption
       highShelfGain: -6,
@@ -4109,7 +4109,7 @@ const JOURNEY_MOODS = {
       choirFormants: [750, 1200, 2600], choirVibRate: 0.8, choirVibDepth: 0.4,
       melodyWave: 'sine',
       bassWave: 'sine',
-      reverbWetBase: 0.98,
+      reverbWetBase: 0.68,
       satBase: 0.01,
       moodFilterFreq: 10000,
       highShelfGain: -4,
@@ -4643,7 +4643,7 @@ function fireLeitmotifReturn(preset, energy) {
       // Simple formant pair for choir tone
       const co   = mkOsc(Math.max(20, cf), 'sawtooth', 2);
       const cf1  = mkFilt(780, 'bandpass', 2.5); // Q reduced — was 6, caused resonant spike
-      const cf2  = mkFilt(1200, 'bandpass', 4);
+      const cf2  = mkFilt(1200, 'bandpass', 2.0); // was Q=4
       const cg   = mkGain(0.5);
       co.connect(cg); cg.connect(cf1); cg.connect(cf2);
       cf1.connect(cEnv); cf2.connect(cEnv);
@@ -6653,11 +6653,11 @@ function initAudio() {
   // Master compressor — cinematic glue, not transparent limiting
   // Lower threshold + softer knee = everything locks together as one mass
   masterCompressor = ctx.createDynamicsCompressor();
-  masterCompressor.threshold.value = -14; // lighter touch — only catches true peaks
-  masterCompressor.knee.value      = 24;  // very soft knee — transparent, musical
-  masterCompressor.ratio.value     = 2.8; // gentle glue, not a wall
-  masterCompressor.attack.value    = 0.018; // slower attack — lets transients breathe
-  masterCompressor.release.value   = 0.55;  // slower release — avoids pumping
+  masterCompressor.threshold.value = -18; // tighter — catches more of the mix
+  masterCompressor.knee.value      = 16;  // softer but not as pillowy
+  masterCompressor.ratio.value     = 3.5; // slightly more glue
+  masterCompressor.attack.value    = 0.006; // 6ms — faster, catches more transients
+  masterCompressor.release.value   = 0.45;
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
@@ -6673,11 +6673,11 @@ function initAudio() {
   masterHighShelf.connect(masterCompressor);
   // Brick-wall limiter — catches anything the compressor lets through
   const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -1.0;   // just below 0dBFS
+  limiter.threshold.value = -3.0;   // 3dBFS headroom — more protection
   limiter.knee.value      = 0.0;    // hard knee — true limiting
   limiter.ratio.value     = 20.0;   // near-infinite ratio
-  limiter.attack.value    = 0.001;  // 1ms — catches transients
-  limiter.release.value   = 0.10;
+  limiter.attack.value    = 0.0005; // 0.5ms — catches fast transients
+  limiter.release.value   = 0.08;
   masterCompressor.connect(limiter);
   limiter.connect(analyser);
   analyser.connect(ctx.destination);
@@ -7029,7 +7029,7 @@ function buildFXChain() {
   // Long hall reverb — strings, choir, drone, melodic layers
   reverbNode = ctx.createConvolver();
   reverbNode.buffer = buildIR(_reverbSize);
-  reverbWetGain = ctx.createGain(); reverbWetGain.gain.value = _reverbMix;
+  reverbWetGain = ctx.createGain(); reverbWetGain.gain.value = _reverbMix * 0.80; // tamed — convolver amplifies resonances
   reverbNode.connect(reverbWetGain); reverbWetGain.connect(masterGain);
 
   // Short room reverb — percussion only, tight and punchy (fixed 0.08 size)
@@ -10460,7 +10460,7 @@ function buildChoir(preset, intensity, name) {
     const o    = mkOsc(freq, wave || 'sawtooth', det);
 
     const isLow = vi < 4;
-    const f1 = mkFilt(formF[0], 'bandpass', 4.5 * qScale * (isLow ? 1.0 : 0.7));
+    const f1 = mkFilt(formF[0], 'bandpass', 3.0 * qScale * (isLow ? 1.0 : 0.7)); // was 4.5
     const f2 = mkFilt(formF[1], 'bandpass', 3.0 * qScale * (isLow ? 1.0 : 0.7));
     const f3 = mkFilt(formF[2], 'bandpass', 1.8 * qScale * (isLow ? 1.0 : 0.7));
 
@@ -11644,7 +11644,7 @@ function buildHorn(preset, intensity, name) {
     const g1   = mkGain(0.40), g2 = mkGain(0.15), g3 = mkGain(0.12);
 
     // Formant stack — brass resonance body
-    const formant1 = mkFilt(700  + intensity * 300, 'bandpass', 4);
+    const formant1 = mkFilt(700  + intensity * 300, 'bandpass', 2.5); // was Q=4
     const formant2 = mkFilt(1400 + intensity * 400, 'bandpass', 2.5);
     const bright   = mkFilt(2400, 'lowpass', 0.8);
     const env      = mkGain(0);
@@ -11981,20 +11981,24 @@ function buildRitualChant(preset, intensity, name) {
       const o1 = mkOsc(freq,       'sawtooth', det);      // chest resonance
       const o2 = mkOsc(freq,       'square',   det * 0.5); // odd harmonics
       const o3 = mkOsc(freq * 2,   'sine',     0);         // head voice octave
-      const g1 = mkGain(0.42), g2 = mkGain(0.18), g3 = mkGain(0.10);
+      const g1 = mkGain(0.22), g2 = mkGain(0.10), g3 = mkGain(0.06); // reduced — feeds formant × 3 detune stacks
 
       // Three-formant vowel model /u/ → /o/ → /a/
-      const F1 = mkFilt(280,  'bandpass', 9);  // F1 low: closed vowel /u/
-      const F2 = mkFilt(900,  'bandpass', 5);  // F2 mid: chest resonance
-      const F3 = mkFilt(2200, 'bandpass', 3);  // F3 high: presence/sibilance
+      // Q reduced drastically — Q=9 on a formant fed by 9 oscillators = guaranteed clip
+      const F1 = mkFilt(280,  'bandpass', 2.8); // was Q=9 — too resonant
+      const F2 = mkFilt(900,  'bandpass', 2.2); // was Q=5
+      const F3 = mkFilt(2200, 'bandpass', 1.8);
+      // Pre-normalize before WaveShaper: 3 oscs × 3 filters = 9 paths per voice
+      // 1/sqrt(9) = 0.33 — use 0.28 for safety with 3 detune sets stacking
+      const preNorm = mkGain(0.28);
       const sat = ctx.createWaveShaper();
-      sat.curve = makeSatCurve(0.18);          // vocal warmth without buzziness
+      sat.curve = makeSatCurve(0.14);          // lighter sat — input is normalized now
       const env = mkGain(0);
 
       o1.connect(g1); o2.connect(g2); o3.connect(g3);
       [g1, g2, g3].forEach(g => { g.connect(F1); g.connect(F2); g.connect(F3); });
-      F1.connect(sat); F2.connect(sat); F3.connect(sat);
-      chain(sat, env, b);
+      F1.connect(preNorm); F2.connect(preNorm); F3.connect(preNorm);
+      chain(preNorm, sat, env, b);
 
       // Envelope: slow attack, hold, slow release — monastic legato
       env.gain.setValueAtTime(0, bt);
