@@ -3494,7 +3494,7 @@ const JOURNEY_MOODS = {
     // Melody is sine — pure tone, no harmonic distortion.
     // Maximum reverb tail — sounds like it's happening in another dimension.
     soundset: {
-      droneWave: 'sine', droneFilterFreq: 800, droneFilterQ: 6.0,
+      droneWave: 'sine', droneFilterFreq: 800, droneFilterQ: 3.2,
       droneLfoRate: 0.18, droneLfoDepth: 280,
       choirFormants: [1100, 2200, 4000], choirVibRate: 6.0, choirVibDepth: 4.0,
       melodyWave: 'sine',
@@ -3566,7 +3566,7 @@ const JOURNEY_MOODS = {
     // Melody sawtooth — aggressive edge, fast attack.
     // Short reverb — claustrophobic, nowhere to hide. Heavy saturation.
     soundset: {
-      droneWave: 'square', droneFilterFreq: 700, droneFilterQ: 8.0,
+      droneWave: 'square', droneFilterFreq: 700, droneFilterQ: 3.5,
       droneLfoRate: 0.22, droneLfoDepth: 350,
       choirFormants: [600, 1050, 1900], choirVibRate: 7.5, choirVibDepth: 6.0,
       melodyWave: 'sawtooth',
@@ -3614,7 +3614,7 @@ const JOURNEY_MOODS = {
     // Melody square — maximum harmonic content, cuts through war noise.
     // Dry mix — reverb kills punch. Maximum saturation — sounds like iron on iron.
     soundset: {
-      droneWave: 'square', droneFilterFreq: 800, droneFilterQ: 4.0,
+      droneWave: 'square', droneFilterFreq: 800, droneFilterQ: 2.8,
       droneLfoRate: 0.12, droneLfoDepth: 400,
       choirFormants: [750, 1300, 2500], choirVibRate: 8.0, choirVibDepth: 3.0,
       melodyWave: 'square',
@@ -3736,7 +3736,7 @@ const JOURNEY_MOODS = {
     // Dry, close mix — industrial spaces don't have cathedral reverb.
     // Maximum saturation — everything is clipped and distorted intentionally.
     soundset: {
-      droneWave: 'square', droneFilterFreq: 1000, droneFilterQ: 6.0,
+      droneWave: 'square', droneFilterFreq: 1000, droneFilterQ: 3.2,
       droneLfoRate: 0.35, droneLfoDepth: 600,
       choirFormants: [1000, 2000, 3500], choirVibRate: 10.0, choirVibDepth: 2.0,
       melodyWave: 'square',
@@ -3878,7 +3878,7 @@ function applyMoodSoundset(moodId, immediate) {
 
     // Blend 60% zone / 40% soundset so zone-to-zone evolution survives
     const blendedFilter = zone.droneFilterFreq * 0.6 + (ss.droneFilterFreq ?? zone.droneFilterFreq) * 0.4;
-    const blendedQ      = zone.droneFilterQ    * 0.6 + (ss.droneFilterQ    ?? zone.droneFilterQ)    * 0.4;
+    const blendedQ      = Math.min(3.5, zone.droneFilterQ * 0.6 + (ss.droneFilterQ ?? zone.droneFilterQ) * 0.4);
     const blendedLfoR   = zone.droneLfoRate    * 0.6 + (ss.droneLfoRate    ?? zone.droneLfoRate)    * 0.4;
     const blendedLfoD   = zone.droneLfoDepth   * 0.6 + (ss.droneLfoDepth   ?? zone.droneLfoDepth)   * 0.4;
 
@@ -3990,25 +3990,22 @@ const JC = {
 };
 
 const JC_ENERGY_CURVES = {
-  descent:    [0.08,0.18,0.32,0.52,0.72,0.90,0.75,0.22],
-  tragic:     [0.20,0.35,0.50,0.70,0.55,0.30,0.22,0.18],
-  triumphant: [0.25,0.45,0.65,0.85,1.00,0.88,0.70,0.40],
-  arcane:     [0.12,0.22,0.38,0.30,0.55,0.40,0.28,0.10],
-  meditative: [0.10,0.15,0.22,0.18,0.25,0.18,0.20,0.16],
-  // New moods
-  ritual:     [0.22,0.24,0.26,0.28,0.28,0.92,0.30,0.15], // flat plateau → violent spike → back to ritual
-  paranoia:   [0.28,0.45,0.38,0.52,0.42,0.58,0.48,0.35],
-  elegy:      [0.15,0.22,0.30,0.38,0.42,0.38,0.28,0.16], // slow gentle arc, soft peak, long decay
-  siege:      [0.45,0.72,0.90,0.95,0.95,0.90,0.85,0.55], // peaks fast, stays high, grinds
-  awakening:  [0.90,0.78,0.62,0.45,0.35,0.25,0.18,0.10],
-  // New moods
-  catharsis:  [0.12,0.20,0.45,0.38,0.62,0.85,0.78,0.45], // late peak — earns it slowly, stays warm
-  void:       [0.18,0.30,0.28,0.42,0.38,0.45,0.35,0.28], // jagged mid-range, never peaks, never settles
-  // Genre moods
-  gregorian:  [0.10,0.14,0.18,0.22,0.28,0.24,0.18,0.12], // almost flat — chant has no drama arc, just presence
-  industrial: [0.35,0.55,0.75,0.90,0.95,0.88,0.70,0.40], // fast ramp to brutal peak, hard grind
-  celtic:     [0.18,0.28,0.40,0.52,0.48,0.38,0.30,0.20], // gentle arch, never fully peaks, lilting
-  ambient:    [0.08,0.10,0.14,0.12,0.16,0.12,0.10,0.08], // barely moves — just breathes
+  descent:    [0.18,0.28,0.42,0.58,0.75,0.90,0.78,0.45], // raised floor, softer final drop
+  tragic:     [0.28,0.42,0.55,0.72,0.60,0.42,0.35,0.28], // grief stays present, doesn't collapse
+  triumphant: [0.35,0.52,0.68,0.85,1.00,0.88,0.72,0.50], // strong finish, never falls away
+  arcane:     [0.22,0.32,0.42,0.38,0.58,0.48,0.38,0.25], // smoothed zigzag — mysterious not lurching
+  meditative: [0.18,0.22,0.28,0.25,0.32,0.28,0.25,0.20], // raised floor — meditative not absent
+  ritual:     [0.30,0.32,0.34,0.36,0.36,0.88,0.45,0.28], // plateau still hits hard, lands softer
+  paranoia:   [0.32,0.48,0.42,0.55,0.45,0.60,0.50,0.38], // never too low — always twitchy
+  elegy:      [0.22,0.28,0.35,0.42,0.48,0.44,0.35,0.25], // gentle throughout, no collapse
+  siege:      [0.50,0.72,0.90,0.95,0.95,0.90,0.85,0.60], // grinds high, lands higher
+  awakening:  [0.90,0.80,0.65,0.50,0.40,0.32,0.25,0.18], // slow graceful descent
+  catharsis:  [0.20,0.28,0.48,0.42,0.65,0.85,0.80,0.52], // late peak stays warm
+  void:       [0.25,0.35,0.32,0.45,0.40,0.50,0.40,0.32], // jagged but floored — machine never stops
+  gregorian:  [0.18,0.20,0.24,0.28,0.32,0.28,0.24,0.18], // near-flat, just presence
+  industrial: [0.40,0.58,0.78,0.90,0.95,0.88,0.72,0.48], // hard grind, doesn't fall apart
+  celtic:     [0.25,0.35,0.46,0.55,0.50,0.42,0.35,0.25], // gentle lilting arch
+  ambient:    [0.15,0.18,0.20,0.18,0.22,0.18,0.16,0.14], // barely moves — just breathes
 };
 
 // Layer groups define when instruments enter and leave as energy rises 0→1.
@@ -4701,20 +4698,21 @@ JC.reconcile = function(preset, intensity) {
 };
 
 JC.applyMasterVolume = function() {
-  // Skip if doSceneTransition already scheduled a volume ramp.
-  // The sceneTransition flag isn't set during the actual ramp period
-  // (only during the lock window), so we check if a ramp is already
-  // in progress by comparing current gain to target.
   if(!ctx||!masterGain) return;
-  const targetGain = 0.55 + JC.energy * 0.35;
+  // Raised floor and compressed ceiling — less dramatic swing, more like a film mix
+  // where the quiet moments are still present, not absent.
+  // Floor 0.68 (was 0.55) — even the quietest chapter still feels full
+  // Ceiling 0.88 (was 0.90) — headroom for limiter, not actually quieter
+  const targetGain = 0.68 + JC.energy * 0.20; // range 0.68–0.88, was 0.55–0.90
   const cur = masterGain.gain.value;
-  // Only reschedule if we're significantly off target and not mid-transition
-  if(Math.abs(cur - targetGain) < 0.04) return;
+  if(Math.abs(cur - targetGain) < 0.03) return;
   const now = ctx.currentTime;
-  // Very long ramp — 16 bars — so volume breathes like a film score, not a DJ fader
+  const bl = barLength || 4;
+  // Asymmetric ramp — rising is faster (excitement), falling is very slow (no reset feel)
+  const rampBars = targetGain > cur ? 12 : 32; // drop takes 32 bars — barely perceptible
   masterGain.gain.cancelScheduledValues(now);
   masterGain.gain.setValueAtTime(cur, now);
-  masterGain.gain.linearRampToValueAtTime(targetGain, now + (barLength||4) * 16);
+  masterGain.gain.linearRampToValueAtTime(targetGain, now + bl * rampBars);
 };
 
 // Generate a varied phraseArc for a chapter, seeded per journey+step
@@ -4830,16 +4828,15 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   currentPhrase = phraseSeq[phraseSeqIdx];
   stopPhraseEngine(); startPhraseEngine();
 
-  // Master volume: slow ride to new energy level — 8 bars, no jump
+  // Master volume: slow ride to new energy level — asymmetric, no reset feel
   const now = ctx.currentTime;
-  // Wider dynamic range — calm chapters breathe, peak chapters are present but not slamming
-  const targetVol = 0.55 + JC.energy * 0.35; // max 0.90 — limiter catches peaks
-  // Only move if meaningfully different — avoids micro-pumping on small energy changes
+  const targetVol = 0.68 + JC.energy * 0.20; // matches applyMasterVolume range
   const currentVol = masterGain.gain.value;
-  if (Math.abs(currentVol - targetVol) > 0.04) {
+  if (Math.abs(currentVol - targetVol) > 0.03) {
     masterGain.gain.cancelScheduledValues(now);
     masterGain.gain.setValueAtTime(currentVol, now);
-    masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * 10); // 10 bars — barely perceptible
+    const rampBars = targetVol > currentVol ? 10 : 28; // drops are very slow
+    masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * rampBars);
   }
 
   // UI update after 1 bar
@@ -5605,7 +5602,7 @@ const ZONES = [
     // Root nudges down to G1 (23.1 Hz) — the descent continues its slow pull.
     name:'Shadowmere', range:[37,48], color:'#4a2a6a', bpm:78,
     root:46.2, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:360, droneFilterQ:4.5,
+    droneWave:'sawtooth', droneFilterFreq:360, droneFilterQ:3.5,
     droneLfoRate:0.10, droneLfoDepth:380, droneAmpLfo:0.13,
     kickFreq:50, kickDecay:0.40, snareDecay:0.15, snareFilterFreq:1500,
     // Zone 4: kick 1+syncopated 2.5+3, snare 2&4, 8th hihat
@@ -5624,7 +5621,7 @@ const ZONES = [
     // Melody steps up an octave here (melodyOctave:1) — it soars above the chaos.
     name:"Sorcerer's Veil", range:[49,60], color:'#2a4a6a', bpm:88,
     root:46.2, scale:[1,1.0595,1.1892,1.2599,1.4983,1.6818,1.7818],
-    droneWave:'triangle', droneFilterFreq:480, droneFilterQ:5.5,
+    droneWave:'triangle', droneFilterFreq:480, droneFilterQ:3.5,
     droneLfoRate:0.15, droneLfoDepth:520, droneAmpLfo:0.16,
     kickFreq:52, kickDecay:0.30, snareDecay:0.11, snareFilterFreq:1900,
     // Zone 5: aggressive kick with syncopation, snare on 2&4 + backbeat accent, near-16th hihat
@@ -5643,7 +5640,7 @@ const ZONES = [
     // making it feel like a floor dropped. Maximum texture density.
     name:'Obsidian Keep', range:[61,72], color:'#6a2a4a', bpm:98,
     root:43.6, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818],
-    droneWave:'sawtooth', droneFilterFreq:540, droneFilterQ:4.0,
+    droneWave:'sawtooth', droneFilterFreq:540, droneFilterQ:3.5,
     droneLfoRate:0.20, droneLfoDepth:660, droneAmpLfo:0.19,
     kickFreq:46, kickDecay:0.42, snareDecay:0.16, snareFilterFreq:1700,
     // Zone 6 (climax): kick 1+e+3+and, snare 2&4+additional, near-full hihat
@@ -5766,7 +5763,7 @@ const SKIN_ZONES = {
     {
       name:'Club District', range:[37,48], color:'#220066', bpm:102,
       root:77.8, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.8877], // mixolydian — lifted 7th, euphoric peak energy
-      droneWave:'square', droneFilterFreq:640, droneFilterQ:4.0,
+      droneWave:'square', droneFilterFreq:640, droneFilterQ:3.5,
       droneLfoRate:0.15, droneLfoDepth:280, droneAmpLfo:0.13,
       kickFreq:64, kickDecay:0.24, snareDecay:0.10, snareFilterFreq:1800,
       kickPattern:[1,0,0,1,0,1,0,0], snarePattern:[0,0,0,0,1,0,1,0], hihatPattern:[1,1,0,1,1,0,1,0],
@@ -5780,7 +5777,7 @@ const SKIN_ZONES = {
     {
       name:'Skybridge', range:[49,60], color:'#440088', bpm:110,
       root:82.4, scale:[1,1.0595,1.2599,1.3348,1.4983,1.5874,1.7818], // phrygian edge
-      droneWave:'square', droneFilterFreq:720, droneFilterQ:4.8,
+      droneWave:'square', droneFilterFreq:720, droneFilterQ:3.5,
       droneLfoRate:0.18, droneLfoDepth:340, droneAmpLfo:0.15,
       kickFreq:66, kickDecay:0.22, snareDecay:0.09, snareFilterFreq:2000,
       kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,0,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
@@ -5794,7 +5791,7 @@ const SKIN_ZONES = {
     {
       name:'Transmission Tower', range:[61,72], color:'#660099', bpm:118,
       root:87.3, scale:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818], // phrygian
-      droneWave:'square', droneFilterFreq:800, droneFilterQ:5.5,
+      droneWave:'square', droneFilterFreq:800, droneFilterQ:3.5,
       droneLfoRate:0.22, droneLfoDepth:420, droneAmpLfo:0.18,
       kickFreq:68, kickDecay:0.20, snareDecay:0.08, snareFilterFreq:2200,
       kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,0,0,1,0,1,1], hihatPattern:[1,1,1,0,1,1,1,0],
@@ -6115,7 +6112,7 @@ const SKIN_ZONES = {
     {
       name:'DATA_CORRUPTION', range:[25,36], color:'#002000', bpm:89,
       root:55.0, scale:[1,1.1225,1.2599,1.4142,1.5874,1.7818], // whole tone — unstable, floating
-      droneWave:'square', droneFilterFreq:360, droneFilterQ:4.5,
+      droneWave:'square', droneFilterFreq:360, droneFilterQ:3.5,
       droneLfoRate:0.18, droneLfoDepth:200, droneAmpLfo:0.12,
       kickFreq:52, kickDecay:0.26, snareDecay:0.10, snareFilterFreq:1800,
       kickPattern:[1,0,1,0,0,1,0,0], snarePattern:[0,0,0,0,1,0,1,0], hihatPattern:[1,0,1,0,1,0,0,1],
@@ -6129,7 +6126,7 @@ const SKIN_ZONES = {
     {
       name:'MEMORY_LEAK', range:[37,48], color:'#003000', bpm:97,
       root:46.2, scale:[1,1.0595,1.1892,1.3348,1.4142,1.5874,1.7818], // locrian — most unstable
-      droneWave:'square', droneFilterFreq:440, droneFilterQ:6.0,
+      droneWave:'square', droneFilterFreq:440, droneFilterQ:3.5,
       droneLfoRate:0.22, droneLfoDepth:260, droneAmpLfo:0.14,
       kickFreq:54, kickDecay:0.24, snareDecay:0.09, snareFilterFreq:2000,
       kickPattern:[1,0,0,1,0,1,0,0], snarePattern:[0,0,0,0,1,0,1,0], hihatPattern:[1,1,0,1,0,1,0,1],
@@ -6143,7 +6140,7 @@ const SKIN_ZONES = {
     {
       name:'KERNEL_PANIC', range:[49,60], color:'#004000', bpm:103,
       root:43.6, scale:[1,1.0595,1.1892,1.3348,1.4142,1.5874,1.6818,1.8877], // diminished peak
-      droneWave:'square', droneFilterFreq:520, droneFilterQ:7.5,
+      droneWave:'square', droneFilterFreq:520, droneFilterQ:3.5,
       droneLfoRate:0.28, droneLfoDepth:340, droneAmpLfo:0.16,
       kickFreq:56, kickDecay:0.22, snareDecay:0.08, snareFilterFreq:2200,
       kickPattern:[1,0,1,0,0,1,0,1], snarePattern:[0,0,0,0,1,0,0,1], hihatPattern:[1,1,1,0,1,1,0,1],
@@ -6157,7 +6154,7 @@ const SKIN_ZONES = {
     {
       name:'SYSTEM_FAILURE', range:[61,72], color:'#005000', bpm:109,
       root:36.7, scale:[1,1.0595,1.1225,1.1892,1.2599,1.3348,1.4142,1.4983,1.5874,1.6818,1.7818,1.8877], // full chromatic — total system disintegration
-      droneWave:'square', droneFilterFreq:600, droneFilterQ:9.0,
+      droneWave:'square', droneFilterFreq:600, droneFilterQ:3.5,
       droneLfoRate:0.34, droneLfoDepth:420, droneAmpLfo:0.19,
       kickFreq:58, kickDecay:0.20, snareDecay:0.08, snareFilterFreq:2400,
       kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,0,0,1,0,1,1], hihatPattern:[1,1,1,0,1,1,1,0],
@@ -6171,7 +6168,7 @@ const SKIN_ZONES = {
     {
       name:'EMERGENCY_SHUTDOWN', range:[73,84], color:'#003000', bpm:89,
       root:32.7, scale:[1,1.1225,1.2599,1.4142,1.5874,1.7818], // whole-tone — floating, dreamlike, the machine dying
-      droneWave:'square', droneFilterFreq:380, droneFilterQ:4.0,
+      droneWave:'square', droneFilterFreq:380, droneFilterQ:3.5,
       droneLfoRate:0.16, droneLfoDepth:280, droneAmpLfo:0.15,
       kickFreq:50, kickDecay:0.35, snareDecay:0.14, snareFilterFreq:1600,
       kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
@@ -8085,9 +8082,9 @@ function buildDrone(preset, intensity, name) {
     droneOscs = VOX_VOICES.map(({ freq, gv, det, formF }, vi) => {
       const o  = mkOsc(Math.max(20, freq), 'sawtooth', det);
       // Three formant bandpass filters
-      const f1 = mkFilt(formF[0], 'bandpass', 6);
-      const f2 = mkFilt(formF[1], 'bandpass', 4);
-      const f3 = mkFilt(formF[2], 'bandpass', 2.5);
+      const f1 = mkFilt(formF[0], 'bandpass', 3.5);
+      const f2 = mkFilt(formF[1], 'bandpass', 2.5);
+      const f3 = mkFilt(formF[2], 'bandpass', 1.8);
       const g  = mkGain(gv * 0.35);
       o.connect(f1); o.connect(f2); o.connect(f3);
       f1.connect(g); f2.connect(g); f3.connect(g);
@@ -9742,9 +9739,9 @@ function buildChoir(preset, intensity, name) {
     const o    = mkOsc(freq, wave || 'sawtooth', det);
 
     const isLow = vi < 4;
-    const f1 = mkFilt(formF[0], 'bandpass', 8  * qScale * (isLow ? 1.0 : 0.7));
-    const f2 = mkFilt(formF[1], 'bandpass', 5  * qScale * (isLow ? 1.0 : 0.7));
-    const f3 = mkFilt(formF[2], 'bandpass', 3  * qScale * (isLow ? 1.0 : 0.7));
+    const f1 = mkFilt(formF[0], 'bandpass', 4.5 * qScale * (isLow ? 1.0 : 0.7));
+    const f2 = mkFilt(formF[1], 'bandpass', 3.0 * qScale * (isLow ? 1.0 : 0.7));
+    const f3 = mkFilt(formF[2], 'bandpass', 1.8 * qScale * (isLow ? 1.0 : 0.7));
 
     // Growl subharmonic — infernal/bright only, not gregorian
     let growlNode = null;
