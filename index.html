@@ -3838,10 +3838,12 @@ function applyMoodSoundset(moodId, immediate) {
     masterHighShelf.gain.setTargetAtTime(gain, ctx.currentTime, ramp * 0.5);
   }
 
-  // ── Reverb wet level ─────────────────────────────────────────────────────
+  // ── Reverb wet level — always update dry together to keep total level stable ──
   if (reverbWetGain && ctx) {
     const wet = ss.reverbWetBase ?? 0.70;
+    _reverbMix = wet;
     reverbWetGain.gain.setTargetAtTime(wet, ctx.currentTime, ramp);
+    if (reverbDryGain) reverbDryGain.gain.setTargetAtTime(1.0 - wet, ctx.currentTime, ramp);
   }
 
   // ── Saturation baseline ──────────────────────────────────────────────────
@@ -6818,29 +6820,14 @@ function applyMoodFX(m) {
   moodFilter.frequency.setTargetAtTime(skinBase.moodFilterFreq + (m - 0.5) * eqRange, ctx.currentTime, 0.2);
   moodFilter.Q.setTargetAtTime(0.5 + m * 3, ctx.currentTime, 0.2);
   if (masterHighShelf) {
-    // Swing ±2dB around the skin's shelf gain
     masterHighShelf.gain.setTargetAtTime(skinBase.highShelfGain + (m - 0.5) * 4, ctx.currentTime, 0.3);
   }
 
-  // ── Reverb size — modulate ±0.15 around skin baseline ────────────────────
-  const targetSize = Math.max(0.05, Math.min(0.95, skinBase.reverbSize + (m - 0.5) * 0.30));
-  if (Math.abs(targetSize - _reverbSize) > 0.12 && reverbNode) { // raised threshold — rebuild less often
-    _reverbSize = targetSize;
-    // Duck wet gain briefly during IR swap to avoid click/dropout
-    const now = ctx.currentTime;
-    reverbWetGain.gain.setTargetAtTime(0.001, now, 0.05);
-    setTimeout(() => {
-      if (reverbNode) reverbNode.buffer = buildIR(_reverbSize);
-      reverbWetGain.gain.setTargetAtTime(skinBase.reverbWet, ctx.currentTime, 0.4);
-    }, 120);
-    document.getElementById('reverbSize').value = Math.round(_reverbSize * 100);
-    document.getElementById('reverbSizeVal').textContent = Math.round(_reverbSize * 100) + '%';
-    document.getElementById('reverbSize').style.setProperty('--pct', Math.round(_reverbSize*100)+'%');
-  }
-
   // ── Reverb mix — nudge +0.10 at nightmare, relative to skin wet level ────
+  // Reverb SIZE is fixed per skin and only changes on skin switch — no IR rebuild here.
   if (reverbWetGain) {
-    reverbWetGain.gain.setTargetAtTime(skinBase.reverbWet + (m > 0.75 ? 0.10 : 0), ctx.currentTime, 0.3);
+    reverbWetGain.gain.setTargetAtTime(skinBase.reverbWet + (m > 0.75 ? 0.08 : 0), ctx.currentTime, 1.5);
+    if (reverbDryGain) reverbDryGain.gain.setTargetAtTime(1.0 - skinBase.reverbWet - (m > 0.75 ? 0.08 : 0), ctx.currentTime, 1.5);
   }
 
   // _moodLayerBias is now read directly by adaptiveMixTarget,
