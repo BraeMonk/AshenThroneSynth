@@ -1993,7 +1993,7 @@ function startPhraseEngine() {
   const preset = getZone(parseInt(slider.value));
   if (!bpmLocked) barLength = (60 / preset.bpm) * 4;
   _currentPhraseDur = getPhraseDur(currentPhrase);
-  tickBar();
+  barTimer = setTimeout(tickBar, barLength * 1000);  // wait one full bar before first tick
 }
 
 function stopPhraseEngine() {
@@ -6330,10 +6330,13 @@ function initAudio() {
   const _breathLfoG  = ctx.createGain();
   _breathLfo.type    = 'sine';
   _breathLfo.frequency.value = _breathRate;
-  _breathLfoG.gain.value     = 0.055; // deeper swell — felt, not just heard
+  _breathLfoG.gain.value = 0;
   _breathLfo.connect(_breathLfoG);
   _breathLfoG.connect(masterGain.gain);
   _breathLfo.start();
+  // Ramp breath in slowly so it doesn't hit hard on bar 1
+  _breathLfoG.gain.setValueAtTime(0, ctx.currentTime);
+  _breathLfoG.gain.linearRampToValueAtTime(0.055, ctx.currentTime + 8.0);
 
   // Subsonic HPF
   masterHPF = ctx.createBiquadFilter();
