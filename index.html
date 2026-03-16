@@ -1670,7 +1670,7 @@ canvas {
     <!-- SCALE TAB -->
     <div class="tab-pane" id="tab-scale" style="padding:24px 0 16px;">
       <div class="scale-grid" id="scaleGrid"></div>
-      <div class="status" id="scaleStatus" style="text-align:left;margin-top:8px;font-size:12px;min-height:16px;">Zone default active</div>
+      <div class="status" id="scaleStatus" style="text-align:left;margin-top:8px;font-size:12px;min-height:16px;">Procedural — engine chooses</div>
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--seam);">
         <div style="font-family:'Cinzel',serif;font-size:13px;color:var(--text-lo);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Journey Mood</div>
         <div id="journeyMoodGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
@@ -1689,6 +1689,7 @@ canvas {
         <button class="layer-toggle" onclick="triggerEvent('lowHealth', event)">❤ Low Health</button>
         <button class="layer-toggle" onclick="triggerEvent('zoneEnter', event)">🗺 Zone Enter</button>
         <button class="layer-toggle" onclick="triggerEvent('treasureFound', event)">✨ Treasure</button>
+        <button class="layer-toggle" onclick="PT.forceModulate();setStatus('⟳ Key shift — engine modulated');logTimeline('Force Modulate');" style="border-color:var(--rune-hi);color:var(--rune-hi);">⟳ Key Shift</button>
       </div>
       <div class="status" id="eventStatus" style="text-align:left;">No event active.</div>
     </div>
@@ -2073,14 +2074,21 @@ function tickBar() {
         setStatus(c.toZone.desc);
         return;
       }
-      if (layerOn[c.name]) stopLayer(c.name); // only stop if currently playing
+      if (!layerOn[c.name]) stopLayer(c.name); // only stop if still off
       return;
     }
 
     // 'start' or 'morph' — only fire if layer is still supposed to be on
     if (!layerOn[c.name] && c.type !== 'morph') return;
-    startLayer(c.name, c.toZone, c.intensity,
-      PERC_BUF_LAYERS.has(c.name) ? (c.percBufs ?? buildPercBufs(c.toZone)) : null);
+    // Use a live getZone() snapshot at execution time so PT root/scale are
+    // always current — not stale from when the change was queued.
+    const liveZone = getZone(parseInt(slider.value));
+    const fireZone = Object.assign(Object.create(c.toZone), c.toZone, {
+      root:  liveZone.root,
+      scale: liveZone.scale,
+    });
+    startLayer(c.name, fireZone, c.intensity,
+      PERC_BUF_LAYERS.has(c.name) ? (c.percBufs ?? buildPercBufs(fireZone)) : null);
   });
 
   // ── BPM crossfade ────────────────────────────────────────────────
@@ -2144,6 +2152,8 @@ function advancePhrase() {
     tensionSilenceActive = false;
     // Record how the last phrase went before moving on
     try { SessionScorer.recordTransition(currentPhrase, next, SessionScorer.lastPhraseWasGood()); } catch(e) {}
+    // Notify the Procedural Tonality engine — it may modulate root/scale here
+    PT.onPhrase(currentPhrase);
     CE.onPhrase(currentPhrase, getZone(parseInt(slider.value)));
     // Mutate the zone leitmotif on each phrase transition — keeps melodic identity
     // but prevents exact repetition. mutateMotif was defined but never called before.
@@ -3121,7 +3131,7 @@ function stopSongGen() {
 
 // ── Scales ───────────────────────────────────────────────────────
 const SCALES = [
-  { id:'zone',       name:'Zone Default',  feel:'Follows floor depth',           ratios:null,
+  { id:'zone',       name:'Procedural',    feel:'Engine chooses key & mode',     ratios:null,
     dots:[1,0,1,0,1,1,0,1,0,1,0,1] },
   { id:'phrygian',   name:'Phrygian',      feel:'Dark · Spanish · Menacing',
     ratios:[1,1.0595,1.1892,1.3348,1.4983,1.5874,1.7818],
@@ -3162,6 +3172,235 @@ const SCALES = [
 ];
 
 let activeScaleId = 'zone';
+
+// ══════════════════════════════════════════════════════════════════
+// PROCEDURAL TONALITY ENGINE (v41)
+//
+// Root and scale are now fully autonomous — driven by phrase logic,
+// tension arcs, and musical voice-leading rules. The floor slider
+// controls narrative depth and UI lore but never forces a key change.
+//
+// Architecture:
+//   PT.root  — current root frequency (Hz), drifts via voice-leading
+//   PT.scale — current scale ratios array
+//   PT.scaleName — human-readable scale name for debug
+//   PT.onPhrase(phrase) — called by phrase engine, may trigger modulation
+//   PT.onForceModulate() — external call to request an immediate modulation
+//   PT.randomizeRoot() — picks a new root via circle-of-fifths walk
+//   PT.setScale(id)  — override scale (user picks from SCALES UI)
+// ══════════════════════════════════════════════════════════════════
+
+const PT = (() => {
+
+  // ── Tonal universe ────────────────────────────────────────────────
+  // 12 chromatic roots in the 40-90 Hz sub-bass register.
+  // Chosen range: C2 (65.4 Hz) neighbourhood — deep but not subsonic.
+  // Each root is just a frequency; scale ratios handle the mode.
+  const ROOTS = [
+    41.2,  // E1  — deep, cavernous
+    43.7,  // F1
+    46.2,  // F#1 — dark and unresolved
+    49.0,  // G1
+    51.9,  // G#1
+    55.0,  // A1  — rich, classic dungeon root
+    58.3,  // A#1
+    61.7,  // B1
+    65.4,  // C2  — centred, authoritative
+    69.3,  // C#2
+    73.4,  // D2  — modal, ancient
+    77.8,  // D#2
+  ];
+
+  // Circle-of-fifths adjacency — each root index maps to its neighbours.
+  // Walking by a perfect fifth (7 semitones) is the most natural key change;
+  // walking by a tritone (6) creates the most dissonant leap.
+  const FIFTH_UP   = 7;  // semitones
+  const FOURTH_UP  = 5;
+  const MINOR_THIRD = 3;
+
+  // Scale palette grouped by emotional character.
+  // Engine draws from the appropriate pool based on current phrase.
+  const SCALE_POOLS = {
+    // Sparse, meditative, open
+    stillness:  ['pentatonic', 'dorian', 'nat_minor'],
+    // Narrative build, cinematic tension
+    tension:    ['phrygian', 'harmonic', 'nat_minor', 'dorian'],
+    // Climax — maximum drama, dissonance allowed
+    climax:     ['locrian', 'diminished', 'harmonic', 'phrygian'],
+    // Resolution — earned release, some brightness allowed
+    resolution: ['dorian', 'nat_minor', 'pentatonic', 'mixolydian'],
+    // Ethereal interlude
+    ethereal:   ['lydian', 'whole_tone', 'pentatonic'],
+  };
+
+  // Map phrase names → pool names
+  const PHRASE_TO_POOL = {
+    intro:      'stillness',
+    build:      'tension',
+    tension:    'tension',
+    climax:     'climax',
+    resolution: 'resolution',
+  };
+
+  // ── State ─────────────────────────────────────────────────────────
+  let _rootIdx   = 4;         // index into ROOTS — A1 (55 Hz) default
+  let _scaleId   = 'phrygian'; // starting scale
+  let _lastPhrase = null;
+  let _phraseSinceModulate = 0; // phrases elapsed since last key change
+  let _modulateCooldown    = 3; // minimum phrases between modulations
+  let _pendingScaleOverride = null; // set by user via SCALES UI
+
+  // ── Helpers ───────────────────────────────────────────────────────
+  function _getRatios(id) {
+    const s = SCALES.find(s => s.id === id);
+    return (s && s.ratios) ? s.ratios : SCALES.find(s => s.id === 'nat_minor').ratios;
+  }
+
+  function _resolveRoot(idx) {
+    return ROOTS[((idx % ROOTS.length) + ROOTS.length) % ROOTS.length];
+  }
+
+  function _walkRoot(semitones) {
+    // Walk by semitone count around the chromatic ROOTS array
+    // (ROOTS is all 12 semitones so index math is clean)
+    const steps = Math.round(semitones);
+    _rootIdx = ((_rootIdx + steps) % ROOTS.length + ROOTS.length) % ROOTS.length;
+  }
+
+  function _pickScaleForPhrase(phrase) {
+    if (_pendingScaleOverride) {
+      const id = _pendingScaleOverride;
+      _pendingScaleOverride = null;
+      return id;
+    }
+    const poolName = PHRASE_TO_POOL[phrase] || 'tension';
+    const pool = SCALE_POOLS[poolName];
+    // Avoid repeating the same scale twice in a row
+    const filtered = pool.filter(id => id !== _scaleId);
+    const candidates = filtered.length ? filtered : pool;
+    return candidates[Math.floor(rng() * candidates.length)];
+  }
+
+  function _shouldModulate(phrase) {
+    if (_phraseSinceModulate < _modulateCooldown) return false;
+    // Climax always modulates if it's been long enough — maximum drama
+    if (phrase === 'climax') return true;
+    // Resolution: 60% chance to resolve to a related key
+    if (phrase === 'resolution') return rng() < 0.60;
+    // Build: occasional pivot for narrative momentum
+    if (phrase === 'build') return rng() < 0.35;
+    // Intro/tension: rare — let stillness breathe
+    return rng() < 0.18;
+  }
+
+  // ── Public API ────────────────────────────────────────────────────
+  function onPhrase(phrase) {
+    _phraseSinceModulate++;
+
+    if (_lastPhrase === phrase) return; // same phrase continuation
+    const wasPhrase = _lastPhrase;
+    _lastPhrase = phrase;
+
+    if (!_shouldModulate(phrase)) return;
+
+    // Choose modulation interval based on phrase transition
+    let semitones;
+    if (phrase === 'climax') {
+      // Tritone or fifth — maximum harmonic drama
+      semitones = rng() < 0.5 ? 6 : FIFTH_UP;
+    } else if (phrase === 'resolution') {
+      // Resolve down a fourth (natural resolution motion)
+      semitones = rng() < 0.65 ? -FOURTH_UP : -MINOR_THIRD;
+    } else if (phrase === 'build') {
+      // Rise by a fifth or minor third — intensification
+      semitones = rng() < 0.5 ? FIFTH_UP : MINOR_THIRD;
+    } else {
+      // Stillness/intro: subtle chromatic neighbours
+      semitones = rng() < 0.5 ? 1 : -1;
+    }
+
+    _walkRoot(semitones);
+    _scaleId = _pickScaleForPhraseWithBias(phrase);
+    _phraseSinceModulate = 0;
+
+    // Vary cooldown so modulations don't feel metronomic
+    _modulateCooldown = Math.floor(2 + rng() * 3); // 2–4 phrases
+  }
+
+  function forceModulate() {
+    _phraseSinceModulate = 99; // override cooldown
+    const semitones = [FIFTH_UP, FOURTH_UP, MINOR_THIRD, 6, -FIFTH_UP, -FOURTH_UP][Math.floor(rng() * 6)];
+    _walkRoot(semitones);
+    _scaleId = _pickScaleForPhraseWithBias(_lastPhrase || 'tension');
+    _phraseSinceModulate = 0;
+  }
+
+  function randomizeRoot() {
+    _rootIdx = Math.floor(rng() * ROOTS.length);
+  }
+
+  function setScaleOverride(id) {
+    // Queue for next phrase boundary — smooth transition
+    _pendingScaleOverride = (id === 'zone') ? null : id;
+    if (id !== 'zone') _scaleId = id; // apply immediately to current state too
+  }
+
+  // ── JC communication ──────────────────────────────────────────────
+  // Called by Journey Conductor at each chapter transition.
+  // pool: array of scale IDs valid for this chapter (from SCALE_MOODS[moodName])
+  // energy: JC.energy 0→1 — higher energy biases toward more dissonant scales
+  // isBoss: true when this chapter is the designated boss step
+  let _moodPool = null; // null means use PT's own SCALE_POOLS
+  let _moodEnergy = 0.5;
+
+  function setMoodBias(pool, energy, isBoss) {
+    _moodPool   = pool && pool.length ? pool : null;
+    _moodEnergy = energy ?? 0.5;
+
+    if (isBoss) {
+      // Boss chapter: force an immediate modulation for maximum impact.
+      // Walk up a tritone or minor seventh — most dramatic intervals.
+      const bossIntervals = [6, 10, FIFTH_UP + 5]; // tritone, min7, maj9
+      _walkRoot(bossIntervals[Math.floor(rng() * bossIntervals.length)]);
+      // Pull scale from the darkest end of the mood pool
+      const darkPool = _moodPool
+        ? _moodPool.filter(id => ['locrian','diminished','harmonic','chromatic'].includes(id))
+        : ['locrian','diminished','harmonic'];
+      _scaleId = darkPool.length
+        ? darkPool[Math.floor(rng() * darkPool.length)]
+        : 'locrian';
+      _phraseSinceModulate = 0;
+      _moodPool = null; // release bias after boss — resolution can wander free
+    }
+  }
+
+  // Override _pickScaleForPhrase to honour mood pool when JC has set one
+  function _pickScaleForPhraseWithBias(phrase) {
+    if (_pendingScaleOverride) {
+      const id = _pendingScaleOverride;
+      _pendingScaleOverride = null;
+      return id;
+    }
+    // JC has told us what pool this chapter should draw from
+    if (_moodPool && _moodPool.length) {
+      const filtered = _moodPool.filter(id => id !== _scaleId);
+      return (filtered.length ? filtered : _moodPool)[Math.floor(rng() * (filtered.length || _moodPool.length))];
+    }
+    // Fall back to PT's own phrase-driven pools
+    const poolName = PHRASE_TO_POOL[phrase] || 'tension';
+    const pool = SCALE_POOLS[poolName];
+    const filtered = pool.filter(id => id !== _scaleId);
+    const candidates = filtered.length ? filtered : pool;
+    return candidates[Math.floor(rng() * candidates.length)];
+  }
+
+  return { onPhrase, forceModulate, randomizeRoot, setScaleOverride, setMoodBias,
+           get root()      { return _resolveRoot(_rootIdx); },
+           get scale()     { return _getRatios(_scaleId); },
+           get scaleName() { return _scaleId; }
+  };
+})();
+
 
 // ── Presets ───────────────────────────────────────────────────────
 const PRESETS = [
@@ -4859,10 +5098,19 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   const _chapterScaleName = (JC._scaleArc && JC._scaleArc[JC.step]) || toChapter.scale;
   const moodScales = SCALE_MOODS[_chapterScaleName] || SCALE_MOODS.dark;
   const _newScale  = moodScales[Math.floor(rng()*moodScales.length)];
+  const _isBossChapter = (JC.step === JC.bossStep);
+
+  // ── Tell PT what this chapter's tonal world is ─────────────────────
+  // PT gets the full mood pool for this chapter so it can choose within it
+  // autonomously, rather than being handed a single locked scale.
+  // Boss chapters trigger an immediate dramatic modulation inside PT.
   JC.timers.push(setTimeout(() => {
     if (!JC.active || !isPlaying) return;
-    selectScale(_newScale);
-  }, (barLength || 4) * 1000)); // one bar delay
+    PT.setMoodBias(moodScales, JC.energy, _isBossChapter);
+    // selectScale still runs so the SCALES UI reflects the chapter character,
+    // but PT will now choose within moodScales at phrase boundaries.
+    if (!_isBossChapter) selectScale(_newScale);
+  }, (barLength || 4) * 1000)); // one bar delay — let chord pivot establish first
 
   // Use the chapter's own phrase arc — not a global sequence.
   // The JC phrase engine drives from this arc, cycling through it
@@ -5319,10 +5567,19 @@ function startRandomJourney() {
 
   // Scale: pull from the mood's full scaleArc, not just chapter 1's scale mood
   const moodObj      = JOURNEY_MOODS[activeJourneyMood] || JOURNEY_MOODS.descent;
+  const ch1MoodName  = (moodObj.scaleArc || ['dark'])[0];
+  const ch1Pool      = SCALE_MOODS[ch1MoodName] || SCALE_MOODS.dark;
   const allMoodScales = [...new Set(
     (moodObj.scaleArc || ['dark']).flatMap(m => SCALE_MOODS[m] || SCALE_MOODS.dark)
   )];
-  selectScale(allMoodScales[Math.floor(rng() * allMoodScales.length)]);
+  const openingScale = allMoodScales[Math.floor(rng() * allMoodScales.length)];
+  selectScale(openingScale);
+
+  // ── Seed PT with journey's opening tonal identity ─────────────────
+  // Randomize root so each journey starts in a different key,
+  // then bias PT toward chapter 1's mood pool.
+  PT.randomizeRoot();
+  PT.setMoodBias(ch1Pool, JC.energy || 0.35, false);
 
   // Opening phrase: use the per-run opener for chapter 0, so different runs
   // of the same mood can start tense, building, or from scratch.
@@ -6255,18 +6512,35 @@ const SKIN_ZONES = {
   ],
 };
 
+
 // ── Skin-aware zone resolution ────────────────────────────────────────────
-// getZone() routes through the active skin's zone set when available,
-// falling back to the default ZONES for the ashen skin.
-function getZone(f) {
+// getZone() still routes through the zone table for cosmetics (name, color,
+// desc, BPM, timbre parameters) but ROOT and SCALE are now injected from PT.
+// The floor slider moves the UI / narrative but never forces a key change.
+function _getZoneRaw(f) {
   const zones = (SKIN_ZONES[_activeSkin]) || ZONES;
   return zones.find(z => f >= z.range[0] && f <= z.range[1]) || zones[zones.length - 1];
 }
+
+function getZone(f) {
+  const base = _getZoneRaw(f);
+  // Return a merged object: zone cosmetics + timbre, but PT owns root/scale
+  return Object.assign(Object.create(base), base, {
+    root:  PT.root,
+    scale: PT.scale,
+  });
+}
+
 function getIntensity(f) { return Math.min(1, Math.pow((f - 1) / 98, 0.65)); } // log curve — gentler ramp, no hard ceiling at floor 50
+
 function getScale(preset) {
-  if (activeScaleId === 'zone') return preset.scale;
-  const s = SCALES.find(s => s.id === activeScaleId);
-  return (s && s.ratios) ? s.ratios : preset.scale;
+  // User has picked a specific scale from the UI — respect it
+  if (activeScaleId !== 'zone') {
+    const s = SCALES.find(s => s.id === activeScaleId);
+    if (s && s.ratios) return s.ratios;
+  }
+  // Otherwise PT owns the scale — always return live procedural value
+  return PT.scale;
 }
 
 // ── Mute / Solo ───────────────────────────────────────────────────
@@ -13574,13 +13848,17 @@ function selectJourneyMood(id) {
 
 function selectScale(id) {
   activeScaleId = id;
+  // Tell PT — if user picks a specific scale, PT defers to it until the
+  // next phrase-driven modulation clears the override. 'zone' means
+  // "give PT full autonomy again".
+  PT.setScaleOverride(id);
   // Scope to scale grid only — don't clear mood buttons which share the scale-btn class
   document.querySelectorAll('#scaleGrid .scale-btn').forEach(b => b.classList.remove('active'));
   const scaleBtn = document.getElementById('scale-' + id);
   if (scaleBtn) scaleBtn.classList.add('active');
   const s = SCALES.find(s => s.id === id);
-  document.getElementById('scaleStatus').textContent = id === 'zone' ? 'Zone default active' : `${s.name} · ${s.feel}`;
-  document.getElementById('dbg-scale').textContent = s.name;
+  document.getElementById('scaleStatus').textContent = id === 'zone' ? 'Procedural — engine chooses' : `${s.name} · ${s.feel}`;
+  document.getElementById('dbg-scale').textContent = id === 'zone' ? 'Procedural' : s.name;
   if (!isPlaying) return;
   initAudio();
   const floor = parseInt(slider.value), preset = getZone(floor);
@@ -13588,7 +13866,7 @@ function selectScale(id) {
   ['bass','melody','choir'].forEach(name => {
     if (layerOn[name]) startLayer(name, preset, intensity, null);
   });
-  setStatus('Scale: ' + (id === 'zone' ? 'Zone Default' : s.name));
+  setStatus('Scale: ' + (id === 'zone' ? 'Procedural (engine)' : s.name));
 }
 
 // ── Floor slider ──────────────────────────────────────────────────
@@ -13622,16 +13900,15 @@ function lerpZone(zA, zB, t) {
   const realA = ZONES.find(z => z.name === zA.name) ?? zA;
   const realB = ZONES.find(z => z.name === zB.name) ?? zB;
 
-  const scaleLen    = Math.max(realA.scale.length, realB.scale.length);
-  const blendedScale = Array.from({ length: scaleLen }, (_, i) => {
-    const a = realA.scale[i % realA.scale.length];
-    const b = realB.scale[i % realB.scale.length];
-    return a + (b - a) * e;
-  });
+  // PT owns scale — no interpolation between zone-table scale ratios needed.
+  // blendedScale kept for the lerpZone return object shape but sourced from PT.
+  const blendedScale = PT.scale;
 
   return {
     ...realB,
-    root:            realA.root            + (realB.root            - realA.root)            * e,
+    // PT owns root and scale — never interpolate between zone-table values for these
+    root:            PT.root,
+    scale:           PT.scale,
     bpm:             realA.bpm             + (realB.bpm             - realA.bpm)             * e,
     droneFilterFreq: realA.droneFilterFreq + (realB.droneFilterFreq - realA.droneFilterFreq) * e,
     droneFilterQ:    realA.droneFilterQ    + (realB.droneFilterQ    - realA.droneFilterQ)    * e,
@@ -13703,9 +13980,13 @@ function morphDroneNodes(blended, intensity) {
 }
   
 function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
-  // Resolve to canonical zones immediately — never store blended objects
+  // Resolve to canonical zones immediately — BPM/timbre come from zone table,
+  // but root/scale are injected from PT at the moment of use.
   const realFrom = ZONES.find(z => z.name === fromZone.name) ?? fromZone;
   const realTo   = ZONES.find(z => z.name === toZone.name)   ?? toZone;
+  // PT-aware versions — these carry live root/scale from the procedural engine
+  const ptFrom = Object.assign(Object.create(realFrom), realFrom, { root: PT.root, scale: PT.scale });
+  const ptTo   = Object.assign(Object.create(realTo),   realTo,   { root: PT.root, scale: PT.scale });
 
   // If a crossfade is already running, start the new one from the current
   // blend position so there's no snap
@@ -13784,9 +14065,8 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
   // Melodic — staggered from bar 9, one per 1.5 bars — slow bloom
   ['choir','melody','lute','horn','bells','organ'].forEach((n, i) => q(n, 9 + Math.floor(i * 1.5)));
 
-  // Drone — bar 13, only if root pitch moves more than a minor third
-  const semitones = Math.abs(12 * Math.log2(realTo.root / realFrom.root));
-  if (semitones > 1.5) q('drone', 13);
+  // Drone — bar 13. PT owns root so always restart; it will pick up the new key.
+  q('drone', 13);
 
   // Atmosphere — bar 14 onward, drifting in slowly
   ['wind','riser','firecrackle','heartbeat',
@@ -13821,21 +14101,23 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
 
   // Delay chord engine zone change to bar 4 so it transitions mid-dip
   const zoneChangeDelay = (barLength || 4) * 4 * 1000;
-  setTimeout(() => { CE.onZoneChange(realTo); }, zoneChangeDelay);
+  setTimeout(() => { CE.onZoneChange(ptTo); }, zoneChangeDelay);
 
-  logTimeline(`Crossfade → ${realTo.name}`);
+  logTimeline(`Crossfade → ${realTo.name} / PT:${PT.scaleName} ${PT.root.toFixed(1)}Hz`);
 }
   
 function updateFloorUI() {
   const floor     = parseInt(slider.value);
-  const zone      = getZone(floor);
+  const zone      = _getZoneRaw(floor); // cosmetics only — PT owns root/scale
   const intensity = getIntensity(floor);
 
   document.getElementById('floorNum').textContent = floor;
   slider.style.setProperty('--pct', ((floor - 1) / 98 * 100).toFixed(1) + '%');
 
-  const segs    = document.getElementById('zoneBar').querySelectorAll('.zone-seg');
-  const zoneIdx = ZONES.indexOf(zone);
+  // Zone bar — purely cosmetic progress indicator
+  const segs  = document.getElementById('zoneBar').querySelectorAll('.zone-seg');
+  const zones = (SKIN_ZONES[_activeSkin]) || ZONES;
+  const zoneIdx = zones.indexOf(zone);
   segs.forEach((s, i) => {
     s.classList.toggle('active', i <= zoneIdx);
     s.style.setProperty('--zone-color', zone.color);
@@ -13844,60 +14126,38 @@ function updateFloorUI() {
   document.getElementById('ciZone').textContent  = zone.name;
   document.getElementById('ciFloor').textContent = `${(SKINS[_activeSkin]||SKINS.ashen).depthUnit} ${floor}`;
 
-  // Color and name: only snap when not playing — crossfade owns them while playing
-  if (!isPlaying) {
-    document.getElementById('zoneName').textContent = zone.name;
-    const fn = document.getElementById('floorNum');
-    fn.style.color      = `rgb(${zone.vizR},${zone.vizG},${zone.vizB})`;
-    fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.6)`;
-    setStatus(zone.desc);
-    lastZoneName = zone.name;
-  }
+  // Zone name and floor color always track the slider — lore/narrative only
+  document.getElementById('zoneName').textContent = zone.name;
+  const fn = document.getElementById('floorNum');
+  fn.style.color      = `rgb(${zone.vizR},${zone.vizG},${zone.vizB})`;
+  fn.style.textShadow = `0 0 ${20 + intensity * 30}px rgba(${zone.vizR},${zone.vizG},${zone.vizB},0.6)`;
+  if (!isPlaying) setStatus(zone.desc);
+  lastZoneName = zone.name;
 
   updateDebug();
 
-  if (!isPlaying) return;
-
-  clearTimeout(floorDebounce);
-  floorDebounce = setTimeout(() => {
-    initAudio();
-
-    const f2       = parseInt(slider.value);
-    const toZone   = getZone(f2);
-    const ni       = isBoss ? Math.min(1, getIntensity(f2) + 0.4) : getIntensity(f2);
-    const pb       = buildPercBufs(toZone);
-
-    // Capture fromZone BEFORE updating lastZoneName
-    const fromZone = ZONES.find(z => z.name === lastZoneName) ?? toZone;
-    const changed  = toZone.name !== lastZoneName;
-
-    if (!changed) {
-      // Same zone — nothing to do, BPM nudge handled by xfade if active
-      return;
-    }
-
-    // Update lastZoneName only after fromZone is safely captured
-    lastZoneName = toZone.name;
-
-    // Journey owns all layer and harmonic state — never let the floor slider
-    // trigger a crossfade while Journey is running. JC.tick handles everything.
-    if (journeyActive || JC.active) return;
-
-    startZoneCrossfade(fromZone, toZone, ni, pb);
-
-  }, 200);
+  // ── Floor slider no longer triggers key changes or layer crossfades ───────
+  // PT (Procedural Tonality) owns root and scale — phrase engine drives all
+  // harmonic transitions. Slider is depth/intensity only.
 }
   
 // ── Debug ─────────────────────────────────────────────────────────
 function updateDebug() {
   if (!isPlaying) return;
-  const floor = parseInt(slider.value), zone = getZone(floor), intensity = getIntensity(floor);
+  const floor = parseInt(slider.value);
+  const zone  = _getZoneRaw(floor); // cosmetics from zone table
+  const intensity = getIntensity(floor);
+  // BPM: still read from zone table (zones set tempo character, PT sets tonality)
   document.getElementById('dbg-bpm').textContent = (isBoss ? zone.bpm + 22 : zone.bpm) + (isBoss ? ' (boss)' : '');
   document.getElementById('dbg-phrase').textContent = currentPhrase;
   document.getElementById('dbg-bar').textContent = `${phraseBar} / ${PHRASE_DURATIONS[currentPhrase] || 8}`;
   document.getElementById('dbg-intensity').textContent = (intensity * 100).toFixed(0) + '%';
   document.getElementById('dbg-layers').textContent = Object.keys(layerOn).filter(k => layerOn[k]).length + (isBoss ? ' +boss' : '');
   document.getElementById('dbg-zone').textContent = zone.name;
+  // Show live PT state in scale debug field
+  document.getElementById('dbg-scale').textContent = activeScaleId === 'zone'
+    ? `PT:${PT.scaleName} / ${PT.root.toFixed(1)}Hz`
+    : activeScaleId;
 }
 
 // ── Visualizer ────────────────────────────────────────────────────
@@ -18235,7 +18495,7 @@ applySkin = function(id, save) {
   try { savedSkin = localStorage.getItem('mf_skin') || 'ashen'; } catch(e) {}
   applySkin(SKINS[savedSkin] ? savedSkin : 'ashen', false);
   Object.keys(layerOn).forEach(k => { if (layerOn[k]) document.getElementById('pill-' + k)?.classList.add('on'); });
-  document.getElementById('dbg-scale').textContent = 'Zone Default';
+  document.getElementById('dbg-scale').textContent = 'Procedural';
   document.getElementById('dbg-mood').textContent = 'tense';
   // Set default voices and show labels
   sessionVoices['strings'] = 'arco';
@@ -18384,6 +18644,7 @@ function conductorPlan(){}
 
 /* expose for manual testing */
 window.setMusicState = setMusicState;
+window.PT = PT; // expose procedural tonality engine for console debugging
 
 
 // ===== ENGINE IMPROVEMENTS =====
