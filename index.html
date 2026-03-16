@@ -2073,7 +2073,7 @@ function tickBar() {
         setStatus(c.toZone.desc);
         return;
       }
-      if (!layerOn[c.name]) stopLayer(c.name); // only stop if still off
+      if (layerOn[c.name]) stopLayer(c.name); // only stop if currently playing
       return;
     }
 
