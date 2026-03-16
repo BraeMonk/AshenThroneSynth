@@ -3315,14 +3315,21 @@ const PT = (() => {
   }
 
   // ── Public API ────────────────────────────────────────────────────
-  let _queuedRootWalk = 0; // set by GROQ.applyChapter for non-boss chapters
+  let _queuedRootWalk  = 0;     // set by GROQ.applyChapter — bypasses cooldown
+  let _forceRootWalk   = false; // when true, apply walk regardless of cooldown
 
   function onPhrase(phrase) {
-    // Apply any queued root walk from the AI plan
+    // Apply AI-directed root walk — bypasses cooldown since it is a deliberate
+    // compositional decision from the Groq plan, not a probabilistic one.
     if (_queuedRootWalk !== 0) {
       _walkRoot(_queuedRootWalk);
-      _queuedRootWalk = 0;
+      _queuedRootWalk   = 0;
+      _forceRootWalk    = false;
       _phraseSinceModulate = 0;
+      // Skip further autonomous modulation this phrase — AI already moved the root
+      _lastPhrase = phrase;
+      _phraseSinceModulate = 0;
+      return;
     }
     _phraseSinceModulate++;
 
@@ -8263,7 +8270,8 @@ const CE = (() => {
   let _zone          = null;   // current zone object
   let _chordIdx      = 0;      // position in current progression
   let _progKey       = 'normal';
-  let _pendingProg   = null;   // AI-supplied progression override [[deg,qual]…]
+  let _aiChapterProg = null;   // AI-supplied progression — persists whole chapter, loops
+  let _aiChapterIdx  = 0;      // position within AI progression
   let _eventOverride = null;   // { scaleDeg, quality, barsLeft }
   let _bossActive    = false;
   let _barCount      = 0;      // internal bar counter
@@ -8296,12 +8304,9 @@ const CE = (() => {
  
   // ── Get active progression array ──────────────────────────────
   function getProgression(zone) {
-    // AI composer override takes priority when set — consumes itself after use
-    if (_pendingProg && _pendingProg.length >= 2) {
-      const prog = _pendingProg;
-      _pendingProg = null; // consume — next chapter call will set a fresh one
-      return prog;
-    }
+    // AI chapter progression persists for the whole chapter and loops —
+    // not a one-shot. Only cleared when a new chapter fires setChapterProgression.
+    if (_aiChapterProg && _aiChapterProg.length >= 2) return _aiChapterProg;
     const name = zone?.name || '';
     const zoneProgs = ZONE_PROGRESSIONS[name] || DEFAULT_PROG;
     const key = _bossActive ? 'boss' : _progKey;
@@ -8639,11 +8644,21 @@ const CE = (() => {
         else if (_moodBias < 0.30 && _progKey === 'tension') _progKey = 'normal';
       }
     },
-    // AI composer: set a pending progression override for next zone change
-    setPendingProgression(degrees) {
-      // degrees: [[scaleIndex, quality], …] e.g. [[0,'min'],[5,'maj'],[6,'maj'],[0,'min']]
-      _pendingProg = degrees;
+    // AI composer: set the progression for this whole chapter.
+    // Persists and loops until the next chapter clears it.
+    // degrees: [[scaleIndex, quality], …] e.g. [[0,'min'],[5,'maj'],[6,'maj'],[0,'min']]
+    setChapterProgression(degrees) {
+      _aiChapterProg = degrees && degrees.length >= 2 ? degrees : null;
+      _aiChapterIdx  = 0;
+      // Rebuild current chord immediately from new progression
+      if (_aiChapterProg && _zone) {
+        _chordIdx    = 0;
+        const [deg, qual] = _aiChapterProg[0];
+        currentChord = buildChord(_zone, deg, qual);
+        updateDebugDisplay();
+      }
     },
+    clearChapterProgression() { _aiChapterProg = null; _aiChapterIdx = 0; },
     // Expose for debugging
     getProgKey: () => _progKey,
     getChordIdx: () => _chordIdx,
@@ -10212,9 +10227,20 @@ function buildMelody(preset, intensity, name) {
     { r:6, a:0.02 },
   ];
 
-  // Chord-voice sequence that walks through the harmony:
-  // 3rd → 5th → 7th → root-up-octave → 5th → 3rd — one full arc per phrase
-  const VOICE_SEQ = [1, 2, 3, 0, 2, 1, 3, 2];
+  // Chord-voice sequence shaped by GROQ_MELODY_SHAPE.
+  // 0=root, 1=3rd, 2=5th, 3=7th — AI shapes which voices appear and in what order.
+  const MELODY_SHAPE_SEQS = {
+    arch:       [1, 2, 3, 0, 2, 1, 3, 2], // default — low→high→low
+    ascending:  [0, 1, 2, 3, 2, 3, 3, 2], // climbing — emphasis on upper voices
+    descending: [3, 2, 1, 0, 1, 0, 1, 0], // falling — emphasis on lower voices
+    valley:     [3, 2, 1, 0, 1, 2, 3, 2], // high→low→high
+    static:     [0, 1, 0, 1, 0, 2, 0, 1], // minimal movement, stays near root
+    fragmented: [2, 3, 0, 3, 1, 0, 2, 1], // irregular — jagged, unpredictable
+  };
+  const VOICE_SEQ = MELODY_SHAPE_SEQS[
+    (typeof GROQ_MELODY_SHAPE !== 'undefined' && MELODY_SHAPE_SEQS[GROQ_MELODY_SHAPE])
+      ? GROQ_MELODY_SHAPE : 'arch'
+  ];
 
   // ── Arc state ─────────────────────────────────────────────────────────────
   // arcStep counts how many chord-tone targets we've emitted this phrase.
@@ -10315,7 +10341,10 @@ function buildMelody(preset, intensity, name) {
     const stepDur     = holdDur * (1 - overlapFrac);
 
     // Skin skipBias: positive = more rests (sakura sparse), negative = denser (neon)
-    const skipChance = Math.max(0, Math.min(0.55, sm.skipBias * 0.8));
+    // Fragmented shape adds intentional rests — sparse, interrupted lines
+    const shapeSkip  = (typeof GROQ_MELODY_SHAPE !== 'undefined' && GROQ_MELODY_SHAPE === 'fragmented') ? 0.35 : 0;
+    const staticSkip = (typeof GROQ_MELODY_SHAPE !== 'undefined' && GROQ_MELODY_SHAPE === 'static')     ? 0.20 : 0;
+    const skipChance = Math.max(0, Math.min(0.65, sm.skipBias * 0.8 + shapeSkip + staticSkip));
     if (rng() >= skipChance) {
       makeSustainedVoice(arcNow, freq, holdDur, arcPos);
     }
@@ -13803,6 +13832,9 @@ function stopSynth() {
   journeyTimers = [];
   journeyActive = false;
   if(JC.active){JC.timers.forEach(clearTimeout);JC.timers=[];JC.active=false;JC.activeSet.clear();}
+  // Clear AI chapter state so a new journey starts fresh
+  if (typeof CE !== 'undefined' && CE.clearChapterProgression) CE.clearChapterProgression();
+  if (typeof GROQ_MELODY_SHAPE !== 'undefined') GROQ_MELODY_SHAPE = 'arch';
   if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
   slider.value = 1;
 }
@@ -18890,35 +18922,50 @@ Rules:
     }
   }
 
-  // ── Apply chapter plan to PT + CE ────────────────────────────────
-  // Called at each JC chapter transition with the chapter index.
+  // ── Apply chapter plan to PT + CE + Melody ────────────────────────────────
+  // Called at each JC chapter transition. Groq is the composer here — every
+  // parameter it sets is authoritative for the full chapter duration.
   function applyChapter(stepIndex) {
     if (!_plan) return false;
     const ch = _plan.chapters.find(c => c.index === stepIndex);
     if (!ch) return false;
 
-    // Tell PT: here's the scale for this chapter, and a root direction hint
-    const semitones = hintToSemitones(ch.rootHint);
-    const scalePool = [ch.scale]; // single scale — AI chose it with intention
-
-    // Boss chapters get forced modulation via setMoodBias
     const isBoss = (stepIndex === JC.bossStep);
-    PT.setMoodBias(scalePool, ch.tension, isBoss);
 
-    // Advance the root in the hinted direction (PT's _walkRoot is internal,
-    // so we use forceModulate only if a big interval was requested)
+    // 1. SCALE — tell PT the specific mode for this chapter.
+    //    Single-item pool = AI's choice is the only option PT draws from.
+    PT.setMoodBias([ch.scale], ch.tension, isBoss);
+
+    // 2. ROOT MOVEMENT — queue a root walk that fires at the next phrase boundary.
+    //    Bypasses PT's autonomous cooldown — this is a deliberate compositional move.
     if (ch.rootHint !== 'same' && !isBoss) {
-      // Queue a root walk via a light nudge — let PT decide exact timing
-      PT._queuedRootWalk = semitones;
+      PT._queuedRootWalk = hintToSemitones(ch.rootHint);
     }
 
-    // Feed chord progression into CE as a pending override
+    // 3. CHORD PROGRESSION — persistent chapter loop in CE.
+    //    Unlike the old one-shot, this loops for the entire chapter duration.
     if (Array.isArray(ch.chords) && ch.chords.length >= 2) {
-      const degrees = ch.chords.map(n => [numeralToDeg(n), n.includes('7') ? 'min7' : (n === n.toUpperCase() ? 'maj' : 'min')]);
-      CE.setPendingProgression(degrees);
+      const degrees = ch.chords.map(n => {
+        const deg  = numeralToDeg(n);
+        const qual = n.includes('7')      ? (n === n.toUpperCase() ? 'maj7' : 'min7')
+                   : n === n.toUpperCase() ? 'maj' : 'min';
+        return [deg, qual];
+      });
+      CE.setChapterProgression(degrees);
     }
 
-    logTimeline(`AI Chapter ${stepIndex}: ${ch.scale} · ${ch.melodicShape} · tension ${ch.tension.toFixed(2)} — ${ch.notes}`);
+    // 4. MELODIC SHAPE — drives which chord tones the melody visits and in what order.
+    //    Ascending lines climb, descending fall, fragmented rests interrupt.
+    if (typeof GROQ_MELODY_SHAPE !== 'undefined') {
+      GROQ_MELODY_SHAPE = ch.melodicShape || 'arch';
+    }
+
+    // 5. TENSION BIAS — nudge CE's mood toward the chapter tension value.
+    if (typeof CE.setMoodBias === 'function') {
+      CE.setMoodBias(ch.tension);
+    }
+
+    logTimeline(`AI ▸ Ch${stepIndex}: ${ch.scale} ${ch.rootHint} · ${ch.melodicShape} · t=${ch.tension.toFixed(2)} · [${ch.chords?.join(' ')}] — ${ch.notes}`);
     return true;
   }
 
@@ -18934,8 +18981,18 @@ function groqTestKey()         { GROQ.testKey(); }
 function groqToggle(on)        { GROQ.toggle(on); }
 
 window.setMusicState = setMusicState;
-window.PT = PT;
-window.GROQ = GROQ; // expose procedural tonality engine for console debugging
+window.PT   = PT;
+window.GROQ = GROQ;
+
+// ── Melody shape bias — set by GROQ.applyChapter() ───────────────────────────
+// Shapes how the melody arc walks through chord voices:
+//   ascending   — bias toward higher voice indices (climbing lines)
+//   descending  — bias toward lower voice indices (falling lines)
+//   arch        — default arc (low → high → low)
+//   valley      — high → low → high
+//   static      — stay on root/3rd, minimal movement
+//   fragmented  — add extra rests, short irregular phrases
+let GROQ_MELODY_SHAPE = 'arch'; // default — engine behaviour unchanged // expose procedural tonality engine for console debugging
 
 
 // ===== ENGINE IMPROVEMENTS =====
