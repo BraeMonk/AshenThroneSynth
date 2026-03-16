@@ -13754,6 +13754,16 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
     });
   };
 
+  LAYER_NAMES.forEach(name => {
+    if (!layerOn[name]) return;
+    pendingLayerChanges.push({
+      name,
+      targetBar: totalBar + 2,
+      type: 'stop',
+      source: 'crossfade',
+    });
+  });
+
   // ── Layer restart stagger — timed around the breath duck ──────────
   // ── Layer restart stagger — timed around the 20-bar crossfade ────
   // Bars 0-4:  old layers still playing, master gently dipped to 52%
