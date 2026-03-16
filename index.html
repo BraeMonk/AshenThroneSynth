@@ -6436,6 +6436,12 @@ function initAudio() {
     b._sendGain = sendG; // stash reference
     bus[name] = b;
   });
+  startConductors();
+}
+
+function startConductors() {
+  setInterval(cinematicConductor, 4000);
+  setInterval(conductorPlan, 3000);
 }
 
 // Percussion layers get a short, tight room — close and punchy.
@@ -18316,8 +18322,7 @@ function cinematicEnergyCurve() {
 
 function orchestralSwell() {
 
-  if (typeof ctx === "undefined") return;
-
+  if (typeof ctx === "undefined" || !ctx) return;
   const now = ctx.currentTime;
 
   Object.values(bus || {}).forEach(b => {
@@ -18367,10 +18372,6 @@ function cinematicConductor() {
   leitmotifRecall();
 
 }
-
-/* Hook conductor into phrase system */
-setInterval(cinematicConductor, 4000);
-
 
 /* ===============================================================
    EVENT → MUSIC STATE SYSTEM
@@ -18439,9 +18440,6 @@ function conductorPlan(){
 
   conductorLock = false;
 }
-
-/* conductor loop keeps orchestration musical */
-setInterval(conductorPlan, 3000);
 
 /* expose for manual testing */
 window.setMusicState = setMusicState;
