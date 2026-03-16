@@ -6399,6 +6399,7 @@ function initAudio() {
   }
 
   fxInput = ctx.createGain(); fxInput.gain.value = 1.0;
+  masterGain.connect(masterHPF);
   buildFXChain();
   // Apply initial mood so default 50% isn't starting harsh
   if (masterHighShelf) masterHighShelf.gain.value = -5 + _mood * 5;
@@ -6439,6 +6440,7 @@ function initAudio() {
   startConductors();
 }
 
+// Replace the two bare setInterval calls at lines 18372 and 18444 with:
 function startConductors() {
   setInterval(cinematicConductor, 4000);
   setInterval(conductorPlan, 3000);
