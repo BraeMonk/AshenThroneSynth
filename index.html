@@ -7030,7 +7030,7 @@ function makeSatCurve(amount) {
     if (amount < 0.01) {
       curve[i] = x; // pure bypass at zero
     } else {
-      const k = amount * 18; // slightly gentler ceiling
+      const k = amount * 12; // softer knee — warmth not crunch
       curve[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
     }
   }
@@ -9544,15 +9544,15 @@ function buildBass(preset, intensity, name) {
                   : isClimax     ? beat * 2.2    // climax: punchy
                   :                beat * 1.6;
 
-        const vol = pedalActive ? (0.32 + intensity * 0.14)   // pedal: heavier
-                  : isClimax    ? (0.42 + intensity * 0.12)   // climax release: loud
-                  :               (0.28 + intensity * 0.12);
+        const vol = pedalActive ? (0.26 + intensity * 0.10)   // pedal: heavier
+                  : isClimax    ? (0.32 + intensity * 0.10)   // climax release: strong but not clipping
+                  :               (0.22 + intensity * 0.10);
 
         // Sub oscillator — keep sub well below main to avoid summing clip
         const subFreqBass = Math.max(40, rootFreq * 0.5);
         const sub  = mkOsc(subFreqBass, 'sine');
         const main = mkOsc(rootFreq,    'sine');
-        const subG = mkGain(pedalActive ? 0.5 : 0.7); // attenuate sub separately
+        const subG = mkGain(pedalActive ? 0.28 : 0.38); // sub at ~40% of main to prevent summing clip
         const filt = mkFilt(pedalActive ? 100 : 140, 'lowpass', pedalActive ? 0.8 : 0.6);
         const env  = mkGain(0);
         chain(sub,  subG, env, b);
@@ -10411,6 +10411,12 @@ function buildChoir(preset, intensity, name) {
   const f1Nodes     = [];
   const masterGains = [];
 
+  // Pre-normalization gain — 8 voices summing: 1/sqrt(8) ≈ 0.354
+  // Prevents bus overload regardless of how many formant paths are active.
+  const choirNorm = mkGain(0.32);
+  choirNorm.connect(b);
+  reg(name, choirNorm);
+
   // Per-voice vibrato parameters
   const vibCfg = voice === 'gregorian'
     ? { rateBase: 2.8, rateStep: 0.12, depthLo: 2.0, depthHi: 1.2, delayLo: 2.2, delayHi: 0.6 }
@@ -10436,8 +10442,8 @@ function buildChoir(preset, intensity, name) {
     if (!noGrowl && isLow && vi < 4 && intensity > 0.2) {
       const growlOsc  = mkOsc(Math.max(20, freq * 0.5), 'sawtooth', det * 0.5);
       const growlFilt = mkFilt(formF[1] * 0.6, 'lowpass', 0.7);
-      const growlGain = mkGain((0.08 + intensity * 0.06) * (vi < 2 ? 1.4 : 1.0));
-      chain(growlOsc, growlFilt, growlGain, b);
+      const growlGain = mkGain((0.04 + intensity * 0.03) * (vi < 2 ? 1.2 : 0.8));
+      chain(growlOsc, growlFilt, growlGain, choirNorm);
       growlOsc.start();
       reg(name, growlOsc, growlFilt, growlGain);
       growlNode = growlOsc;
@@ -10446,7 +10452,7 @@ function buildChoir(preset, intensity, name) {
     const mixG = mkGain(gv * 0.4);
     o.connect(f1); o.connect(f2); o.connect(f3);
     f1.connect(mixG); f2.connect(mixG); f3.connect(mixG);
-    mixG.connect(b);
+    mixG.connect(choirNorm);
 
     const now = ctx.currentTime;
     const closedF1 = isLow ? formF[0] * 0.55 : formF[0] * 0.70;
@@ -10677,7 +10683,7 @@ function buildBoss(preset, intensity, name) {
   // Layer 1 — sub octave foundation, massive and slow
   const sub1  = mkOsc(preset.root * 0.25, 'sine');
   const sub2  = mkOsc(preset.root * 0.25 * 1.003, 'sine'); // slight detune = slow beat freq
-  const subG1 = mkGain(0.35), subG2 = mkGain(0.3);
+  const subG1 = mkGain(0.22), subG2 = mkGain(0.20);
   const subF  = mkFilt(80, 'lowpass', 0.8);
   sub1.connect(subG1); sub2.connect(subG2);
   subG1.connect(subF); subG2.connect(subF);
@@ -10690,8 +10696,8 @@ function buildBoss(preset, intensity, name) {
     const o1    = mkOsc(freq,       'sawtooth', -18 + i * 6);
     const o2    = mkOsc(freq,       'sawtooth',  18 - i * 6);
     const filt  = mkFilt(280 + intensity * 500, 'lowpass', 2.8);
-    const sat   = ctx.createWaveShaper(); sat.curve = makeSatCurve(0.45); // aggressive grind
-    const preG  = mkGain(0.22);
+    const sat   = ctx.createWaveShaper(); sat.curve = makeSatCurve(0.28); // grind without harshness
+    const preG  = mkGain(0.14); // two saws sum to 0.28 peak before sat — stays clean
 
     // Slow LFO on filter — gives it the breathing dread quality
     const lfo   = mkOsc(0.6 + i * 0.35, 'sine');
@@ -10701,7 +10707,7 @@ function buildBoss(preset, intensity, name) {
 
     // Slow amp swell — not a click-prone envelope, just a gentle ramp
     const swellG = mkGain(0);
-    swellG.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 2.5);
+    swellG.gain.linearRampToValueAtTime(0.65, ctx.currentTime + 2.5);
 
     o1.connect(preG); o2.connect(preG);
     chain(preG, filt, sat, swellG, b);
@@ -11769,13 +11775,17 @@ function buildOrgan(preset, intensity, name) {
   };
   const vc = VCFG[voice] || VCFG.sine;
 
-  const mix     = mkGain(0.42 * vc.gainMult); mix.connect(b);
+  const mix     = mkGain(0.32 * vc.gainMult); mix.connect(b);
   const airFilt = mkFilt((2600 + intensity * 1400) * vc.lpfMult, 'lowpass', 0.6);
   airFilt.connect(mix);
   const orgSat  = ctx.createWaveShaper();
   orgSat.curve  = makeSatCurve(vc.satAmt);
   orgSat.connect(airFilt);
-  reg(name, mix, airFilt, orgSat);
+  // Pre-saturation normalization — prevents clipping when many voices sum.
+  // 5 voices × 5 partials = up to 25 signals; 1/sqrt(20) ≈ 0.22 tames the peak.
+  const orgPreNorm = mkGain(0.22);
+  orgPreNorm.connect(orgSat);
+  reg(name, mix, airFilt, orgSat, orgPreNorm);
 
   function playChord(t, holdBars) {
     const chordVoices = [
@@ -11812,7 +11822,7 @@ function buildOrgan(preset, intensity, name) {
         const lfoA = mkOsc(0.85 + rng() * 0.3, 'sine');
         const lfoG = mkGain(gv * vc.lfoDepth);
         chain(lfoA, lfoG); lfoG.connect(env.gain);
-        chain(o, env, orgSat);
+        chain(o, env, orgPreNorm);
 
         const peak = gv * vel;
         env.gain.setValueAtTime(0, t);
@@ -13246,7 +13256,7 @@ function buildGlitch(preset, intensity, name) {
       const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr), d = buf.getChannelData(0);
       for (let j = 0; j < d.length; j++) { const t2 = j / sr; d[j] = (rng() * 2 - 1) * Math.sin(2 * Math.PI * freq * t2); }
       const src = ctx.createBufferSource(); src.buffer = buf;
-      const filt = mkFilt(1000 + rng() * 5000, 'bandpass', 4), g = mkGain(0.1 + intensity * 0.15);
+      const filt = mkFilt(800 + rng() * 2400, 'bandpass', 2.5), g = mkGain(0.055 + intensity * 0.07);
       chain(src, filt, g, b); src.start(now + offset); reg(name, src, filt, g);
     }
     const next = 0.1 + rng() * (2.0 - intensity * 1.2);
@@ -13286,13 +13296,15 @@ function buildStrings(preset, intensity, name) {
   // sectionGain node: fade system never touches it (that's b.gain's job).
   // We use sectionGain to drive phrase-based muting.
   const SECTIONS = [
-    { id: 'bass',   octMult: 0.5,  spread: 7,  lpf: 550,  attack: 0.60 * vcfg.attackMult, baseGv: 0.30 * vcfg.vol, phases: ['intro','build','tension','climax','resolution'] },
-    { id: 'mid',    octMult: 1.0,  spread: 4,  lpf: 1400, attack: 0.38 * vcfg.attackMult, baseGv: 0.32 * vcfg.vol, phases: ['build','tension','climax','resolution'] },
-    { id: 'violin', octMult: 2.0,  spread: 3,  lpf: 3000, attack: 0.22 * vcfg.attackMult, baseGv: 0.20 * vcfg.vol, phases: ['climax'] },
+    { id: 'bass',   octMult: 0.5,  spread: 7,  lpf: 550,  attack: 0.60 * vcfg.attackMult, baseGv: 0.20 * vcfg.vol, phases: ['intro','build','tension','climax','resolution'] },
+    { id: 'mid',    octMult: 1.0,  spread: 4,  lpf: 1400, attack: 0.38 * vcfg.attackMult, baseGv: 0.22 * vcfg.vol, phases: ['build','tension','climax','resolution'] },
+    { id: 'violin', octMult: 2.0,  spread: 3,  lpf: 3000, attack: 0.22 * vcfg.attackMult, baseGv: 0.14 * vcfg.vol, phases: ['climax'] },
   ];
 
-  // Master internal gain — swell cycle modulates this, NOT b.gain
-  const swellGain = mkGain(1.0);
+  // Master internal gain — swell cycle modulates this, NOT b.gain.
+  // Reduced from 1.0 → 0.55 to compensate for 12 oscillators summing.
+  // 1/sqrt(12) ≈ 0.29; 0.55 gives headroom for the swell LFO to breathe.
+  const swellGain = mkGain(0.55);
   swellGain.connect(b);
   reg(name, swellGain);
 
