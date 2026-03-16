@@ -18374,6 +18374,81 @@ function cinematicConductor() {
 /* Hook conductor into phrase system */
 setInterval(cinematicConductor, 4000);
 
+
+/* ===============================================================
+   EVENT → MUSIC STATE SYSTEM
+   =============================================================== */
+
+let musicState = "exploration";
+
+const MUSIC_STATE_TO_PHRASE = {
+  exploration: "intro",
+  combat: "tension",
+  danger: "build",
+  boss: "climax",
+  victory: "resolution"
+};
+
+function setMusicState(state){
+  if(!MUSIC_STATE_TO_PHRASE[state]) return;
+
+  musicState = state;
+
+  if(typeof currentPhrase !== "undefined"){
+    currentPhrase = MUSIC_STATE_TO_PHRASE[state];
+  }
+
+  if(typeof applyPhraseLayers === "function"){
+    applyPhraseLayers();
+  }
+}
+
+/* ===============================================================
+   STABLE ORCHESTRATION CONDUCTOR
+   Single authority controls layer state to prevent chaos
+   =============================================================== */
+
+let desiredLayers = new Set();
+let conductorLock = false;
+
+function conductorPlan(){
+
+  if(conductorLock) return;
+  conductorLock = true;
+
+  try{
+
+    if(typeof PHRASE_LAYER_TARGETS === "undefined") return;
+    if(typeof layerOn === "undefined") return;
+
+    const targets = PHRASE_LAYER_TARGETS[currentPhrase] || [];
+    desiredLayers = new Set(targets);
+
+    Object.keys(layerOn).forEach(name=>{
+
+      if(desiredLayers.has(name)){
+        if(!layerOn[name] && typeof startLayer === "function"){
+          startLayer(name);
+        }
+      }else{
+        if(layerOn[name] && typeof stopLayer === "function"){
+          stopLayer(name);
+        }
+      }
+
+    });
+
+  }catch(e){}
+
+  conductorLock = false;
+}
+
+/* conductor loop keeps orchestration musical */
+setInterval(conductorPlan, 3000);
+
+/* expose for manual testing */
+window.setMusicState = setMusicState;
+
 </script>
 </body>
 </html>
