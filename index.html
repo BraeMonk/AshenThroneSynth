@@ -6625,7 +6625,7 @@ function initAudio() {
   _breathLfo.start();
   // Ramp breath in slowly so it doesn't hit hard on bar 1
   _breathLfoG.gain.setValueAtTime(0, ctx.currentTime);
-  _breathLfoG.gain.linearRampToValueAtTime(0.055, ctx.currentTime + 8.0);
+  _breathLfoG.gain.linearRampToValueAtTime(0.028, ctx.currentTime + 8.0); // halved — felt not heard, less interaction with compressor
 
   // Subsonic HPF
   masterHPF = ctx.createBiquadFilter();
@@ -6653,11 +6653,11 @@ function initAudio() {
   // Master compressor — cinematic glue, not transparent limiting
   // Lower threshold + softer knee = everything locks together as one mass
   masterCompressor = ctx.createDynamicsCompressor();
-  masterCompressor.threshold.value = -18; // tighter — catches more of the mix
-  masterCompressor.knee.value      = 16;  // softer but not as pillowy
-  masterCompressor.ratio.value     = 3.5; // slightly more glue
-  masterCompressor.attack.value    = 0.006; // 6ms — faster, catches more transients
-  masterCompressor.release.value   = 0.45;
+  masterCompressor.threshold.value = -10; // raised — only catches genuine peaks, not normal mix
+  masterCompressor.knee.value      = 6;   // tighter knee — more transparent at normal levels
+  masterCompressor.ratio.value     = 2.5; // gentle glue, not a gate
+  masterCompressor.attack.value    = 0.006; // 6ms — fast enough for transients
+  masterCompressor.release.value   = 0.15; // 150ms — fast enough to not pump audibly
 
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
 
