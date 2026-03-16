@@ -6609,7 +6609,7 @@ function initAudio() {
   ctx.resume();
 
   masterGain = ctx.createGain();
-  masterGain.gain.value = 0.92; // raised from 0.82 — compensates for gain normalization
+  masterGain.gain.value = 0.72; // calibrated for raised MIX_CEILING — limiter catches peaks without crushing
 
   // ── GLOBAL BREATH — the room itself breathes ─────────────────────────────
   // A very slow LFO (0.03–0.07 Hz) on masterGain — the whole mix swells
@@ -7417,27 +7417,28 @@ function killLayer(name) {
 
 // Absolute gain ceiling per layer
 const MIX_CEILING = {
-  // Ceilings scaled so normal mix is full and present,
-  // limiter catches any worst-case summation peaks.
-  // Foundation
-  drone:       0.24,  strings:     0.32,  bass:        0.32,
+  // Ceilings are per-instrument maximums — the adaptive mix, sibling scaling,
+  // and relation matrix mean most instruments never reach their ceiling simultaneously.
+  // The limiter catches true worst-case summation peaks; these ceilings control presence.
+  // Foundation — the room: present and felt, not just implied
+  drone:       0.34,  strings:     0.44,  bass:        0.44,
   // Harmonic inner voice
-  viola:       0.15,
-  // Melodic lead
-  melody:      0.32,  choir:       0.30,  horn:        0.25,
-  cello:       0.25,  duduk:       0.22,
-  // Melodic colour
-  lute:        0.18,  bells:       0.20,  guitar:      0.18,
-  flute:       0.22,  harp:        0.20,  oud:         0.18,
-  organ:       0.22,
-  // Rhythmic
-  perc:        0.35,  wardrums:    0.30,  march:       0.28,
-  stomp:       0.25,  taiko:       0.28,  chains:      0.18,
-  // Pulse
-  heartbeat:   0.22,  ritualchant: 0.22,  boss:        0.30,
-  // Texture
-  wind:        0.15,  riser:       0.18,  firecrackle: 0.12,
-  whispers:    0.12,  glitch:      0.15,  chaos:       0.18,
+  viola:       0.22,
+  // Melodic lead — primary voices, should cut clearly through the mix
+  melody:      0.44,  choir:       0.42,  horn:        0.36,
+  cello:       0.36,  duduk:       0.32,
+  // Melodic colour — decorative, audible but not competing with leads
+  lute:        0.26,  bells:       0.28,  guitar:      0.26,
+  flute:       0.30,  harp:        0.28,  oud:         0.26,
+  organ:       0.30,
+  // Rhythmic — percussion drives the energy, needs to hit hard
+  perc:        0.48,  wardrums:    0.42,  march:       0.38,
+  stomp:       0.35,  taiko:       0.40,  chains:      0.26,
+  // Pulse — supportive, present but not dominant
+  heartbeat:   0.30,  ritualchant: 0.32,  boss:        0.42,
+  // Texture — atmospheric, felt not heard
+  wind:        0.20,  riser:       0.24,  firecrackle: 0.16,
+  whispers:    0.16,  glitch:      0.20,  chaos:       0.24,
 };
 
 // Role membership — 7 roles
