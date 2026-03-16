@@ -4027,12 +4027,12 @@ const JC_LAYER_GROUPS = [
   { id:'solo_voice', layers:['melody'],                 enter:0.18, exit:-1   },
   { id:'cello_cnt',  layers:['cello'],                  enter:0.32, exit:-1   },
   { id:'tension_fx', layers:['riser'],                  enter:0.30, exit:0.75 },
-  { id:'rhythm_1',   layers:['perc'],                   enter:0.28, exit:-1   },
+  { id:'rhythm_1',   layers:['perc'],                   enter:0.14, exit:-1   },
   { id:'horn_acc',   layers:['horn'],                   enter:0.45, exit:-1   },
   { id:'chains_tex', layers:['chains'],                 enter:0.40, exit:0.85 },
-  { id:'rhythm_2',   layers:['wardrums'],               enter:0.48, exit:-1   },
+  { id:'rhythm_2',   layers:['wardrums'],               enter:0.32, exit:-1   },
   { id:'ritual',     layers:['ritualchant','whispers'], enter:0.55, exit:0.90 },
-  { id:'rhythm_3',   layers:['march','stomp'],          enter:0.65, exit:-1   },
+  { id:'rhythm_3',   layers:['march','stomp'],          enter:0.50, exit:-1   },
   { id:'chaos_peak', layers:['chaos','glitch'],         enter:0.72, exit:-1   },
   // New instrument groups — split by role and character
   { id:'guitar_col', layers:['guitar'],  enter:0.12, exit:0.78 }, // harmonic pluck — exits before peak density
@@ -4042,7 +4042,7 @@ const JC_LAYER_GROUPS = [
   { id:'harp_tex',   layers:['harp'],    enter:0.10, exit:0.72 }, // harp glimmer — exits at climax
   { id:'viola_pad',  layers:['viola'],   enter:0.05, exit:-1   }, // inner voice — enters very early
   { id:'oud_col',    layers:['oud'],     enter:0.20, exit:0.88 }, // oud colour
-  { id:'taiko_drv',  layers:['taiko'],   enter:0.55, exit:-1   }, // taiko — only at high intensity
+  { id:'taiko_drv',  layers:['taiko'],   enter:0.42, exit:-1   }, // taiko — only at high intensity
 ];
 
 const JC_MOOD_SUPPRESS = {
@@ -4962,9 +4962,11 @@ JC.tick = function() {
       }
       applyMoodFX(newMood);
 
-      // Saturation tracks energy — more grit at nightmare
+      // Saturation tracks energy — more grit at peak, but anchored to skin baseline
       if (saturationNode) {
-        const targetSat = 0.15 + JC.energy * 0.45;
+        const skinBase = SKIN_AUDIO[_activeSkin] || SKIN_AUDIO.ashen;
+        // Modulate ±0.15 around the skin's saturation baseline
+        const targetSat = Math.max(0, Math.min(0.8, skinBase.satBase + JC.energy * 0.22));
         _saturation = _saturation + (targetSat - _saturation) * 0.3;
         // Defer curve swap to avoid click — same pattern as manual handler
         clearTimeout(satDebounce);
@@ -6798,15 +6800,23 @@ function applyMoodFX(m) {
 
   if (!ctx) return;
 
-  // ── EQ ────────────────────────────────────────────────────────────────────
-  moodFilter.frequency.setTargetAtTime(4000 + m * 14000, ctx.currentTime, 0.2);
+  // Pull skin baseline so mood modulation is relative, not absolute.
+  // This keeps each skin's character intact as energy rises/falls.
+  const skinBase = SKIN_AUDIO[_activeSkin] || SKIN_AUDIO.ashen;
+
+  // ── EQ — modulate around skin's moodFilterFreq and highShelfGain ─────────
+  // Calm pulls the filter slightly darker/closer; nightmare opens it slightly.
+  // The skin baseline anchors the character — mood only nudges it.
+  const eqRange = 3000; // ±3kHz swing around skin anchor
+  moodFilter.frequency.setTargetAtTime(skinBase.moodFilterFreq + (m - 0.5) * eqRange, ctx.currentTime, 0.2);
   moodFilter.Q.setTargetAtTime(0.5 + m * 3, ctx.currentTime, 0.2);
   if (masterHighShelf) {
-    masterHighShelf.gain.setTargetAtTime(-5 + m * 5, ctx.currentTime, 0.3);
+    // Swing ±2dB around the skin's shelf gain
+    masterHighShelf.gain.setTargetAtTime(skinBase.highShelfGain + (m - 0.5) * 4, ctx.currentTime, 0.3);
   }
 
-  // ── Reverb size — calm=intimate room, nightmare=cathedral ────────────────
-  const targetSize = 0.30 + m * 0.55;
+  // ── Reverb size — modulate ±0.15 around skin baseline ────────────────────
+  const targetSize = Math.max(0.05, Math.min(0.95, skinBase.reverbSize + (m - 0.5) * 0.30));
   if (Math.abs(targetSize - _reverbSize) > 0.05 && reverbNode) {
     _reverbSize = targetSize;
     reverbNode.buffer = buildIR(_reverbSize);
@@ -6815,9 +6825,9 @@ function applyMoodFX(m) {
     document.getElementById('reverbSize').style.setProperty('--pct', Math.round(_reverbSize*100)+'%');
   }
 
-  // ── Reverb mix ────────────────────────────────────────────────────────────
+  // ── Reverb mix — nudge +0.10 at nightmare, relative to skin wet level ────
   if (reverbWetGain) {
-    reverbWetGain.gain.setTargetAtTime(_reverbMix + (m > 0.75 ? 0.15 : 0), ctx.currentTime, 0.3);
+    reverbWetGain.gain.setTargetAtTime(skinBase.reverbWet + (m > 0.75 ? 0.10 : 0), ctx.currentTime, 0.3);
   }
 
   // _moodLayerBias is now read directly by adaptiveMixTarget,
@@ -7083,13 +7093,21 @@ const MIX_ROLE_OF = {
 //   rhythmic and foundation are roughly co-equal — drums sit on the floor
 //                              fnd    harm   m_ld   m_col  rhy    pulse  tex
 const MIX_RELATION = {
-  foundation:    { foundation:0.82, harmonic:0.80, melodic_lead:0.72, melodic_colour:0.75, rhythmic:0.68, pulse:0.70, texture:0.78 },
-  harmonic:      { foundation:0.72, harmonic:0.90, melodic_lead:0.65, melodic_colour:0.70, rhythmic:0.48, pulse:0.55, texture:0.80 },
-  melodic_lead:  { foundation:0.78, harmonic:0.82, melodic_lead:1.00, melodic_colour:0.88, rhythmic:0.62, pulse:0.70, texture:0.85 },
-  melodic_colour:{ foundation:0.52, harmonic:0.60, melodic_lead:0.40, melodic_colour:0.82, rhythmic:0.38, pulse:0.48, texture:0.68 },
-  rhythmic:      { foundation:0.72, harmonic:0.55, melodic_lead:0.60, melodic_colour:0.65, rhythmic:1.00, pulse:0.78, texture:0.55 },
-  pulse:         { foundation:0.65, harmonic:0.60, melodic_lead:0.65, melodic_colour:0.60, rhythmic:0.78, pulse:1.00, texture:0.62 },
-  texture:       { foundation:0.40, harmonic:0.45, melodic_lead:0.32, melodic_colour:0.40, rhythmic:0.28, pulse:0.38, texture:1.00 },
+  //                             fnd    harm   m_ld   m_col  rhy    pulse  tex
+  // Foundation: the room — always present, just steps back slightly at peaks
+  foundation:    { foundation:0.82, harmonic:0.80, melodic_lead:0.75, melodic_colour:0.75, rhythmic:0.72, pulse:0.72, texture:0.78 },
+  // Harmonic (viola): inner voice — brightens when melody leads, survives everything
+  harmonic:      { foundation:0.75, harmonic:0.90, melodic_lead:0.80, melodic_colour:0.72, rhythmic:0.62, pulse:0.62, texture:0.80 },
+  // Melodic lead: primary voice — full when leading, stays present even under drums
+  melodic_lead:  { foundation:0.80, harmonic:0.82, melodic_lead:1.00, melodic_colour:0.88, rhythmic:0.75, pulse:0.78, texture:0.85 },
+  // Melodic colour: decorative — genuinely ducks under leads and rhythm
+  melodic_colour:{ foundation:0.55, harmonic:0.62, melodic_lead:0.42, melodic_colour:0.82, rhythmic:0.40, pulse:0.50, texture:0.68 },
+  // Rhythmic: percussion — present alongside melody, only fully leads at climax/build
+  rhythmic:      { foundation:0.88, harmonic:0.72, melodic_lead:0.78, melodic_colour:0.80, rhythmic:1.00, pulse:0.88, texture:0.72 },
+  // Pulse: heartbeat/ritual — supportive, steps back when leads are present
+  pulse:         { foundation:0.65, harmonic:0.62, melodic_lead:0.65, melodic_colour:0.62, rhythmic:0.80, pulse:1.00, texture:0.65 },
+  // Texture: fx/atmosphere — only really present in intro/tension
+  texture:       { foundation:0.38, harmonic:0.42, melodic_lead:0.30, melodic_colour:0.38, rhythmic:0.25, pulse:0.35, texture:1.00 },
 };
 
 // Which role leads each phrase
@@ -7113,16 +7131,16 @@ const PHRASE_DEPTH = {
 
 // Per-phrase per-role lift — specific roles get extra presence in their moment
 const PHRASE_ROLE_LIFT = {
-  // Resolution: melody leads AND inner harmonic voice can breathe
-  resolution: { melodic_lead: 1.28, harmonic: 1.35, melodic_colour: 0.85 },
-  // Intro: foundation and harmonic lifted, everything else quiet
-  intro:      { foundation: 1.12, harmonic: 1.18, melodic_colour: 0.72, rhythmic: 0.80 },
-  // Tension: texture (riser/whispers) actually needs to be heard
-  tension:    { texture: 1.45, pulse: 1.20, melodic_colour: 0.70 },
-  // Climax: everything pushed, colour steps back to avoid mudding the peak
-  climax:     { rhythmic: 1.15, melodic_lead: 1.10, melodic_colour: 0.65, texture: 0.60 },
-  // Build: rhythmic lifts, colour starts entering
-  build:      { rhythmic: 1.05, melodic_colour: 0.92 },
+  // Resolution: melody and inner voice lead — drums genuinely step back
+  resolution: { melodic_lead: 1.35, harmonic: 1.40, melodic_colour: 0.90, rhythmic: 0.55, pulse: 0.65 },
+  // Intro: foundation and harmonic lifted, colour quiet, drums present but not dominant
+  intro:      { foundation: 1.12, harmonic: 1.18, melodic_colour: 0.72, rhythmic: 0.85 },
+  // Tension: texture and pulse drive — drums coil, melody recedes
+  tension:    { texture: 1.45, pulse: 1.25, rhythmic: 1.05, melodic_lead: 0.80, melodic_colour: 0.65 },
+  // Climax: everything pushes hard together — drums AND melody at peak simultaneously
+  climax:     { rhythmic: 1.35, melodic_lead: 1.20, foundation: 1.10, harmonic: 1.15, melodic_colour: 0.60, texture: 0.45 },
+  // Build: drums rise, melody starts asserting — co-presence, nothing crushed
+  build:      { rhythmic: 1.20, melodic_lead: 1.05, harmonic: 1.08, melodic_colour: 0.88 },
 };
 
 // Sibling scale — per-role curves. More aggressive for crowded roles.
@@ -7162,6 +7180,127 @@ function getLeadRole(intensity) {
   return base;
 }
 
+// Declared here so adaptiveMixTarget and applySkin both have access
+// ── SKIN LAYER BIAS — five composer fingerprints ─────────────────────────────
+// Same journey, same mood arc, same randomisation — but each skin shapes which
+// instruments sit forward or back in the mix. Multiplicative on top of all other
+// gain factors so it never breaks the mix system, just colours it.
+//
+// Think of it as five different orchestrators handed the same score:
+//
+// ashen     — the reference. Full dark fantasy palette, nothing favoured.
+// neon      — electronic reimagining. Bass and rhythm forward, choir/harp/flute back.
+//             Organ pushed up as synth pad. Acoustic colour layers recede.
+// sakura    — emotional chamber score. Strings/flute/harp/viola lead. Drums quiet.
+//             Choir intimate not epic. Melody delicate. No heavy percussion texture.
+// broadcast — clean documentary score. Melody and strings forward, balanced and bright.
+//             Chaos/glitch/chains absent from the picture. Horn present for punctuation.
+// void      — industrial machine horror. Chaos/glitch/bass dominant. Choir buried.
+//             Melody recedes behind texture. Rhythm is mechanical not musical.
+//
+// Values: 1.0 = unchanged, >1.0 = pushed forward, <1.0 = pulled back.
+// Keep ranges reasonable — 0.2–1.6. The mix system handles everything else.
+
+const SKIN_LAYER_BIAS = {
+  ashen: {
+    // Reference skin — no bias, full palette at natural weights
+  },
+
+  neon: {
+    // Electronic / synthwave — bass and rhythm dominant, acoustic layers recede
+    bass:         1.40,  // sub-bass forward — feels electronic
+    perc:         1.30,  // tight electronic kit
+    wardrums:     1.20,  // heavier kick energy
+    organ:        1.35,  // synth pad role — prominent
+    strings:      0.70,  // synth strings, present but not lush
+    choir:        0.45,  // vocoder shimmer, not choral epic
+    horn:         0.30,  // too acoustic — barely there
+    harp:         0.15,  // almost gone — not a neon instrument
+    flute:        0.20,  // too organic
+    duduk:        0.15,  // wrong world entirely
+    lute:         0.10,  // medieval — cut
+    cello:        0.50,  // present as synth low voice
+    chains:       1.25,  // industrial texture — forward
+    chaos:        1.20,  // glitch energy is part of the sound
+    glitch:       1.30,  // very present
+    riser:        1.20,  // synth sweep — essential neon texture
+  },
+
+  sakura: {
+    // Emotional anime/drama — delicate acoustic, minimal percussion
+    strings:      1.30,  // warm string bed, always present
+    flute:        1.50,  // primary melodic colour — forward
+    harp:         1.40,  // essential sakura texture
+    viola:        1.35,  // inner voice — prominent
+    cello:        1.25,  // emotional low string
+    choir:        1.10,  // intimate, not epic — slightly lifted
+    melody:       1.20,  // delicate lead voice
+    bells:        1.25,  // delicate chime texture
+    perc:         0.35,  // very soft — barely a heartbeat
+    wardrums:     0.15,  // essentially gone
+    march:        0.10,  // wrong world
+    stomp:        0.10,
+    taiko:        0.15,
+    chains:       0.10,  // no industrial texture
+    chaos:        0.10,
+    glitch:       0.10,
+    horn:         0.40,  // distant, not martial
+    organ:        0.30,  // too heavy
+    bass:         0.70,  // present but not forward
+    riser:        0.30,  // tension exists but is delicate
+  },
+
+  broadcast: {
+    // Documentary score — clean, balanced, professional
+    melody:       1.30,  // clear melodic statement
+    strings:      1.25,  // warm professional string sound
+    horn:         1.20,  // punctuation and gravitas
+    bells:        1.15,  // bright detail
+    choir:        1.10,  // present and clean
+    cello:        1.15,  // professional low voice
+    bass:         1.10,  // clean and present
+    perc:         1.00,  // standard kit — neutral
+    organ:        0.80,  // subtle, not overwhelming
+    wardrums:     0.55,  // present but restrained
+    chains:       0.20,  // not in a documentary
+    chaos:        0.15,  // not in a documentary
+    glitch:       0.15,
+    riser:        0.60,  // tension exists but is tasteful
+    harp:         1.10,  // clean harmonic texture
+    flute:        1.10,  // bright melodic colour
+    lute:         0.40,  // too medieval for broadcast
+    duduk:        0.50,  // occasional colour only
+    stomp:        0.40,
+    march:        0.70,  // can march, just clean
+  },
+
+  void: {
+    // Industrial machine horror — chaos dominant, humanity receding
+    chaos:        1.60,  // maximum — the machine is breaking
+    glitch:       1.55,  // constant digital corruption
+    bass:         1.45,  // sub-frequency oppression
+    perc:         1.30,  // mechanical, relentless
+    wardrums:     1.25,  // industrial thud
+    riser:        1.35,  // constant tension
+    chains:       1.30,  // industrial texture
+    drone:        1.20,  // the machine hum is always there
+    melody:       0.35,  // humanity fading — barely audible
+    choir:        0.25,  // voices are almost gone
+    strings:      0.40,  // organic sound receding
+    flute:        0.10,  // completely wrong
+    harp:         0.10,  // completely wrong
+    lute:         0.10,
+    duduk:        0.20,
+    viola:        0.35,
+    cello:        0.45,  // present as a dark low texture
+    bells:        0.30,  // distant, corrupted
+    horn:         0.30,  // faint, dying signal
+    organ:        0.60,  // corrupted pipe organ — present
+  },
+};
+
+let _activeSkin = 'ashen';
+
 function adaptiveMixTarget(name, intensity) {
   const role    = MIX_ROLE_OF[name]  ?? 'texture';
   const ceiling = MIX_CEILING[name]  ?? 0.35;
@@ -7189,12 +7328,13 @@ function adaptiveMixTarget(name, intensity) {
 
   const raw = ceiling * relation * siblingScale * depthScale * bossLift * phraseDepth * phraseLift;
   const moodBias    = _moodLayerBias[name] ?? 1.0;
+  const skinBias    = (SKIN_LAYER_BIAS[_activeSkin] ?? {})[name] ?? 1.0;
   const sessionBias = (typeof SessionScorer !== 'undefined') ? SessionScorer.getLayerBias(name) : 1.0;
   // sessionBias is applied as a gentle nudge on the raw value before ceiling clamp.
   // Clamped to 0.85-1.10 so it can never drive gains more than ±15% from the mix target.
   const clampedBias  = Math.max(0.85, Math.min(1.10, sessionBias));
   const foundationMult = (role === 'foundation') ? _foundationThin : 1.0;
-  return Math.min(ceiling, Math.max(0.04, raw * moodBias * clampedBias * foundationMult));
+  return Math.min(ceiling, Math.max(0.04, raw * moodBias * skinBias * clampedBias * foundationMult));
 }
 
 // Legacy shim — called on layer start for initial gain
@@ -17182,7 +17322,6 @@ const SKINS = {
   },
 };
 
-let _activeSkin = 'ashen';
 
 // ── SKIN AUDIO PROFILES ───────────────────────────────────────────────────────
 // Each skin has a distinct master-bus character that fires when the skin is
