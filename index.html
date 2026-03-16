@@ -7075,6 +7075,11 @@ function killLayer(name) {
   timers[name] = [];
 
   const now = ctx.currentTime;
+  if (bus[name]) {
+    bus[name].gain.cancelScheduledValues(now);
+    bus[name].gain.setValueAtTime(bus[name].gain.value, now);
+    bus[name].gain.linearRampToValueAtTime(0, now + 0.04);
+  }
 
   nodes[name].forEach(n => {
     try {
@@ -13806,7 +13811,8 @@ function startZoneCrossfade(fromZone, toZone, intensity, percBufs) {
     const targetVol = 0.60 + getIntensity(floor) * 0.30; // full range, limiter protects
     masterGain.gain.cancelScheduledValues(now);
     masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    masterGain.gain.linearRampToValueAtTime(targetVol, now + barSec * 6.0); // slow drift
+    masterGain.gain.linearRampToValueAtTime(0.30, now + barSec * 1.5);   // dip
+    masterGain.gain.linearRampToValueAtTime(targetVol, now + barSec * 7.0); // restore
   }
 
   // Delay chord engine zone change to bar 4 so it transitions mid-dip
