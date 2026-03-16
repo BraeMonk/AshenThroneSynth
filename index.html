@@ -11955,113 +11955,211 @@ function buildWhispers(preset, intensity, name) {
 }
 
 function buildRitualChant(preset, intensity, name) {
-  // ── RITUAL CHANT — monophonic unison choir, slow and deliberate ──────────
-  // Multiple vowel formant stages: /u/ → /o/ → /a/ over the held note.
-  // Three layered voices slightly detuned for the "many voices as one" quality.
-  // Scheduling is note-duration-accurate — no drift from fixed timer.
+  // ── RITUAL CHANT — Skyrim-style syllabic dragon chant ────────────────────
+  // Inspired by "Dovahkiin": staggered voice rows (bass monks + tenor monks),
+  // hard consonant onsets, syllabic rhythm (not just held notes), vowel morphs,
+  // and slow pitch steps within a phrase. Many voices, one will.
   const b    = bus[name];
   const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
 
-  // Chant phrase — scale degree sequence, slow and liturgical
-  const CHANT_DEGS  = [0, 0, 2, 3, 2, 0, 5, 3, 0, 0, 2, 0];
-  const CHANT_DURS  = [2, 3, 1, 2, 1, 3, 2, 1, 2, 4, 2, 4]; // in beats
-  let idx = 0;
-  let t   = ctx.currentTime + beat * 2;
+  // ── Syllable phrase table ─────────────────────────────────────────────────
+  // Each entry: [scale degree, duration in beats, vowel target]
+  // Vowel targets: 'o'=dark round, 'a'=open chest, 'u'=closed tunnel, 'e'=bright cut
+  // Pattern feels like "DO-VAH-KIIN" cadences — strong then resolving
+  const PHRASES = [
+    // phrase A — descending power
+    [[0,3,'o'],[0,1,'a'],[2,2,'u'],[0,4,'o']],
+    // phrase B — rising tension
+    [[0,2,'u'],[3,2,'a'],[5,3,'o'],[3,1,'e'],[0,4,'u']],
+    // phrase C — stomp and hold
+    [[0,1,'a'],[0,1,'a'],[2,1,'o'],[3,4,'u']],
+    // phrase D — climax sweep
+    [[5,2,'o'],[3,2,'a'],[2,2,'u'],[0,6,'o']],
+  ];
+  let phraseIdx = 0;
+  let syllIdx   = 0;
+  let t = ctx.currentTime + beat * 1.5;
 
-  function playChantNote(bt, freq, dur) {
+  // ── Vowel formant table ───────────────────────────────────────────────────
+  // Each vowel = [F1_start, F1_peak, F2, F3] in Hz
+  // Bass monks use lower formants (shifted down ~20%)
+  const VOWELS = {
+    'o': { f1s: 400, f1p: 560,  f2: 800,  f3: 2200 },
+    'a': { f1s: 700, f1p: 900,  f2: 1200, f3: 2600 },
+    'u': { f1s: 280, f1p: 380,  f2: 620,  f3: 2000 },
+    'e': { f1s: 500, f1p: 580,  f2: 1800, f3: 2800 },
+  };
+
+  // ── Consonant onset transient ─────────────────────────────────────────────
+  // A short noise burst with a steep bandpass gives the "D-" / "K-" hard attack.
+  // Without this the chant sounds like sustained tone with no syllable feel.
+  function playOnset(bt, freq) {
+    const bLen = Math.floor(ctx.sampleRate * 0.055);
+    const buf  = ctx.createBuffer(1, bLen, ctx.sampleRate);
+    const d    = buf.getChannelData(0);
+    for (let i = 0; i < bLen; i++) {
+      const env = Math.exp(-i / (bLen * 0.3));
+      d[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src  = ctx.createBufferSource(); src.buffer = buf;
+    // Bandpass centred near the vowel's first formant for pitch colouring
+    const filt = mkFilt(freq * 1.1, 'bandpass', 1.2);
+    const g    = mkGain(0.055 + intensity * 0.04);
+    chain(src, filt, g, b);
+    src.start(bt); src.stop(bt + 0.06);
+    reg(name, src, filt, g);
+  }
+
+  // ── Single syllable voice (one monk row) ──────────────────────────────────
+  // rowFreq: fundamental pitch for this row
+  // detuneCents: spread within the row for "many voices" unison
+  // isDeep: bass monk row (lower formants, more sub, darker timbre)
+  function playSyllableVoice(bt, rowFreq, detuneCents, isDeep, vowelKey, dur) {
+    const vow = VOWELS[vowelKey] || VOWELS['o'];
+    const atk = 0.12 + (1 - intensity) * 0.1;
+    const rel = 0.4 + (1 - intensity) * 0.15;
+    const vol = isDeep
+      ? (0.13 + intensity * 0.09)   // bass monks sit under, not over
+      : (0.15 + intensity * 0.10);
+
+    // Oscillator blend: sawtooth (chest), square (throat odd harmonics), sub sine
+    const f   = rowFreq;
+    const sub = isDeep ? f * 0.5 : f;            // bass row doubles sub
+    const o1  = mkOsc(f,    'sawtooth', detuneCents);
+    const o2  = mkOsc(f,    'square',   detuneCents * 0.4);
+    const o3  = mkOsc(sub,  'sine',     0);
+    const g1  = mkGain(isDeep ? 0.18 : 0.20);
+    const g2  = mkGain(isDeep ? 0.08 : 0.10);
+    const g3  = mkGain(isDeep ? 0.12 : 0.05);   // bass gets more sub weight
+
+    // Formant stack — scale down for bass row so deeper formants feel natural
+    const fScale = isDeep ? 0.78 : 1.0;
+    const F1 = mkFilt(vow.f1s * fScale, 'bandpass', 2.0);
+    const F2 = mkFilt(vow.f2  * fScale, 'bandpass', 1.6);
+    const F3 = mkFilt(vow.f3  * fScale, 'bandpass', 1.2);
+
+    // Pre-normalise: 3 oscs × 3 filters = 9 paths per voice — 1/sqrt(9)=0.33, use 0.28
+    const preNorm = mkGain(0.28);
+    const sat     = ctx.createWaveShaper();
+    sat.curve     = makeSatCurve(0.12);
+    const env     = mkGain(0);
+
+    o1.connect(g1); o2.connect(g2); o3.connect(g3);
+    [g1, g2, g3].forEach(g => { g.connect(F1); g.connect(F2); g.connect(F3); });
+    F1.connect(preNorm); F2.connect(preNorm); F3.connect(preNorm);
+    chain(preNorm, sat, env, b);
+
+    // Envelope — hard onset then hold — syllabic not floaty
+    env.gain.setValueAtTime(0, bt);
+    env.gain.linearRampToValueAtTime(vol, bt + atk);
+    env.gain.setValueAtTime(vol * 0.90, bt + Math.max(atk + 0.05, dur - rel));
+    env.gain.linearRampToValueAtTime(0.0001, bt + dur + rel * 0.4);
+
+    // Vowel morph: F1 opens from closed onset to the vowel peak mid-syllable
+    F1.frequency.setValueAtTime(vow.f1s * fScale, bt);
+    F1.frequency.linearRampToValueAtTime(vow.f1p * fScale, bt + dur * 0.45);
+    F1.frequency.linearRampToValueAtTime(vow.f1s * fScale * 0.85, bt + dur + rel * 0.3); // close on release
+
+    // Pitch drift — chant voices don't hold perfectly still; micro-descend
+    const drift = isDeep ? -2.5 : -1.5;  // cents drift over held note
+    o1.detune.setValueAtTime(detuneCents, bt);
+    o1.detune.linearRampToValueAtTime(detuneCents + drift, bt + dur);
+    o2.detune.setValueAtTime(detuneCents * 0.4, bt);
+    o2.detune.linearRampToValueAtTime(detuneCents * 0.4 + drift * 0.6, bt + dur);
+
+    // Vibrato — enters late, narrow, liturgical (not operatic)
+    const vibRate = isDeep ? 3.2 + rng() * 0.4 : 4.0 + rng() * 0.5;
+    const vibAmt  = isDeep ? 1.2 + intensity * 1.0 : 1.8 + intensity * 1.4;
+    const vib  = mkOsc(vibRate, 'sine');
+    const vibG = mkGain(0);
+    chain(vib, vibG);
+    vibG.connect(o1.frequency); vibG.connect(o2.frequency);
+    vibG.gain.setValueAtTime(0, bt + atk + 0.3);
+    vibG.gain.linearRampToValueAtTime(vibAmt, bt + atk + 0.9);
+    vibG.gain.setValueAtTime(vibAmt, bt + dur - rel);
+    vibG.gain.linearRampToValueAtTime(0, bt + dur + rel * 0.2);
+    vib.start(bt); vib.stop(bt + dur + rel + 0.15);
+
+    const stopT = bt + dur + rel + 0.2;
+    o1.start(bt); o1.stop(stopT);
+    o2.start(bt); o2.stop(stopT);
+    o3.start(bt); o3.stop(stopT);
+    reg(name, o1, o2, o3, g1, g2, g3, F1, F2, F3, preNorm, sat, env, vib, vibG);
+  }
+
+  // ── Play one full syllable — all rows ─────────────────────────────────────
+  // Tenor row: 5 voices spread across -8..+8 cents
+  // Bass row: 4 voices spread across -6..+6 cents, pitched down an octave
+  // Rows are staggered by ~25ms so they don't hit as a single click-wall
+  function playSyllable(bt, freq, vowelKey, dur) {
     if (!layerOn[name]) return;
-    const vol = 0.18 + intensity * 0.14;
-    const atk = 0.18 + (1 - intensity) * 0.12; // slower attack at low energy
-    const rel = 0.55;
 
-    // Three voice unison — slight detune creates the "many monks" effect
-    const DETUNES = [-4, 0, 4];
-    DETUNES.forEach(det => {
-      const o1 = mkOsc(freq,       'sawtooth', det);      // chest resonance
-      const o2 = mkOsc(freq,       'square',   det * 0.5); // odd harmonics
-      const o3 = mkOsc(freq * 2,   'sine',     0);         // head voice octave
-      const g1 = mkGain(0.22), g2 = mkGain(0.10), g3 = mkGain(0.06); // reduced — feeds formant × 3 detune stacks
+    // Consonant onset on first voice of each row
+    playOnset(bt, freq);
 
-      // Three-formant vowel model /u/ → /o/ → /a/
-      // Q reduced drastically — Q=9 on a formant fed by 9 oscillators = guaranteed clip
-      const F1 = mkFilt(280,  'bandpass', 2.8); // was Q=9 — too resonant
-      const F2 = mkFilt(900,  'bandpass', 2.2); // was Q=5
-      const F3 = mkFilt(2200, 'bandpass', 1.8);
-      // Pre-normalize before WaveShaper: 3 oscs × 3 filters = 9 paths per voice
-      // 1/sqrt(9) = 0.33 — use 0.28 for safety with 3 detune sets stacking
-      const preNorm = mkGain(0.28);
-      const sat = ctx.createWaveShaper();
-      sat.curve = makeSatCurve(0.14);          // lighter sat — input is normalized now
-      const env = mkGain(0);
-
-      o1.connect(g1); o2.connect(g2); o3.connect(g3);
-      [g1, g2, g3].forEach(g => { g.connect(F1); g.connect(F2); g.connect(F3); });
-      F1.connect(preNorm); F2.connect(preNorm); F3.connect(preNorm);
-      chain(preNorm, sat, env, b);
-
-      // Envelope: slow attack, hold, slow release — monastic legato
-      env.gain.setValueAtTime(0, bt);
-      env.gain.linearRampToValueAtTime(vol, bt + atk);
-      env.gain.setValueAtTime(vol * 0.88, bt + dur - rel);
-      env.gain.linearRampToValueAtTime(0.0001, bt + dur + rel * 0.5);
-
-      // Vowel morph: F1 opens from /u/ (280Hz) to /o/ (500Hz) to /a/ (800Hz)
-      F1.frequency.setValueAtTime(280, bt);
-      F1.frequency.linearRampToValueAtTime(500, bt + dur * 0.4);
-      F1.frequency.linearRampToValueAtTime(800, bt + dur * 0.75);
-      F1.frequency.linearRampToValueAtTime(400, bt + dur + rel * 0.3); // close on release
-
-      // Vibrato — enters late, narrow, liturgical (not operatic)
-      const vib  = mkOsc(3.8 + rng() * 0.5, 'sine');
-      const vibG = mkGain(0);
-      chain(vib, vibG);
-      vibG.connect(o1.frequency);
-      vibG.connect(o2.frequency);
-      vibG.gain.setValueAtTime(0, bt + atk + 0.2);
-      vibG.gain.linearRampToValueAtTime(1.8 + intensity * 1.5, bt + atk + 0.7);
-      vibG.gain.setValueAtTime(1.8 + intensity * 1.5, bt + dur - rel);
-      vibG.gain.linearRampToValueAtTime(0, bt + dur + rel * 0.2);
-      vib.start(bt); vib.stop(bt + dur + rel + 0.1);
-
-      const stopT = bt + dur + rel + 0.15;
-      o1.start(bt); o1.stop(stopT);
-      o2.start(bt); o2.stop(stopT);
-      o3.start(bt); o3.stop(stopT);
-      reg(name, o1, o2, o3, g1, g2, g3, F1, F2, F3, sat, env, vib, vibG);
+    // Tenor row — unison with spread
+    const tenorSpreads = [-8, -3, 0, 3, 8];
+    tenorSpreads.forEach((dc, i) => {
+      const stagger = i * 0.018;   // 18ms cascade — voices breathe in together
+      playSyllableVoice(bt + stagger, freq, dc, false, vowelKey, dur);
     });
 
-    // Breath layer — a chorus has audible air
-    const bLen  = Math.min(Math.floor(ctx.sampleRate * dur * 0.8), ctx.sampleRate * 4);
-    const bBuf  = ctx.createBuffer(1, bLen, ctx.sampleRate);
-    const bData = bBuf.getChannelData(0);
-    for (let i = 0; i < bLen; i++) bData[i] = Math.random() * 2 - 1;
-    const bSrc  = ctx.createBufferSource(); bSrc.buffer = bBuf;
-    const bFilt = mkFilt(1800, 'bandpass', 0.6);
-    const bEnv  = mkGain(0);
-    chain(bSrc, bFilt, bEnv, b);
-    bEnv.gain.setValueAtTime(0, bt);
-    bEnv.gain.linearRampToValueAtTime(0.008 + intensity * 0.006, bt + atk);
-    bEnv.gain.linearRampToValueAtTime(0, bt + dur);
-    bSrc.start(bt); bSrc.stop(bt + dur + 0.1);
-    reg(name, bSrc, bFilt, bEnv);
+    // Bass row — deep octave down, slightly delayed entrance (deeper chests are slower)
+    const bassSpreads = [-5, 0, 5];
+    bassSpreads.forEach((dc, i) => {
+      const stagger = 0.04 + i * 0.022;
+      playSyllableVoice(bt + stagger, freq * 0.5, dc, true, vowelKey, dur);
+    });
+
+    // Breath noise — air between syllables, not on every note
+    if (rng() > 0.35) {
+      const bLen = Math.min(Math.floor(ctx.sampleRate * dur * 0.6), ctx.sampleRate * 3);
+      const bBuf = ctx.createBuffer(1, bLen, ctx.sampleRate);
+      const bDat = bBuf.getChannelData(0);
+      for (let i = 0; i < bLen; i++) bDat[i] = Math.random() * 2 - 1;
+      const bSrc  = ctx.createBufferSource(); bSrc.buffer = bBuf;
+      const bFilt = mkFilt(1400, 'bandpass', 0.5);
+      const bEnv  = mkGain(0);
+      chain(bSrc, bFilt, bEnv, b);
+      bEnv.gain.setValueAtTime(0, bt);
+      bEnv.gain.linearRampToValueAtTime(0.006 + intensity * 0.005, bt + 0.18);
+      bEnv.gain.linearRampToValueAtTime(0, bt + dur);
+      bSrc.start(bt); bSrc.stop(bt + dur + 0.1);
+      reg(name, bSrc, bFilt, bEnv);
+    }
   }
 
-  function schedNote() {
+  // ── Phrase sequencer ──────────────────────────────────────────────────────
+  function schedSyllable() {
     if (!layerOn[name]) return;
-    const deg  = CHANT_DEGS[idx % CHANT_DEGS.length];
-    const durB = CHANT_DURS[idx % CHANT_DURS.length];
-    const freq = CE.chordTone('ritualchant', 1, deg % Math.max(1, CE.currentChord.ratios.length));
-    const dur  = beat * durB;
+    const phrase = PHRASES[phraseIdx % PHRASES.length];
+    const syll   = phrase[syllIdx % phrase.length];
+    const [deg, durBeats, vowelKey] = syll;
 
-    playChantNote(t, freq, dur);
+    const freq = CE.chordTone('ritualchant', 1, deg % Math.max(1, CE.currentChord.ratios.length));
+    const dur  = beat * durBeats;
+
+    playSyllable(t, freq, vowelKey, dur);
+
     t += dur;
-    idx++;
-    // Schedule next note to start exactly when this one ends (with tiny overlap for legato)
-    regT(name, setTimeout(schedNote, (dur - beat * 0.1) * 1000));
+    syllIdx++;
+
+    // Advance phrase at end, add breath gap between phrases
+    const atEndOfPhrase = syllIdx >= phrase.length;
+    if (atEndOfPhrase) {
+      syllIdx = 0;
+      phraseIdx++;
+      // Inter-phrase silence — let the hall reverb breathe (1.5–3 beats)
+      t += beat * (1.5 + rng() * 1.5);
+    }
+
+    const nextIn = dur - beat * 0.08; // tiny legato overlap within phrase
+    const delay  = atEndOfPhrase ? (dur + beat * (1.5 + rng() * 1.5)) : nextIn;
+    regT(name, setTimeout(schedSyllable, delay * 1000));
   }
 
-  schedNote();
+  schedSyllable();
 }
 
 // ── GUITAR ────────────────────────────────────────────────────────────────────
