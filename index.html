@@ -1763,6 +1763,27 @@ canvas {
         <button class="record-btn" id="dlBtn" onclick="downloadRecording()" style="display:none">↓ Download</button>
       </div>
       <div class="format-note" id="fmtNote">Saves as .webm / .ogg — open in Audacity to export WAV.</div>
+
+      <div class="panel-title" style="font-size:13px;margin-top:20px;margin-bottom:8px;">AI Composer <span style="font-size:10px;color:var(--text-lo);letter-spacing:0.1em;">GROQ</span></div>
+      <div style="font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.5;">Generates a full compositional plan at journey start — chord progressions, melodic contours, key centres for all 8 chapters. Falls back to procedural engine if unavailable.</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <input type="password" id="groqKeyInput" placeholder="Paste Groq API key…"
+          style="flex:1;background:var(--bg-mid);border:1px solid var(--seam-hi);color:var(--text);
+                 font-family:'Share Tech Mono',monospace;font-size:12px;padding:8px 10px;
+                 border-radius:4px;outline:none;"
+          oninput="groqSaveKey(this.value)"/>
+        <button class="seed-btn" onclick="groqTestKey()" style="white-space:nowrap;">Test</button>
+      </div>
+      <div id="groqStatus" style="font-size:11px;color:var(--text-lo);min-height:14px;margin-bottom:6px;">—</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-mid);cursor:pointer;">
+          <input type="checkbox" id="groqEnabled" onchange="groqToggle(this.checked)"
+            style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer;"/>
+          Enable AI Composer
+        </label>
+        <span id="groqBadge" style="display:none;font-size:10px;padding:2px 7px;border-radius:10px;
+              background:var(--accent-lo);color:var(--accent-hi);letter-spacing:0.1em;">ACTIVE</span>
+      </div>
     </div>
 
   </div><!-- end tabbed panel -->
@@ -3294,7 +3315,15 @@ const PT = (() => {
   }
 
   // ── Public API ────────────────────────────────────────────────────
+  let _queuedRootWalk = 0; // set by GROQ.applyChapter for non-boss chapters
+
   function onPhrase(phrase) {
+    // Apply any queued root walk from the AI plan
+    if (_queuedRootWalk !== 0) {
+      _walkRoot(_queuedRootWalk);
+      _queuedRootWalk = 0;
+      _phraseSinceModulate = 0;
+    }
     _phraseSinceModulate++;
 
     if (_lastPhrase === phrase) return; // same phrase continuation
@@ -3395,6 +3424,8 @@ const PT = (() => {
   }
 
   return { onPhrase, forceModulate, randomizeRoot, setScaleOverride, setMoodBias,
+           get _queuedRootWalk() { return _queuedRootWalk; },
+           set _queuedRootWalk(v) { _queuedRootWalk = v; },
            get root()      { return _resolveRoot(_rootIdx); },
            get scale()     { return _getRatios(_scaleId); },
            get scaleName() { return _scaleId; }
@@ -5100,16 +5131,19 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   const _newScale  = moodScales[Math.floor(rng()*moodScales.length)];
   const _isBossChapter = (JC.step === JC.bossStep);
 
-  // ── Tell PT what this chapter's tonal world is ─────────────────────
-  // PT gets the full mood pool for this chapter so it can choose within it
-  // autonomously, rather than being handed a single locked scale.
-  // Boss chapters trigger an immediate dramatic modulation inside PT.
+  // ── Tell PT + AI Composer what this chapter's tonal world is ────────
   JC.timers.push(setTimeout(() => {
     if (!JC.active || !isPlaying) return;
-    PT.setMoodBias(moodScales, JC.energy, _isBossChapter);
-    // selectScale still runs so the SCALES UI reflects the chapter character,
-    // but PT will now choose within moodScales at phrase boundaries.
-    if (!_isBossChapter) selectScale(_newScale);
+    // Try AI plan first — it overrides PT pool and CE progression
+    const aiApplied = GROQ.enabled && GROQ.applyChapter(JC.step);
+    if (!aiApplied) {
+      // Fallback: PT autonomous with mood pool
+      PT.setMoodBias(moodScales, JC.energy, _isBossChapter);
+      if (!_isBossChapter) selectScale(_newScale);
+    } else if (!_isBossChapter) {
+      // AI handled PT, but update the SCALES UI label
+      selectScale(_newScale);
+    }
   }, (barLength || 4) * 1000)); // one bar delay — let chord pivot establish first
 
   // Use the chapter's own phrase arc — not a global sequence.
@@ -5580,6 +5614,21 @@ function startRandomJourney() {
   // then bias PT toward chapter 1's mood pool.
   PT.randomizeRoot();
   PT.setMoodBias(ch1Pool, JC.energy || 0.35, false);
+
+  // ── AI Composer: generate full journey plan (async, non-blocking) ──
+  // Journey starts immediately — AI plan is applied chapter-by-chapter
+  // as JC transitions. If plan arrives before chapter 1 fires, chapter 0
+  // benefits too. Falls back to PT autonomous behaviour silently.
+  if (GROQ.enabled) {
+    const _moodScaleArcForGroq = (moodObj.scaleArc || ['dark']).map(m =>
+      (SCALE_MOODS[m] || SCALE_MOODS.dark)[0]
+    );
+    GROQ.generatePlan(activeJourneyMood, JC.bossStep, _moodScaleArcForGroq)
+      .then(plan => {
+        if (plan) GROQ.applyChapter(0); // apply chapter 0 immediately if plan ready
+      })
+      .catch(() => {}); // fail silently
+  }
 
   // Opening phrase: use the per-run opener for chapter 0, so different runs
   // of the same mood can start tense, building, or from scratch.
@@ -8214,6 +8263,7 @@ const CE = (() => {
   let _zone          = null;   // current zone object
   let _chordIdx      = 0;      // position in current progression
   let _progKey       = 'normal';
+  let _pendingProg   = null;   // AI-supplied progression override [[deg,qual]…]
   let _eventOverride = null;   // { scaleDeg, quality, barsLeft }
   let _bossActive    = false;
   let _barCount      = 0;      // internal bar counter
@@ -8246,6 +8296,12 @@ const CE = (() => {
  
   // ── Get active progression array ──────────────────────────────
   function getProgression(zone) {
+    // AI composer override takes priority when set — consumes itself after use
+    if (_pendingProg && _pendingProg.length >= 2) {
+      const prog = _pendingProg;
+      _pendingProg = null; // consume — next chapter call will set a fresh one
+      return prog;
+    }
     const name = zone?.name || '';
     const zoneProgs = ZONE_PROGRESSIONS[name] || DEFAULT_PROG;
     const key = _bossActive ? 'boss' : _progKey;
@@ -8582,6 +8638,11 @@ const CE = (() => {
         if (_moodBias > 0.80 && _progKey === 'normal') _progKey = 'tension';
         else if (_moodBias < 0.30 && _progKey === 'tension') _progKey = 'normal';
       }
+    },
+    // AI composer: set a pending progression override for next zone change
+    setPendingProgression(degrees) {
+      // degrees: [[scaleIndex, quality], …] e.g. [[0,'min'],[5,'maj'],[6,'maj'],[0,'min']]
+      _pendingProg = degrees;
     },
     // Expose for debugging
     getProgKey: () => _progKey,
@@ -18643,8 +18704,226 @@ let conductorLock = false;
 function conductorPlan(){}
 
 /* expose for manual testing */
+// ══════════════════════════════════════════════════════════════════
+// GROQ AI COMPOSER
+// Generates a full 8-chapter compositional plan at journey start.
+// Feeds into PT (scale pools, root hints) and CE (chord progressions).
+// Falls back to PT autonomous behaviour on any error.
+// ══════════════════════════════════════════════════════════════════
+
+const GROQ = (() => {
+  const MODEL   = 'llama-3.1-8b-instant';
+  const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
+
+  let _key     = '';
+  let _enabled = false;
+  let _plan    = null; // last generated journey plan
+
+  // ── Key management ────────────────────────────────────────────────
+  function loadKey() {
+    try { _key = localStorage.getItem('mf_groq_key') || ''; } catch(e) {}
+    try { _enabled = localStorage.getItem('mf_groq_enabled') === 'true'; } catch(e) {}
+    if (_key) {
+      const el = document.getElementById('groqKeyInput');
+      if (el) el.value = _key;
+    }
+    if (_enabled && _key) {
+      const cb = document.getElementById('groqEnabled');
+      if (cb) cb.checked = true;
+      const badge = document.getElementById('groqBadge');
+      if (badge) badge.style.display = 'inline';
+    }
+  }
+
+  function saveKey(val) {
+    _key = val.trim();
+    try { localStorage.setItem('mf_groq_key', _key); } catch(e) {}
+  }
+
+  function toggle(on) {
+    _enabled = on && !!_key;
+    try { localStorage.setItem('mf_groq_enabled', _enabled); } catch(e) {}
+    const badge = document.getElementById('groqBadge');
+    if (badge) badge.style.display = _enabled ? 'inline' : 'none';
+    setGroqStatus(_enabled ? 'AI Composer active — will plan next journey.' : 'AI Composer disabled.');
+  }
+
+  function setGroqStatus(msg, color) {
+    const el = document.getElementById('groqStatus');
+    if (el) { el.textContent = msg; el.style.color = color || 'var(--text-lo)'; }
+  }
+
+  // ── API call ──────────────────────────────────────────────────────
+  async function call(prompt) {
+    if (!_key) throw new Error('No API key');
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${_key}`,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 1200,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You are a film score composer assistant. Respond only with valid JSON, no markdown, no explanation.' },
+          { role: 'user',   content: prompt },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  // ── Test key ──────────────────────────────────────────────────────
+  async function testKey() {
+    if (!_key) { setGroqStatus('Paste your key first.', 'var(--hot)'); return; }
+    setGroqStatus('Testing…', 'var(--text-mid)');
+    try {
+      const r = await call('Reply with exactly: {"ok":true}');
+      JSON.parse(r); // will throw if malformed
+      setGroqStatus('✓ Key works — AI Composer ready.', 'var(--accent-hi)');
+    } catch(e) {
+      setGroqStatus(`✗ ${e.message}`, 'var(--hot)');
+    }
+  }
+
+  // ── Build the compositional prompt ───────────────────────────────
+  function buildPrompt(mood, bossStep, scaleArc) {
+    const scaleOptions = 'phrygian, locrian, dorian, nat_minor, harmonic, diminished, pentatonic, lydian, mixolydian, whole_tone, chromatic';
+    const chordOptions = 'i, ii, III, iv, v, VI, VII, i7, iv7, V7, bVII, bVI';
+
+    return `You are composing an 8-chapter dark fantasy game music journey.
+Mood: "${mood}". Boss chapter index: ${bossStep} (0-indexed, -1 = no boss).
+The journey arc: quiet opening → building tension → dramatic climax → resolution.
+
+Scale arc hint (you may deviate slightly for drama): ${JSON.stringify(scaleArc)}
+Available scales: ${scaleOptions}
+Available chord numerals: ${chordOptions}
+
+Generate a JSON object with exactly this structure:
+{
+  "chapters": [
+    {
+      "index": 0,
+      "scale": "phrygian",
+      "rootHint": "down",
+      "chords": ["i", "bVI", "bVII", "i"],
+      "melodicShape": "descending",
+      "tension": 0.3,
+      "notes": "sparse, atmospheric"
+    }
+  ]
+}
+
+Rules:
+- Exactly 8 chapter objects, index 0-7
+- scale: one of the available scale names
+- rootHint: "up", "down", "fifth_up", "fifth_down", "tritone", or "same"
+- chords: array of 4 chord numerals forming a loop progression
+- melodicShape: "ascending", "descending", "arch", "valley", "static", "fragmented"
+- tension: float 0.0-1.0 matching the drama arc (boss chapter should be 0.85-1.0)
+- notes: 3-8 words describing the emotional character
+- Boss chapter (index ${bossStep}) must use locrian or diminished scale, tension >= 0.9
+- Chapter 7 (final) should feel like resolution, tension <= 0.45
+- Make chord progressions musically coherent within the chosen scale`;
+  }
+
+  // ── Root hint → semitone walk ─────────────────────────────────────
+  function hintToSemitones(hint) {
+    const map = { up: 2, down: -2, fifth_up: 7, fifth_down: -7, tritone: 6, same: 0 };
+    return map[hint] ?? 0;
+  }
+
+  // ── Chord numeral → scale degree index ───────────────────────────
+  function numeralToDeg(numeral) {
+    const map = {
+      'i':0,'ii':1,'III':2,'iv':3,'v':4,'VI':5,'VII':6,
+      'i7':0,'iv7':3,'V7':4,'bVII':6,'bVI':5,
+    };
+    return map[numeral] ?? 0;
+  }
+
+  // ── Generate journey plan ─────────────────────────────────────────
+  async function generatePlan(mood, bossStep, scaleArc) {
+    if (!_enabled || !_key) return null;
+
+    setGroqStatus('⟳ Composing journey plan…', 'var(--rune-hi)');
+
+    try {
+      const prompt = buildPrompt(mood, bossStep, scaleArc);
+      const raw    = await call(prompt);
+
+      // Strip any accidental markdown fences
+      const clean = raw.replace(/```json|```/g, '').trim();
+      const plan  = JSON.parse(clean);
+
+      if (!Array.isArray(plan.chapters) || plan.chapters.length !== 8) {
+        throw new Error('Invalid plan structure');
+      }
+
+      _plan = plan;
+      setGroqStatus(`✓ Journey composed — ${mood} arc ready.`, 'var(--accent-hi)');
+      return plan;
+
+    } catch(e) {
+      setGroqStatus(`AI plan failed (${e.message}) — using procedural engine.`, 'var(--text-lo)');
+      _plan = null;
+      return null;
+    }
+  }
+
+  // ── Apply chapter plan to PT + CE ────────────────────────────────
+  // Called at each JC chapter transition with the chapter index.
+  function applyChapter(stepIndex) {
+    if (!_plan) return false;
+    const ch = _plan.chapters.find(c => c.index === stepIndex);
+    if (!ch) return false;
+
+    // Tell PT: here's the scale for this chapter, and a root direction hint
+    const semitones = hintToSemitones(ch.rootHint);
+    const scalePool = [ch.scale]; // single scale — AI chose it with intention
+
+    // Boss chapters get forced modulation via setMoodBias
+    const isBoss = (stepIndex === JC.bossStep);
+    PT.setMoodBias(scalePool, ch.tension, isBoss);
+
+    // Advance the root in the hinted direction (PT's _walkRoot is internal,
+    // so we use forceModulate only if a big interval was requested)
+    if (ch.rootHint !== 'same' && !isBoss) {
+      // Queue a root walk via a light nudge — let PT decide exact timing
+      PT._queuedRootWalk = semitones;
+    }
+
+    // Feed chord progression into CE as a pending override
+    if (Array.isArray(ch.chords) && ch.chords.length >= 2) {
+      const degrees = ch.chords.map(n => [numeralToDeg(n), n.includes('7') ? 'min7' : (n === n.toUpperCase() ? 'maj' : 'min')]);
+      CE.setPendingProgression(degrees);
+    }
+
+    logTimeline(`AI Chapter ${stepIndex}: ${ch.scale} · ${ch.melodicShape} · tension ${ch.tension.toFixed(2)} — ${ch.notes}`);
+    return true;
+  }
+
+  // ── Public ────────────────────────────────────────────────────────
+  return { loadKey, saveKey, toggle, testKey, generatePlan, applyChapter,
+           get enabled() { return _enabled; },
+           get plan()    { return _plan; } };
+})();
+
+// ── Groq UI handlers (called from HTML) ──────────────────────────
+function groqSaveKey(val)      { GROQ.saveKey(val); }
+function groqTestKey()         { GROQ.testKey(); }
+function groqToggle(on)        { GROQ.toggle(on); }
+
 window.setMusicState = setMusicState;
-window.PT = PT; // expose procedural tonality engine for console debugging
+window.PT = PT;
+window.GROQ = GROQ; // expose procedural tonality engine for console debugging
 
 
 // ===== ENGINE IMPROVEMENTS =====
@@ -18679,6 +18958,9 @@ function __forgeHumanizeTime(t){
     return t + ((Math.random() - 0.5) * 0.012);
 }
 
+
+// Deferred init — GROQ defined last, load it after full script evaluation
+window.addEventListener('load', () => { GROQ.loadKey(); });
 </script>
 </body>
 </html>
