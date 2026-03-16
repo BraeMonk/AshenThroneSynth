@@ -18328,26 +18328,7 @@ function cinematicEnergyCurve() {
   }
 }
 
-function orchestralSwell() {
-
-  if (typeof ctx === "undefined" || !ctx) return;
-  const now = ctx.currentTime;
-
-  Object.values(bus || {}).forEach(b => {
-
-    if (!b || !b.gain) return;
-
-    const base = globalEnergy * 0.8;
-    const swell = base + Math.random() * 0.2;
-
-    try {
-      b.gain.cancelScheduledValues(now);
-      b.gain.linearRampToValueAtTime(swell, now + 2 + Math.random()*2);
-    } catch(e){}
-
-  });
-
-}
+function orchestralSwell() {}
 
 function leitmotifRecall() {
 
