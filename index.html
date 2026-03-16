@@ -2854,19 +2854,6 @@ const Conductor = (() => {
     // Rebuild after 1 bar
     setTimeout(() => {
       if (!isPlaying) { _soloActive = false; return; }
-      const now2 = ctx.currentTime;
-      const intensity = JC.active ? JC.energy : getIntensity(parseInt(slider?.value ?? '1'));
-      SOLO_LAYERS.forEach(n => {
-        const b = bus[n];
-        if (b && layerOn[n]) {
-          b.gain.cancelScheduledValues(now2);
-          b.gain.setValueAtTime(b.gain.value, now2);
-          b.gain.linearRampToValueAtTime(
-            adaptiveMixTarget(n, intensity),
-            now2 + barSec * 1.5 + Math.random() * barSec // staggered re-entry
-          );
-        }
-      });
       _soloActive = false;
     }, barSec * 1000);
   }
@@ -4722,7 +4709,6 @@ JC.reconcile = function(preset, intensity) {
         const now2 = ctx.currentTime;
         b.gain.cancelScheduledValues(now2);
         b.gain.setValueAtTime(b.gain.value, now2);
-        b.gain.linearRampToValueAtTime(busTarget(name, intensity), now2 + 4.0);
       }
     } else {
       startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
@@ -7707,7 +7693,7 @@ function startAdaptiveMixLoop() {
     const lead      = getLeadRole(intensity);
     // setTargetAtTime exponentially approaches target — no discontinuity, no clicks.
     // Never cancels scheduled values so it never snaps a mid-ramp gain.
-    const timeConst = lead !== _lastLead ? 0.6 : 0.4;
+    const timeConst = lead !== _lastLead ? 1.8 : 1.2;
     _lastLead       = lead;
 
     LAYER_NAMES.forEach(name => {
