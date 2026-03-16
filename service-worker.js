@@ -12,8 +12,6 @@ const PRECACHE = [
 // These origins always go straight to the network — never cache them
 const NETWORK_ONLY = [
   'api.groq.com',
-  'fonts.googleapis.com',   // remove this line if you want fonts cached after first load
-  'fonts.gstatic.com',      // remove this line if you want fonts cached after first load
 ];
 
 // ── Install: precache core assets ────────────────────────────────────────────
