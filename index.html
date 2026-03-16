@@ -18330,29 +18330,7 @@ function cinematicEnergyCurve() {
 
 function orchestralSwell() {}
 
-function leitmotifRecall() {
-
-  if (motifCooldown > 0) {
-    motifCooldown--;
-    return;
-  }
-
-  if (Math.random() < 0.25) {
-
-    if (typeof startLayer === "function") {
-
-      const motifs = ["melody","choir","strings","horn"];
-      const pick = motifs[Math.floor(Math.random()*motifs.length)];
-
-      try {
-        startLayer(pick);
-      } catch(e){}
-
-      motifCooldown = 6;
-    }
-  }
-
-}
+function leitmotifRecall() {}
 
 function cinematicConductor() {
 
@@ -18398,37 +18376,7 @@ function setMusicState(state){
 let desiredLayers = new Set();
 let conductorLock = false;
 
-function conductorPlan(){
-
-  if(conductorLock) return;
-  conductorLock = true;
-
-  try{
-
-    if(typeof PHRASE_LAYER_TARGETS === "undefined") return;
-    if(typeof layerOn === "undefined") return;
-
-    const targets = PHRASE_LAYER_TARGETS[currentPhrase] || [];
-    desiredLayers = new Set(targets);
-
-    Object.keys(layerOn).forEach(name=>{
-
-      if(desiredLayers.has(name)){
-        if(!layerOn[name] && typeof startLayer === "function"){
-          startLayer(name);
-        }
-      }else{
-        if(layerOn[name] && typeof stopLayer === "function"){
-          stopLayer(name);
-        }
-      }
-
-    });
-
-  }catch(e){}
-
-  conductorLock = false;
-}
+function conductorPlan(){}
 
 /* expose for manual testing */
 window.setMusicState = setMusicState;
