@@ -6,9 +6,12 @@
 <meta name="author" content="Ashen Throne">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
-
-<link rel="icon" sizes="192x192" href="icon.png">
-<link rel="icon" sizes="512x512" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c8921a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Music Forge">
 <title>Ashen Throne — Music Forge</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Noto+Serif+JP:wght@400;700&family=Sawarabi+Mincho&family=Inter:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <style>
@@ -19144,6 +19147,12 @@ function __forgeHumanizeTime(t){
 
 // Deferred init — GROQ defined last, load it after full script evaluation
 window.addEventListener('load', () => { GROQ.loadKey(); });
+
+// ── PWA Service Worker registration ──────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js')
+    .catch(err => console.warn('SW registration failed:', err));
+}
 </script>
 </body>
 </html>
