@@ -1964,11 +1964,28 @@ let phraseSeq = PHRASE_SEQUENCES.normal;
 let phraseSeqIdx = 0;
 
 const PHRASE_LAYER_TARGETS = {
-  intro:      ['drone','strings'],
-  build:      ['drone','strings','wind','perc'],
-  tension:    ['drone','strings','bass','perc','wardrums','riser'],
-  climax:     ['drone','strings','bass','perc','wardrums','stomp','melody','cello','choir'],
-  resolution: ['drone','strings','heartbeat','bells'],
+
+  intro:[
+    'drone','wind','firecrackle','duduk','flute'
+  ],
+
+  build:[
+    'drone','strings','viola','cello','bass','horn'
+  ],
+
+  tension:[
+    'drone','strings','viola','cello','bass','horn','heartbeat','perc','march'
+  ],
+
+  climax:[
+    'drone','strings','viola','cello','bass','horn','choir','melody',
+    'wardrums','taiko','perc','organ'
+  ],
+
+  resolution:[
+    'drone','harp','bells','flute','duduk'
+  ]
+
 };
 
 function startPhraseEngine() {
@@ -2164,6 +2181,39 @@ function advancePhrase() {
   }
 }
 
+
+
+// ── CINEMATIC ORCHESTRATION ENGINE ─────────────────────────────
+
+function cinematicOrchestrate(){
+
+  const density = Math.random();
+
+  // occasional melodic solo instruments
+  if(currentPhrase === 'build' && density < 0.35){
+    layerOn.flute = true;
+  }
+
+  if(currentPhrase === 'tension' && density < 0.35){
+    layerOn.cello = true;
+  }
+
+  if(currentPhrase === 'climax'){
+
+    if(Math.random() < 0.6) layerOn.choir = true;
+    if(Math.random() < 0.5) layerOn.horn = true;
+    if(Math.random() < 0.4) layerOn.organ = true;
+
+  }
+
+  // emotional resolution solos
+  if(currentPhrase === 'resolution'){
+    if(Math.random() < 0.5) layerOn.harp = true;
+    if(Math.random() < 0.4) layerOn.flute = true;
+  }
+
+}
+
 function applyPhraseLayers() {
   if (!isPlaying) return;
   const targets = PHRASE_LAYER_TARGETS[currentPhrase] || [];
@@ -2176,9 +2226,21 @@ function applyPhraseLayers() {
       const preset = getZone(parseInt(slider.value));
       const intensity = getIntensity(parseInt(slider.value));
       startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? buildPercBufs(preset, sessionVoices['perc']) : null);
+  cinematicOrchestrate();
+
     }
   });
-  // Optionally fade non-targets (only in auto mode)
+  
+  // Remove layers not part of the phrase (cinematic breathing)
+  Object.keys(layerOn).forEach(name => {
+    if (!targets.includes(name) && layerOn[name]) {
+      layerOn[name] = false;
+      document.getElementById('btn-' + name)?.classList.remove('active');
+      document.getElementById('pill-' + name)?.classList.remove('on');
+      stopLayer(name);
+    }
+  });
+// Optionally fade non-targets (only in auto mode)
   if (currentPhrase === 'resolution') {
     ['chaos','glitch','wardrums','stomp'].forEach(name => {
       if (layerOn[name]) {
@@ -18231,6 +18293,87 @@ applySkin = function(id, save) {
 })();
 
 slider.addEventListener('input', updateFloorUI);
+
+/* ===============================================================
+   CINEMATIC CONDUCTOR ENGINE
+   Adds film‑score style dynamics, leitmotif recall, and swells
+   =============================================================== */
+
+let globalEnergy = 0.3;
+let motifCooldown = 0;
+
+function cinematicEnergyCurve() {
+
+  const curve = {
+    intro: 0.25,
+    build: 0.45,
+    tension: 0.65,
+    climax: 0.95,
+    resolution: 0.35
+  };
+
+  if (typeof currentPhrase !== "undefined" && curve[currentPhrase] !== undefined) {
+    globalEnergy = curve[currentPhrase];
+  }
+}
+
+function orchestralSwell() {
+
+  if (typeof ctx === "undefined") return;
+
+  const now = ctx.currentTime;
+
+  Object.values(bus || {}).forEach(b => {
+
+    if (!b || !b.gain) return;
+
+    const base = globalEnergy * 0.8;
+    const swell = base + Math.random() * 0.2;
+
+    try {
+      b.gain.cancelScheduledValues(now);
+      b.gain.linearRampToValueAtTime(swell, now + 2 + Math.random()*2);
+    } catch(e){}
+
+  });
+
+}
+
+function leitmotifRecall() {
+
+  if (motifCooldown > 0) {
+    motifCooldown--;
+    return;
+  }
+
+  if (Math.random() < 0.25) {
+
+    if (typeof startLayer === "function") {
+
+      const motifs = ["melody","choir","strings","horn"];
+      const pick = motifs[Math.floor(Math.random()*motifs.length)];
+
+      try {
+        startLayer(pick);
+      } catch(e){}
+
+      motifCooldown = 6;
+    }
+  }
+
+}
+
+function cinematicConductor() {
+
+  cinematicEnergyCurve();
+  orchestralSwell();
+  leitmotifRecall();
+
+}
+
+/* Hook conductor into phrase system */
+setInterval(cinematicConductor, 4000);
+
 </script>
 </body>
 </html>
