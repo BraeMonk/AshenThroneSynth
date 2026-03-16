@@ -2153,9 +2153,7 @@ function advancePhrase() {
             const b = bus[name];
             if (b && layerOn[name]) {
               const target = adaptiveMixTarget(name, intensity);
-              b.gain.cancelScheduledValues(now2);
-              b.gain.setValueAtTime(b.gain.value, now2);
-              b.gain.linearRampToValueAtTime(target, now2 + 0.12);
+              b.gain.setTargetAtTime(target, now2, 0.5); // smooth glide, no cancel-snap
             }
           });
         }
@@ -2699,17 +2697,17 @@ const Conductor = (() => {
       }
     }
 
-    // Dynamic thinning — during intro/resolution at bar 1, 30% chance
+    // Dynamic thinning — during intro/resolution at bar 1, 15% chance
     if (!_thinActive && (currentPhrase === 'intro' || currentPhrase === 'resolution')) {
-      if (phraseBar === 1 && Math.random() < 0.30) {
+      if (phraseBar === 1 && Math.random() < 0.15) {
         fireThinning(preset, energy);
       }
     }
 
-    // Solo moment — between phrases, during resolution at bar 2, 20% chance
+    // Solo moment — between phrases, during resolution at bar 2, 10% chance
     // Only when not already in a solo and energy is below 0.7
     if (!_soloActive && currentPhrase === 'resolution' && energy < 0.70) {
-      if (phraseBar === 2 && Math.random() < 0.20) {
+      if (phraseBar === 2 && Math.random() < 0.10) {
         fireSoloMoment(preset, energy);
       }
     }
@@ -2752,8 +2750,8 @@ const Conductor = (() => {
   function fireThinning(preset, energy) {
     if (_thinActive || !ctx || !isPlaying) return;
     _thinActive = true;
-    const thinLevel  = 0.18 + (1 - energy) * 0.12; // quieter at low energy
-    const thinBars   = 1 + Math.floor(Math.random() * 2); // 1-2 bars
+    const thinLevel  = 0.62 + (1 - energy) * 0.10; // subtle breath — was 0.18 (near silence)
+    const thinBars   = 1; // always just 1 bar
     const barMs      = (barLength || 4) * 1000;
 
     // Ramp down
@@ -2786,7 +2784,7 @@ const Conductor = (() => {
       if (b && layerOn[n]) {
         b.gain.cancelScheduledValues(now);
         b.gain.setValueAtTime(b.gain.value, now);
-        b.gain.linearRampToValueAtTime(0.04, now + barSec * 1.2); // slow fade over 1.2 bars
+        b.gain.linearRampToValueAtTime(0.35, now + barSec * 1.2); // recede, not vanish
       }
     });
 
@@ -3868,7 +3866,8 @@ function applyMoodSoundset(moodId, immediate) {
   if (!bpmLocked && ctx) {
     const zone = getZone(parseInt(slider.value));
     const bpmBias = ss.bpmBias ?? 0;
-    const biasedBpm = Math.max(40, Math.min(140, zone.bpm + bpmBias * 0.4));
+    const skinBpmBias = (typeof SKIN_BPM_BIAS !== 'undefined') ? (SKIN_BPM_BIAS[_activeSkin] ?? 0) : 0;
+    const biasedBpm = Math.max(40, Math.min(140, zone.bpm + bpmBias * 0.4 + skinBpmBias * 0.5));
     barLength = (60 / biasedBpm) * 4;
   }
 
@@ -4699,17 +4698,21 @@ JC.reconcile = function(preset, intensity) {
 
 JC.applyMasterVolume = function() {
   if(!ctx||!masterGain) return;
-  // Raised floor and compressed ceiling — less dramatic swing, more like a film mix
-  // where the quiet moments are still present, not absent.
-  // Floor 0.68 (was 0.55) — even the quietest chapter still feels full
-  // Ceiling 0.88 (was 0.90) — headroom for limiter, not actually quieter
-  const targetGain = 0.68 + JC.energy * 0.20; // range 0.68–0.88, was 0.55–0.90
+  const targetGain = 0.68 + JC.energy * 0.20; // range 0.68–0.88
   const cur = masterGain.gain.value;
+  // Don't do anything if we're close enough
   if(Math.abs(cur - targetGain) < 0.03) return;
   const now = ctx.currentTime;
   const bl = barLength || 4;
-  // Asymmetric ramp — rising is faster (excitement), falling is very slow (no reset feel)
-  const rampBars = targetGain > cur ? 12 : 32; // drop takes 32 bars — barely perceptible
+  // Check if there's already a scheduled ramp heading in the right direction.
+  // We do this by reading the gain a few bars ahead and seeing if it's moving toward target.
+  // Simple proxy: if cur is already moving toward target (within 0.06), leave it alone.
+  // Only interrupt if we're moving the wrong way or very far off.
+  const movingToward = (targetGain > cur && cur < targetGain - 0.06) ||
+                       (targetGain < cur && cur > targetGain + 0.06);
+  if(!movingToward) return; // already converging, don't snap it
+  // Asymmetric ramp — rising faster, falling very slow
+  const rampBars = targetGain > cur ? 16 : 40;
   masterGain.gain.cancelScheduledValues(now);
   masterGain.gain.setValueAtTime(cur, now);
   masterGain.gain.linearRampToValueAtTime(targetGain, now + bl * rampBars);
@@ -4828,14 +4831,16 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
   currentPhrase = phraseSeq[phraseSeqIdx];
   stopPhraseEngine(); startPhraseEngine();
 
-  // Master volume: slow ride to new energy level — asymmetric, no reset feel
+  // Master volume: only reschedule if meaningfully off and not already converging
   const now = ctx.currentTime;
-  const targetVol = 0.68 + JC.energy * 0.20; // matches applyMasterVolume range
+  const targetVol = 0.68 + JC.energy * 0.20;
   const currentVol = masterGain.gain.value;
-  if (Math.abs(currentVol - targetVol) > 0.03) {
+  const alreadyConverging = (targetVol > currentVol && currentVol < targetVol - 0.06) ||
+                             (targetVol < currentVol && currentVol > targetVol + 0.06);
+  if (Math.abs(currentVol - targetVol) > 0.03 && !alreadyConverging) {
+    const rampBars = targetVol > currentVol ? 14 : 36;
     masterGain.gain.cancelScheduledValues(now);
     masterGain.gain.setValueAtTime(currentVol, now);
-    const rampBars = targetVol > currentVol ? 10 : 28; // drops are very slow
     masterGain.gain.linearRampToValueAtTime(targetVol, now + bl * rampBars);
   }
 
@@ -6819,9 +6824,15 @@ function applyMoodFX(m) {
 
   // ── Reverb size — modulate ±0.15 around skin baseline ────────────────────
   const targetSize = Math.max(0.05, Math.min(0.95, skinBase.reverbSize + (m - 0.5) * 0.30));
-  if (Math.abs(targetSize - _reverbSize) > 0.05 && reverbNode) {
+  if (Math.abs(targetSize - _reverbSize) > 0.12 && reverbNode) { // raised threshold — rebuild less often
     _reverbSize = targetSize;
-    reverbNode.buffer = buildIR(_reverbSize);
+    // Duck wet gain briefly during IR swap to avoid click/dropout
+    const now = ctx.currentTime;
+    reverbWetGain.gain.setTargetAtTime(0.001, now, 0.05);
+    setTimeout(() => {
+      if (reverbNode) reverbNode.buffer = buildIR(_reverbSize);
+      reverbWetGain.gain.setTargetAtTime(skinBase.reverbWet, ctx.currentTime, 0.4);
+    }, 120);
     document.getElementById('reverbSize').value = Math.round(_reverbSize * 100);
     document.getElementById('reverbSizeVal').textContent = Math.round(_reverbSize * 100) + '%';
     document.getElementById('reverbSize').style.setProperty('--pct', Math.round(_reverbSize*100)+'%');
@@ -7220,6 +7231,62 @@ function getLeadRole(intensity) {
 // Approach: bend, don't override. Replace individual slots probabilistically
 // so the arc still feels varied, just tilted toward the skin's flavour.
 
+// ── SKIN CHORD BIAS ───────────────────────────────────────────────────────────
+// Shifts the chord engine's progression preference per skin.
+// Applied as an offset to _moodBias (0=calm/resolution, 1=nightmare/tension).
+// ashen    — reference, no offset
+// neon     — pushed toward tension/combat — the city never fully resolves
+// sakura   — pushed toward resolution — emotions want to land
+// broadcast— pushed toward normal/resolution — professional, resolved cadences
+// void     — pushed hard toward tension — nothing resolves, ever
+
+const SKIN_CHORD_BIAS = {
+  ashen:     0.00,
+  neon:      0.20,  // lean tension — grid is always charged
+  sakura:   -0.25,  // lean resolution — feelings want to resolve
+  broadcast:-0.15,  // lean normal/resolution — clean professional cadences
+  void:      0.35,  // heavy tension bias — machine never resolves
+};
+
+// ── SKIN BPM BIAS ─────────────────────────────────────────────────────────────
+// Applied on top of zone BPM + mood bpmBias. Shapes the overall pace feel.
+// Sakura feels slower and more considered. Neon feels urgent. Void is relentless.
+
+const SKIN_BPM_BIAS = {
+  ashen:     0,
+  neon:      6,   // slightly faster — city urgency
+  sakura:   -8,   // slower — emotions need space
+  broadcast: 2,   // barely faster — professional energy without rush
+  void:      8,   // relentless machine pace
+};
+
+// ── SKIN PERCUSSION DENSITY ───────────────────────────────────────────────────
+// Per-skin groove mutation rates and velocity scaling.
+// Higher mutationRate = patterns evolve faster (more chaotic/varied).
+// kickVel/snareVel/hatVel = gain multipliers on each drum voice.
+
+const SKIN_PERC = {
+  ashen:     { mutationRate: 1.0, kickVel: 1.0,  snareVel: 1.0,  hatVel: 1.0,  hatDensity: 1.0 },
+  neon:      { mutationRate: 1.6, kickVel: 1.3,  snareVel: 1.1,  hatVel: 1.25, hatDensity: 1.5 }, // dense electronic grid
+  sakura:    { mutationRate: 0.4, kickVel: 0.45, snareVel: 0.40, hatVel: 0.30, hatDensity: 0.3 }, // barely there
+  broadcast: { mutationRate: 0.8, kickVel: 1.1,  snareVel: 1.0,  hatVel: 0.85, hatDensity: 0.9 }, // clean and measured
+  void:      { mutationRate: 2.0, kickVel: 1.4,  snareVel: 1.2,  hatVel: 0.60, hatDensity: 0.6 }, // heavy mechanical kick, sparse hat
+};
+
+// ── SKIN MELODY CHARACTER ─────────────────────────────────────────────────────
+// Per-skin melody behaviour: note density (skipBias), phrase length, vibrato depth.
+// skipBias: added to melodySkip — higher = more rests, sparser melody
+// arcBeatsMult: multiplies arcBeats (how long each note holds) — higher = slower melody
+// vibDepthMult: multiplies vibrato depth
+
+const SKIN_MELODY = {
+  ashen:     { skipBias: 0.00, arcBeatsMult: 1.0, vibDepthMult: 1.0 },
+  neon:      { skipBias:-0.15, arcBeatsMult: 0.6, vibDepthMult: 0.5 }, // dense fast lead, minimal vibrato
+  sakura:    { skipBias: 0.20, arcBeatsMult: 1.8, vibDepthMult: 1.6 }, // sparse, long held notes, expressive vibrato
+  broadcast: { skipBias:-0.08, arcBeatsMult: 0.9, vibDepthMult: 0.8 }, // present and clear, controlled vibrato
+  void:      { skipBias: 0.25, arcBeatsMult: 1.2, vibDepthMult: 0.3 }, // sparse, mechanical, no vibrato warmth
+};
+
 const SKIN_JOURNEY_RULES = {
 
   // ── ASHEN — dark fantasy dungeon. The reference. No extra bending.
@@ -7575,10 +7642,10 @@ function startAdaptiveMixLoop() {
     const intensity = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
     const now       = ctx?.currentTime ?? 0;
 
-    // Use a slower ramp when lead role changes (smooth handoff),
-    // faster ramp for within-role adjustments
     const lead      = getLeadRole(intensity);
-    const rampTime  = lead !== _lastLead ? 0.9 : 0.5;
+    // setTargetAtTime exponentially approaches target — no discontinuity, no clicks.
+    // Never cancels scheduled values so it never snaps a mid-ramp gain.
+    const timeConst = lead !== _lastLead ? 0.6 : 0.4;
     _lastLead       = lead;
 
     LAYER_NAMES.forEach(name => {
@@ -7586,16 +7653,13 @@ function startAdaptiveMixLoop() {
       const b = bus[name];
       if (!b || b.gain.value <= 0.002) return;
       const target = adaptiveMixTarget(name, intensity);
-      if (Math.abs(b.gain.value - target) > 0.018) {
-        // Only interrupt if meaningfully off-target — avoids click from
-        // cancelling a ramp that's already almost done
-        b.gain.cancelScheduledValues(now);
-        b.gain.setValueAtTime(b.gain.value, now);
-        b.gain.linearRampToValueAtTime(target, now + rampTime);
+      // Wider threshold — only nudge if meaningfully off, reducing churn
+      if (Math.abs(b.gain.value - target) > 0.04) {
+        b.gain.setTargetAtTime(target, now, timeConst);
       }
     });
 
-    _mixLoopID = setTimeout(tick, 80);
+    _mixLoopID = setTimeout(tick, 120); // 120ms — less churn than 80ms
   }
   tick();
 }
@@ -8181,14 +8245,15 @@ const CE = (() => {
     scaleStep,
     releaseEvent,
     setMoodBias: (m) => {
-      _moodBias = m;
+      // Apply skin chord bias — bends the progression preference toward
+      // tension (neon/void) or resolution (sakura/broadcast)
+      const skinOffset = (typeof SKIN_CHORD_BIAS !== 'undefined')
+        ? (SKIN_CHORD_BIAS[_activeSkin] ?? 0) : 0;
+      _moodBias = Math.max(0, Math.min(1, m + skinOffset));
       // Only nudge _progKey if not overridden by phrase/event/boss.
-      // Nightmare leans toward tension but doesn't lock — phrase engine
-      // can still pull it back to resolution/normal naturally.
       if (!_eventOverride && !_bossActive) {
-        if (m > 0.80 && _progKey === 'normal') _progKey = 'tension';
-        else if (m < 0.30 && _progKey === 'tension') _progKey = 'normal';
-        // Mid-range: leave _progKey alone — let the phrase engine decide
+        if (_moodBias > 0.80 && _progKey === 'normal') _progKey = 'tension';
+        else if (_moodBias < 0.30 && _progKey === 'tension') _progKey = 'normal';
       }
     },
     // Expose for debugging
@@ -8836,6 +8901,7 @@ let grooveAge = 0;
 const GROOVE_LIFE = 4; // bars before subtle mutation
 
 function getGroove(preset, intensity) {
+  const skinPerc = (typeof SKIN_PERC !== 'undefined') ? (SKIN_PERC[_activeSkin] || SKIN_PERC.ashen) : SKIN_PERC?.ashen || { mutationRate:1.0 };
   if (!currentGroove) {
     currentGroove = {
       kick:  [...preset.kickPattern,  ...preset.kickPattern],
@@ -8875,9 +8941,9 @@ function getGroove(preset, intensity) {
       copy[idx] = copy[idx] ? 0 : 1;
       return copy;
     };
-    if (rng() < 0.4) currentGroove.kick  = mutateKick(currentGroove.kick);
-    if (rng() < 0.3) currentGroove.snare = mutateSnare(currentGroove.snare);
-    if (rng() < 0.2) currentGroove.hihat = mutateHihat(currentGroove.hihat);
+    if (rng() < 0.4  * skinPerc.mutationRate) currentGroove.kick  = mutateKick(currentGroove.kick);
+    if (rng() < 0.3  * skinPerc.mutationRate) currentGroove.snare = mutateSnare(currentGroove.snare);
+    if (rng() < 0.2  * skinPerc.mutationRate) currentGroove.hihat = mutateHihat(currentGroove.hihat);
   }
   return currentGroove;
 }
@@ -8907,15 +8973,18 @@ function buildPerc(preset, intensity, name, bufs) {
   const isGhost   = percVoice === 'ghost';
   const isTribal  = percVoice === 'tribal';
 
+  // Skin percussion velocity scaling
+  const sp = (typeof SKIN_PERC !== 'undefined') ? (SKIN_PERC[_activeSkin] || SKIN_PERC.ashen) : { kickVel:1.0, snareVel:1.0, hatVel:1.0 };
+
   // Crack frequency ceiling per voice — above this gets cut
   const snareCrackCeiling = isTaiko ? 600 : isGhost ? 800 : isTribal ? 3200 : 2400;
-  const snareGain         = isTaiko ? 0.72 : isGhost ? 0.55 : 0.82;
-  const hatGainVal        = isTaiko ? 0.22 : isGhost ? 0.28 : isTribal ? 0.40 : 0.48;
+  const snareGain         = (isTaiko ? 0.72 : isGhost ? 0.55 : 0.82) * sp.snareVel;
+  const hatGainVal        = (isTaiko ? 0.22 : isGhost ? 0.28 : isTribal ? 0.40 : 0.48) * sp.hatVel;
   const kickShelfFreq     = isTaiko ? 80  : 120;
   const kickShelfGain     = isTaiko ? 6.0 : 4.5;
 
   // ── Signal chain ──────────────────────────────────────────────────
-  const kickBus = ctx.createGain(); kickBus.gain.value = isTaiko ? 0.82 : 0.88;
+  const kickBus = ctx.createGain(); kickBus.gain.value = (isTaiko ? 0.82 : 0.88) * sp.kickVel;
   const kickLowShelf = ctx.createBiquadFilter();
   kickLowShelf.type = 'lowshelf';
   kickLowShelf.frequency.value = kickShelfFreq;
@@ -9006,7 +9075,7 @@ function buildPerc(preset, intensity, name, bufs) {
       }
 
       // ── Hihat — sparse, not mechanical ──────────────────────────────
-      if (patterns.hihat[i] && intensity > 0.25 && rng() > 0.15) {
+      if (patterns.hihat[i] && intensity > 0.25 && rng() > (0.15 + (1 - sp.hatDensity) * 0.70)) {
         // Accent pattern: 8th note downbeats louder, 16th upbeats whisper-quiet
         const isAccented = (i % 2 === 0);
         const vel = isAccented ? 0.18 + rng() * 0.06 : 0.05 + rng() * 0.04;
@@ -9737,11 +9806,14 @@ function buildMelody(preset, intensity, name) {
   const beat   = 60 / bpm;
   const energy = JC.active ? JC.energy : intensity;
 
+  // ── Skin melody character ──────────────────────────────────────────────────
+  const sm = (typeof SKIN_MELODY !== 'undefined') ? (SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen) : { skipBias:0, arcBeatsMult:1.0, vibDepthMult:1.0 };
+
   // ── Timbre params ──────────────────────────────────────────────────────────
-  const vibHz    = 4.2 + energy * 0.6;       // 4.2–4.8 Hz — bowed string range
-  const vibDepth = 1.8 + energy * 1.4;       // gentle, deepens with energy
-  const atkTime  = 1.4 + (1 - energy) * 1.2; // 1.4–2.6 s — slow bow onset
-  const relTime  = 2.2 + (1 - energy) * 1.8; // 2.2–4.0 s — tail lingers
+  const vibHz    = 4.2 + energy * 0.6;
+  const vibDepth = (1.8 + energy * 1.4) * sm.vibDepthMult;
+  const atkTime  = 1.4 + (1 - energy) * 1.2;
+  const relTime  = 2.2 + (1 - energy) * 1.8;
 
   // Partial map: warm + airy, no nasal odd-harmonic spike
   const PARTIALS = [
@@ -9759,7 +9831,7 @@ function buildMelody(preset, intensity, name) {
   // ── Arc state ─────────────────────────────────────────────────────────────
   // arcStep counts how many chord-tone targets we've emitted this phrase.
   // arcTotal is how many steps make one full phrase (slow: 6–10 beats each).
-  const arcBeats = energy > 0.65 ? 5 : energy > 0.35 ? 7 : 9; // beats per tone hold
+  const arcBeats = (energy > 0.65 ? 5 : energy > 0.35 ? 7 : 9) * sm.arcBeatsMult; // skin-scaled note hold
   const arcTotal = VOICE_SEQ.length; // one full chord-voice arc = one "phrase"
   let   arcStep  = 0;
   let   arcNow   = ctx.currentTime + 0.1; // absolute time cursor
@@ -9854,7 +9926,11 @@ function buildMelody(preset, intensity, name) {
     const overlapFrac = 0.35 + (1 - energy) * 0.15; // more overlap at low energy
     const stepDur     = holdDur * (1 - overlapFrac);
 
-    makeSustainedVoice(arcNow, freq, holdDur, arcPos);
+    // Skin skipBias: positive = more rests (sakura sparse), negative = denser (neon)
+    const skipChance = Math.max(0, Math.min(0.55, sm.skipBias * 0.8));
+    if (rng() >= skipChance) {
+      makeSustainedVoice(arcNow, freq, holdDur, arcPos);
+    }
 
     // Occasionally add a second voice a 5th above for richness at high energy
     if (energy > 0.55 && arcStep % 3 === 1) {
@@ -9873,7 +9949,7 @@ function buildMelody(preset, intensity, name) {
       MP._playCount++;
       MP.callDone = true;
       // After rest, re-call to start the next phrase arc
-      const restBeats = energy > 0.65 ? 1 : energy > 0.35 ? 2.5 : 4;
+      const restBeats = (energy > 0.65 ? 1 : energy > 0.35 ? 2.5 : 4) * sm.arcBeatsMult;
       const restMs    = beat * restBeats * 1000;
       // Advance arcNow past the rest window too
       arcNow += beat * restBeats;
