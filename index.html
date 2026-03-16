@@ -6375,27 +6375,6 @@ function initAudio() {
   masterHighShelf.frequency.value = 3200;
   masterHighShelf.gain.value = 0; // neutral at start
 
-  // Chain: masterGain → HPF → saturation → moodFilter → highShelf → compressor → analyser → destination
-  
-// MASTER DYNAMICS — stable loudness across journeys
-const compressor = ctx.createDynamicsCompressor();
-compressor.threshold.value = -18;
-compressor.knee.value = 20;
-compressor.ratio.value = 3.2;
-compressor.attack.value = 0.01;
-compressor.release.value = 0.25;
-
-const limiter = ctx.createDynamicsCompressor();
-limiter.threshold.value = -3;
-limiter.knee.value = 0;
-limiter.ratio.value = 20;
-limiter.attack.value = 0.002;
-limiter.release.value = 0.08;
-
-masterGain.connect(compressor);
-compressor.connect(limiter);
-limiter.connect(masterHPF);
-
   masterHPF.connect(saturationNode);
   satMakeup.connect(moodFilter);
   moodFilter.connect(masterHighShelf);
