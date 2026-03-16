@@ -18335,7 +18335,7 @@ function cinematicEnergyCurve() {
 
 function orchestralSwell() {
 
-  if (typeof ctx === "undefined") return;
+  if (!ctx) return;
 
   const now = ctx.currentTime;
 
@@ -18501,4 +18501,3 @@ function __forgeHumanizeTime(t){
 </script>
 </body>
 </html>
-
