@@ -21301,7 +21301,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
     } else if (cfg.torchStyle === 'ledPar') {
       // Pop: colour-cycling LED par can — saturated, hard-edged beam
-      const hue2 = (i * 55 + t * 1.2) % 360;
+      const hue2 = (ti * 55 + t * 1.2) % 360;
       const ledAlpha = 0.30 + active * 0.55;
       const ledGrd = c.createRadialGradient(tx, torchYPos, 0, tx, torchYPos, H * 0.45);
       ledGrd.addColorStop(0,   `hsla(${hue2},100%,70%,${ledAlpha})`);
@@ -21381,7 +21381,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       const sweepAngle = (t * 0.022 + ti * 0.8) % (Math.PI * 2);
       const beamDirX = Math.sin(sweepAngle) * W * 0.45;
       const beamDirY = H * 0.65 + Math.cos(sweepAngle * 0.7) * H * 0.18;
-      const hue5 = (i * 55 + t * 1.8) % 360;
+      const hue5 = (ti * 55 + t * 1.8) % 360;
       const beamAlpha2 = (0.22 + active * 0.55) * flicker;
       // Beam — tapered from fixture head to floor
       c.save();
@@ -23972,6 +23972,14 @@ function __forgeHumanizeTime(t){
 
 // Deferred init — GROQ defined last, load it after full script evaluation
 window.addEventListener('load', () => {
+  // Unregister any stale service workers — they cache old JS and cause
+  // ReferenceErrors from outdated function bodies being served to the browser
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister());
+    });
+  }
+
   GROQ.loadKey();
 
   // Boot the viz loop once — it runs forever from here, never re-called
