@@ -7782,7 +7782,7 @@ function initAudio() {
 
   // Makeup gain — compensates for pre-sat trim + saturation RMS compression
   const satMakeup = ctx.createGain();
-  satMakeup.gain.value = 2.2; // 1/0.35 * slight boost for sat compression
+  satMakeup.gain.value = 1.6; // reduced from 2.2 — was amplifying waveshaper clips on dense layers
   saturationNode.connect(satMakeup);
 
   // Mood filter — wide open by default so harmonics breathe
@@ -7834,6 +7834,26 @@ function initAudio() {
   }
 
   fxInput = ctx.createGain(); fxInput.gain.value = 1.0;
+
+  // ── Sidechain coordinator — single owner of fxInput.gain ─────────────────
+  // Any layer wanting to duck the master bus calls _sidechainDuck(duckTo, dur, tc).
+  // A cooldown prevents concurrent callers from racing cancelScheduledValues
+  // against each other, which causes the audible crunch/click artefact.
+  // The cooldown is one beat-length — callers that arrive within that window
+  // are silently dropped (the first caller already owns that beat's duck).
+  window._sidechainLastT = -999;
+  window._sidechainDuck  = function(duckTo, holdDur, restoreTC) {
+    if (!ctx || !fxInput) return;
+    const now = ctx.currentTime;
+    // Debounce: skip if a duck was scheduled within the last 80ms
+    if (now - window._sidechainLastT < 0.08) return;
+    window._sidechainLastT = now;
+    fxInput.gain.cancelScheduledValues(now);
+    fxInput.gain.setValueAtTime(fxInput.gain.value, now);
+    fxInput.gain.linearRampToValueAtTime(duckTo,  now + 0.008);
+    fxInput.gain.setTargetAtTime(1.0, now + holdDur, restoreTC);
+  };
+
   masterGain.connect(masterHPF);
   buildFXChain();
   // Apply initial mood so default 50% isn't starting harsh
@@ -11663,11 +11683,11 @@ function buildPerc(preset, intensity, name, bufs) {
     ds.start(dropT); reg(name, ds, dsg);
 
     // Pop sidechain pump on the drop
-    if (fxInput && ctx) {
-      fxInput.gain.cancelScheduledValues(dropT);
-      fxInput.gain.setValueAtTime(fxInput.gain.value || 1.0, dropT);
-      fxInput.gain.linearRampToValueAtTime(0.35, dropT + 0.006);
-      fxInput.gain.setTargetAtTime(1.0, dropT + beat * 0.10, beat * 0.06);
+    // Route through coordinator — prevents racing with per-kick sidechain
+    if (fxInput && ctx && window._sidechainDuck) {
+      // Schedule slightly ahead so coordinator fires at dropT not "now"
+      const duckDelay = Math.max(0, dropT - ctx.currentTime);
+      setTimeout(() => window._sidechainDuck(0.38, beat * 0.10, beat * 0.06), duckDelay * 1000);
     }
 
     _fillNextBoost = true;
@@ -11779,14 +11799,10 @@ function buildPerc(preset, intensity, name, bufs) {
         reg(name, s, g);
 
         // ── Pop sidechain: kick ducks master bus briefly (pumping feel) ─────
-        if (_activeSkin === 'pop' && fxInput && ctx) {
-          const duckAmt  = 0.45; // duck to 45% of normal volume
-          const duckTime = beat * 0.12; // duck for 1/8 of a beat
-          const restoreTC = beat * 0.18;
-          fxInput.gain.cancelScheduledValues(t);
-          fxInput.gain.setValueAtTime(fxInput.gain.value || 1.0, t);
-          fxInput.gain.linearRampToValueAtTime(duckAmt, t + 0.008);
-          fxInput.gain.setTargetAtTime(1.0, t + duckTime, restoreTC / 3);
+        // Route through coordinator to prevent racing with fill sidechain
+        if (_activeSkin === 'pop' && fxInput && ctx && window._sidechainDuck) {
+          const duckDelay = Math.max(0, t - ctx.currentTime);
+          setTimeout(() => window._sidechainDuck(0.45, beat * 0.12, beat * 0.06), duckDelay * 1000);
         }
 
         // Double kick with timpani on beat 1 of boss mode — the "stomp" feel
@@ -12012,18 +12028,18 @@ function buildBass808(b, preset, intensity, name) {
 
   function play808(t, freq, dur, vel) {
     if (!layerOn[name]) return;
-    // The 808 pitch sweep: starts 2–3x the target freq, drops fast
-    const startFreq = freq * 2.8;
+    // Pitch sweep: starts 1.8x target (was 2.8x — too aggressive, spiked waveshaper)
+    const startFreq = freq * 1.8;
     const o   = mkOsc(startFreq, 'sine');
     const env = mkGain(0);
     chain(o, env, masterBassG);
 
-    // Pitch envelope: exponential drop to target
+    // Pitch envelope: exponential drop to target — slightly longer for smoother descent
     o.frequency.setValueAtTime(startFreq, t);
-    o.frequency.exponentialRampToValueAtTime(Math.max(20, freq), t + 0.065);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, freq), t + 0.090);
 
-    // Volume: punchy attack, long sustain tail — the 808 "note"
-    const vol = (0.55 + intensity * 0.20) * vel;
+    // Volume: reduced ceiling to stay below limiter spike threshold
+    const vol = (0.42 + intensity * 0.14) * vel;
     env.gain.setValueAtTime(0, t);
     env.gain.linearRampToValueAtTime(vol, t + 0.008);
     env.gain.setValueAtTime(vol * 0.85, t + 0.08);
@@ -12040,8 +12056,8 @@ function buildBass808(b, preset, intensity, name) {
       clickD[i] = (Math.random() * 2 - 1) * Math.exp(-tt / 0.004) * 0.3;
     }
     const clickSrc = ctx.createBufferSource(); clickSrc.buffer = clickBuf;
-    const clickLPF = mkFilt(180, 'lowpass', 0.6);
-    const clickG   = mkGain(vel * 0.55);
+    const clickLPF = mkFilt(120, 'lowpass', 0.5); // lower cutoff — less transient energy
+    const clickG   = mkGain(vel * 0.22);           // was 0.55 — was punching through limiter
     chain(clickSrc, clickLPF, clickG, masterBassG);
     clickSrc.start(t); reg(name, clickSrc, clickLPF, clickG);
   }
@@ -23684,7 +23700,7 @@ function conductorPlan(){}
 // ══════════════════════════════════════════════════════════════════
 
 const GROQ = (() => {
-  const MODEL   = 'llama-3.1-8b-instant';
+  const MODEL   = 'llama-3.3-70b-versatile';
   const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
   let _key     = '';
