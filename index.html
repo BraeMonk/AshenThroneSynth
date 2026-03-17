@@ -2586,6 +2586,8 @@ function advancePhrase() {
     // Notify the Procedural Tonality engine — it may modulate root/scale here
     PT.onPhrase(currentPhrase);
     CE.onPhrase(currentPhrase, getZone(parseInt(slider.value)));
+    // Genre accuracy: phrase-level hooks for pop hook replay, etc.
+    try { onGenrePhrase(next); } catch(e) {}
     // Mutate the zone leitmotif on each phrase transition — keeps melodic identity
     // but prevents exact repetition. mutateMotif was defined but never called before.
     if (journeyActive || JC.active) mutateMotif(getZone(parseInt(slider.value)));
@@ -11222,8 +11224,19 @@ function buildPerc(preset, intensity, name, bufs) {
       reg(name, s, g);
     }
 
+    // ── Swing timing ─────────────────────────────────────────────────
+    // Jazz: triplet swing — each pair of 8th notes becomes long-short (2:1 ratio).
+    // The odd 16th note within each beat pushes forward by swingAmt.
+    // Lo-fi: gentler shuffle — subtle push, more relaxed than jazz.
+    // swingAmt is expressed as a fraction of one 16th-note step.
+    const swingAmt = _activeSkin === 'jazz' ? step * 0.34   // 2:1 triplet feel
+                   : _activeSkin === 'lofi' ? step * 0.16   // gentle shuffle
+                   : 0;
+
     for (let i = 0; i < 16; i++) {
-      const t = barStart + i * step;
+      // Odd 16th notes within each beat (i=1,3,5,7,9,11,13,15) get pushed
+      const swingOffset = (swingAmt > 0 && i % 2 === 1) ? swingAmt : 0;
+      const t = barStart + i * step + swingOffset;
 
       // ── Kick ────────────────────────────────────────────────────────
       if (patterns.kick[i] && rng() > 0.04) {
@@ -16356,6 +16369,8 @@ function startSynth() {
   startPhraseEngine();
   logTimeline(`Start · ${preset.name} · Floor ${floor}`);
   setStatus(preset.desc);
+  // Genre accuracy: start lo-fi vinyl noise layer on play
+  if (_activeSkin === 'lofi') startVinylNoise();
 }
 
 function stopSynth() {
@@ -16374,6 +16389,10 @@ function stopSynth() {
   if (typeof CE !== 'undefined' && CE.clearChapterProgression) CE.clearChapterProgression();
   if (typeof GROQ_MELODY_SHAPE !== 'undefined') GROQ_MELODY_SHAPE = 'arch';
   if (crawlInterval) { clearInterval(crawlInterval); crawlInterval = null; }
+  // Genre accuracy: stop lo-fi vinyl noise and reset pop hook
+  stopVinylNoise();
+  _popHook     = null;
+  _hookPlaying = false;
   slider.value = 1;
 }
 function togglePlay() {
@@ -22194,6 +22213,17 @@ function applySkin(id, save) {
 
   // Apply skin-specific master bus character (reverb, saturation, EQ, delay)
   applySkinAudio(id);
+
+  // Genre accuracy: manage vinyl noise on skin switch
+  if (isPlaying) {
+    if (id === 'lofi') {
+      startVinylNoise();
+    } else {
+      stopVinylNoise();
+    }
+  }
+  // Reset pop hook when leaving pop skin so a fresh hook builds next session
+  if (id !== 'pop') { _popHook = null; _hookPlaying = false; }
 }
 
 function buildSkinBar() {
@@ -23352,156 +23382,122 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./service-worker.js')
     .catch(err => console.warn('SW registration failed:', err));
 }
-// ================== MUSIC ENGINE OVERHAUL ==================
+// ================== GENRE ACCURACY LAYER ==================
+// Wired into the live engine: startSynth, stopSynth, advancePhrase.
+// Each section runs only when the matching skin is active.
 
-// Global musical state
-let bpm = 80;
-let beat = 60 / bpm;
-let bar = beat * 4;
+// ── Lo-fi: vinyl noise ───────────────────────────────────────────
+// A looping low-amplitude noise buffer routed through a sharp LPF
+// to sit under the mix like tape hiss. Gain is deliberately very low
+// so it's felt rather than heard — adds texture without masking melody.
+let _vinylNoiseSrc  = null;
+let _vinylNoiseGain = null;
 
-let progression = [
-  [0,4,7], [5,9,12], [7,11,14], [0,4,7]
-];
-
-// Note: currentBar is declared by the main engine above — reused here
-let _genreChord = progression[0];
-
-const sections = ["intro","verse","chorus","verse","chorus"];
-let sectionIndex = 0;
-
-// Smooth gain
-function smoothGain(g, target, t=0.6){
-  const now = ctx.currentTime;
-  g.gain.cancelScheduledValues(now);
-  g.gain.linearRampToValueAtTime(target, now + t);
+function startVinylNoise() {
+  if (_vinylNoiseSrc || !ctx) return;
+  // 4-second looping noise buffer — longer than 2s avoids audible loop point
+  const bufLen = ctx.sampleRate * 4;
+  const buffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+  const data   = buffer.getChannelData(0);
+  // Pink-ish noise: low-pass filtered white noise approximation via leaky integrator
+  let leak = 0;
+  for (let i = 0; i < bufLen; i++) {
+    const white = Math.random() * 2 - 1;
+    leak = leak * 0.92 + white * 0.08; // single-pole LP — warm tape character
+    data[i] = leak * 0.18;             // scale to hiss level, not crackle
+  }
+  _vinylNoiseSrc        = ctx.createBufferSource();
+  _vinylNoiseSrc.buffer = buffer;
+  _vinylNoiseSrc.loop   = true;
+  _vinylNoiseGain       = ctx.createGain();
+  _vinylNoiseGain.gain.value = 0; // start silent, ramp in gently
+  _vinylNoiseSrc.connect(_vinylNoiseGain);
+  _vinylNoiseGain.connect(masterGain || ctx.destination);
+  _vinylNoiseSrc.start();
+  // Fade in over 2 seconds — avoids click on play
+  _vinylNoiseGain.gain.linearRampToValueAtTime(0.032, ctx.currentTime + 2.0);
 }
 
-// Bar scheduler
-function nextBarTime(){
-  const now = ctx.currentTime;
-  return Math.ceil(now / bar) * bar;
-}
-
-// Advance musical state
-function advanceMusic(){
-  currentBar++;
-  _genreChord = progression[currentBar % progression.length];
-
-  if(currentBar % 8 === 0){
-    sectionIndex = (sectionIndex + 1) % sections.length;
-    updateSection(sections[sectionIndex]);
-  }
-
-  setTimeout(advanceMusic, bar * 1000);
-}
-
-// Section control (pop structure feel)
-function updateSection(section){
-  if(!window.layers) return;
-
-  if(section === "intro"){
-    smoothGain(layers.drums, 0);
-    smoothGain(layers.bass, 0.3);
-  }
-  if(section === "verse"){
-    smoothGain(layers.drums, 0.4);
-    smoothGain(layers.bass, 0.6);
-  }
-  if(section === "chorus"){
-    smoothGain(layers.drums, 1);
-    smoothGain(layers.bass, 1);
+function stopVinylNoise() {
+  if (!_vinylNoiseSrc) return;
+  try {
+    if (ctx && _vinylNoiseGain) {
+      _vinylNoiseGain.gain.setTargetAtTime(0, ctx.currentTime, 0.3);
+    }
+    setTimeout(() => {
+      try { _vinylNoiseSrc?.stop(); } catch(e) {}
+      _vinylNoiseSrc  = null;
+      _vinylNoiseGain = null;
+    }, 800);
+  } catch(e) {
+    _vinylNoiseSrc = null; _vinylNoiseGain = null;
   }
 }
 
-// Force all notes to follow chord
-function getChordNote(){
-  const chord = _genreChord;
-  return chord[Math.floor(Math.random()*chord.length)];
+// ── Pop: hook memory ─────────────────────────────────────────────
+// The hook is a short melodic cell built from CE chord tones at the
+// start of the first 'build' phrase. On every subsequent 'build' or
+// 'climax' entry, the hook replays through the melody bus so the
+// listener hears the same cell return — the defining feature of pop.
+let _popHook      = null; // [{ freq, dur }] — built once per session
+let _hookPlaying  = false;
+
+function _buildPopHook() {
+  if (!ctx || !CE) return;
+  const preset = getZone(parseInt(slider?.value ?? 1));
+  const beat   = (barLength || 4) / 4;
+  // 4-note hook: root → 3rd → 5th → 3rd, rhythmically punchy (dotted-8th feel)
+  const durs   = [beat * 1.5, beat * 0.5, beat * 1.0, beat * 1.0];
+  _popHook = [0, 1, 2, 1].map((voiceIdx, i) => ({
+    freq: CE.chordTone('melody', preset.melodyOctave + 1, voiceIdx),
+    dur:  durs[i],
+  })).filter(n => n.freq && n.freq > 80);
 }
 
-// Humanization
-function humanize(time){
-  return time + (Math.random()-0.5)*0.02;
-}
-
-// Start system
-setTimeout(advanceMusic, bar * 1000);
-
-// ================== END OVERHAUL ==================
-
-// ================== GENRE DEEP PASS ==================
-
-// --- Lofi Enhancements ---
-function applyLofiFeel(time, step){
-  const swing = 0.08;
-  if(step % 2 !== 0) time += swing * beat;
-  return humanize(time);
-}
-
-function createVinylNoise(){
-  const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for(let i=0;i<data.length;i++){
-    data[i] = (Math.random()*2-1) * 0.02;
-  }
-  const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  src.loop = true;
-
-  const gain = ctx.createGain();
-  gain.gain.value = 0.05;
-
-  src.connect(gain).connect(ctx.destination);
-  src.start();
-}
-
-// --- Jazz Enhancements ---
-function getJazzChord(){
-  const base = _genreChord[0];
-  return [base, base+3, base+7, base+10]; // minor 7
-}
-
-function jazzHumanVel(){
-  return 0.5 + Math.random()*0.4;
-}
-
-// --- Pop Enhancements ---
-let savedHook = null;
-
-function generateHook(){
-  let hook = [];
-  for(let i=0;i<4;i++){
-    hook.push(getChordNote());
-  }
-  savedHook = hook;
-}
-
-function playHook(){
-  if(!savedHook) return;
-  savedHook.forEach((note,i)=>{
-    // placeholder: integrate with your synth
+function _playPopHook() {
+  if (_hookPlaying || !_popHook || !ctx || !bus['melody'] || !layerOn['melody']) return;
+  _hookPlaying = true;
+  const b      = bus['melody'];
+  let t        = ctx.currentTime + 0.05;
+  _popHook.forEach(({ freq, dur }) => {
+    const o   = mkOsc(freq, 'sawtooth');
+    const env = mkGain(0);
+    chain(o, env, b);
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(0.09, t + 0.015);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.88);
+    o.start(t); o.stop(t + dur + 0.1);
+    reg('melody', o, env);
+    t += dur;
   });
+  // Clear lock after hook finishes so next phrase can replay it
+  setTimeout(() => { _hookPlaying = false; }, (t - ctx.currentTime) * 1000 + 200);
 }
 
-// --- Genre Router ---
-function applyGenre(genre){
-  if(genre === "lofi"){
-    createVinylNoise();
+// ── Genre phrase dispatch ─────────────────────────────────────────
+// Called from advancePhrase whenever the phrase changes.
+// Runs after CE.onPhrase so chord state is already updated.
+function onGenrePhrase(nextPhrase) {
+  if (_activeSkin === 'lofi') {
+    // Lo-fi has no phrase-level behaviour — vinyl noise runs continuously.
+    return;
   }
-  if(genre === "jazz"){
-    _genreChord = getJazzChord();
-  }
-  if(genre === "pop"){
-    if(!savedHook) generateHook();
+
+  if (_activeSkin === 'pop') {
+    // Build the hook once — on first 'build' of the session.
+    if (nextPhrase === 'build' && !_popHook) {
+      // Slight delay so CE has settled on the new chord for this phrase
+      setTimeout(_buildPopHook, 80);
+    }
+    // Replay the hook on every build and climax — that's what makes it pop.
+    if ((nextPhrase === 'build' || nextPhrase === 'climax') && _popHook) {
+      setTimeout(_playPopHook, 120);
+    }
+    return;
   }
 }
 
-// Auto-apply genre if defined
-if(typeof currentGenre !== "undefined"){
-  applyGenre(currentGenre);
-}
-
-// ================== END GENRE PASS ==================
+// ================== END GENRE ACCURACY LAYER ==================
 </script>
 </body>
 </html>
