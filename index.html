@@ -7705,14 +7705,19 @@ function initAudio() {
   masterHPF.frequency.value = 18; // lowered from 30Hz — was eating zone 1-3 sub bass
 
   // Saturation (WaveShaper) — warm harmonic exciter, not a distortion unit
-  // 0.28 gives rich even-order harmonics that fatten the low-mids
+  // Pre-sat trim: worst-case 10-layer sum at full ceilings hits ~3x nominal into this node.
+  // Scaling down to 0.35 keeps the waveshaper in its warm-saturation zone rather than
+  // hard-clipping. Post-sat makeup gain restores perceived loudness so masterGain still
+  // controls the volume the user hears.
+  const preSatGain = ctx.createGain();
+  preSatGain.gain.value = 0.35; // trims hot sums before waveshaper — not a volume control
   saturationNode = ctx.createWaveShaper();
   saturationNode.curve = makeSatCurve(0.28);
   saturationNode.oversample = '4x';
 
-  // Makeup gain — saturation compresses RMS, we need this back
+  // Makeup gain — compensates for pre-sat trim + saturation RMS compression
   const satMakeup = ctx.createGain();
-  satMakeup.gain.value = 1.0; // unity — new ceilings are already calibrated
+  satMakeup.gain.value = 2.2; // 1/0.35 * slight boost for sat compression
   saturationNode.connect(satMakeup);
 
   // Mood filter — wide open by default so harmonics breathe
@@ -7739,7 +7744,8 @@ function initAudio() {
   masterHighShelf.frequency.value = 3200;
   masterHighShelf.gain.value = 0; // neutral at start
 
-  masterHPF.connect(saturationNode);
+  masterHPF.connect(preSatGain);
+  preSatGain.connect(saturationNode);
   satMakeup.connect(moodFilter);
   moodFilter.connect(masterHighShelf);
   masterHighShelf.connect(masterCompressor);
