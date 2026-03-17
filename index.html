@@ -11348,7 +11348,14 @@ function buildPerc(preset, intensity, name, bufs) {
   timpBus.connect(timpLPF); timpLPF.connect(b);
   reg(name, timpBus, timpLPF);
 
-  const patterns = getGroove(preset, intensity);
+  // For genre skins, clamp intensity to a minimum so the groove always fires.
+  // At floor 1, getIntensity returns 0 which silences snare/hihat via their
+  // intensity > 0.08 / 0.25 guards — defeating the whole purpose of genre perc.
+  // Ambient skins keep the raw intensity so reactive gating works correctly.
+  const _isGenreSkinPerc = ['lofi','jazz','rock','pop'].includes(_activeSkin);
+  const percIntensity = _isGenreSkinPerc ? Math.max(intensity, 0.35) : intensity;
+
+  const patterns = getGroove(preset, percIntensity);
   let barCount = 0;
 
   // ── REACTIVE PERCUSSION — ambient vs genre mode ───────────────────────────
@@ -11787,9 +11794,9 @@ function buildPerc(preset, intensity, name, bufs) {
         // Cinematic velocity: beat 1 (i=0) is loudest, off-beats are ghost hits
         const isDownbeat = (i === 0);
         const isOnbeat   = (i % 4 === 0);
-        const vel = (isDownbeat ? 0.95 + intensity * 0.05
-                  : isOnbeat   ? 0.72 + intensity * 0.18
-                  :              0.38 + intensity * 0.22 + rng() * 0.12) // ghost
+        const vel = (isDownbeat ? 0.95 + percIntensity * 0.05
+                  : isOnbeat   ? 0.72 + percIntensity * 0.18
+                  :              0.38 + percIntensity * 0.22 + rng() * 0.12) // ghost
                   * (isDownbeat ? beatOneBoost : 1.0);
 
         const s = ctx.createBufferSource(); s.buffer = bufs.kick;
@@ -11816,7 +11823,7 @@ function buildPerc(preset, intensity, name, bufs) {
       }
 
       // ── Snare ───────────────────────────────────────────────────────
-      if (patterns.snare[i] && intensity > 0.08 && rng() > 0.07 && rng() < _ambientPercGate('snare')) {
+      if (patterns.snare[i] && percIntensity > 0.08 && rng() > 0.07 && rng() < _ambientPercGate('snare')) {
         // Velocity: main snares at i=4/12 (beats 2&4) are full; ghosting elsewhere
         const isMainSnare = (i === 4 || i === 12);
         const vel = isMainSnare ? 0.82 + intensity * 0.18
@@ -11829,7 +11836,7 @@ function buildPerc(preset, intensity, name, bufs) {
       }
 
       // ── Hihat — sparse, not mechanical ──────────────────────────────
-      if (patterns.hihat[i] && intensity > 0.25 && rng() > (0.15 + (1 - sp.hatDensity) * 0.70) && rng() < _ambientPercGate('hihat')) {
+      if (patterns.hihat[i] && percIntensity > 0.25 && rng() > (0.15 + (1 - sp.hatDensity) * 0.70) && rng() < _ambientPercGate('hihat')) {
         // Accent pattern: 8th note downbeats louder, 16th upbeats whisper-quiet
         const isAccented = (i % 2 === 0);
         const vel = isAccented ? 0.18 + rng() * 0.06 : 0.05 + rng() * 0.04;
@@ -11843,7 +11850,7 @@ function buildPerc(preset, intensity, name, bufs) {
       // ── Rim/accent hits — cinematic micro-transients on off-16ths ───
       // A very quiet rim shot on the 16th note between beats 2 and 3
       // This is what gives cinematic tracks their human feel
-      if (i === 6 && intensity > 0.4 && rng() > 0.55 && rng() < _ambientPercGate('rim')) {
+      if (i === 6 && percIntensity > 0.4 && rng() > 0.55 && rng() < _ambientPercGate('rim')) {
         const s = ctx.createBufferSource(); s.buffer = bufs.snare;
         const g = mkGain(0.10 + rng() * 0.06); // very quiet — ghost note
         chain(s, g, snareBus);
@@ -16913,7 +16920,13 @@ function startSynth() {
   currentGroove = null;
   grooveAge = 0;
   const floor = parseInt(slider.value), preset = getZone(floor);
-  const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+  const rawIntensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+  // Genre skins always play a full mix — floor 1 intensity of 0 collapses all
+  // layer volumes via adaptiveMixTarget's depthScale. Use a minimum of 0.35
+  // so the groove and mix are audible from the very first floor.
+  const intensity = ['lofi','jazz','rock','pop'].includes(_activeSkin)
+    ? Math.max(rawIntensity, 0.35)
+    : rawIntensity;
   const percBufs = buildPercBufs(preset, sessionVoices['perc']);
   LAYER_NAMES.forEach(name => {
     if (name === 'boss') { if (isBoss) startLayer(name, preset, intensity, null); return; }
