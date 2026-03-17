@@ -2436,10 +2436,71 @@ const PHRASE_LAYER_TARGETS = {
 
 };
 
+// ── Per-skin phrase sequences ─────────────────────────────────────────────────
+// Each genre has its own structural arc — not just different instruments
+// but a different shape of tension/release over time.
+const SKIN_PHRASE_SEQUENCES = {
+  // Lo-fi: verse → chorus → verse → chorus → outro (circular, never climaxes hard)
+  lofi:  ['intro', 'build', 'intro', 'build', 'resolution', 'intro', 'build'],
+  // Pop: intro hook → verse → pre-chorus → chorus → verse → chorus → bridge → big finish
+  pop:   ['build', 'intro', 'build', 'climax', 'intro', 'climax', 'tension', 'climax'],
+  // Jazz: head in → comp → solo builds → peak solo → trading → head out → tag
+  jazz:  ['intro', 'build', 'build', 'tension', 'climax', 'tension', 'resolution'],
+  // Rock: cold open loud → riff → chorus → breakdown → chorus → bridge → finale
+  rock:  ['build', 'tension', 'climax', 'build', 'climax', 'tension', 'climax'],
+};
+
+// ── Per-skin phrase layer targets ─────────────────────────────────────────────
+// Defines which instruments are active per phrase per genre.
+// These completely replace PHRASE_LAYER_TARGETS for genre skins.
+const SKIN_PHRASE_LAYER_TARGETS = {
+
+  lofi: {
+    // perc always present in every lofi phrase — brushed shuffle is the heartbeat of lo-fi
+    intro:      ['drone', 'melody', 'bass', 'perc', 'strings'],
+    build:      ['drone', 'melody', 'bass', 'perc', 'strings', 'harp'],
+    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'harp', 'cello'],
+    climax:     ['drone', 'melody', 'bass', 'perc', 'strings', 'harp', 'cello', 'bells'],
+    resolution: ['drone', 'melody', 'bass', 'perc', 'strings', 'harp'],
+  },
+
+  pop: {
+    // perc always present in every pop phrase — the four-on-the-floor never stops
+    intro:      ['drone', 'melody', 'bass', 'perc', 'bells'],
+    build:      ['drone', 'melody', 'bass', 'perc', 'strings', 'bells', 'riser'],
+    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'riser', 'choir'],
+    climax:     ['drone', 'melody', 'bass', 'perc', 'strings', 'choir', 'bells', 'organ'],
+    resolution: ['drone', 'melody', 'bass', 'perc', 'strings', 'bells'],
+  },
+
+  jazz: {
+    intro:      ['drone', 'melody', 'bass', 'perc', 'organ'],
+    build:      ['drone', 'melody', 'bass', 'perc', 'strings', 'organ', 'horn'],
+    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'organ', 'horn', 'cello'],
+    climax:     ['drone', 'melody', 'bass', 'perc', 'strings', 'organ', 'horn', 'cello', 'harp'],
+    resolution: ['drone', 'melody', 'bass', 'perc', 'organ', 'strings'],
+  },
+
+  rock: {
+    intro:      ['drone', 'bass', 'perc', 'guitar'],
+    build:      ['drone', 'bass', 'perc', 'guitar', 'melody', 'organ'],
+    tension:    ['drone', 'bass', 'perc', 'guitar', 'melody', 'organ', 'strings', 'riser'],
+    climax:     ['drone', 'bass', 'perc', 'guitar', 'melody', 'organ', 'choir', 'strings', 'chaos'],
+    resolution: ['drone', 'bass', 'perc', 'guitar', 'melody'],
+  },
+
+};
+
 function startPhraseEngine() {
   stopPhraseEngine();
   const preset = getZone(parseInt(slider.value));
   if (!bpmLocked) barLength = (60 / preset.bpm) * 4;
+  // Use skin-specific phrase sequence if available, fall back to normal
+  if (!journeyActive && !JC.active && SKIN_PHRASE_SEQUENCES[_activeSkin]) {
+    phraseSeq    = SKIN_PHRASE_SEQUENCES[_activeSkin];
+    phraseSeqIdx = 0;
+    currentPhrase = phraseSeq[0];
+  }
   _currentPhraseDur = getPhraseDur(currentPhrase);
   barTimer = setTimeout(tickBar, barLength * 1000);  // wait one full bar before first tick
 }
@@ -2470,7 +2531,8 @@ function tickBar() {
   // causes audible dips mid-phrase. Gate it out.
   const phraseDurCheck = PHRASE_DURATIONS[currentPhrase] || 8;
   const barsBeforeEnd  = phraseDurCheck - phraseBar;
-  if (!journeyActive && !JC.active &&
+  const _isSkinGenre   = ['lofi','pop','jazz','rock'].includes(_activeSkin);
+  if (!journeyActive && !JC.active && !_isSkinGenre &&
       currentPhrase === 'tension' && barsBeforeEnd === 3 && !tensionSilenceActive && isPlaying) {
     tensionSilenceActive = true;
     const silenceLayers = ['perc','wardrums','stomp','march','melody','cello','choir','horn','lute','boss'];
@@ -2687,7 +2749,9 @@ function cinematicOrchestrate(){
 
 function applyPhraseLayers() {
   if (!isPlaying) return;
-  const targets = PHRASE_LAYER_TARGETS[currentPhrase] || [];
+  // Use skin-specific layer targets if available, fall back to default dark fantasy set
+  const skinTargets = SKIN_PHRASE_LAYER_TARGETS[_activeSkin];
+  const targets = (skinTargets ? skinTargets[currentPhrase] : null) || PHRASE_LAYER_TARGETS[currentPhrase] || [];
   // Turn on targets
   targets.forEach(name => {
     if (!layerOn[name]) {
@@ -3272,18 +3336,19 @@ const Conductor = (() => {
       }
     }
 
-    // Dynamic thinning — during intro/resolution at bar 1, 15% chance
-    if (!_thinActive && (currentPhrase === 'intro' || currentPhrase === 'resolution')) {
-      if (phraseBar === 1 && Math.random() < 0.15) {
-        fireThinning(preset, energy);
+    // Dynamic thinning and solo moments — orchestral/dark-fantasy skins only.
+    // These are film-score gestures that don't fit lo-fi, pop, jazz, or rock.
+    const _isGenreSkin = ['lofi','pop','jazz','rock'].includes(_activeSkin);
+    if (!_isGenreSkin) {
+      if (!_thinActive && (currentPhrase === 'intro' || currentPhrase === 'resolution')) {
+        if (phraseBar === 1 && Math.random() < 0.15) {
+          fireThinning(preset, energy);
+        }
       }
-    }
-
-    // Solo moment — between phrases, during resolution at bar 2, 10% chance
-    // Only when not already in a solo and energy is below 0.7
-    if (!_soloActive && currentPhrase === 'resolution' && energy < 0.70) {
-      if (phraseBar === 2 && Math.random() < 0.10) {  // reduced: 35%→10% — solos were too frequent
-        fireSoloMoment(preset, energy);
+      if (!_soloActive && currentPhrase === 'resolution' && energy < 0.70) {
+        if (phraseBar === 2 && Math.random() < 0.10) {
+          fireSoloMoment(preset, energy);
+        }
       }
     }
 
@@ -11264,6 +11329,322 @@ function buildPerc(preset, intensity, name, bufs) {
   const patterns = getGroove(preset, intensity);
   let barCount = 0;
 
+  // ── REACTIVE PERCUSSION — ambient vs genre mode ───────────────────────────
+  // Genre skins (lofi / jazz / rock / pop) own a persistent groove — percussion
+  // is structural and fires on every bar regardless of intensity.
+  //
+  // All other skins are ambient modes where percussion should only emerge when
+  // the energy level justifies it, then recede as energy drops — responsive
+  // rather than driving.
+  //
+  // Gate probabilities per hit type:
+  //   kick   — enters first (threshold 0.18), anchors the pulse
+  //   snare  — enters a little later (threshold 0.28), adds backbeat
+  //   hihat  — last to enter (threshold 0.46), adds groove density
+  //   rim    — same as hihat — micro-transient colour only at peak energy
+  //
+  // Each threshold ramps to full probability over 0.40 of intensity range so
+  // the entrance feels gradual, not a sudden switch.
+  const _GENRE_SKINS = new Set(['lofi', 'jazz', 'rock', 'pop']);
+  const _isAmbientPercMode = !_GENRE_SKINS.has(_activeSkin);
+
+  function _ambientPercGate(hitType) {
+    if (!_isAmbientPercMode) return 1.0; // genre skins: always fire, no gating
+    const liveIntensity = (typeof JC !== 'undefined' && JC.active)
+      ? JC.energy
+      : getIntensity(parseInt(slider?.value ?? 1));
+    const thresholds = { kick: 0.18, snare: 0.28, hihat: 0.46, rim: 0.50 };
+    const thresh = thresholds[hitType] ?? 0.30;
+    if (liveIntensity <= thresh) return 0.0;
+    return Math.min(1.0, (liveIntensity - thresh) / 0.40);
+  }
+
+  // ── GENRE FILLS ─────────────────────────────────────────────────────────────
+  // Musically-aware fills that fire at phrase boundaries and phrase-end bars.
+  // Each genre has completely different fill vocabulary:
+  //
+  //   lofi  — ghost-note whisper rolls, barely-there hat flurries, soft brush
+  //           sweep. Never loud. The drummer is half-asleep on purpose.
+  //           Fill fires only at the last bar of a phrase, very quietly.
+  //
+  //   jazz  — conversational comping fills. Ride ripple, press roll, snare-tom
+  //           dialogue following swing triplet feel. Responds to phrase tension:
+  //           climbing into climax = busier comping; falling into resolution =
+  //           sparse single strokes. Fills can happen on bar 3 OR bar 4.
+  //
+  //   rock  — declarative power fills. Snare-to-floor-tom crash landing on
+  //           beat 1 of the next bar. Big, telegraphed, punching. Climax
+  //           transitions get the biggest fills; intro transitions get short
+  //           2-beat stabs. Fill always on the last bar, always loud.
+  //
+  //   pop   — tight 16th-note snare build with a crash accent into the drop.
+  //           Clean, radio-produced, never muddy. Marks build→climax and
+  //           intro→build transitions. Short 1-beat version for minor phrases.
+  //
+  // Fill state is tracked per-instance so concurrent layers don't fight.
+  // _fillActive suppresses the normal groove pattern during the fill bar so
+  // the two don't bleed into each other.
+
+  let _fillActive   = false;   // true during a fill bar — suppress normal hits
+  let _fillNextBoost = false;  // true on the bar after a fill — downbeat accent
+
+  // Peek at what phrase comes after the current one
+  function _nextPhrase() {
+    const seq = phraseSeq || [];
+    return seq[(phraseSeqIdx + 1) % seq.length] || currentPhrase;
+  }
+
+  // Tension weight: how big/dense should the fill be?
+  //   intro→build = 0.3   build→climax = 0.9   tension→climax = 1.0
+  //   *→resolution = 0.2  *→tension    = 0.6
+  function _fillWeight() {
+    const next = _nextPhrase();
+    const weights = { climax: 0.9, tension: 0.6, build: 0.4, intro: 0.25, resolution: 0.2 };
+    return (weights[next] ?? 0.4) * (0.6 + intensity * 0.4);
+  }
+
+  // Should a fill fire this bar?
+  // Fill bar = last bar of the phrase (phraseBar === phraseDur - 1 after increment,
+  // but barCount already incremented so we check phraseDur against phraseBar).
+  // Jazz also gets an early fill on the second-to-last bar at lower probability.
+  function _shouldFill() {
+    if (!_GENRE_SKINS.has(_activeSkin)) return false;
+    if (_fillActive) return false;
+    const dur = _currentPhraseDur || 8;
+    const bar = phraseBar; // 1-based inside tickBar; barCount inside schedLoop
+    const barsLeft = dur - bar;
+    if (barsLeft === 1) return true;                                 // last bar always eligible
+    if (_activeSkin === 'jazz' && barsLeft === 2) return rng() < 0.35; // jazz early comp
+    return false;
+  }
+
+  // ── Lo-fi fill ────────────────────────────────────────────────────────────
+  // Ghost-note whisper roll: quiet 16th-note snare roll on beats 3–4 only.
+  // Hat stays open and airy throughout so it never feels busy.
+  // No kick during fill — the pocket stays clean.
+  function _schedFillLofi(barStart, beat, weight) {
+    const step  = beat * 0.25;
+    const swing = step * 0.16;
+    // Only fill beats 3 and 4 (steps 8–15) — gentle, late-phrase breath
+    for (let i = 8; i < 16; i++) {
+      const swingOff = (i % 2 === 1) ? swing : 0;
+      const t = barStart + i * step + swingOff;
+      // Ghost snare roll — every step, very quiet, slight velocity variation
+      if (rng() < 0.65) {
+        const vel = (0.06 + rng() * 0.08) * weight;
+        const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+        const g = mkGain(vel);
+        chain(s, g, snareBus);
+        s.start(t); reg(name, s, g);
+      }
+      // Open hat shimmer on 8th-note positions (i=8,10,12,14) — barely there
+      if (i % 2 === 0 && rng() < 0.55) {
+        const vel = (0.04 + rng() * 0.04) * weight;
+        const s = ctx.createBufferSource(); s.buffer = bufs.hihat;
+        const g = mkGain(vel);
+        chain(s, g, hatBus);
+        s.start(t); reg(name, s, g);
+      }
+    }
+  }
+
+  // ── Jazz fill ─────────────────────────────────────────────────────────────
+  // Conversational comping: ride ripples + snare press roll + optional kick
+  // punctuation. Follows triplet swing timing throughout.
+  // High weight (climax approach) = busy 16th triplet press roll.
+  // Low weight (resolution approach) = single strokes, tasteful.
+  function _schedFillJazz(barStart, beat, weight) {
+    const step  = beat * 0.25;
+    const swing = step * 0.34; // full jazz triplet swing
+    const dense = weight > 0.65; // dense fill for climax/tension approach
+
+    for (let i = 0; i < 16; i++) {
+      const swingOff = (i % 2 === 1) ? swing : 0;
+      const t = barStart + i * step + swingOff;
+
+      // Ride ripple — 8th-note ride pattern throughout the fill bar
+      // Ride is faked on the hat bus with a slightly brighter, quieter sound
+      if (i % 2 === 0) {
+        const vel = (0.10 + rng() * 0.06) * weight;
+        const s = ctx.createBufferSource(); s.buffer = bufs.hihat;
+        const g = mkGain(vel);
+        chain(s, g, hatBus);
+        s.start(t); reg(name, s, g);
+      }
+
+      // Press roll / snare dialogue
+      if (dense) {
+        // Dense: 16th-note press roll on beats 3–4 (steps 8–15), building velocity
+        if (i >= 8 && rng() < 0.70) {
+          const prog = (i - 8) / 8; // 0→1 as roll progresses
+          const vel = (0.15 + prog * 0.35 + rng() * 0.08) * weight;
+          const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+          const g = mkGain(vel);
+          chain(s, g, snareBus);
+          s.start(t); reg(name, s, g);
+        }
+      } else {
+        // Sparse: single stroke snare on off-beats 2 and 4 (i=4,12) + ghost
+        if ((i === 4 || i === 12) && rng() < 0.80) {
+          const vel = (0.30 + rng() * 0.20) * weight;
+          const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+          const g = mkGain(vel);
+          chain(s, g, snareBus);
+          s.start(t); reg(name, s, g);
+        }
+        if (i === 9 && rng() < 0.45) { // ghost note between 2 and 3
+          const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+          const g = mkGain((0.08 + rng() * 0.06) * weight);
+          chain(s, g, snareBus);
+          s.start(t); reg(name, s, g);
+        }
+      }
+
+      // Kick punctuation — jazz kick is conversational, not on the beat
+      // Drop one kick somewhere in the middle of the fill (not beat 1)
+      if (i === 5 && rng() < 0.40 * weight) {
+        const s = ctx.createBufferSource(); s.buffer = bufs.kick;
+        const g = mkGain((0.28 + rng() * 0.18) * weight);
+        chain(s, g, kickBus);
+        s.start(t); reg(name, s, g);
+      }
+    }
+  }
+
+  // ── Rock fill ─────────────────────────────────────────────────────────────
+  // Declarative power fill: starts on beat 3 with a snare cascade, accelerates
+  // through 16th notes, lands on beat 1 of the next bar with a kick+crash.
+  // Weight drives how early the fill starts and how dense the cascade is.
+  // The "crash" on beat 1 of the next bar is a louder snare hit (no crash buf).
+  function _schedFillRock(barStart, beat, weight) {
+    const step   = beat * 0.25; // 16th steps
+    // High weight: fill starts beat 2 (i=4). Low weight: starts beat 3 (i=8).
+    const fillStart = weight > 0.7 ? 4 : weight > 0.4 ? 8 : 12;
+
+    for (let i = fillStart; i < 16; i++) {
+      const t   = barStart + i * step;
+      const prog = (i - fillStart) / (16 - fillStart); // 0→1 across fill
+
+      // Snare cascade — density increases as we approach bar end
+      // Every step has a chance; probability rises toward the end
+      const snapChance = 0.30 + prog * 0.65;
+      if (rng() < snapChance) {
+        const vel = (0.42 + prog * 0.45 + rng() * 0.10) * weight;
+        const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+        const g = mkGain(Math.min(1.0, vel));
+        chain(s, g, snareBus);
+        s.start(t); reg(name, s, g);
+      }
+
+      // Kick on beat 3 downbeat (i=8) for weight > 0.5 — the "stomp" into fill
+      if (i === 8 && weight > 0.5) {
+        const s = ctx.createBufferSource(); s.buffer = bufs.kick;
+        const g = mkGain((0.70 + intensity * 0.25) * weight);
+        chain(s, g, kickBus);
+        s.start(t); reg(name, s, g);
+      }
+
+      // Hat choke — open hat accent on beat 3 (i=8), closed after
+      if (i === 8 || i === 12) {
+        const vel = (0.14 + rng() * 0.08) * weight;
+        const s = ctx.createBufferSource(); s.buffer = bufs.hihat;
+        const g = mkGain(vel);
+        chain(s, g, hatBus);
+        s.start(t); reg(name, s, g);
+      }
+    }
+
+    // "Crash" landing — a heavy kick + loud snare on beat 1 of the NEXT bar
+    // Scheduled one bar ahead so it always lands cleanly on the downbeat
+    const crashT = barStart + beat * 4 + 0.004; // beat 1 of next bar + tiny offset
+    // Kick
+    const ck = ctx.createBufferSource(); ck.buffer = bufs.kick;
+    const ckg = mkGain(Math.min(1.0, (0.90 + intensity * 0.10) * weight));
+    chain(ck, ckg, kickBus);
+    ck.start(crashT); reg(name, ck, ckg);
+    // Snare accent (crash substitute)
+    const cs = ctx.createBufferSource(); cs.buffer = bufs.snare;
+    const csg = mkGain(Math.min(1.0, (0.88 + intensity * 0.12) * weight));
+    chain(cs, csg, snareBus);
+    cs.start(crashT); reg(name, cs, csg);
+
+    _fillNextBoost = true; // flag: next bar's beat-1 kick gets extra velocity
+  }
+
+  // ── Pop fill ─────────────────────────────────────────────────────────────
+  // Tight 16th-note snare build into a punchy crash-kick combo on the downbeat.
+  // High weight (build→climax): full 2-beat snare roll + sidechain pump.
+  // Low weight (intro→build): just a 1-beat stab + hat flam.
+  function _schedFillPop(barStart, beat, weight) {
+    const step = beat * 0.25;
+    // High weight: roll starts beat 3 (i=8). Low weight: just beat 4 (i=12).
+    const rollStart = weight > 0.6 ? 8 : 12;
+
+    for (let i = rollStart; i < 16; i++) {
+      const t    = barStart + i * step;
+      const prog = (i - rollStart) / (16 - rollStart);
+
+      // 16th-note snare build — velocity accelerates linearly to the downbeat
+      const vel = (0.20 + prog * 0.60 + rng() * 0.08) * weight;
+      const s = ctx.createBufferSource(); s.buffer = bufs.snare;
+      const g = mkGain(Math.min(1.0, vel));
+      chain(s, g, snareBus);
+      s.start(t); reg(name, s, g);
+
+      // 8th-note hat on downbeats of roll — keeps the grid tight
+      if (i % 2 === 0) {
+        const hs = ctx.createBufferSource(); hs.buffer = bufs.hihat;
+        const hg = mkGain((0.12 + rng() * 0.06) * weight);
+        chain(hs, hg, hatBus);
+        hs.start(t); reg(name, hs, hg);
+      }
+    }
+
+    // Pop crash-kick on beat 1 of the next bar — the "drop"
+    const dropT = barStart + beat * 4 + 0.004;
+    const dk = ctx.createBufferSource(); dk.buffer = bufs.kick;
+    const dkg = mkGain(Math.min(1.0, (0.92 + intensity * 0.08) * weight));
+    chain(dk, dkg, kickBus);
+    dk.start(dropT); reg(name, dk, dkg);
+    const ds = ctx.createBufferSource(); ds.buffer = bufs.snare;
+    const dsg = mkGain(Math.min(1.0, (0.82 + intensity * 0.15) * weight));
+    chain(ds, dsg, snareBus);
+    ds.start(dropT); reg(name, ds, dsg);
+
+    // Pop sidechain pump on the drop
+    if (fxInput && ctx) {
+      fxInput.gain.cancelScheduledValues(dropT);
+      fxInput.gain.setValueAtTime(fxInput.gain.value || 1.0, dropT);
+      fxInput.gain.linearRampToValueAtTime(0.35, dropT + 0.006);
+      fxInput.gain.setTargetAtTime(1.0, dropT + beat * 0.10, beat * 0.06);
+    }
+
+    _fillNextBoost = true;
+  }
+
+  // ── Master fill dispatcher ────────────────────────────────────────────────
+  function _schedFill(barStart, beat) {
+    if (!_shouldFill()) return;
+    const w = _fillWeight();
+    // Probability gate: fills aren't guaranteed every phrase end — that would
+    // be mechanical. Base chance scales with fill weight so big moments fill more.
+    const fillChance = _activeSkin === 'rock' ? 0.72 + w * 0.28   // rock fills often
+                     : _activeSkin === 'pop'  ? 0.65 + w * 0.25   // pop fills on big phrases
+                     : _activeSkin === 'jazz' ? 0.55 + w * 0.30   // jazz — tasteful, not every bar
+                     : _activeSkin === 'lofi' ? 0.35 + w * 0.20   // lofi — rare, subtle
+                     : 0;
+    if (rng() > fillChance) return;
+
+    _fillActive = true;
+    if      (_activeSkin === 'lofi') _schedFillLofi(barStart, beat, w);
+    else if (_activeSkin === 'jazz') _schedFillJazz(barStart, beat, w);
+    else if (_activeSkin === 'rock') _schedFillRock(barStart, beat, w);
+    else if (_activeSkin === 'pop')  _schedFillPop(barStart, beat, w);
+
+    // Fill lasts exactly one bar — clear flag after barLength
+    setTimeout(() => { _fillActive = false; }, barLength * 1000 + 80);
+  }
+
   makeSchedLoop(name, (barStart, beat) => {
     barCount++;
     const step = beat * 0.25; // 16th notes
@@ -11281,6 +11662,32 @@ function buildPerc(preset, intensity, name, bufs) {
       reg(name, s, g);
     }
 
+    // ── Genre fill dispatch — fires before normal hits so fill owns the bar ─
+    _schedFill(barStart, beat);
+
+    // ── Skip normal groove pattern during a fill bar ─────────────────
+    // The fill functions schedule their own hits; normal pattern would clash.
+    // Exception: kick on beat 1 is always kept — it anchors through fills.
+    if (_fillActive) {
+      // Keep beat-1 kick only — everything else deferred to the fill
+      const kickVel = _fillNextBoost
+        ? Math.min(1.0, (0.95 + intensity * 0.05) * 1.25) // post-fill boost
+        : 0.95 + intensity * 0.05;
+      if (patterns.kick[0] && bufs.kick) {
+        const s = ctx.createBufferSource(); s.buffer = bufs.kick;
+        const g = mkGain(kickVel);
+        chain(s, g, kickBus); s.start(barStart); reg(name, s, g);
+      }
+      _fillNextBoost = false;
+      return; // skip rest of normal scheduling
+    }
+
+    // ── Post-fill downbeat boost ──────────────────────────────────────
+    // The bar immediately after a fill gets a velocity accent on beat 1
+    // so the re-entry has extra punch — makes the fill "land" harder.
+    const beatOneBoost = _fillNextBoost ? 1.28 : 1.0;
+    _fillNextBoost = false;
+
     // ── Swing timing ─────────────────────────────────────────────────
     // Jazz: triplet swing — each pair of 8th notes becomes long-short (2:1 ratio).
     // The odd 16th note within each beat pushes forward by swingAmt.
@@ -11296,16 +11703,17 @@ function buildPerc(preset, intensity, name, bufs) {
       const t = barStart + i * step + swingOffset;
 
       // ── Kick ────────────────────────────────────────────────────────
-      if (patterns.kick[i] && rng() > 0.04) {
+      if (patterns.kick[i] && rng() > 0.04 && rng() < _ambientPercGate('kick')) {
         // Cinematic velocity: beat 1 (i=0) is loudest, off-beats are ghost hits
         const isDownbeat = (i === 0);
         const isOnbeat   = (i % 4 === 0);
-        const vel = isDownbeat ? 0.95 + intensity * 0.05
+        const vel = (isDownbeat ? 0.95 + intensity * 0.05
                   : isOnbeat   ? 0.72 + intensity * 0.18
-                  :              0.38 + intensity * 0.22 + rng() * 0.12; // ghost/ghost
+                  :              0.38 + intensity * 0.22 + rng() * 0.12) // ghost
+                  * (isDownbeat ? beatOneBoost : 1.0);
 
         const s = ctx.createBufferSource(); s.buffer = bufs.kick;
-        const g = mkGain(vel);
+        const g = mkGain(Math.min(1.0, vel));
         chain(s, g, kickBus);
         s.start(t);
         reg(name, s, g);
@@ -11332,21 +11740,20 @@ function buildPerc(preset, intensity, name, bufs) {
       }
 
       // ── Snare ───────────────────────────────────────────────────────
-      if (patterns.snare[i] && intensity > 0.08 && rng() > 0.07) {
+      if (patterns.snare[i] && intensity > 0.08 && rng() > 0.07 && rng() < _ambientPercGate('snare')) {
         // Velocity: main snares at i=4/12 (beats 2&4) are full; ghosting elsewhere
         const isMainSnare = (i === 4 || i === 12);
         const vel = isMainSnare ? 0.82 + intensity * 0.18
                                 : 0.28 + intensity * 0.22 + rng() * 0.1;
         const s = ctx.createBufferSource(); s.buffer = bufs.snare;
         const g = mkGain(vel);
-        // Cinematic snare doesn't need bandpass — let the full crack through
         chain(s, g, snareBus);
         s.start(t);
         reg(name, s, g);
       }
 
       // ── Hihat — sparse, not mechanical ──────────────────────────────
-      if (patterns.hihat[i] && intensity > 0.25 && rng() > (0.15 + (1 - sp.hatDensity) * 0.70)) {
+      if (patterns.hihat[i] && intensity > 0.25 && rng() > (0.15 + (1 - sp.hatDensity) * 0.70) && rng() < _ambientPercGate('hihat')) {
         // Accent pattern: 8th note downbeats louder, 16th upbeats whisper-quiet
         const isAccented = (i % 2 === 0);
         const vel = isAccented ? 0.18 + rng() * 0.06 : 0.05 + rng() * 0.04;
@@ -11360,7 +11767,7 @@ function buildPerc(preset, intensity, name, bufs) {
       // ── Rim/accent hits — cinematic micro-transients on off-16ths ───
       // A very quiet rim shot on the 16th note between beats 2 and 3
       // This is what gives cinematic tracks their human feel
-      if (i === 6 && intensity > 0.4 && rng() > 0.55) {
+      if (i === 6 && intensity > 0.4 && rng() > 0.55 && rng() < _ambientPercGate('rim')) {
         const s = ctx.createBufferSource(); s.buffer = bufs.snare;
         const g = mkGain(0.10 + rng() * 0.06); // very quiet — ghost note
         chain(s, g, snareBus);
@@ -22048,11 +22455,11 @@ const SKIN_AUDIO = {
   // Wide cassette reverb softens everything. Extreme high cut — tape rolls off.
   // Heavy warm saturation — the cassette ate the transients. No delay.
   lofi: {
-    reverbSize: 0.48,   // warm medium room — bedroom with soft furnishings
-    reverbWet:  0.55,   // semi-wet — tape bloom, not sharp
-    satBase:    0.32,   // warm — tape saturation, gentle tube warmth
-    moodFilterFreq: 7000,
-    highShelfGain:  -7, // heavy roll-off — tape speed, warm muffled colour
+    reverbSize: 0.18,   // tiny room — just enough for non-anechoic feel, not a hall
+    reverbWet:  0.08,   // nearly dry — lo-fi is intimate and close, reverb kills it
+    satBase:    0.55,   // heavy tape saturation — cassette compression character
+    moodFilterFreq: 3800, // tape bandwidth limit — everything above 4kHz rolls off hard
+    highShelfGain: -10, // extreme top-end cut — tape sounds dark and muffled
     delayTime:  0.0,
     delayFb:    0.0,    // no delay — lo-fi never echoes clean
   },
@@ -22168,6 +22575,7 @@ function applySkinAudio(id) {
   // ── Master compressor — skin-specific dynamics character ─────────
   // Rock: faster attack + harder ratio catches transient peaks before the
   // limiter has to, giving controlled punch rather than brick-wall squash.
+  // Lo-fi: heavy tape compression — squashed, pumping, transients flattened.
   // Other skins restore the default cinematic glue settings.
   if (ctx && masterCompressor) {
     const compRamp = 0.1; // near-instant — compressor parameters aren't AudioParams in all browsers
@@ -22177,6 +22585,12 @@ function applySkinAudio(id) {
       masterCompressor.ratio.value     = 4.0;  // stronger ratio — real bus compression
       masterCompressor.attack.value    = 0.003; // 3ms — fast enough to catch pick transients
       masterCompressor.release.value   = 0.12;  // 120ms — punchy recovery
+    } else if (id === 'lofi') {
+      masterCompressor.threshold.value = -20;  // catches everything — tape saturates early
+      masterCompressor.knee.value      = 12;   // very soft knee — gentle onset, no pumping click
+      masterCompressor.ratio.value     = 6.0;  // heavy squash — cassette compression character
+      masterCompressor.attack.value    = 0.020; // 20ms — lets transient through then squashes
+      masterCompressor.release.value   = 0.40;  // slow release — tape breathing, subtle pump
     } else {
       // Restore default cinematic glue settings for all other skins
       masterCompressor.threshold.value = -10;
@@ -23463,10 +23877,12 @@ function startVinylNoise() {
   _vinylNoiseGain       = ctx.createGain();
   _vinylNoiseGain.gain.value = 0; // start silent, ramp in gently
   _vinylNoiseSrc.connect(_vinylNoiseGain);
-  _vinylNoiseGain.connect(masterGain || ctx.destination);
+  // Route through fxInput not masterGain — stays dry, bypasses reverb wet send
+  // which would smear the hiss into an unnatural washy tail
+  _vinylNoiseGain.connect(fxInput || masterGain || ctx.destination);
   _vinylNoiseSrc.start();
-  // Fade in over 2 seconds — avoids click on play
-  _vinylNoiseGain.gain.linearRampToValueAtTime(0.032, ctx.currentTime + 2.0);
+  // Fade in over 2 seconds — avoids click on play; level raised so hiss is audible
+  _vinylNoiseGain.gain.linearRampToValueAtTime(0.09, ctx.currentTime + 2.0);
 }
 
 function stopVinylNoise() {
