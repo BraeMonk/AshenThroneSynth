@@ -8447,7 +8447,7 @@ const MIX_CEILING = {
   melody:      0.44,  choir:       0.42,  horn:        0.36,
   cello:       0.36,  duduk:       0.32,
   // Melodic colour — decorative, audible but not competing with leads
-  lute:        0.26,  bells:       0.28,  guitar:      0.26,
+  lute:        0.26,  bells:       0.28,  guitar:      0.36,
   flute:       0.30,  harp:        0.28,  oud:         0.26,
   organ:       0.30,
   // Rhythmic — percussion drives the energy, needs to hit hard
@@ -8650,6 +8650,7 @@ const SKIN_BPM_BIAS = {
   crimson:  -4,   // stately — the court does not rush
   ocean:   -10,   // very slow — pressure and depth
   desert:   -2,   // slightly slower — heat and distance
+  rock:     14,   // harder and faster — every zone pushed up, stadium energy
 };
 
 // ── SKIN PERCUSSION DENSITY ───────────────────────────────────────────────────
@@ -10263,7 +10264,7 @@ function buildDroneCabinet(b, preset, intensity, name) {
   ];
 
   const satNode = ctx.createWaveShaper();
-  satNode.curve = makePowerTubeCurve(2.8 + intensity * 1.4);
+  satNode.curve = makePowerTubeCurve(1.8 + intensity * 0.7);
   satNode.oversample = '4x';
   satNode.connect(b); // direct path (dry blend inside makeCabinetChain)
   makeCabinetChain(satNode);
@@ -10282,10 +10283,10 @@ function buildDroneCabinet(b, preset, intensity, name) {
     droneOscs.push({ osc: o, role });
   });
 
-  // Sub bass — guitar amp still needs fundamental
+  // Sub bass — guitar amp fundamental, kept below kick territory to prevent build-up
   const subO = mkOsc(Math.max(28, initRoot), 'sine');
-  const subFilt = mkFilt(110, 'lowpass', 0.6);
-  const subG = mkGain(0.18 + intensity * 0.08);
+  const subFilt = mkFilt(80, 'lowpass', 0.5);
+  const subG = mkGain(0.12 + intensity * 0.05);
   chain(subO, subFilt, subG, b);
   subO.start(); reg(name, subO, subFilt, subG);
   droneOscs.push({ osc: subO, role: 'root' });
@@ -11311,13 +11312,13 @@ function buildPickedBass(b, preset, intensity, name) {
   }
 
   const tubeSat  = ctx.createWaveShaper();
-  tubeSat.curve  = makeTubeCurve(2.2 + intensity * 1.2);
+  tubeSat.curve  = makeTubeCurve(1.5 + intensity * 0.6);
   tubeSat.oversample = '4x';
   // Bass cabinet: presence cut above 3kHz, low-mid boost around 400Hz
   const cabinetLPF = mkFilt(3200, 'lowpass', 0.7);
   const lowMid     = mkFilt(400, 'peaking', 1.5);
   lowMid.gain.value = 3.0;
-  const outG = mkGain(0.55);
+  const outG = mkGain(0.72);
   chain(tubeSat, cabinetLPF, lowMid, outG, b);
   reg(name, tubeSat, cabinetLPF, lowMid, outG);
 
@@ -11342,7 +11343,7 @@ function buildPickedBass(b, preset, intensity, name) {
     const o   = mkOsc(Math.max(20, freq), 'sawtooth');
     const env = mkGain(0);
     chain(o, env, tubeSat);
-    const vol = (0.22 + intensity * 0.12) * vel;
+    const vol = (0.30 + intensity * 0.15) * vel;
     env.gain.setValueAtTime(0, t);
     env.gain.linearRampToValueAtTime(vol, t + 0.012); // fast attack — pick
     env.gain.setValueAtTime(vol * 0.75, t + dur * 0.5);
@@ -12490,19 +12491,22 @@ function buildMelodyDistGuitar(b, preset, intensity, name) {
     return c;
   }
 
-  // Shared amp chain
+  // Shared amp chain — classic rock guitar EQ:
+  // mid scoop around 400Hz (the "boxy" zone), presence peak at 2.5kHz (cut-through)
   const tubeSat  = ctx.createWaveShaper();
-  tubeSat.curve  = makeTube(3.5 + intensity * 1.8);
+  tubeSat.curve  = makeTube(2.0 + intensity * 0.8);
   tubeSat.oversample = '4x';
-  const cabLPF   = mkFilt(4500, 'lowpass', 0.7);
-  const presence = mkFilt(2200, 'peaking', 2.0);
-  presence.gain.value = 4.0;
-  const ampG     = mkGain(0.55);
-  chain(tubeSat, cabLPF, presence, ampG, b);
-  reg(name, tubeSat, cabLPF, presence, ampG);
+  const midScoop  = mkFilt(420, 'peaking', 1.8);
+  midScoop.gain.value = -5;                      // scoop the boxiness out
+  const cabLPF   = mkFilt(4800, 'lowpass', 0.7); // cabinet rolloff
+  const presence = mkFilt(2500, 'peaking', 2.2);
+  presence.gain.value = 5.5;                     // presence peak — cuts through the mix
+  const ampG     = mkGain(0.50);
+  chain(tubeSat, midScoop, cabLPF, presence, ampG, b);
+  reg(name, tubeSat, midScoop, cabLPF, presence, ampG);
 
-  const arcBeats  = (energy > 0.65 ? 2 : energy > 0.35 ? 3.5 : 5.5) * sm.arcBeatsMult;
-  const restBeats = (energy > 0.65 ? 2 : energy > 0.35 ? 4 : 7) * sm.arcBeatsMult;
+  const arcBeats  = (energy > 0.65 ? 1.5 : energy > 0.35 ? 2.5 : 3.5) * sm.arcBeatsMult;
+  const restBeats = (energy > 0.65 ? 1.5 : energy > 0.35 ? 2.5 : 4.5) * sm.arcBeatsMult;
   const VOICE_SEQ = [0, 1, 2, 3, 2, 3, 2, 1];
   let arcStep = 0, arcNow = ctx.currentTime + 0.1;
 
@@ -12515,7 +12519,7 @@ function buildMelodyDistGuitar(b, preset, intensity, name) {
       if (freq && freq > 80) {
         const holdDur = beat * arcBeats;
         const arcPos  = arcStep / Math.max(1, VOICE_SEQ.length - 1);
-        const gainAmt = (0.14 + energy * 0.10) * (0.45 + 0.55 * Math.sin(arcPos * Math.PI));
+        const gainAmt = (0.22 + energy * 0.14) * (0.55 + 0.45 * Math.sin(arcPos * Math.PI));
         const t0      = arcNow;
         const atkTime = 0.008 + (1 - energy) * 0.015; // very fast pick attack
 
@@ -15386,179 +15390,77 @@ function buildHarp(preset, intensity, name) {
 // Sustained pad: chord tones in the middle register, slow bow, rich resonance.
 function buildViola(preset, intensity, name) {
   // ── VIOLA ────────────────────────────────────────────────────────────────────
-  // Orchestral bowed alto string — the inner voice that fills between cello and
-  // violin. Key acoustic properties modelled here:
-  //
-  //   WAVEFORM: Sawtooth not triangle. Real bowed strings are close to sawtooth
-  //   because the bow stick-slip mechanism drives all harmonics (1/n), not just
-  //   odd ones. Triangle (1/n²) kills the 2nd, 4th, 6th harmonics and sounds
-  //   hollow/digital. Sawtooth gives the characteristic nasal warmth.
-  //
-  //   VOICE SPREAD: 6 unison oscillators (root×2, 3rd×2, 5th, octave) each with
-  //   independent micro-detune (±2–8 cents) and individual slow drift LFOs so
-  //   they beat against each other — this is the "chorus" of a real string section
-  //   and the primary thing that separates it from a single synth pad.
-  //
-  //   BOW NOISE: A narrow bandpass filtered noise layer (rosin crunch ~2kHz) sits
-  //   under the oscillators at very low gain — you don't hear it consciously but
-  //   its absence makes everything feel "too pure".
-  //
-  //   VIBRATO: Delayed onset (~1.4s), per-voice slightly different rates (4.5–5.2Hz)
-  //   so the section shimmers rather than pulsing as one.
-  //
-  //   ENVELOPE: Slow bow attack (2.2s) with a subtle bow-pressure LFO that rocks
-  //   the swell very gently (~0.06Hz, ±6% depth) — the natural breath of bowing.
-  //
-  //   BODY FILTER: Viola filter has the characteristic wolf-tone peak at 320Hz and
-  //   the nasal 700Hz peak — these survive as-is from makeBodyFilter('viola').
-  //
-  //   STEREO: Root voices pan left-of-centre, upper voices spread slightly right,
-  //   mimicking the physical seating of a viola section.
-
+  // Alto bowed string. Sits between cello and violin — darker than violin,
+  // less weighty than cello. The inner voice that glues the orchestra together.
+  // Three voices: root, 3rd, and an octave-lower 5th for depth.
+  // Bow pressure LFO modulates a separate tremolo gain, not the master gain
+  // directly — prevents overshoot.
   const b   = bus[name];
   const now = ctx.currentTime;
+  // Note: oscillators are registered via reg() so killLayer handles cleanup.
+  // Do NOT call .stop() with a far-future time — WebAudio holds them in memory.
 
-  // ── 6-voice unison desk ────────────────────────────────────────────────────
-  // Each entry: [chord voiceIdx, octave multiplier, detune cents, gain, pan]
-  // Two detuned roots give the fundamental thickness.
-  // 3rd and 5th fill the harmonic structure.
-  // Octave root adds air without dominating.
-  const VOICE_DESK = [
-    { vIdx: 0, octM: 1.00, det: -6,  gv: 0.30, panV: -0.45 }, // root, slightly sharp
-    { vIdx: 0, octM: 1.00, det:  5,  gv: 0.30, panV: -0.25 }, // root, slightly flat
-    { vIdx: 1, octM: 1.00, det: -3,  gv: 0.22, panV:  0.00 }, // 3rd, centre
-    { vIdx: 1, octM: 1.00, det:  4,  gv: 0.20, panV:  0.15 }, // 3rd, light detune
-    { vIdx: 2, octM: 0.998,det: -2,  gv: 0.16, panV: -0.10 }, // 5th, near-true
-    { vIdx: 0, octM: 2.00, det:  7,  gv: 0.08, panV:  0.30 }, // root octave up — air
+  const VOICES = [
+    { vIdx: 1, oct: 0.985, det:  3, gv: 0.55 }, // slightly lowered inner tone
+    { vIdx: 2, oct: 0.545, det: -2, gv: 0.45 }, // body resonance instead of exact 5th
   ];
+  const violaOscs = [];
 
-  // ── Master signal chain ────────────────────────────────────────────────────
-  // All 6 oscillators → individual gains/pans → shared bodyFilter → swellEnv → b
+  // Signal chain: oscs → bodyFilter (includes lpf character) → swellEnv → b
   const body     = makeBodyFilter(name, 'viola');
   const swellEnv = mkGain(0);
+  const pan = ctx.createStereoPanner();
+  pan.pan.value = -0.35; // viola slightly left
+
   body.output.connect(swellEnv);
-  swellEnv.connect(b);
+  swellEnv.connect(pan);
+  pan.connect(b);
 
-  // Slow bow swell — 2.2s attack, natural hold
+  reg(name, pan);
+
+  // Slow bow swell
   swellEnv.gain.setValueAtTime(0, now);
-  swellEnv.gain.linearRampToValueAtTime(0.72, now + 2.2);
+  swellEnv.gain.linearRampToValueAtTime(0.80, now + 2.5);
 
-  // Bow pressure LFO (~0.06Hz) — gently rocks the swell envelope
-  const bowPressLfo  = mkOsc(0.055 + rng() * 0.020, 'sine');
-  const bowPressLfoG = mkGain(0.055 + intensity * 0.030);
-  chain(bowPressLfo, bowPressLfoG);
-  bowPressLfoG.connect(swellEnv.gain);
-  bowPressLfo.start();
-  reg(name, bowPressLfo, bowPressLfoG);
+  // Bow pressure tremolo — separate node so it doesn't fight the swell
+  const bowTrem  = mkOsc(0.058 + rng() * 0.025, 'sine');
+  const bowTremG = mkGain(0.06 + intensity * 0.035);
+  chain(bowTrem, bowTremG); bowTremG.connect(swellEnv.gain);
+  bowTrem.start();
+  reg(name, bowTrem, bowTremG);
 
-  const violaOscs = []; // for retuning
-
-  VOICE_DESK.forEach(({ vIdx, octM, det, gv, panV }, vi) => {
-    const baseFreq = CE.chordTone('viola', 1, vIdx);
-    if (!baseFreq || baseFreq < 40) return;
-    const freq = baseFreq * octM;
-
-    // Random per-voice drift so players are never perfectly in tune
-    const initDrift = (rng() - 0.5) * 8;
-    const o = mkOsc(freq, 'sawtooth', det + initDrift);
+  VOICES.forEach(({ vIdx, oct, det, gv }) => {
+    const freq = CE.chordTone('viola', 1, vIdx) * oct;
+    if (!freq || freq < 40) return;
+    const drift = (rng() - 0.5) * 10; // ±5 cents random drift
+    const o = mkOsc(freq, 'triangle', det + drift);
     const g = mkGain(gv);
+    o.connect(g); g.connect(body.input);
 
-    const pan = ctx.createStereoPanner();
-    pan.pan.value = panV;
-    reg(name, pan);
-
-    chain(o, g, pan, body.input);
-
-    // Per-voice slow pitch drift LFO — makes unison voices beat naturally
-    const driftLfo  = mkOsc(0.007 + rng() * 0.016 + vi * 0.003, 'sine');
-    const driftLfoG = mkGain(0.8 + rng() * 2.0); // ±0.8–2.8 cents drift
-    chain(driftLfo, driftLfoG);
-    driftLfoG.connect(o.detune);
-    driftLfo.start();
-    reg(name, driftLfo, driftLfoG);
-
-    // Per-voice vibrato — slightly different rate and delay per player
-    const vibRate  = 4.5 + rng() * 0.7; // 4.5–5.2 Hz
-    const vibDelay = 1.2 + rng() * 0.5; // 1.2–1.7s before onset
-    const vib  = mkOsc(vibRate, 'sine');
+    // Vibrato — slower and wider than violin (~4.8Hz, ~1% deviation)
+    const vib  = mkOsc(4.8 + rng() * 0.4, 'sine');
     const vibG = mkGain(0);
-    chain(vib, vibG);
-    vibG.connect(o.frequency);
-    vibG.gain.setValueAtTime(0, now + vibDelay);
-    vibG.gain.linearRampToValueAtTime(freq * 0.009, now + vibDelay + 1.5);
+    chain(vib, vibG); vibG.connect(o.frequency);
+    vibG.gain.setValueAtTime(0, now + 1.5);
+    vibG.gain.linearRampToValueAtTime(freq * 0.010, now + 3.2);
     vib.start();
     reg(name, vib, vibG);
 
-    o.start();
-    reg(name, o, g);
-    violaOscs.push({ osc: o, vIdx, octM, vi });
+    o.start(); reg(name, o, g);
+    violaOscs.push({ osc: o, vIdx, oct });
   });
 
-  // ── Partial harmonic stack ─────────────────────────────────────────────────
-  // Real bowed strings produce a rich partial series above the fundamental.
-  // Add a quiet sine stack at 2nd, 3rd, 4th harmonics of the root — these are
-  // body-filtered by the viola filter above so they take on the instrument's
-  // characteristic resonance shape.
-  const rootFreq = CE.chordTone('viola', 1, 0) || 220;
-  const PARTIALS = [
-    { ratio: 2.0, gv: 0.040 },
-    { ratio: 3.0, gv: 0.018 },
-    { ratio: 4.0, gv: 0.008 },
-  ];
-  const partialOscs = PARTIALS.map(({ ratio, gv }) => {
-    const o = mkOsc(rootFreq * ratio, 'sine');
-    const g = mkGain(gv);
-    chain(o, g, body.input);
-    o.start();
-    reg(name, o, g);
-    return { osc: o, ratio };
-  });
-
-  // ── Rosin bow-noise layer ──────────────────────────────────────────────────
-  // A 4-second looped noise buffer through a narrow bandpass at ~2000Hz gives
-  // the subtle scratchy texture of a real bow on strings. Very quiet — you feel
-  // it, not hear it. Tied to intensity so louder passages have more bow bite.
-  const noiseBuf  = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
-  const noiseData = noiseBuf.getChannelData(0);
-  for (let i = 0; i < noiseData.length; i++) noiseData[i] = Math.random() * 2 - 1;
-
-  const noiseSrc  = ctx.createBufferSource();
-  noiseSrc.buffer = noiseBuf; noiseSrc.loop = true;
-  noiseSrc.loopStart = 0; noiseSrc.loopEnd = 4;
-
-  const rosinFilt = mkFilt(1950 + intensity * 400, 'bandpass', 3.5);
-  const rosinG    = mkGain(0.006 + intensity * 0.004);
-  chain(noiseSrc, rosinFilt, rosinG, b);
-  noiseSrc.start(now + 0.05);
-  reg(name, noiseSrc, rosinFilt, rosinG);
-
-  // ── Chord-change retuning ──────────────────────────────────────────────────
-  // Stagger retune across voices: lower voices move 200–400ms later than upper,
-  // mimicking the physical weight of lower strings. No single mechanical snap.
   function retuneViola() {
     if (!layerOn[name]) return;
     const now2 = ctx.currentTime;
-
-    violaOscs.forEach(({ osc, vIdx, octM, vi }) => {
-      const newFreq = CE.chordTone('viola', 1, vIdx);
-      if (!newFreq || newFreq < 40) return;
-      const target  = newFreq * octM;
-      // Stagger: voice 0/1 (roots) move 250ms later; voice 4/5 (5th, oct) immediate
-      const delay   = vi <= 1 ? 0.25 + rng() * 0.15 : rng() * 0.08;
-      const glide   = vi <= 1 ? 0.65 : 0.35;
-      osc.frequency.cancelScheduledValues(now2);
-      osc.frequency.setValueAtTime(osc.frequency.value, now2 + delay);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(20, target), now2 + delay + glide);
+    violaOscs.forEach(({ osc, vIdx, oct }) => {
+      const newFreq = CE.chordTone('viola', 1, vIdx) * oct;
+      if (newFreq && newFreq > 40) {
+        osc.frequency.cancelScheduledValues(now2);
+        osc.frequency.setValueAtTime(osc.frequency.value, now2);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, newFreq), now2 + 1.8);
+      }
     });
-
-    partialOscs.forEach(({ osc, ratio }) => {
-      const newRoot = CE.chordTone('viola', 1, 0);
-      if (!newRoot) return;
-      osc.frequency.cancelScheduledValues(now2);
-      osc.frequency.setValueAtTime(osc.frequency.value, now2);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(20, newRoot * ratio), now2 + 0.5);
-    });
-
     regT(name, setTimeout(retuneViola, Math.max(200, (barLength || 2) * 2000)));
   }
   regT(name, setTimeout(retuneViola, (barLength || 2) * 1000));
@@ -22047,16 +21949,17 @@ const SKIN_AUDIO = {
     delayFb:    0.22,   // two fading echoes — open desert space
   },
   // ── VOLTAGE RISE — stadium rock. Distorted guitars, kick-driven 4/4, searing.
-  // Tight room bounce off concrete walls. Heavy saturation — cranked amp warmth.
-  // Bright shelf for pick attack. Medium slapback at dotted-8th of ~120bpm.
+  // Tight room bounce off concrete walls. Individual voice saturators handle amp grit.
+  // Master saturation is glue only — don't stack distortion on top of distortion.
+  // Bright shelf for pick attack but restrained to not peak the limiter.
   rock: {
     reverbSize: 0.20,   // live arena room — concrete bounce, not cathedral
-    reverbWet:  0.25,   // mostly dry — kick and guitar punch must survive
-    satBase:    0.45,   // heavy — cranked amp, power chord grit
-    moodFilterFreq: 15000,
-    highShelfGain:  5,  // bright and aggressive — pick attack, cymbal sizzle
+    reverbWet:  0.22,   // mostly dry — kick and guitar punch must survive
+    satBase:    0.20,   // glue only — voice saturators already do the heavy lifting
+    moodFilterFreq: 14000,
+    highShelfGain:  3,  // bright and aggressive but won't peak-clip the limiter
     delayTime:  0.07,   // slapback — concrete wall reflection at 120bpm dotted-8th
-    delayFb:    0.12,   // single bounce — stadium echo, not wash
+    delayFb:    0.10,   // single bounce — stadium echo, not wash
   },
 
   // ── AMBER TAPE — bedroom lo-fi. Tape hiss, muffled warmth, slow BPM.
@@ -22177,6 +22080,28 @@ function applySkinAudio(id) {
       dfEl.value = pct;
       dfEl.style.setProperty('--pct', pct + '%');
       document.getElementById('delayFeedbackVal').textContent = pct + '%';
+    }
+  }
+
+  // ── Master compressor — skin-specific dynamics character ─────────
+  // Rock: faster attack + harder ratio catches transient peaks before the
+  // limiter has to, giving controlled punch rather than brick-wall squash.
+  // Other skins restore the default cinematic glue settings.
+  if (ctx && masterCompressor) {
+    const compRamp = 0.1; // near-instant — compressor parameters aren't AudioParams in all browsers
+    if (id === 'rock') {
+      masterCompressor.threshold.value = -14;  // catch more of the dense rock mix
+      masterCompressor.knee.value      = 3;    // tighter knee — grabs harder
+      masterCompressor.ratio.value     = 4.0;  // stronger ratio — real bus compression
+      masterCompressor.attack.value    = 0.003; // 3ms — fast enough to catch pick transients
+      masterCompressor.release.value   = 0.12;  // 120ms — punchy recovery
+    } else {
+      // Restore default cinematic glue settings for all other skins
+      masterCompressor.threshold.value = -10;
+      masterCompressor.knee.value      = 6;
+      masterCompressor.ratio.value     = 2.5;
+      masterCompressor.attack.value    = 0.006;
+      masterCompressor.release.value   = 0.15;
     }
   }
 }
