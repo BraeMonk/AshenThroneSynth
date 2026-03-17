@@ -7706,10 +7706,47 @@ function _getZoneRaw(f) {
   return zones.find(z => f >= z.range[0] && f <= z.range[1]) || zones[zones.length - 1];
 }
 
+// Per-genre zone overrides — applied on top of zone data to make genre skins
+// actually sound like their genre instead of ambient dungeon music.
+// Zone bassPatterns were designed for ashen/dark-fantasy (sparse or empty).
+// Genre skins need active bass and melody to feel alive.
+const GENRE_ZONE_OVERRIDES = {
+  lofi: {
+    // Lofi needs a walking bass on beat 1 and 3 minimum, melody present but sparse
+    bassPattern:  [1,0,0,0,1,0,0,0],
+    melodySkip:   0.30,  // was up to 0.70 — more melody presence
+    reverbWetBase: 0.45, // warm but not washed out
+    satBase:       0.12,
+  },
+  jazz: {
+    // Jazz walking bass: root, fifth, approach tones
+    bassPattern:  [1,0,0,1,0,1,0,0],
+    melodySkip:   0.20,  // improvised line — present
+    reverbWetBase: 0.55,
+    satBase:       0.08,
+  },
+  rock: {
+    // Rock: driving 4/4 bass, melody present
+    bassPattern:  [1,0,0,0,1,0,0,1],
+    melodySkip:   0.15,  // guitar lead — very present
+    reverbWetBase: 0.25, // tight and dry
+    satBase:       0.35, // gritty
+  },
+  pop: {
+    // Pop: punchy bass on 1 and 3, melody always present
+    bassPattern:  [1,0,0,1,0,0,1,0],
+    melodySkip:   0.10,  // vocal lead — almost always playing
+    reverbWetBase: 0.35,
+    satBase:       0.15,
+  },
+};
+
 function getZone(f) {
   const base = _getZoneRaw(f);
+  const overrides = GENRE_ZONE_OVERRIDES[_activeSkin] || {};
   // Return a merged object: zone cosmetics + timbre, but PT owns root/scale
-  return Object.assign(Object.create(base), base, {
+  // Genre skin overrides applied last so they win over zone defaults
+  return Object.assign(Object.create(base), base, overrides, {
     root:  PT.root,
     scale: PT.scale,
   });
@@ -16979,6 +17016,13 @@ function startSynth() {
       }
     });
 
+    // Sync layer button + pill UI to match layerOn state set by startSynth
+    LAYER_NAMES.forEach(name => {
+      const on = !!layerOn[name];
+      document.getElementById('btn-' + name)?.classList.toggle('active', on);
+      document.getElementById('pill-' + name)?.classList.toggle('on', on);
+    });
+
     startPhraseEngine();
     logTimeline(`Start · ${preset.name} · Floor ${floor}`);
     setStatus(preset.desc);
@@ -22632,17 +22676,16 @@ const SKIN_AUDIO = {
     delayFb:    0.10,   // single bounce — stadium echo, not wash
   },
 
-  // ── AMBER TAPE — bedroom lo-fi. Tape hiss, muffled warmth, slow BPM.
-  // Wide cassette reverb softens everything. Extreme high cut — tape rolls off.
-  // Heavy warm saturation — the cassette ate the transients. No delay.
+  // ── AMBER TAPE — bedroom lo-fi. Warm and muffled but still present.
+  // Slight room, warm saturation, gentle top-end roll. Drums need to breathe.
   lofi: {
-    reverbSize: 0.18,   // tiny room — just enough for non-anechoic feel, not a hall
-    reverbWet:  0.08,   // nearly dry — lo-fi is intimate and close, reverb kills it
-    satBase:    0.55,   // heavy tape saturation — cassette compression character
-    moodFilterFreq: 3800, // tape bandwidth limit — everything above 4kHz rolls off hard
-    highShelfGain: -10, // extreme top-end cut — tape sounds dark and muffled
+    reverbSize: 0.22,
+    reverbWet:  0.18,   // intimate but not dead
+    satBase:    0.22,   // warm tape feel without killing transients
+    moodFilterFreq: 8000, // gentle roll-off — warmth not mud
+    highShelfGain: -4,  // warm, not underwater
     delayTime:  0.0,
-    delayFb:    0.0,    // no delay — lo-fi never echoes clean
+    delayFb:    0.0,
   },
 
   // ── SUGAR RUSH — radio pop. Clean, compressed, hyper-produced.
@@ -22806,6 +22849,8 @@ function applySkinVoices(skinId) {
   Object.entries(prefs).forEach(([layer, voice]) => {
     sessionVoices[layer] = voice;
   });
+  // Update the UI labels so the button shows the correct voice for this skin
+  updateVoiceLabels();
 }
 
 
