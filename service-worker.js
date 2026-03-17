@@ -1,7 +1,7 @@
 // Ashen Throne — Music Forge · Service Worker
 // Strategy: cache-first for all local assets, network-only for Groq API
 
-const CACHE = 'music-forge-v9';
+const CACHE = 'music-forge-v10';
 
 const PRECACHE = [
   './index.html',
