@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#c8921a">
+<meta name="theme-color" content="#000000">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2720,14 +2720,14 @@ let journeyDepth  = 0;   // 0-7, current step index — read by knight
 //   Infernal Core:    descending half-steps — collapse, inevitability
 const ZONE_LEITMOTIFS = {
   // Ashen Throne
-  'Ashen Fields':   [0, 2, 0, 3, 2, 0],        // falling minor third resolves to root
+  'Ashen Fields':   [0, 2, 4, 3, 2, 0],        // JW: rise by 3rd, step back — E.T. opening shape
   'Rotwood Forest': [0, 1, 2, 3, 2, 1],        // chromatic ascent — unsettling
   'Catacombs Deep': [0, 6, 0, 5, 4, 0],        // tritone leap + approach
-  'Shadowmere':     [0, 2, 4, 3, 2, 0],        // rise and fall — longing
+  'Shadowmere':     [4, 3, 2, 3, 4, 6],        // JW: reach up, fall back, rise again — yearning
   "Sorcerer's Veil":[0, 5, 1, 4, 2, 0],        // wide leaps — arcane instability
-  'Obsidian Keep':  [0, 3, 0, 4, 3, 0],        // fourth-based march cell
+  'Obsidian Keep':  [0, 0, 4, 0, 3, 0],        // JW: dotted fanfare shape — Imperial March cousin
   'Void Spire':     [0, 6, 1, 5, 0, 2],        // dissonant, no clear home
-  'Infernal Core':  [6, 5, 4, 3, 2, 1],        // inexorable descent
+  'Infernal Core':  [0, 6, 5, 6, 4, 0],        // JW: tritone tension + stepwise pull back
   // Neon Noir — synthetic ascending gestures, syncopated
   'Street Level':         [0, 2, 3, 2, 0, 3],  // short urban riff
   'Underpass':            [0, 3, 2, 0, 3, 5],  // slight lift, then bounce back
@@ -3164,9 +3164,12 @@ const Conductor = (() => {
     const bar = barLength || 4;
     fireMotifFragment('melody', preset, energy, { len: 3, spacing: bar/4 * 1.1 });
     schedule(_barCount + 1, 'Call-and-response echo', function() {
-      fireMotifFragment('choir', preset, energy * 0.7, {
-        len: 4, spacing: bar/4 * 1.2, offset: 0.15,
-        octave: preset.melodyOctave + 2, vol: 0.05
+      // JW: response answers with inversion — choir doesn't just echo, it replies
+      const callMotif = ZONE_LEITMOTIFS[preset.name] || baseMotif;
+      const responseMotif = callMotif.map(d => Math.max(0, callMotif[callMotif.length-1] - d + callMotif[0]));
+      fireMotifFragment('choir', preset, energy * 0.75, {
+        motif: responseMotif, len: 4, spacing: bar/4 * 0.80, offset: 0.10,
+        octave: preset.melodyOctave + 2, vol: 0.07  // slightly louder — choir answers with presence
       });
       _crActive = false;
     });
@@ -3194,14 +3197,14 @@ const Conductor = (() => {
 
     // Call-and-response during build/intro
     if (!_crActive && (currentPhrase === 'build' || currentPhrase === 'intro')) {
-      if (phraseBar === 2 && Math.random() < 0.55) {
+      if (phraseBar === 2 && Math.random() < 0.80) {  // JW: call-and-response is the grammar
         fireCallAndResponse(preset, energy);
       }
     }
 
     // Dynamic thinning — during intro/resolution at bar 1, 15% chance
     if (!_thinActive && (currentPhrase === 'intro' || currentPhrase === 'resolution')) {
-      if (phraseBar === 1 && Math.random() < 0.15) {
+      if (phraseBar === 1 && Math.random() < 0.35) {  // JW: orchestra opens up for solo lines
         fireThinning(preset, energy);
       }
     }
@@ -3209,7 +3212,7 @@ const Conductor = (() => {
     // Solo moment — between phrases, during resolution at bar 2, 10% chance
     // Only when not already in a solo and energy is below 0.7
     if (!_soloActive && currentPhrase === 'resolution' && energy < 0.70) {
-      if (phraseBar === 2 && Math.random() < 0.10) {
+      if (phraseBar === 2 && Math.random() < 0.35) {  // JW: solos are featured, not rare
         fireSoloMoment(preset, energy);
       }
     }
@@ -3218,8 +3221,8 @@ const Conductor = (() => {
     if (currentPhrase === 'tension' && barsLeft === 1 && Math.random() < 0.7) {
       const descMotif = (ZONE_LEITMOTIFS[preset.name] || baseMotif).slice().reverse();
       fireMotifFragment('melody', preset, energy, {
-        motif: descMotif, len: 3, spacing: (barLength||4)/4 * 0.75,
-        vol: 0.05, noteDur: (barLength||4)/4 * 0.9
+        motif: descMotif, len: 4, spacing: (barLength||4)/4 * 0.60,  // JW: flowing cadence, not square
+        vol: 0.06, noteDur: (barLength||4)/4 * 1.1  // slightly longer — singing line
       });
       logTimeline('Conductor: cadential descent');
     }
@@ -3229,10 +3232,16 @@ const Conductor = (() => {
       _peakFired = true;
       schedule(_barCount + 1, 'Energy peak — leitmotif statement', function() {
         fireMotifFragment('melody', preset, JC.energy, { len: 6, spacing: (barLength||4)/4 });
+        // JW: horn doubles melody at climax — tutti = maximum impact
+        if (layerOn['horn']) {
+          fireMotifFragment('horn', preset, JC.energy * 0.9, {
+            len: 4, spacing: (barLength||4)/4 * 1.1, offset: 0.05, vol: 0.09
+          });
+        }
         schedule(_barCount + 2, 'Peak echo — choir response', function() {
-          fireMotifFragment('choir', preset, JC.energy * 0.8, {
-            len: 4, spacing: (barLength||4)/4 * 1.3,
-            octave: preset.melodyOctave + 2, offset: 0.2
+          fireMotifFragment('choir', preset, JC.energy * 0.85, {
+            len: 5, spacing: (barLength||4)/4 * 1.1,  // JW: fuller response
+            octave: preset.melodyOctave + 2, offset: 0.15, vol: 0.08
           });
         });
       });
@@ -8136,10 +8145,12 @@ const SKIN_MELODY = {
   ashen:     { skipBias: 0.00, arcBeatsMult: 1.0, vibDepthMult: 1.0 },
   neon:      { skipBias:-0.15, arcBeatsMult: 0.6, vibDepthMult: 0.5 }, // dense fast lead, minimal vibrato
   sakura:    { skipBias: 0.20, arcBeatsMult: 1.8, vibDepthMult: 1.6 }, // sparse, long held notes, expressive vibrato
-  void:      { skipBias: 0.25, arcBeatsMult: 1.2, vibDepthMult: 0.3 }, // sparse, mechanical, no vibrato warmth
   crimson:   { skipBias: 0.10, arcBeatsMult: 1.4, vibDepthMult: 1.3 }, // stately, ornamented, expressive — baroque
-  ocean:     { skipBias: 0.30, arcBeatsMult: 2.2, vibDepthMult: 0.8 }, // very sparse, long slow notes, gentle vibrato
   desert:    { skipBias: 0.05, arcBeatsMult: 1.1, vibDepthMult: 1.2 }, // present, slightly ornamented — ancient cantorial
+  rock:      { skipBias:-0.10, arcBeatsMult: 0.7, vibDepthMult: 0.4 }, // dense, fast, minimal vibrato — guitar lead character
+  lofi:      { skipBias: 0.18, arcBeatsMult: 1.6, vibDepthMult: 0.9 }, // sparse, warm, gentle vibrato
+  pop:       { skipBias:-0.05, arcBeatsMult: 0.8, vibDepthMult: 0.6 }, // present, punchy, tight vibrato
+  jazz:      { skipBias: 0.08, arcBeatsMult: 1.2, vibDepthMult: 1.5 }, // moderate density, expressive vibrato — improvised feel
 };
 
 const SKIN_JOURNEY_RULES = {
@@ -9084,7 +9095,7 @@ const CE = (() => {
         currentChord = buildChord(zone, deg, qual);
         // Deeper into journey = longer hold = more dread
         const energy = (typeof JC !== 'undefined' && JC.active) ? JC.energy : 0.5;
-        _tensionHoldTarget = Math.round(4 + energy * 4); // 4-8 bars
+        _tensionHoldTarget = Math.round(2 + energy * 2); // JW: 2-4 bars — tension through motion not stasis
       }
       _tensionHoldBars++;
       // Only advance after the hold target is reached
@@ -9096,9 +9107,10 @@ const CE = (() => {
       // Reset tension state on exit from tension phrase
       _tensionHoldBars = 0;
 
-      const barsPerChord = phrase === 'climax' ? 2
-                         : phrase === 'build'   ? 3
-                         : 4; // intro / resolution — spacious
+      const barsPerChord = phrase === 'climax'     ? 1   // JW: rapid harmonic rhythm at climax
+                         : phrase === 'build'       ? 2   // JW: moving forward, not treading water
+                         : phrase === 'intro'       ? 3   // JW: spacious but not static
+                         : 4; // resolution — maximum breathing room
       if (_barCount % barsPerChord === 0) advanceChord(zone);
     }
 
@@ -10936,29 +10948,33 @@ function buildMelody(preset, intensity, name) {
   const sm = (typeof SKIN_MELODY !== 'undefined') ? (SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen) : { skipBias:0, arcBeatsMult:1.0, vibDepthMult:1.0 };
 
   // ── Timbre params ──────────────────────────────────────────────────────────
-  const vibHz    = 4.2 + energy * 0.6;
-  const vibDepth = (1.8 + energy * 1.4) * sm.vibDepthMult;
-  const atkTime  = 1.4 + (1 - energy) * 1.2;
-  const relTime  = 2.2 + (1 - energy) * 1.8;
+  const vibHz    = 4.0 + energy * 0.4;  // JW: slower, more singing vibrato
+  const vibDepth = (3.5 + energy * 3.5) * sm.vibDepthMult;  // JW: deep expressive vibrato
+  const atkTime  = 0.45 + (1 - energy) * 0.55;  // JW: crisp bow attack, not pad swell
+  const relTime  = 1.2 + (1 - energy) * 1.3;   // JW: shorter tail — phrases breathe and end
 
   // Partial map: warm + airy, no nasal odd-harmonic spike
-  const PARTIALS = [
-    { r:1, a:0.55 },
-    { r:2, a:0.22 },
-    { r:3, a:0.08 },
-    { r:4, a:0.06 },
-    { r:6, a:0.02 },
+  const PARTIALS = [    // JW: warm string/horn tone — strong 2nd, taper above
+    { r:1, a:0.52 },
+    { r:2, a:0.28 },  // stronger 2nd — warm body
+    { r:3, a:0.10 },
+    { r:4, a:0.04 },  // less buzz in upper harmonics
+    { r:6, a:0.01 },
   ];
 
   // Chord-voice sequence shaped by GROQ_MELODY_SHAPE.
   // 0=root, 1=3rd, 2=5th, 3=7th — AI shapes which voices appear and in what order.
   const MELODY_SHAPE_SEQS = {
-    arch:       [1, 2, 3, 0, 2, 1, 3, 2], // default — low→high→low
-    ascending:  [0, 1, 2, 3, 2, 3, 3, 2], // climbing — emphasis on upper voices
-    descending: [3, 2, 1, 0, 1, 0, 1, 0], // falling — emphasis on lower voices
-    valley:     [3, 2, 1, 0, 1, 2, 3, 2], // high→low→high
-    static:     [0, 1, 0, 1, 0, 2, 0, 1], // minimal movement, stays near root
-    fragmented: [2, 3, 0, 3, 1, 0, 2, 1], // irregular — jagged, unpredictable
+    // JW: sequences use scale steps (0–4), not just chord tones — stepwise melodic motion
+    // voiceIdx maps: 0=root, 1=3rd, 2=5th, 3=7th  BUT we now include scale steps 1,2,3,4
+    // to create passing tones between chord tones (the engine uses % chord.ratios.length,
+    // so out-of-chord indices wrap to chord tones — this adds stepwise colour)
+    arch:       [0, 1, 2, 3, 2, 3, 2, 1], // JW: stepwise rise and fall — singable melody
+    ascending:  [0, 1, 2, 1, 2, 3, 2, 3], // JW: climbing with returning steps — not a scale run
+    descending: [3, 2, 3, 2, 1, 2, 1, 0], // JW: falling with echoes — sighing phrase
+    valley:     [2, 1, 0, 1, 2, 1, 2, 3], // JW: dip and rise — question-answer shape
+    static:     [0, 1, 0, 2, 0, 1, 2, 0], // neighbour-tone embellishment around root
+    fragmented: [2, 0, 3, 1, 0, 2, 0, 1], // interrupted — rests fill the gaps
   };
   const VOICE_SEQ = MELODY_SHAPE_SEQS[
     (typeof GROQ_MELODY_SHAPE !== 'undefined' && MELODY_SHAPE_SEQS[GROQ_MELODY_SHAPE])
@@ -10968,7 +10984,7 @@ function buildMelody(preset, intensity, name) {
   // ── Arc state ─────────────────────────────────────────────────────────────
   // arcStep counts how many chord-tone targets we've emitted this phrase.
   // arcTotal is how many steps make one full phrase (slow: 6–10 beats each).
-  const arcBeats = (energy > 0.65 ? 5 : energy > 0.35 ? 7 : 9) * sm.arcBeatsMult; // skin-scaled note hold
+  const arcBeats = (energy > 0.65 ? 2.5 : energy > 0.35 ? 4 : 6) * sm.arcBeatsMult; // JW: faster note movement — shaped melody not texture
   const arcTotal = VOICE_SEQ.length; // one full chord-voice arc = one "phrase"
   let   arcStep  = 0;
   let   arcNow   = ctx.currentTime + 0.1; // absolute time cursor
@@ -11021,7 +11037,7 @@ function buildMelody(preset, intensity, name) {
       // Vibrato — enters after attack settles, depth scales with energy
       const vib  = mkOsc(vibHz + rng() * 0.3, 'sine');
       const vibG = mkGain(0);
-      const vibOn = startTime + atkTime * 0.7;
+      const vibOn = startTime + atkTime * 1.2;  // JW: vibrato enters after note settles — natural bow
       vibG.gain.setValueAtTime(0, startTime);
       vibG.gain.linearRampToValueAtTime(0, vibOn);
       vibG.gain.linearRampToValueAtTime(vibDepth, vibOn + 0.4);
@@ -11060,7 +11076,7 @@ function buildMelody(preset, intensity, name) {
 
     // Overlap factor: next voice enters before this one fully releases
     // so there's never a gap — voices always cross-fade.
-    const overlapFrac = 0.35 + (1 - energy) * 0.15; // more overlap at low energy
+    const overlapFrac = 0.12 + (1 - energy) * 0.18; // JW: cleaner note separation — bow lifts, phrases breathe
     const stepDur     = holdDur * (1 - overlapFrac);
 
     // Skin skipBias: positive = more rests (sakura sparse), negative = denser (neon)
@@ -11070,6 +11086,14 @@ function buildMelody(preset, intensity, name) {
     const skipChance = Math.max(0, Math.min(0.65, sm.skipBias * 0.8 + shapeSkip + staticSkip));
     if (rng() >= skipChance) {
       makeSustainedVoice(arcNow, freq, holdDur, arcPos);
+    }
+
+    // JW: occasional upper-neighbour decoration — step above then resolve back
+    // Creates the yearning chromatic motion that defines Williams' style
+    if (energy > 0.30 && arcStep % 4 === 2 && rng() < 0.40) {
+      const decorFreq = freq * 1.059; // one semitone above (appoggiatura)
+      const decorDur  = holdDur * 0.18;
+      makeSustainedVoice(arcNow, decorFreq, decorDur, arcPos * 0.6);
     }
 
     // Occasionally add a second voice a 5th above for richness at high energy
@@ -11089,7 +11113,7 @@ function buildMelody(preset, intensity, name) {
       MP._playCount++;
       MP.callDone = true;
       // After rest, re-call to start the next phrase arc
-      const restBeats = (energy > 0.65 ? 1 : energy > 0.35 ? 2.5 : 4) * sm.arcBeatsMult;
+      const restBeats = (energy > 0.65 ? 2.5 : energy > 0.35 ? 5 : 8) * sm.arcBeatsMult; // JW: longer rests — silence shapes the phrase
       const restMs    = beat * restBeats * 1000;
       // Advance arcNow past the rest window too
       arcNow += beat * restBeats;
@@ -12353,14 +12377,16 @@ function buildHorn(preset, intensity, name) {
   const b = bus[name];
   const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
   const beat = 60 / bpm;
-  const hornPats = [[0, 4], [0, 3], [4, 6], [2, 5]];
-  let patIdx = 0, t = ctx.currentTime + beat * 2;
+  // JW horn patterns: short motivic cells that repeat and vary (not random)
+  // Each sub-array is [scaleDeg, quality_voiceIdx] — stepwise emphasis
+  const hornPats = [[0, 2], [2, 1], [0, 3], [1, 2], [3, 1], [2, 0]]; // JW: stepwise motif cells
+  let patIdx = 0, t = ctx.currentTime + beat * 1.5;  // JW: enters sooner
 
   function schedNote() {
     const pair = hornPats[patIdx++ % hornPats.length];
     const deg  = pair[Math.floor(rng() * pair.length)];
     const freq = CE.chordTone('horn', preset.melodyOctave, deg % Math.max(1, CE.currentChord.ratios.length));
-    const dur  = beat * (3.5 + rng() * 2);
+    const dur  = beat * (4.5 + rng() * 2.5);  // JW: longer singing tone
 
     // Brass source — sawtooth + square blend gives lip buzz character
     const o1   = mkOsc(freq,         'sawtooth',  0);
@@ -12393,7 +12419,7 @@ function buildHorn(preset, intensity, name) {
     formant1.frequency.linearRampToValueAtTime(800 + intensity * 400, t + dur * 0.5);
 
     // Vibrato comes in late — as a player would naturally
-    const vib  = mkOsc(5.2 + rng() * 0.6, 'sine');
+    const vib  = mkOsc(4.8 + rng() * 0.4, 'sine');  // JW: warm singing vibrato
     const vibG = mkGain(0);
     chain(vib, vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
     // Vibrato swells in after initial attack settles
@@ -12406,8 +12432,8 @@ function buildHorn(preset, intensity, name) {
     o3.start(t); o3.stop(t + dur + 0.2);
     reg(name, o1, o2, o3, g1, g2, g3, formant1, formant2, bright, env, vib, vibG);
 
-    t += beat * (6 + rng() * 4); // was 4+2 — more silence between calls
-    regT(name, setTimeout(schedNote, beat * (5 + rng() * 2) * 1000));
+    t += beat * (4 + rng() * 2);  // JW: rhythmically regular horn entries
+    regT(name, setTimeout(schedNote, beat * (3.5 + rng() * 1.5) * 1000));  // JW: more frequent
   }
 
   schedNote();
@@ -14386,8 +14412,8 @@ function buildStrings(preset, intensity, name) {
         const sectionAudible = sectionGain.gain.value > 0.30;
         if (inPhrase && sectionAudible) {
           const curVol  = sectionGain.gain.value;
-          const dipAmt  = si === 0 ? 0.62 : 0.72; // gentler dip — less choppy
-          const dipTime = si === 0 ? 0.10 : 0.06;
+          const dipAmt  = si === 0 ? 0.40 : 0.55;  // JW: audible bow lift — real string section
+          const dipTime = si === 0 ? 0.08 : 0.05;  // JW: crisp re-attack
           sectionGain.gain.cancelScheduledValues(resolveAt);
           sectionGain.gain.setValueAtTime(curVol, resolveAt);
           sectionGain.gain.linearRampToValueAtTime(curVol * dipAmt, resolveAt + dipTime);
@@ -14444,17 +14470,17 @@ function buildStrings(preset, intensity, name) {
     const now4   = ctx.currentTime;
     const bl     = barLength || 2;
     // Swell duration inversely scales with energy — peaks are shorter/tighter
-    const swIn   = bl * (e > 0.65 ? 3 : e > 0.35 ? 5 : 7);
-    const hold   = bl * (e > 0.65 ? 3 : 5);
-    const swOut  = bl * 4;
+    const swIn   = bl * (e > 0.65 ? 1.5 : e > 0.35 ? 2.5 : 3.5);  // JW: short crisp swells
+    const hold   = bl * (e > 0.65 ? 0.5 : 1);                      // JW: brief peak, then breathe
+    const swOut  = bl * 2;                                           // JW: faster decay — room to rest
     const total  = swIn + hold + swOut;
-    const peak   = 0.35 + e * 0.65; // quiet sections: 35%; peaks: 100%
+    const peak   = 0.45 + e * 0.55; // JW: more dynamic range — valleys are real valleys
 
     // Use setTargetAtTime for all swell transitions — never cancels, never snaps.
     // Each stage exponentially approaches its target from wherever gain currently is.
-    swellGain.gain.setTargetAtTime(peak,       now4,               swIn  / 4);
-    swellGain.gain.setTargetAtTime(peak * 0.55, now4 + swIn + hold * 0.1, hold  / 4);
-    swellGain.gain.setTargetAtTime(peak * 0.80, now4 + swIn + hold,        swOut / 4);
+    swellGain.gain.setTargetAtTime(peak,        now4,               swIn  / 4);
+    swellGain.gain.setTargetAtTime(peak * 0.90, now4 + swIn,        hold  / 3);  // brief hold at peak
+    swellGain.gain.setTargetAtTime(0.08,        now4 + swIn + hold, swOut / 3);  // JW: real valley — silence between phrases
 
     regT(name, setTimeout(doSwell, total * 1000));
   }
@@ -19130,11 +19156,11 @@ const SKIN_AUDIO = {
   // Long diffuse tail fills silence between sparse hits. Dark shelf cut lets
   // sub breathe without mud. No delay — silence IS the space here.
   ashen: {
-    reverbSize: 0.68,   // long stone hall — fills the silence between sparse hits
-    reverbWet:  0.74,
-    satBase:    0.16,   // light grit — iron and rust, not fuzz
-    moodFilterFreq: 8500,
-    highShelfGain:  -5, // cut the top — stone absorbs, dungeon is dark
+    reverbSize: 0.58,   // JW: hall but with drier presence — melody cuts through
+    reverbWet:  0.55,  // JW: less wet — you hear the instrument, not just the space
+    satBase:    0.10,   // JW: less grit — cleaner orchestral signal
+    moodFilterFreq: 10000,
+    highShelfGain:  -2, // JW: strings need to sing — less top cut
     delayTime:  0.0,
     delayFb:    0.0,
   },
