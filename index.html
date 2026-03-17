@@ -15386,77 +15386,179 @@ function buildHarp(preset, intensity, name) {
 // Sustained pad: chord tones in the middle register, slow bow, rich resonance.
 function buildViola(preset, intensity, name) {
   // ── VIOLA ────────────────────────────────────────────────────────────────────
-  // Alto bowed string. Sits between cello and violin — darker than violin,
-  // less weighty than cello. The inner voice that glues the orchestra together.
-  // Three voices: root, 3rd, and an octave-lower 5th for depth.
-  // Bow pressure LFO modulates a separate tremolo gain, not the master gain
-  // directly — prevents overshoot.
+  // Orchestral bowed alto string — the inner voice that fills between cello and
+  // violin. Key acoustic properties modelled here:
+  //
+  //   WAVEFORM: Sawtooth not triangle. Real bowed strings are close to sawtooth
+  //   because the bow stick-slip mechanism drives all harmonics (1/n), not just
+  //   odd ones. Triangle (1/n²) kills the 2nd, 4th, 6th harmonics and sounds
+  //   hollow/digital. Sawtooth gives the characteristic nasal warmth.
+  //
+  //   VOICE SPREAD: 6 unison oscillators (root×2, 3rd×2, 5th, octave) each with
+  //   independent micro-detune (±2–8 cents) and individual slow drift LFOs so
+  //   they beat against each other — this is the "chorus" of a real string section
+  //   and the primary thing that separates it from a single synth pad.
+  //
+  //   BOW NOISE: A narrow bandpass filtered noise layer (rosin crunch ~2kHz) sits
+  //   under the oscillators at very low gain — you don't hear it consciously but
+  //   its absence makes everything feel "too pure".
+  //
+  //   VIBRATO: Delayed onset (~1.4s), per-voice slightly different rates (4.5–5.2Hz)
+  //   so the section shimmers rather than pulsing as one.
+  //
+  //   ENVELOPE: Slow bow attack (2.2s) with a subtle bow-pressure LFO that rocks
+  //   the swell very gently (~0.06Hz, ±6% depth) — the natural breath of bowing.
+  //
+  //   BODY FILTER: Viola filter has the characteristic wolf-tone peak at 320Hz and
+  //   the nasal 700Hz peak — these survive as-is from makeBodyFilter('viola').
+  //
+  //   STEREO: Root voices pan left-of-centre, upper voices spread slightly right,
+  //   mimicking the physical seating of a viola section.
+
   const b   = bus[name];
   const now = ctx.currentTime;
-  // Note: oscillators are registered via reg() so killLayer handles cleanup.
-  // Do NOT call .stop() with a far-future time — WebAudio holds them in memory.
 
-  const VOICES = [
-    { vIdx: 1, oct: 0.985, det:  3, gv: 0.55 }, // slightly lowered inner tone
-    { vIdx: 2, oct: 0.545, det: -2, gv: 0.45 }, // body resonance instead of exact 5th
+  // ── 6-voice unison desk ────────────────────────────────────────────────────
+  // Each entry: [chord voiceIdx, octave multiplier, detune cents, gain, pan]
+  // Two detuned roots give the fundamental thickness.
+  // 3rd and 5th fill the harmonic structure.
+  // Octave root adds air without dominating.
+  const VOICE_DESK = [
+    { vIdx: 0, octM: 1.00, det: -6,  gv: 0.30, panV: -0.45 }, // root, slightly sharp
+    { vIdx: 0, octM: 1.00, det:  5,  gv: 0.30, panV: -0.25 }, // root, slightly flat
+    { vIdx: 1, octM: 1.00, det: -3,  gv: 0.22, panV:  0.00 }, // 3rd, centre
+    { vIdx: 1, octM: 1.00, det:  4,  gv: 0.20, panV:  0.15 }, // 3rd, light detune
+    { vIdx: 2, octM: 0.998,det: -2,  gv: 0.16, panV: -0.10 }, // 5th, near-true
+    { vIdx: 0, octM: 2.00, det:  7,  gv: 0.08, panV:  0.30 }, // root octave up — air
   ];
-  const violaOscs = [];
 
-  // Signal chain: oscs → bodyFilter (includes lpf character) → swellEnv → b
+  // ── Master signal chain ────────────────────────────────────────────────────
+  // All 6 oscillators → individual gains/pans → shared bodyFilter → swellEnv → b
   const body     = makeBodyFilter(name, 'viola');
   const swellEnv = mkGain(0);
-  const pan = ctx.createStereoPanner();
-  pan.pan.value = -0.35; // viola slightly left
-
   body.output.connect(swellEnv);
-  swellEnv.connect(pan);
-  pan.connect(b);
+  swellEnv.connect(b);
 
-  reg(name, pan);
-
-  // Slow bow swell
+  // Slow bow swell — 2.2s attack, natural hold
   swellEnv.gain.setValueAtTime(0, now);
-  swellEnv.gain.linearRampToValueAtTime(0.80, now + 2.5);
+  swellEnv.gain.linearRampToValueAtTime(0.72, now + 2.2);
 
-  // Bow pressure tremolo — separate node so it doesn't fight the swell
-  const bowTrem  = mkOsc(0.058 + rng() * 0.025, 'sine');
-  const bowTremG = mkGain(0.06 + intensity * 0.035);
-  chain(bowTrem, bowTremG); bowTremG.connect(swellEnv.gain);
-  bowTrem.start();
-  reg(name, bowTrem, bowTremG);
+  // Bow pressure LFO (~0.06Hz) — gently rocks the swell envelope
+  const bowPressLfo  = mkOsc(0.055 + rng() * 0.020, 'sine');
+  const bowPressLfoG = mkGain(0.055 + intensity * 0.030);
+  chain(bowPressLfo, bowPressLfoG);
+  bowPressLfoG.connect(swellEnv.gain);
+  bowPressLfo.start();
+  reg(name, bowPressLfo, bowPressLfoG);
 
-  VOICES.forEach(({ vIdx, oct, det, gv }) => {
-    const freq = CE.chordTone('viola', 1, vIdx) * oct;
-    if (!freq || freq < 40) return;
-    const drift = (rng() - 0.5) * 10; // ±5 cents random drift
-    const o = mkOsc(freq, 'triangle', det + drift);
+  const violaOscs = []; // for retuning
+
+  VOICE_DESK.forEach(({ vIdx, octM, det, gv, panV }, vi) => {
+    const baseFreq = CE.chordTone('viola', 1, vIdx);
+    if (!baseFreq || baseFreq < 40) return;
+    const freq = baseFreq * octM;
+
+    // Random per-voice drift so players are never perfectly in tune
+    const initDrift = (rng() - 0.5) * 8;
+    const o = mkOsc(freq, 'sawtooth', det + initDrift);
     const g = mkGain(gv);
-    o.connect(g); g.connect(body.input);
 
-    // Vibrato — slower and wider than violin (~4.8Hz, ~1% deviation)
-    const vib  = mkOsc(4.8 + rng() * 0.4, 'sine');
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = panV;
+    reg(name, pan);
+
+    chain(o, g, pan, body.input);
+
+    // Per-voice slow pitch drift LFO — makes unison voices beat naturally
+    const driftLfo  = mkOsc(0.007 + rng() * 0.016 + vi * 0.003, 'sine');
+    const driftLfoG = mkGain(0.8 + rng() * 2.0); // ±0.8–2.8 cents drift
+    chain(driftLfo, driftLfoG);
+    driftLfoG.connect(o.detune);
+    driftLfo.start();
+    reg(name, driftLfo, driftLfoG);
+
+    // Per-voice vibrato — slightly different rate and delay per player
+    const vibRate  = 4.5 + rng() * 0.7; // 4.5–5.2 Hz
+    const vibDelay = 1.2 + rng() * 0.5; // 1.2–1.7s before onset
+    const vib  = mkOsc(vibRate, 'sine');
     const vibG = mkGain(0);
-    chain(vib, vibG); vibG.connect(o.frequency);
-    vibG.gain.setValueAtTime(0, now + 1.5);
-    vibG.gain.linearRampToValueAtTime(freq * 0.010, now + 3.2);
+    chain(vib, vibG);
+    vibG.connect(o.frequency);
+    vibG.gain.setValueAtTime(0, now + vibDelay);
+    vibG.gain.linearRampToValueAtTime(freq * 0.009, now + vibDelay + 1.5);
     vib.start();
     reg(name, vib, vibG);
 
-    o.start(); reg(name, o, g);
-    violaOscs.push({ osc: o, vIdx, oct });
+    o.start();
+    reg(name, o, g);
+    violaOscs.push({ osc: o, vIdx, octM, vi });
   });
 
+  // ── Partial harmonic stack ─────────────────────────────────────────────────
+  // Real bowed strings produce a rich partial series above the fundamental.
+  // Add a quiet sine stack at 2nd, 3rd, 4th harmonics of the root — these are
+  // body-filtered by the viola filter above so they take on the instrument's
+  // characteristic resonance shape.
+  const rootFreq = CE.chordTone('viola', 1, 0) || 220;
+  const PARTIALS = [
+    { ratio: 2.0, gv: 0.040 },
+    { ratio: 3.0, gv: 0.018 },
+    { ratio: 4.0, gv: 0.008 },
+  ];
+  const partialOscs = PARTIALS.map(({ ratio, gv }) => {
+    const o = mkOsc(rootFreq * ratio, 'sine');
+    const g = mkGain(gv);
+    chain(o, g, body.input);
+    o.start();
+    reg(name, o, g);
+    return { osc: o, ratio };
+  });
+
+  // ── Rosin bow-noise layer ──────────────────────────────────────────────────
+  // A 4-second looped noise buffer through a narrow bandpass at ~2000Hz gives
+  // the subtle scratchy texture of a real bow on strings. Very quiet — you feel
+  // it, not hear it. Tied to intensity so louder passages have more bow bite.
+  const noiseBuf  = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+  const noiseData = noiseBuf.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) noiseData[i] = Math.random() * 2 - 1;
+
+  const noiseSrc  = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuf; noiseSrc.loop = true;
+  noiseSrc.loopStart = 0; noiseSrc.loopEnd = 4;
+
+  const rosinFilt = mkFilt(1950 + intensity * 400, 'bandpass', 3.5);
+  const rosinG    = mkGain(0.006 + intensity * 0.004);
+  chain(noiseSrc, rosinFilt, rosinG, b);
+  noiseSrc.start(now + 0.05);
+  reg(name, noiseSrc, rosinFilt, rosinG);
+
+  // ── Chord-change retuning ──────────────────────────────────────────────────
+  // Stagger retune across voices: lower voices move 200–400ms later than upper,
+  // mimicking the physical weight of lower strings. No single mechanical snap.
   function retuneViola() {
     if (!layerOn[name]) return;
     const now2 = ctx.currentTime;
-    violaOscs.forEach(({ osc, vIdx, oct }) => {
-      const newFreq = CE.chordTone('viola', 1, vIdx) * oct;
-      if (newFreq && newFreq > 40) {
-        osc.frequency.cancelScheduledValues(now2);
-        osc.frequency.setValueAtTime(osc.frequency.value, now2);
-        osc.frequency.exponentialRampToValueAtTime(Math.max(20, newFreq), now2 + 1.8);
-      }
+
+    violaOscs.forEach(({ osc, vIdx, octM, vi }) => {
+      const newFreq = CE.chordTone('viola', 1, vIdx);
+      if (!newFreq || newFreq < 40) return;
+      const target  = newFreq * octM;
+      // Stagger: voice 0/1 (roots) move 250ms later; voice 4/5 (5th, oct) immediate
+      const delay   = vi <= 1 ? 0.25 + rng() * 0.15 : rng() * 0.08;
+      const glide   = vi <= 1 ? 0.65 : 0.35;
+      osc.frequency.cancelScheduledValues(now2);
+      osc.frequency.setValueAtTime(osc.frequency.value, now2 + delay);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, target), now2 + delay + glide);
     });
+
+    partialOscs.forEach(({ osc, ratio }) => {
+      const newRoot = CE.chordTone('viola', 1, 0);
+      if (!newRoot) return;
+      osc.frequency.cancelScheduledValues(now2);
+      osc.frequency.setValueAtTime(osc.frequency.value, now2);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, newRoot * ratio), now2 + 0.5);
+    });
+
     regT(name, setTimeout(retuneViola, Math.max(200, (barLength || 2) * 2000)));
   }
   regT(name, setTimeout(retuneViola, (barLength || 2) * 1000));
