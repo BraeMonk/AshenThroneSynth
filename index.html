@@ -2462,46 +2462,53 @@ const SKIN_PHRASE_SEQUENCES = {
 const SKIN_PHRASE_LAYER_TARGETS = {
 
   lofi: {
-    // perc always present in every lofi phrase — brushed shuffle is the heartbeat of lo-fi
-    intro:      ['drone', 'melody', 'bass', 'perc', 'strings'],
-    build:      ['drone', 'melody', 'bass', 'perc', 'strings', 'harp'],
-    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'harp', 'cello'],
-    climax:     ['drone', 'melody', 'bass', 'perc', 'strings', 'harp', 'cello', 'bells'],
+    // Lofi: brushed perc always present. No wardrums/stomp — wrong energy.
+    // Tension adds subtle heartbeat pulse. Climax stays gentle — lofi never explodes.
+    intro:      ['drone', 'melody', 'bass', 'perc', 'strings', 'harp'],
+    build:      ['drone', 'melody', 'bass', 'perc', 'strings', 'harp', 'bells'],
+    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'harp', 'cello', 'heartbeat'],
+    climax:     ['drone', 'melody', 'bass', 'perc', 'strings', 'harp', 'cello', 'bells', 'choir'],
     resolution: ['drone', 'melody', 'bass', 'perc', 'strings', 'harp'],
   },
 
   pop: {
-    // perc always present in every pop phrase — the four-on-the-floor never stops
-    intro:      ['drone', 'melody', 'bass', 'perc', 'bells'],
-    build:      ['drone', 'melody', 'bass', 'perc', 'strings', 'bells', 'riser'],
-    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'riser', 'choir'],
-    climax:     ['drone', 'melody', 'bass', 'perc', 'strings', 'choir', 'bells', 'organ'],
+    // Pop: perc + wardrums on climax for the big drop. Stomp on climax for crowd energy.
+    intro:      ['drone', 'melody', 'bass', 'perc', 'bells', 'strings'],
+    build:      ['drone', 'melody', 'bass', 'perc', 'strings', 'bells', 'riser', 'choir'],
+    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'riser', 'choir', 'wardrums'],
+    climax:     ['drone', 'melody', 'bass', 'perc', 'wardrums', 'stomp', 'strings', 'choir', 'bells', 'organ'],
     resolution: ['drone', 'melody', 'bass', 'perc', 'strings', 'bells'],
   },
 
   jazz: {
-    intro:      ['drone', 'melody', 'bass', 'perc', 'organ'],
+    // Jazz: perc always. Wardrums never — wrong world. Taiko never.
+    // Tension gets heartbeat for coiled energy. Climax gets chaos for free improv peak.
+    intro:      ['drone', 'melody', 'bass', 'perc', 'organ', 'strings'],
     build:      ['drone', 'melody', 'bass', 'perc', 'strings', 'organ', 'horn'],
-    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'organ', 'horn', 'cello'],
-    climax:     ['drone', 'melody', 'bass', 'perc', 'strings', 'organ', 'horn', 'cello', 'harp'],
-    resolution: ['drone', 'melody', 'bass', 'perc', 'organ', 'strings'],
+    tension:    ['drone', 'melody', 'bass', 'perc', 'strings', 'organ', 'horn', 'cello', 'heartbeat'],
+    climax:     ['drone', 'melody', 'bass', 'perc', 'strings', 'organ', 'horn', 'cello', 'harp', 'chaos'],
+    resolution: ['drone', 'melody', 'bass', 'perc', 'organ', 'strings', 'harp'],
   },
 
   rock: {
-    intro:      ['drone', 'bass', 'perc', 'guitar'],
-    build:      ['drone', 'bass', 'perc', 'guitar', 'melody', 'organ'],
-    tension:    ['drone', 'bass', 'perc', 'guitar', 'melody', 'organ', 'strings', 'riser'],
-    climax:     ['drone', 'bass', 'perc', 'guitar', 'melody', 'organ', 'choir', 'strings', 'chaos'],
+    // Rock: perc + wardrums always from build onward. Stomp on climax. March on tension/climax.
+    // Taiko adds massive impact on climax. Chains on tension for industrial grit.
+    intro:      ['drone', 'bass', 'perc', 'guitar', 'melody'],
+    build:      ['drone', 'bass', 'perc', 'wardrums', 'guitar', 'melody', 'organ'],
+    tension:    ['drone', 'bass', 'perc', 'wardrums', 'march', 'guitar', 'melody', 'organ', 'strings', 'riser', 'chains'],
+    climax:     ['drone', 'bass', 'perc', 'wardrums', 'stomp', 'march', 'taiko', 'guitar', 'melody', 'organ', 'choir', 'strings', 'chaos'],
     resolution: ['drone', 'bass', 'perc', 'guitar', 'melody'],
   },
 
 };
 
 function startPhraseEngine() {
-  // Final safety: ensure perc is on for genre skins before phrase scheduling begins
+  // Final safety: ensure full intro layer set is on before phrase scheduling begins
   if (['lofi', 'jazz', 'rock', 'pop'].includes(_activeSkin)) {
-    if (!layerOn.perc) layerOn.perc = true;
-    if (!layerOn.bass) layerOn.bass = true;
+    const _safetyIntro = (SKIN_PHRASE_LAYER_TARGETS[_activeSkin] || {}).intro || [];
+    _safetyIntro.forEach(n => { if (!layerOn[n]) layerOn[n] = true; });
+    layerOn.perc = true;
+    layerOn.bass = true;
   }
   stopPhraseEngine();
   const preset = getZone(parseInt(slider.value));
@@ -11362,12 +11369,8 @@ function buildPerc(preset, intensity, name, bufs) {
   timpBus.connect(timpLPF); timpLPF.connect(b);
   reg(name, timpBus, timpLPF);
 
-  // For genre skins, clamp intensity to a minimum so the groove always fires.
-  // At floor 1, getIntensity returns 0 which silences snare/hihat via their
-  // intensity > 0.08 / 0.25 guards — defeating the whole purpose of genre perc.
-  // Ambient skins keep the raw intensity so reactive gating works correctly.
   const _isGenreSkinPerc = ['lofi','jazz','rock','pop'].includes(_activeSkin);
-  const percIntensity = _isGenreSkinPerc ? Math.max(intensity, 0.35) : intensity;
+  const percIntensity = intensity; // genre drums always fire — gates bypassed via _isGenreSkinPerc
 
   const patterns = getGroove(preset, percIntensity);
   let barCount = 0;
@@ -11837,7 +11840,7 @@ function buildPerc(preset, intensity, name, bufs) {
       }
 
       // ── Snare ───────────────────────────────────────────────────────
-      if (patterns.snare[i] && percIntensity > 0.08 && rng() > 0.07 && rng() < _ambientPercGate('snare')) {
+      if (patterns.snare[i] && (_isGenreSkinPerc || percIntensity > 0.08) && rng() > 0.07 && rng() < _ambientPercGate('snare')) {
         // Velocity: main snares at i=4/12 (beats 2&4) are full; ghosting elsewhere
         const isMainSnare = (i === 4 || i === 12);
         const vel = isMainSnare ? 0.82 + intensity * 0.18
@@ -11850,7 +11853,7 @@ function buildPerc(preset, intensity, name, bufs) {
       }
 
       // ── Hihat — sparse, not mechanical ──────────────────────────────
-      if (patterns.hihat[i] && percIntensity > 0.25 && rng() > (0.15 + (1 - sp.hatDensity) * 0.70) && rng() < _ambientPercGate('hihat')) {
+      if (patterns.hihat[i] && (_isGenreSkinPerc || percIntensity > 0.25) && rng() > (0.15 + (1 - sp.hatDensity) * 0.70) && rng() < _ambientPercGate('hihat')) {
         // Accent pattern: 8th note downbeats louder, 16th upbeats whisper-quiet
         const isAccented = (i % 2 === 0);
         const vel = isAccented ? 0.18 + rng() * 0.06 : 0.05 + rng() * 0.04;
@@ -11864,7 +11867,7 @@ function buildPerc(preset, intensity, name, bufs) {
       // ── Rim/accent hits — cinematic micro-transients on off-16ths ───
       // A very quiet rim shot on the 16th note between beats 2 and 3
       // This is what gives cinematic tracks their human feel
-      if (i === 6 && percIntensity > 0.4 && rng() > 0.55 && rng() < _ambientPercGate('rim')) {
+      if (i === 6 && (_isGenreSkinPerc || percIntensity > 0.4) && rng() > 0.55 && rng() < _ambientPercGate('rim')) {
         const s = ctx.createBufferSource(); s.buffer = bufs.snare;
         const g = mkGain(0.10 + rng() * 0.06); // very quiet — ghost note
         chain(s, g, snareBus);
@@ -16922,9 +16925,12 @@ function startSynth() {
   // Without this the correct voice gets overwritten by a random pick.
   applySkinVoices(_activeSkin);
 
-  // Genre skins: perc and bass are structural — force them on from bar 1.
-  // layerOn defaults perc:false; without this startSynth never builds the layer.
+  // Genre skins: force on the full intro layer set immediately so instruments
+  // are playing from bar 1 — not waiting for the phrase engine's first tick.
   if (['lofi', 'jazz', 'rock', 'pop'].includes(_activeSkin)) {
+    const _introLayers = (SKIN_PHRASE_LAYER_TARGETS[_activeSkin] || {}).intro || [];
+    _introLayers.forEach(n => { layerOn[n] = true; });
+    // Always ensure perc and bass regardless of intro list
     layerOn.perc = true;
     layerOn.bass = true;
   }
@@ -16934,18 +16940,17 @@ function startSynth() {
   currentGroove = null;
   grooveAge = 0;
   const floor = parseInt(slider.value), preset = getZone(floor);
-  const rawIntensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
-  // Genre skins always play a full mix — floor 1 intensity of 0 collapses all
-  // layer volumes via adaptiveMixTarget's depthScale. Use a minimum of 0.35
-  // so the groove and mix are audible from the very first floor.
-  const intensity = ['lofi','jazz','rock','pop'].includes(_activeSkin)
-    ? Math.max(rawIntensity, 0.35)
-    : rawIntensity;
+  const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
   const percBufs = buildPercBufs(preset, sessionVoices['perc']);
+  const _startingLayers = [];
   LAYER_NAMES.forEach(name => {
     if (name === 'boss') { if (isBoss) startLayer(name, preset, intensity, null); return; }
-    if (layerOn[name]) startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+    if (layerOn[name]) {
+      _startingLayers.push(name);
+      startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+    }
   });
+  console.log('[MusicForge] startSynth — skin:', _activeSkin, '| floor:', floor, '| intensity:', intensity.toFixed(3), '| layers:', _startingLayers.join(', '));
   startPhraseEngine();
   logTimeline(`Start · ${preset.name} · Floor ${floor}`);
   setStatus(preset.desc);
@@ -22852,14 +22857,17 @@ function applySkin(id, save) {
     if (isPlaying) {
       const floor   = parseInt(slider.value);
       const preset  = getZone(floor);
-      // Use minimum intensity floor so perc is audible at floor 1
-      const rawI    = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
-      const intens  = Math.max(rawI, 0.35);
-      // Restart perc with the freshly-assigned skin voice
+      const intens  = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
+      // Start the full intro layer set for this genre skin
+      const _skinIntro = (SKIN_PHRASE_LAYER_TARGETS[id] || {}).intro || [];
+      _skinIntro.forEach(n => {
+        layerOn[n] = true;
+        if (!nodes[n]?.length) {
+          startLayer(n, preset, intens, PERC_BUF_LAYERS.has(n) ? buildPercBufs(preset, sessionVoices['perc']) : null);
+        }
+      });
+      // Always restart perc explicitly with correct voice
       startLayer('perc', preset, intens, buildPercBufs(preset, sessionVoices['perc']));
-      if (!layerOn.bass || !nodes['bass']?.length) {
-        startLayer('bass', preset, intens, null);
-      }
     }
   }
 }
