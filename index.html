@@ -2272,6 +2272,16 @@ let _moodLayerBias  = {}; // per-layer gain multiplier driven by mood
 let _foundationThin = 1.0; // 1.0=normal, 0.18=whisper — driven by Conductor solo moments
 let _saturation = 0.14;
 
+// ── Genre accuracy globals — declared here to avoid TDZ errors ───
+// Referenced by applySkin (~line 22k) and startSynth (~line 16k),
+// both of which run before the genre function block at the end of the script.
+let globalEnergy    = 0.3;
+let motifCooldown   = 0;
+let _vinylNoiseSrc  = null;
+let _vinylNoiseGain = null;
+let _popHook        = null;
+let _hookPlaying    = false;
+
 // BPM Lock
 let bpmLocked = false;
 let bpmLockValue = 60;
@@ -23026,9 +23036,6 @@ slider.addEventListener('input', updateFloorUI);
    Adds film‑score style dynamics, leitmotif recall, and swells
    =============================================================== */
 
-let globalEnergy = 0.3;
-let motifCooldown = 0;
-
 function cinematicEnergyCurve() {
 
   const curve = {
@@ -23390,8 +23397,6 @@ if ('serviceWorker' in navigator) {
 // A looping low-amplitude noise buffer routed through a sharp LPF
 // to sit under the mix like tape hiss. Gain is deliberately very low
 // so it's felt rather than heard — adds texture without masking melody.
-let _vinylNoiseSrc  = null;
-let _vinylNoiseGain = null;
 
 function startVinylNoise() {
   if (_vinylNoiseSrc || !ctx) return;
@@ -23439,8 +23444,6 @@ function stopVinylNoise() {
 // start of the first 'build' phrase. On every subsequent 'build' or
 // 'climax' entry, the hook replays through the melody bus so the
 // listener hears the same cell return — the defining feature of pop.
-let _popHook      = null; // [{ freq, dur }] — built once per session
-let _hookPlaying  = false;
 
 function _buildPopHook() {
   if (!ctx || !CE) return;
