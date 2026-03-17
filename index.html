@@ -11385,8 +11385,25 @@ function buildPerc(preset, intensity, name, bufs) {
   // _fillActive suppresses the normal groove pattern during the fill bar so
   // the two don't bleed into each other.
 
-  let _fillActive   = false;   // true during a fill bar — suppress normal hits
+  let _fillActive    = false;  // true during a fill bar — suppress normal hits
   let _fillNextBoost = false;  // true on the bar after a fill — downbeat accent
+  let _lastFillPhrase = null;  // phrase name of the last fill — avoid repeating same type
+  let _fillsThisChapter = 0;   // how many fills have fired this chapter — controls density
+  let _consecutiveClimax = 0;  // track repeated climax phrases — fills get sparser
+
+  // ── Journey context snapshot — read once per schedule tick ──────────────────
+  function _journeyCtx() {
+    const active   = typeof JC !== 'undefined' && JC.active;
+    const energy   = active ? JC.energy : getIntensity(parseInt(slider?.value ?? 1));
+    const step     = active ? JC.step      : 0;
+    const total    = active ? JC.totalSteps : 8;
+    const peak     = active ? JC.peakStep   : 5;
+    const progress = active ? JC.progress   : (parseInt(slider?.value ?? 1) - 1) / 98;
+    const pos = progress < 0.35 ? 'early' : progress < 0.70 ? 'mid' : 'late';
+    const pastPeak = active && step > peak;
+    const atPeak   = active && step === peak;
+    return { active, energy, step, total, peak, progress, pos, pastPeak, atPeak };
+  }
 
   // Peek at what phrase comes after the current one
   function _nextPhrase() {
@@ -11394,28 +11411,60 @@ function buildPerc(preset, intensity, name, bufs) {
     return seq[(phraseSeqIdx + 1) % seq.length] || currentPhrase;
   }
 
-  // Tension weight: how big/dense should the fill be?
-  //   intro→build = 0.3   build→climax = 0.9   tension→climax = 1.0
-  //   *→resolution = 0.2  *→tension    = 0.6
+  // ── Fill weight — shaped by journey arc, not just next phrase ───────────────
   function _fillWeight() {
+    const jx   = _journeyCtx();
     const next = _nextPhrase();
-    const weights = { climax: 0.9, tension: 0.6, build: 0.4, intro: 0.25, resolution: 0.2 };
-    return (weights[next] ?? 0.4) * (0.6 + intensity * 0.4);
+    const phraseW = { climax: 0.95, tension: 0.65, build: 0.42, intro: 0.22, resolution: 0.18 };
+    let w = (phraseW[next] ?? 0.40);
+    // Journey position — hold back early, commit late
+    const posW = jx.pos === 'early' ? 0.45 : jx.pos === 'mid' ? 0.80 : 1.00;
+    w *= posW;
+    // Energy scales fill size
+    w *= (0.50 + jx.energy * 0.50);
+    // Past peak: drummer is winding down
+    if (jx.pastPeak) w *= 0.55;
+    // Repeated climax suppression
+    if (_consecutiveClimax >= 2) w *= 0.30;
+    // Fill fatigue: max ~3 fills per chapter
+    if (_fillsThisChapter > 2) w *= Math.max(0.15, 1 - (_fillsThisChapter - 2) * 0.30);
+    // Same next-phrase repeat penalty
+    if (_lastFillPhrase === next) w *= 0.40;
+    return Math.max(0, Math.min(1, w));
   }
 
-  // Should a fill fire this bar?
-  // Fill bar = last bar of the phrase (phraseBar === phraseDur - 1 after increment,
-  // but barCount already incremented so we check phraseDur against phraseBar).
-  // Jazz also gets an early fill on the second-to-last bar at lower probability.
+  // ── Should a fill fire on this bar? ─────────────────────────────────────────
   function _shouldFill() {
     if (!_GENRE_SKINS.has(_activeSkin)) return false;
     if (_fillActive) return false;
-    const dur = _currentPhraseDur || 8;
-    const bar = phraseBar; // 1-based inside tickBar; barCount inside schedLoop
-    const barsLeft = dur - bar;
-    if (barsLeft === 1) return true;                                 // last bar always eligible
-    if (_activeSkin === 'jazz' && barsLeft === 2) return rng() < 0.35; // jazz early comp
-    return false;
+    if (isBoss) return false; // boss has its own orchestral weight
+    const dur      = _currentPhraseDur || 8;
+    const barsLeft = dur - phraseBar;
+    if (barsLeft !== 1) {
+      if (!(_activeSkin === 'jazz' && barsLeft === 2)) return false;
+      if (rng() > 0.35) return false;
+    }
+    // Don't fill on the very first phrase — listener hasn't heard the groove yet
+    if (phraseSeqIdx === 0) return false;
+    return true;
+  }
+
+  // ── Chapter/phrase change tracking — resets fatigue counters ────────────────
+  let _lastSeenStep   = -1;
+  let _lastSeenPhrase = null;
+
+  function _updateFillCounters() {
+    const step = (typeof JC !== 'undefined' && JC.active) ? JC.step : 0;
+    if (step !== _lastSeenStep) {
+      _fillsThisChapter = 0;
+      _lastSeenStep = step;
+    }
+    if (currentPhrase === 'climax') {
+      _consecutiveClimax = (_lastSeenPhrase === 'climax') ? _consecutiveClimax + 1 : 1;
+    } else {
+      _consecutiveClimax = 0;
+    }
+    _lastSeenPhrase = currentPhrase;
   }
 
   // ── Lo-fi fill ────────────────────────────────────────────────────────────
@@ -11624,18 +11673,27 @@ function buildPerc(preset, intensity, name, bufs) {
 
   // ── Master fill dispatcher ────────────────────────────────────────────────
   function _schedFill(barStart, beat) {
+    _updateFillCounters();
     if (!_shouldFill()) return;
     const w = _fillWeight();
-    // Probability gate: fills aren't guaranteed every phrase end — that would
-    // be mechanical. Base chance scales with fill weight so big moments fill more.
-    const fillChance = _activeSkin === 'rock' ? 0.72 + w * 0.28   // rock fills often
-                     : _activeSkin === 'pop'  ? 0.65 + w * 0.25   // pop fills on big phrases
-                     : _activeSkin === 'jazz' ? 0.55 + w * 0.30   // jazz — tasteful, not every bar
-                     : _activeSkin === 'lofi' ? 0.35 + w * 0.20   // lofi — rare, subtle
+
+    // Probability gate — shaped per genre AND by journey weight.
+    // A low weight (early journey, past peak, repeated phrase) means even
+    // reaching this point doesn't guarantee a fill fires.
+    // Rock commits most eagerly; lo-fi is the most reluctant.
+    const fillChance = _activeSkin === 'rock' ? 0.55 + w * 0.45
+                     : _activeSkin === 'pop'  ? 0.45 + w * 0.40
+                     : _activeSkin === 'jazz' ? 0.38 + w * 0.42
+                     : _activeSkin === 'lofi' ? 0.20 + w * 0.35
                      : 0;
     if (rng() > fillChance) return;
 
-    _fillActive = true;
+    // Record this fill before firing
+    const next = _nextPhrase();
+    _lastFillPhrase    = next;
+    _fillsThisChapter += 1;
+    _fillActive        = true;
+
     if      (_activeSkin === 'lofi') _schedFillLofi(barStart, beat, w);
     else if (_activeSkin === 'jazz') _schedFillJazz(barStart, beat, w);
     else if (_activeSkin === 'rock') _schedFillRock(barStart, beat, w);
