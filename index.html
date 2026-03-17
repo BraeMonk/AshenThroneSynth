@@ -8380,9 +8380,9 @@ function scaleFreq(preset, oct, deg) {
 }
 
 function fadeIn(g, v, d) {
-  const n    = ctx.currentTime;
-  const cur  = g.gain.value; // read actual current value before cancelling
-  g.gain.cancelScheduledValues(n);
+  const n = ctx.currentTime;
+  g.gain.cancelScheduledValues(n); // cancel first — browser freezes gain at current interpolated value
+  const cur = g.gain.value;        // now safe to read the frozen value (avoids cross-browser discontinuity)
   // If gain is already near zero, start from zero cleanly.
   // If it has some value (layer restart mid-fade), start from there — no click.
   g.gain.setValueAtTime(cur < 0.005 ? 0 : cur, n);
@@ -8404,16 +8404,16 @@ function killLayer(name) {
   if (bus[name]) {
     bus[name].gain.cancelScheduledValues(now);
     bus[name].gain.setValueAtTime(bus[name].gain.value, now);
-    bus[name].gain.linearRampToValueAtTime(0, now + 0.04);
+    bus[name].gain.linearRampToValueAtTime(0, now + 0.15); // extended: 40ms→150ms prevents pop on sustained tones
   }
 
   nodes[name].forEach(n => {
     try {
-      if (n.stop) n.stop(now + 0.08);
+      if (n.stop) n.stop(now + 0.20); // stop after gain reaches zero to avoid click
 
       setTimeout(() => {
         try { n.disconnect(); } catch(e) {}
-      }, 120);
+      }, 250);
 
     } catch(e) {}
   });
@@ -10370,6 +10370,9 @@ function buildDroneTapeWarp(b, preset, intensity, name) {
     // Sparse: ~6 crackles per second, random amplitude
     cd[i] = Math.random() < 0.0002 ? (Math.random() * 2 - 1) * 0.35 : 0;
   }
+  // Taper last 8ms to zero — prevents click at loop wrap-around boundary
+  { const fadeLen = Math.floor(ctx.sampleRate * 0.008);
+    for (let i = 0; i < fadeLen; i++) cd[cd.length - 1 - i] *= i / fadeLen; }
   const crackleSrc = ctx.createBufferSource();
   crackleSrc.buffer = crackleBuf; crackleSrc.loop = true;
   const crackleHPF = mkFilt(1800, 'highpass', 0.8);
@@ -10383,6 +10386,9 @@ function buildDroneTapeWarp(b, preset, intensity, name) {
   const hissBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const hd = hissBuf.getChannelData(0);
   for (let i = 0; i < hd.length; i++) hd[i] = Math.random() * 2 - 1;
+  // Taper last 8ms to zero — prevents click at loop wrap-around boundary
+  { const fadeLen = Math.floor(ctx.sampleRate * 0.008);
+    for (let i = 0; i < fadeLen; i++) hd[hd.length - 1 - i] *= i / fadeLen; }
   const hissSrc = ctx.createBufferSource();
   hissSrc.buffer = hissBuf; hissSrc.loop = true;
   const hissLPF = mkFilt(3200, 'lowpass', 0.5);
@@ -23308,22 +23314,21 @@ let GROQ_MELODY_SHAPE = 'arch'; // default — engine behaviour unchanged // exp
 
 // ===== ENGINE IMPROVEMENTS =====
 
+// ── safeRamp — always anchors after cancelScheduledValues to prevent gain jump clicks ──
+// Use wherever a cancelScheduledValues + ramp is needed mid-playback.
+function safeRamp(param, target, duration) {
+  const now = ctx.currentTime;
+  param.cancelScheduledValues(now);
+  param.setValueAtTime(param.value, now); // anchor frozen value — prevents snap discontinuity
+  param.linearRampToValueAtTime(target, now + duration);
+}
+
 // Smooth crossfade between layers
 function __forgeCrossfade(layerA, layerB, duration=2.0){
     if(!layerA || !layerB) return;
-    const now = ctx.currentTime;
 
-    if(layerA.gain){
-        layerA.gain.cancelScheduledValues(now);
-        layerA.gain.setValueAtTime(layerA.gain.value || 1, now);
-        layerA.gain.linearRampToValueAtTime(0.0001, now + duration);
-    }
-
-    if(layerB.gain){
-        layerB.gain.cancelScheduledValues(now);
-        layerB.gain.setValueAtTime(0.0001, now);
-        layerB.gain.linearRampToValueAtTime(1, now + duration);
-    }
+    if(layerA.gain) safeRamp(layerA.gain, 0.0001, duration);
+    if(layerB.gain) safeRamp(layerB.gain, 1,      duration);
 }
 
 // Slight oscillator detune to sound more natural
