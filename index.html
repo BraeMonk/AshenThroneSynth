@@ -9135,6 +9135,7 @@ const SKIN_LAYER_BIAS = {
     organ:        1.20,  // Hammond growl — essential rock colour
     chains:       1.10,  // metal texture — industrial edge
     march:        1.15,  // driving stomp — crowd chant rhythm
+    guitar:       1.60,  // electric guitar — the defining voice of Voltage Rise
     glitch:       0.50,  // mostly wrong — occasional stutter edit
     strings:      0.45,  // orchestral strings recede — rare
     choir:        0.50,  // choir in — crowd vocal energy
@@ -16925,56 +16926,61 @@ const CIN_SKIN_CONFIG = {
 
 
   rock: {
-    skyTop:     [8,  2,  4],
-    skyBlendMul: { midR:1.0, midG:0.3, midB:0.15 },
-    // Stars → stage lighting rigs — scattered white spots
+    // Grand stadium spectacle — wall of fire, strobing arc lights, 100k-crowd thunder
+    skyTop:     [18, 3,  2],
+    skyBlendMul: { midR:1.0, midG:0.18, midB:0.06 },
+    // Stars → dense arena arc-light grid sweeping the smoke-filled sky
     starStyle: 'stageLights',
-    // Moon → giant stage spotlight circle
-    moonStyle: 'spotlight',
-    moonPos:   [0.5, 0.05],
-    // Terrain → crowd silhouette + stage barrier
-    terrainStyle: 'crowd',
-    // Particle → spark shower from stage
+    // Moon → colossal LED video wall — full canvas width, blazing orange-white
+    moonStyle: 'videoWall',
+    moonPos:   [0.5, 0.04],
+    // Terrain → massive stadium bowl: tiered crowd, giant screen trusses
+    terrainStyle: 'stadium',
+    // Particle → cascading pyro sparks + thick smoke plumes
     particleOverride: 'sparks',
-    // Fog → stage haze machine
-    fogStyle: 'haze',
-    // Torches → pyro cannons at stage edge
-    torchStyle: 'pyro',
-    torchSpacing: 0.22,
-    torchY: 0.82,
-    // Glyphs → setlist fragments and amp model names
+    // Fog → dense low pyro ground fog with heat shimmer
+    fogStyle: 'pyroFog',
+    // Torches → twin pyro columns (wider, taller, more violent)
+    torchStyle: 'pyroCannon',
+    torchSpacing: 0.16,
+    torchY: 0.80,
+    // Glyphs → oversized watt ratings, decibel readings, band logos
     glyphStyle: 'setlist',
     glyphFont: "'Orbitron', sans-serif",
-    // Title cards
+    // Title cards — massive slab weight, electric glow
     titleFont:    "'Orbitron', sans-serif",
     titleWeight:  900,
     subtitleFont: "'Inter', sans-serif",
     hudFont:      "'Orbitron', sans-serif",
-    enterLabel: '⚡ INCOMING ⚡',
+    enterLabel: '⚡⚡  INCOMING  ⚡⚡',
     floorLabel: 'SET',
-    flashMidG: 0.3,
+    flashMidG: 0.12,
+    // Extended: arc-light sweep count and video wall height
+    arcLightCount: 32,
+    videoWallH: 0.38,
   },
 
 
   lofi: {
-    skyTop:     [6,  4,  2],
-    skyBlendMul: { midR:0.80, midG:0.60, midB:0.30 },
-    // Stars → faint warm stars through dusty window
-    starStyle: 'softStars',
-    // Moon → hazy amber moon — seen through condensation
-    moonStyle: 'hazyMoon',
-    moonPos:   [0.72, 0.18],
-    // Terrain → rooftop silhouette + water towers
-    terrainStyle: 'rooftop',
-    // Particle → slow dust motes + occasional rain
+    // Late-night cityscape panorama — rain-slicked rooftops, neon reflections, melancholy grandeur
+    skyTop:     [10,  7,  3],
+    skyBlendMul: { midR:0.85, midG:0.55, midB:0.22 },
+    // Stars → layered rain-streaked windows with warm amber and pale blue light
+    starStyle: 'warmWindows',
+    // Moon → enormous amber harvest moon, half-veiled behind dense cloud layers
+    moonStyle: 'cloudMoon',
+    moonPos:   [0.68, 0.14],
+    // Terrain → sweeping city panorama — multiple rooftop depth layers, bridges, elevated trains
+    terrainStyle: 'lofiCity',
+    // Particle → heavy rain + slow amber dust motes
     particleOverride: 'dust',
-    // Fog → warm tape grain overlay
-    fogStyle: 'grain',
-    // Torches → warm incandescent lamps
-    torchStyle: 'incandescent',
-    torchSpacing: 0.34,
-    torchY: 0.80,
-    // Glyphs → cassette-era labels, side A/B markers
+    // Fog → thick warm tape-saturated fog with vignette edges
+    fogStyle: 'tapeGrain',
+    // Torches → warm amber hanging street lamps — longer posts, bigger glow
+    torchStyle: 'streetLamp',
+    torchSpacing: 0.28,
+    torchY: 0.78,
+    // Glyphs → worn cassette labels, vinyl run-out etchings, hand-written track names
     glyphStyle: 'tapeLabel',
     glyphFont: "'IM Fell English', serif",
     // Title cards
@@ -16984,71 +16990,76 @@ const CIN_SKIN_CONFIG = {
     hudFont:      "'Inter', sans-serif",
     enterLabel: '◎  side b  ◎',
     floorLabel: 'SIDE',
-    flashMidG: 0.65,
+    flashMidG: 0.58,
+    cloudLayers: 4,
   },
 
 
   pop: {
-    skyTop:     [4,  2,  8],
-    skyBlendMul: { midR:0.9, midG:0.3, midB:0.8 },
-    // Stars → glitter burst points — sparkling
-    starStyle: 'glitter',
-    // Moon → large pastel disco ball
-    moonStyle: 'discoBall',
-    moonPos:   [0.5, 0.10],
-    // Terrain → stage + crowd hands + confetti ground
-    terrainStyle: 'popStage',
-    // Particle → confetti fall
+    // Mega arena pop spectacular — kaleidoscopic light architecture, confetti blizzard
+    skyTop:     [6,  2,  14],
+    skyBlendMul: { midR:1.0, midG:0.22, midB:1.0 },
+    // Stars → blinding glitter supernova — thousands of colour-cycling burst points
+    starStyle: 'glitterNova',
+    // Moon → massive mirror-ball chandelier — faceted, colour-spreading
+    moonStyle: 'mirrorBall',
+    moonPos:   [0.5, 0.08],
+    // Terrain → tiered arena stage: catwalk extensions, LED floor, rising hydraulic risers
+    terrainStyle: 'arenaStage',
+    // Particle → thick confetti blizzard + ticker-tape streams
     particleOverride: 'confetti',
-    // Fog → coloured stage fog
-    fogStyle: 'colourSmog',
-    // Torches → LED par cans — colour-cycling
-    torchStyle: 'ledPar',
-    torchSpacing: 0.18,
-    torchY: 0.78,
-    // Glyphs → emoji fragments, chart positions, hashtags
+    // Fog → saturated prismatic stage fog — colour shifts with beat
+    fogStyle: 'prismFog',
+    // Torches → columns of LED moving heads — full-sweep arcs
+    torchStyle: 'movingHead',
+    torchSpacing: 0.14,
+    torchY: 0.74,
+    // Glyphs → chart positions, #hashtags, streaming counters
     glyphStyle: 'popText',
     glyphFont: "'Inter', sans-serif",
-    // Title cards
+    // Title cards — bold, saturated, with chromatic drop shadows
     titleFont:    "'Orbitron', sans-serif",
-    titleWeight:  700,
+    titleWeight:  900,
     subtitleFont: "'Inter', sans-serif",
     hudFont:      "'Inter', sans-serif",
-    enterLabel: '✦ NOW PLAYING ✦',
+    enterLabel: '✦✦ NOW PLAYING ✦✦',
     floorLabel: 'DROP',
-    flashMidG: 0.5,
+    flashMidG: 0.4,
+    mirrorFacets: 24,
   },
 
 
   jazz: {
-    skyTop:     [2,  4,  8],
-    skyBlendMul: { midR:0.35, midG:0.50, midB:0.85 },
-    // Stars → scattered warm stars seen through club skylight
+    // Grand old jazz hall at midnight — cathedral ceilings, smoky chandeliers, deep blue grandeur
+    skyTop:     [1,  3,  14],
+    skyBlendMul: { midR:0.22, midG:0.38, midB:1.0 },
+    // Stars → warm scattered stars glimpsed through a skylight above the hall
     starStyle: 'stars',
-    // Moon → dim brass moon — low and hazy
-    moonStyle: 'brassMoon',
-    moonPos:   [0.25, 0.22],
-    // Terrain → city rooftop + water tower + fire escape
-    terrainStyle: 'rooftop',
-    // Particle → slow cigarette smoke wisps
+    // Moon → ornate brass chandelier — large, faceted, amber-warm glow
+    moonStyle: 'chandelier',
+    moonPos:   [0.5, 0.08],
+    // Terrain → grand hall interior — arched pillars, raked balconies, club floor below
+    terrainStyle: 'jazzHall',
+    // Particle → slow layered cigarette/incense smoke columns
     particleOverride: 'smokeWisp',
-    // Fog → blue club haze
-    fogStyle: 'jazzSmoke',
-    // Torches → dim table candles
-    torchStyle: 'candle',
-    torchSpacing: 0.30,
-    torchY: 0.82,
-    // Glyphs → chord symbol fragments: Cmaj7, ii-V-I, Db9
+    // Fog → deep midnight blue club haze — rich and suffocating
+    fogStyle: 'deepJazzSmoke',
+    // Torches → tall floor-standing brass lamps + wall sconces
+    torchStyle: 'brassTorch',
+    torchSpacing: 0.24,
+    torchY: 0.76,
+    // Glyphs → chord voicings (Cmaj9♯11, ii-V-I), performer names, set notes
     glyphStyle: 'chordSymbols',
     glyphFont: "'Cinzel', serif",
-    // Title cards
+    // Title cards — Cinzel serif authority, amber accent
     titleFont:    "'Cinzel Decorative', serif",
     titleWeight:  700,
     subtitleFont: "'IM Fell English', serif",
     hudFont:      "'Cinzel', serif",
-    enterLabel: '♩  THE SESSION  ♩',
+    enterLabel: '♩♩  THE SESSION  ♩♩',
     floorLabel: 'CHORUS',
-    flashMidG: 0.55,
+    flashMidG: 0.45,
+    pillarCount: 6,
   },
 
 };
@@ -19381,6 +19392,53 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   }
   // broadcast: starStyle === 'none' → nothing drawn
 
+  // ── NEW GRAND STAR STYLES ────────────────────────────────────────
+  if (cfg.starStyle === 'warmWindows') {
+    // Lo-fi (grand): layered warm windows in far buildings + rain-streaked glass texture
+    const winCount = 120;
+    for (let i = 0; i < winCount; i++) {
+      const wx = Math.sin(i * 137.508 * Math.PI / 180 + 0.2) * 0.5 + 0.5;
+      const wy = Math.sin(i * 97.31  * Math.PI / 180 + 0.5) * 0.5 + 0.5;
+      const wFlicker = 0.65 + 0.35 * Math.sin(t * 0.005 + i * 1.9);
+      const wAlpha = (0.12 + active * 0.14) * wFlicker;
+      const isAmber = i % 3 !== 0;
+      c.fillStyle = isAmber
+        ? `rgba(255,${175 + Math.floor(i%10)},${40 + Math.floor(i%20)},${wAlpha})`
+        : `rgba(180,200,255,${wAlpha * 0.7})`;
+      c.fillRect(wx * W, wy * horizonY * 0.85, 4 + Math.sin(i*5)*2, 5 + Math.sin(i*3.2)*2);
+    }
+    // Rain streaks on the glass — vertical lines with perspective skew
+    const rainCount = 60;
+    for (let ri = 0; ri < rainCount; ri++) {
+      const rx = Math.sin(ri * 57.3 + t * 0.001) * 0.5 + 0.5;
+      const ry1 = (t * 0.6 + ri * 40) % (H * 0.9);
+      const rAlpha = (0.04 + active * 0.06);
+      c.beginPath(); c.moveTo(rx * W, ry1); c.lineTo(rx * W - 3, ry1 + 18 + Math.random()*12);
+      c.strokeStyle = `rgba(180,200,240,${rAlpha})`; c.lineWidth = 0.8; c.stroke();
+    }
+  } else if (cfg.starStyle === 'glitterNova') {
+    // Pop (grand): supernova glitter explosion — dense, multi-colour, fast-pulsing
+    const novaCount = 160 + Math.floor(active * 100);
+    for (let i = 0; i < novaCount; i++) {
+      const gx = Math.sin(i * 137.5 + t * 0.006) * 0.5 + 0.5;
+      const gy = Math.sin(i * 97.3  + t * 0.005) * 0.5 + 0.5;
+      const twinkle = Math.abs(Math.sin(t * 0.09 + i * 1.4));
+      const gAlpha = twinkle * (0.20 + active * 0.65);
+      if (gAlpha < 0.05) continue;
+      const hue = (i * 31 + t * 0.9) % 360;
+      const gr = 0.6 + twinkle * 3.0;
+      c.fillStyle = `hsla(${hue},100%,80%,${gAlpha})`;
+      c.beginPath(); c.arc(gx * W, gy * horizonY * 0.95, gr, 0, Math.PI * 2); c.fill();
+      // Star-burst cross on brighter points
+      if (twinkle > 0.8 && gAlpha > 0.5) {
+        c.strokeStyle = `hsla(${hue},100%,95%,${gAlpha * 0.6})`;
+        c.lineWidth = 0.5;
+        c.beginPath(); c.moveTo(gx*W - gr*3, gy*horizonY*0.95); c.lineTo(gx*W + gr*3, gy*horizonY*0.95); c.stroke();
+        c.beginPath(); c.moveTo(gx*W, gy*horizonY*0.95 - gr*3); c.lineTo(gx*W, gy*horizonY*0.95 + gr*3); c.stroke();
+      }
+    }
+  }
+
   // ── 4. HORIZON BLOOM — bass pulse
   const bassBloom = CIN.smoothBass;
   const bloomR2 = W * (0.45 + active * 0.25);
@@ -19545,6 +19603,149 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     smokeGrd.addColorStop(0, 'rgba(0,0,0,0)');
     smokeGrd.addColorStop(1, `rgba(6,9,14,${0.6 * CIN.moonFlicker})`);
     c.fillStyle = smokeGrd; c.beginPath(); c.arc(moonX, moonY, jmR * 1.1, 0, Math.PI * 2); c.fill();
+
+  } else if (cfg.moonStyle === 'videoWall') {
+    // Rock (grand): colossal LED video wall spanning upper stage — full width, reactive
+    const vwH = H * (cfg.videoWallH || 0.32);
+    const vwY = H * 0.02;
+    // Wall body
+    const vwGrd = c.createLinearGradient(0, vwY, 0, vwY + vwH);
+    vwGrd.addColorStop(0, `rgba(40,20,10,0.92)`);
+    vwGrd.addColorStop(1, `rgba(20,8,4,0.96)`);
+    c.fillStyle = vwGrd; c.fillRect(0, vwY, W, vwH);
+    // LED pixel grid — colour-reactive to audio
+    const pixCols = 48, pixRows = 18;
+    const pW = W / pixCols, pH = vwH / pixRows;
+    for (let pc = 0; pc < pixCols; pc++) {
+      for (let pr = 0; pr < pixRows; pr++) {
+        const binIdx = Math.floor((pc / pixCols) * freqData.length * 0.85);
+        const binVal = (freqData[binIdx] || 0) / 255;
+        const distFromCentre = Math.abs(pc - pixCols/2) / (pixCols/2);
+        const pixBright = (binVal * (1 - distFromCentre * 0.4) + active * 0.15) * (0.6 + active * 0.5);
+        if (pixBright < 0.06) continue;
+        // Colour: orange-red core, white-hot at peaks
+        const pR = Math.min(255, Math.floor(200 + binVal * 55));
+        const pG = Math.min(255, Math.floor(60 + binVal * 140));
+        const pB = Math.min(255, Math.floor(binVal > 0.75 ? 180 : binVal * 20));
+        c.fillStyle = `rgba(${pR},${pG},${pB},${pixBright})`;
+        c.fillRect(pc * pW + 1, vwY + pr * pH + 1, pW - 1, pH - 1);
+      }
+    }
+    // Frame truss
+    c.strokeStyle = `rgba(60,35,20,0.9)`; c.lineWidth = 3;
+    c.strokeRect(0, vwY, W, vwH);
+    // Central blaze glow from wall
+    const wallGlow = c.createRadialGradient(W/2, vwY + vwH, 0, W/2, vwY + vwH, W * 0.7);
+    wallGlow.addColorStop(0, `rgba(${R},${Math.floor(G*0.4)},0,${0.10 + active * 0.22 + CIN.smoothBass * 0.14})`);
+    wallGlow.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = wallGlow; c.fillRect(0, vwY, W, H * 0.5);
+
+  } else if (cfg.moonStyle === 'cloudMoon') {
+    // Lo-fi (grand): enormous amber harvest moon behind deep cloud layers
+    const cmR = Math.min(W,H) * (0.085 + active * 0.008) * breathe;
+    // Outer glow — wide amber corona
+    const cmGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, cmR * 5.5);
+    cmGrd.addColorStop(0,   `rgba(255,185,70,${(0.45 + active * 0.18) * CIN.moonFlicker})`);
+    cmGrd.addColorStop(0.18,`rgba(220,145,40,${0.22 * CIN.moonFlicker})`);
+    cmGrd.addColorStop(0.50,`rgba(160,90,18,${0.08 * CIN.moonFlicker})`);
+    cmGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = cmGrd; c.fillRect(0, 0, W, H * 0.6);
+    // Moon disc
+    c.beginPath(); c.arc(moonX, moonY, cmR, 0, Math.PI * 2);
+    const moonDisc = c.createRadialGradient(moonX - cmR*0.2, moonY - cmR*0.2, 0, moonX, moonY, cmR);
+    moonDisc.addColorStop(0, `rgba(255,220,130,${(0.90 + active * 0.08) * CIN.moonFlicker})`);
+    moonDisc.addColorStop(0.6,`rgba(240,180,80,${0.78 * CIN.moonFlicker})`);
+    moonDisc.addColorStop(1, `rgba(190,120,30,${0.55 * CIN.moonFlicker})`);
+    c.fillStyle = moonDisc; c.fill();
+    // Cloud veils — two layers of procedural cloud wisps
+    for (let cl = 0; cl < 3; cl++) {
+      const cOff = (t * (0.012 + cl * 0.006) + cl * W * 0.28) % (W * 1.5);
+      const cloudY = moonY - cmR * (0.3 + cl * 0.5);
+      const cAlpha = (0.25 + cl * 0.12) * (0.7 + rest * 0.3);
+      const cloudGrd = c.createLinearGradient(0, cloudY - 20, 0, cloudY + 28);
+      cloudGrd.addColorStop(0, 'rgba(0,0,0,0)');
+      cloudGrd.addColorStop(0.4, `rgba(8,6,2,${cAlpha})`);
+      cloudGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = cloudGrd; c.fillRect(cOff - W * 0.3, cloudY - 20, W * 0.7, 48);
+    }
+
+  } else if (cfg.moonStyle === 'mirrorBall') {
+    // Pop (grand): enormous faceted mirror ball — colour-spreading, rotating
+    const mbR = Math.min(W,H) * (0.065 + active * 0.012) * breathe;
+    const mbFacets = cfg.mirrorFacets || 20;
+    const mbAngle  = t * 0.012; // slow rotation
+    // Wide chromatic halo spreading across the entire canvas
+    const mbGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, W * 0.85);
+    mbGrd.addColorStop(0,   `rgba(255,200,255,${0.12 + active * 0.20})`);
+    mbGrd.addColorStop(0.12,`rgba(200,100,255,${0.08 + active * 0.12})`);
+    mbGrd.addColorStop(0.30,`rgba(80,255,200,${0.04 + active * 0.06})`);
+    mbGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = mbGrd; c.fillRect(0, 0, W, H);
+    // Ball surface — faceted reflective tiles
+    for (let fi = 0; fi < mbFacets; fi++) {
+      for (let fj = 0; fj < mbFacets; fj++) {
+        const theta = (fi / mbFacets) * Math.PI + mbAngle;
+        const phi   = (fj / mbFacets) * Math.PI * 2 + mbAngle * 0.7;
+        const fx = moonX + mbR * Math.sin(theta) * Math.cos(phi);
+        const fy = moonY + mbR * (Math.cos(theta) - 0.25);
+        const fSize = (1 + Math.sin(theta + t * 0.04) * 0.4) * mbR * 0.08;
+        const hue = (fi * 23 + fj * 17 + t * 1.5) % 360;
+        const facetAlpha = (0.4 + active * 0.55) * (0.5 + 0.5 * Math.sin(theta));
+        c.fillStyle = `hsla(${hue},100%,80%,${facetAlpha})`;
+        c.fillRect(fx - fSize/2, fy - fSize/2, fSize, fSize);
+      }
+    }
+    // Spot reflections cast outward from ball — prismatic streaks
+    const spotCount = 8 + Math.floor(active * 8);
+    for (let si = 0; si < spotCount; si++) {
+      const sAngle = (si / spotCount) * Math.PI * 2 + t * 0.025;
+      const sDist  = W * (0.25 + Math.sin(t * 0.03 + si * 1.4) * 0.15);
+      const sX = moonX + Math.cos(sAngle) * sDist;
+      const sY = moonY + Math.sin(sAngle) * sDist * 0.4;
+      const hue = (si * 45 + t * 0.8) % 360;
+      const sGrd = c.createRadialGradient(sX, sY, 0, sX, sY, 18 + active * 12);
+      sGrd.addColorStop(0, `hsla(${hue},100%,80%,${(0.35 + active * 0.40)})`);
+      sGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = sGrd; c.beginPath(); c.arc(sX, sY, 18 + active * 12, 0, Math.PI*2); c.fill();
+    }
+
+  } else if (cfg.moonStyle === 'chandelier') {
+    // Jazz (grand): ornate brass chandelier hanging centre — warm gold, crystalline facets
+    const chCX = moonX, chCY = H * (cfg.moonPos[1] + 0.06);
+    const chR = Math.min(W,H) * (0.055 + active * 0.010) * breathe;
+    // Wide warm amber corona lighting the hall ceiling
+    const chGrd = c.createRadialGradient(chCX, chCY, 0, chCX, chCY, W * 0.65);
+    chGrd.addColorStop(0,   `rgba(255,190,70,${0.20 + active * 0.18})`);
+    chGrd.addColorStop(0.20,`rgba(200,140,40,${0.10 + active * 0.10})`);
+    chGrd.addColorStop(0.60,`rgba(140,80,10,${0.04})`);
+    chGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = chGrd; c.fillRect(0, 0, W, H * 0.7);
+    // Chandelier arms — 6 radial branches with candle tips
+    const armCount = 8;
+    for (let ai = 0; ai < armCount; ai++) {
+      const ang = (ai / armCount) * Math.PI * 2 + t * 0.003;
+      const armLen = chR * (2.2 + Math.sin(ai * 1.3) * 0.4);
+      const tipX = chCX + Math.cos(ang) * armLen;
+      const tipY = chCY + Math.sin(ang) * armLen * 0.35 + chR * 0.5;
+      c.strokeStyle = `rgba(180,130,40,0.75)`; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(chCX, chCY); c.lineTo(tipX, tipY); c.stroke();
+      // Candle flame at tip
+      const fAlpha = (0.55 + active * 0.35) * (0.8 + 0.2 * Math.sin(t * 0.09 + ai * 2.1));
+      const fGrd = c.createRadialGradient(tipX, tipY - 4, 0, tipX, tipY, 10 + active * 5);
+      fGrd.addColorStop(0, `rgba(255,220,100,${fAlpha})`);
+      fGrd.addColorStop(0.4, `rgba(220,140,30,${fAlpha * 0.4})`);
+      fGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = fGrd; c.beginPath(); c.arc(tipX, tipY - 3, 10 + active * 5, 0, Math.PI*2); c.fill();
+    }
+    // Central orb
+    c.beginPath(); c.arc(chCX, chCY, chR * 0.55, 0, Math.PI * 2);
+    const orbGrd = c.createRadialGradient(chCX - chR*0.15, chCY - chR*0.15, 0, chCX, chCY, chR * 0.55);
+    orbGrd.addColorStop(0, `rgba(255,230,140,${(0.85 + active * 0.12) * CIN.moonFlicker})`);
+    orbGrd.addColorStop(1, `rgba(180,110,20,${0.60 * CIN.moonFlicker})`);
+    c.fillStyle = orbGrd; c.fill();
+    // Hanging cord to top
+    c.strokeStyle = `rgba(140,100,30,0.6)`; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(chCX, 0); c.lineTo(chCX, chCY - chR * 0.55); c.stroke();
 
   } else if (cfg.moonStyle === 'cursor') {
     // Void: blinking terminal cursor block
@@ -19799,6 +20000,270 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.beginPath(); c.moveTo(W/2, horizonY); c.lineTo(vx, H); c.stroke();
     }
 
+  } else if (cfg.terrainStyle === 'stadium') {
+    // Rock (grand): full stadium bowl — tiered seating, giant screen trusses, stage below
+    const stageY = H * 0.78;
+    const bowlY  = H * 0.60;
+    // Bowl gradient
+    const bowlGrd = c.createLinearGradient(0, bowlY, 0, stageY);
+    bowlGrd.addColorStop(0, 'rgba(8,3,2,0.0)');
+    bowlGrd.addColorStop(1, 'rgba(12,4,2,0.98)');
+    c.fillStyle = bowlGrd; c.fillRect(0, bowlY, W, stageY - bowlY);
+    // Tiered seating rows — curved arcs
+    const tierCount = 6;
+    for (let ti = 0; ti < tierCount; ti++) {
+      const tierFrac = 1 - ti / tierCount;
+      const tierY = bowlY + (stageY - bowlY) * tierFrac * 0.85;
+      const tierW = W * (0.55 + ti * 0.075);
+      const tierX = (W - tierW) / 2;
+      // Seated crowd silhouettes on each tier
+      const headCount = Math.floor(12 + ti * 8);
+      for (let hi = 0; hi < headCount; hi++) {
+        const hx = tierX + (hi / headCount) * tierW + Math.sin(hi * 3.7) * 4;
+        const hy = tierY + Math.sin(hi * 2.1 + t * 0.008) * (1 + active * 3);
+        c.beginPath(); c.arc(hx, hy, 3 + Math.sin(hi*1.3)*1, 0, Math.PI*2);
+        c.fillStyle = `rgba(${14+ti},${6+ti},${4+ti},0.9)`; c.fill();
+      }
+      // Tier rail light strip
+      const railAlpha = 0.06 + CIN.smoothBass * 0.12 + active * 0.08;
+      c.fillStyle = `rgba(${R},${Math.floor(G*0.3)},0,${railAlpha})`;
+      c.fillRect(tierX, tierY - 2, tierW, 2);
+    }
+    // Floor — stage ground
+    c.fillStyle = 'rgba(10,4,2,0.98)';
+    c.fillRect(0, stageY, W, H - stageY);
+    // Massive truss structure above stage (two vertical columns + horizontal beam)
+    const trussAlpha = 0.55 + active * 0.25;
+    c.strokeStyle = `rgba(50,28,12,${trussAlpha})`; c.lineWidth = 3;
+    // Left truss column
+    c.beginPath(); c.moveTo(W * 0.08, 0); c.lineTo(W * 0.12, stageY - 10); c.stroke();
+    c.beginPath(); c.moveTo(W * 0.12, 0); c.lineTo(W * 0.08, stageY - 10); c.stroke();
+    // Right truss column
+    c.beginPath(); c.moveTo(W * 0.88, 0); c.lineTo(W * 0.92, stageY - 10); c.stroke();
+    c.beginPath(); c.moveTo(W * 0.92, 0); c.lineTo(W * 0.88, stageY - 10); c.stroke();
+    // Top cross beam
+    c.lineWidth = 4;
+    c.beginPath(); c.moveTo(W * 0.08, H * 0.06); c.lineTo(W * 0.92, H * 0.06); c.stroke();
+    // Crowd moshing in the pit — dense bouncing heads at stage level
+    const pitCount = 80;
+    const pitY = stageY + 2;
+    c.fillStyle = 'rgba(10,4,2,0.95)';
+    c.fillRect(0, pitY, W, H - pitY);
+    for (let pi2 = 0; pi2 < pitCount; pi2++) {
+      const px2 = (pi2 / pitCount) * W + Math.sin(pi2 * 3.1) * W * 0.01;
+      const pBounce = Math.sin(t * 0.035 + pi2 * 0.8) * (6 + active * 18);
+      c.beginPath(); c.arc(px2, pitY - 6 + pBounce, 4 + Math.sin(pi2*1.7)*2, 0, Math.PI*2);
+      c.fillStyle = `rgba(16,7,4,0.92)`; c.fill();
+      if (pi2 % 5 === 0 && (pBounce < -4 || active > 0.6)) {
+        // Raised fist
+        c.strokeStyle = 'rgba(20,8,4,0.80)'; c.lineWidth = 2.5;
+        c.beginPath(); c.moveTo(px2, pitY - 8 + pBounce);
+        c.lineTo(px2 + Math.sin(pi2) * 8, pitY - 22 - active * 10 + pBounce); c.stroke();
+      }
+    }
+    // Stage barrier
+    c.fillStyle = `rgba(${R+30},${Math.floor(G*0.5)+12},8,${0.35 + active * 0.45})`;
+    c.fillRect(0, stageY - 2, W, 5);
+
+  } else if (cfg.terrainStyle === 'lofiCity') {
+    // Lo-fi (grand): panoramic layered city at night — multiple depth layers, bridges, trains
+    const groundY = H * 0.72;
+    const scrollX2 = -(CIN.camX * 0.10);
+    // Deep background buildings (very far)
+    for (let li = 0; li < 3; li++) {
+      const layParallax = [0.05, 0.09, 0.14][li];
+      const layScroll = -(CIN.camX * layParallax);
+      const bCount = [16, 12, 8][li];
+      const bWMult = [0.6, 0.9, 1.4][li];
+      const bHMult = [0.14, 0.22, 0.30][li];
+      const bYBase = groundY - H * (bHMult * 0.5 + li * 0.05);
+      const layRng = (s) => { let x = Math.sin(s * 43.7 + li * 17.1) * 43758.5; return x - Math.floor(x); };
+      for (let bi = -1; bi < bCount + 1; bi++) {
+        const bw = (W / bCount) * bWMult * (0.7 + layRng(bi * 3.1) * 0.6);
+        const bh = H * bHMult * (0.5 + layRng(bi * 5.3) * 0.8);
+        const bx = (bi / bCount) * W * 1.1 + ((layScroll % (W / bCount)) + W / bCount) % (W / bCount) * (W / (W / bCount));
+        const by = groundY - bh;
+        const dark = [8,12,18][li];
+        c.fillStyle = `rgba(${dark},${Math.floor(dark*0.85)},${Math.floor(dark*0.7)},0.95)`;
+        c.fillRect(bx, by, bw, bh + 4);
+        // Lit windows
+        const wRows = Math.floor(bh / 9), wCols = Math.max(1, Math.floor(bw / 10));
+        for (let wr = 0; wr < wRows; wr++) {
+          for (let wc = 0; wc < wCols; wc++) {
+            if (layRng(bi*11 + wr*7 + wc*5 + li*3) > 0.55) continue;
+            const wx2 = bx + 3 + wc * 10, wy2 = by + 4 + wr * 9;
+            const wFlicker = 0.6 + 0.4 * Math.sin(t * 0.004 + bi*2.1 + wr*1.3 + wc*0.7 + li);
+            c.fillStyle = layRng(bi + wr + li) > 0.6
+              ? `rgba(255,190,80,${0.20 * wFlicker})` : `rgba(180,200,255,${0.14 * wFlicker})`;
+            c.fillRect(wx2, wy2, 5, 4);
+          }
+        }
+      }
+    }
+    // Elevated train track bridge mid-ground
+    const trackY = groundY - H * 0.08;
+    const trackScroll = -(CIN.camX * 0.18) % W;
+    c.fillStyle = 'rgba(14,12,10,0.88)';
+    c.fillRect(0, trackY, W, 8);
+    c.fillRect(0, trackY + 14, W, 4);
+    // Track pillars
+    for (let ti = 0; ti < 9; ti++) {
+      const tx = (ti / 9) * W + ((trackScroll + W) % (W/9)) - W/9;
+      c.fillStyle = 'rgba(16,13,10,0.90)';
+      c.fillRect(tx, trackY, 8, groundY - trackY + 4);
+    }
+    // Occasional train — long dark silhouette
+    const trainX = ((CIN.camX * 0.22) % (W * 2.5)) - W * 0.4;
+    if (trainX > -W * 0.5 && trainX < W * 1.5) {
+      c.fillStyle = 'rgba(12,10,8,0.96)';
+      c.fillRect(trainX, trackY - 16, W * 0.32, 16);
+      // Train windows — warm lit interior
+      for (let wi2 = 0; wi2 < 8; wi2++) {
+        c.fillStyle = `rgba(255,200,120,${0.35 + active * 0.2})`;
+        c.fillRect(trainX + 8 + wi2 * (W * 0.036), trackY - 12, W * 0.022, 8);
+      }
+    }
+    // Ground floor
+    const grdFloor = c.createLinearGradient(0, groundY, 0, H);
+    grdFloor.addColorStop(0, `rgba(${Math.floor(R*0.07)},${Math.floor(G*0.06)},${Math.floor(B*0.05)},0.98)`);
+    grdFloor.addColorStop(1, `rgba(4,3,2,1)`);
+    c.fillStyle = grdFloor; c.fillRect(0, groundY, W, H - groundY);
+    // Wet street reflections
+    const refGrd = c.createLinearGradient(0, groundY, 0, groundY + H * 0.14);
+    refGrd.addColorStop(0, `rgba(255,185,60,${0.05 + CIN.smoothBass * 0.06})`);
+    refGrd.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = refGrd; c.fillRect(0, groundY, W, H * 0.14);
+
+  } else if (cfg.terrainStyle === 'arenaStage') {
+    // Pop (grand): mega arena stage — catwalk, LED floor grid, hydraulic risers
+    const stgY = H * 0.74;
+    // Stage base
+    c.fillStyle = 'rgba(6,3,12,0.98)';
+    c.fillRect(0, stgY, W, H - stgY);
+    // LED floor grid — reactive colour tiles
+    const gCols = 20, gRows = 5;
+    const tileW2 = W / gCols, tileH2 = (H - stgY) * 0.55 / gRows;
+    for (let gc = 0; gc < gCols; gc++) {
+      for (let gr = 0; gr < gRows; gr++) {
+        const binIdx = Math.floor((gc / gCols) * freqData.length * 0.7);
+        const binVal = (freqData[binIdx] || 0) / 255;
+        const hue = (gc * 18 + gr * 45 + t * 1.4) % 360;
+        const tileAlpha = (binVal * 0.6 + active * 0.25) * (0.4 + 0.6 * Math.sin(gr * 0.8 + t * 0.04));
+        if (tileAlpha < 0.04) continue;
+        c.fillStyle = `hsla(${hue},100%,60%,${tileAlpha})`;
+        c.fillRect(gc * tileW2 + 1, stgY + 2 + gr * tileH2, tileW2 - 1, tileH2 - 1);
+      }
+    }
+    // Catwalk — narrow strip extending towards viewer centre
+    const ckW = W * 0.09;
+    const ckX = (W - ckW) / 2;
+    c.fillStyle = 'rgba(12,6,20,0.95)';
+    c.fillRect(ckX, stgY, ckW, H - stgY);
+    // Catwalk LED edge strips
+    const ckEdgeAlpha = 0.35 + active * 0.45;
+    for (let ci = 0; ci < 12; ci++) {
+      const hue2 = (ci * 30 + t * 1.1) % 360;
+      c.fillStyle = `hsla(${hue2},100%,65%,${ckEdgeAlpha})`;
+      c.fillRect(ckX - 3, stgY + ci * ((H - stgY)/12), 3, (H - stgY)/12 - 2);
+      c.fillRect(ckX + ckW, stgY + ci * ((H - stgY)/12), 3, (H - stgY)/12 - 2);
+    }
+    // Hydraulic riser pillars — three platforms at varying heights
+    const risers = [[0.22, 0.12],[0.5, 0.18],[0.78, 0.10]];
+    risers.forEach(([rx, rh]) => {
+      const rH2 = H * rh * (0.6 + CIN.smoothBass * 0.4 + active * 0.3);
+      c.fillStyle = 'rgba(16,8,26,0.95)';
+      c.fillRect(W * rx - W * 0.055, stgY - rH2, W * 0.11, rH2);
+      // Top platform glow
+      const rGlow = c.createLinearGradient(0, stgY - rH2 - 4, 0, stgY - rH2 + 8);
+      const hue3 = (rx * 360 + t * 0.9) % 360;
+      rGlow.addColorStop(0, `hsla(${hue3},100%,70%,${0.28 + active * 0.35})`);
+      rGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = rGlow; c.fillRect(W * rx - W * 0.06, stgY - rH2 - 6, W * 0.12, 14);
+    });
+    // Stage front LED strip
+    const ledCountFront = 52;
+    for (let li = 0; li < ledCountFront; li++) {
+      const lx = (li / ledCountFront) * W;
+      const hue4 = (li / ledCountFront * 360 + t * 1.2) % 360;
+      c.fillStyle = `hsla(${hue4},100%,68%,${0.45 + active * 0.50})`;
+      c.fillRect(lx, stgY, W / ledCountFront - 1, 5);
+    }
+    // Giant crowd silhouette in deep background
+    const bgCrowdY = H * 0.55;
+    for (let ci = 0; ci < 70; ci++) {
+      const cx2 = (ci / 70) * W + Math.sin(ci * 3.7) * W * 0.012;
+      const cy2 = bgCrowdY + Math.sin(ci * 5.1 + t * 0.014) * (3 + active * 8);
+      c.beginPath(); c.arc(cx2, cy2, 3 + Math.sin(ci*2.3)*1.5, 0, Math.PI*2);
+      c.fillStyle = `rgba(10,5,16,0.85)`; c.fill();
+    }
+
+  } else if (cfg.terrainStyle === 'jazzHall') {
+    // Jazz (grand): interior of a cathedral jazz hall — arched pillars, balconies, deep shadows
+    const floorY  = H * 0.80;
+    const scrollXJ = -(CIN.camX * 0.08);
+    // Ceiling — dark vaulted arch
+    const ceilGrd = c.createLinearGradient(0, 0, 0, H * 0.35);
+    ceilGrd.addColorStop(0, 'rgba(2,4,12,1)');
+    ceilGrd.addColorStop(1, 'rgba(4,6,18,0.0)');
+    c.fillStyle = ceilGrd; c.fillRect(0, 0, W, H * 0.35);
+    // Arched side pillars
+    const pillarCount = cfg.pillarCount || 6;
+    for (let pi = 0; pi <= pillarCount; pi++) {
+      const px = (pi / pillarCount) * W + ((scrollXJ * 0.5) % (W / pillarCount));
+      const pW2 = W * 0.022;
+      // Main shaft
+      c.fillStyle = 'rgba(8,6,18,0.92)';
+      c.fillRect(px - pW2/2, H * 0.08, pW2, floorY - H * 0.08);
+      // Arch between pillars
+      if (pi < pillarCount) {
+        const nextPx = ((pi + 1) / pillarCount) * W + ((scrollXJ * 0.5) % (W / pillarCount));
+        const archCX = (px + nextPx) / 2;
+        const archCY = H * 0.14;
+        const archRX  = (nextPx - px) * 0.52;
+        const archRY  = H * 0.12;
+        c.beginPath();
+        c.ellipse(archCX, archCY + archRY, archRX, archRY, 0, Math.PI, 0);
+        c.strokeStyle = `rgba(16,12,34,0.80)`; c.lineWidth = 2; c.stroke();
+      }
+      // Capital (top of pillar) — ornate scroll suggestion
+      c.fillStyle = `rgba(20,16,40,0.85)`;
+      c.fillRect(px - pW2, H * 0.10, pW2 * 2, H * 0.03);
+    }
+    // Balcony tier — mid-left and mid-right
+    [[0.0, 0.42],[0.58, 1.0]].forEach(([bx1, bx2]) => {
+      c.fillStyle = 'rgba(6,5,14,0.92)';
+      c.fillRect(bx1 * W, H * 0.42, (bx2 - bx1) * W, H * 0.06);
+      // Balcony rail glow
+      c.fillStyle = `rgba(200,155,50,${0.08 + active * 0.08})`;
+      c.fillRect(bx1 * W, H * 0.42, (bx2 - bx1) * W, 2);
+      // Balcony seated silhouettes
+      for (let bs = 0; bs < Math.floor((bx2 - bx1) * 40); bs++) {
+        const bsx = bx1 * W + bs * ((bx2 - bx1) * W / Math.floor((bx2 - bx1) * 40));
+        c.beginPath(); c.arc(bsx, H * 0.43, 4, 0, Math.PI*2);
+        c.fillStyle = 'rgba(6,5,14,0.9)'; c.fill();
+      }
+    });
+    // Band stand — slightly raised platform
+    const bandW = W * 0.50;
+    c.fillStyle = 'rgba(10,8,22,0.97)';
+    c.fillRect((W - bandW)/2, floorY - H*0.05, bandW, H*0.05);
+    // Spotlight beam from chandelier down to band
+    const spGrd = c.createRadialGradient(W/2, H * 0.10, 0, W/2, floorY - H*0.02, W * 0.22);
+    spGrd.addColorStop(0,   `rgba(255,195,75,${0.06 + active * 0.10})`);
+    spGrd.addColorStop(0.5, `rgba(200,140,40,${0.02 + active * 0.04})`);
+    spGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = spGrd; c.fillRect(0, 0, W, H);
+    // Floor
+    const floorGrd = c.createLinearGradient(0, floorY, 0, H);
+    floorGrd.addColorStop(0, 'rgba(6,5,14,0.98)');
+    floorGrd.addColorStop(1, 'rgba(2,2,8,1)');
+    c.fillStyle = floorGrd; c.fillRect(0, floorY, W, H - floorY);
+    // Parquet floor sheen
+    const parGrd = c.createLinearGradient(0, floorY, 0, floorY + H * 0.06);
+    parGrd.addColorStop(0, `rgba(200,155,50,${0.04 + CIN.smoothBass * 0.06})`);
+    parGrd.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = parGrd; c.fillRect(0, floorY, W, H * 0.06);
+
   } else if (cfg.terrainStyle === 'crowd') {
     // Rock: crowd silhouette — sea of raised hands and heads
     const groundY = H * 0.82;
@@ -20040,6 +20505,92 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       jGrd.addColorStop(1, 'rgba(0,0,0,0)');
       c.fillStyle = jGrd; c.fillRect(fogX, y - fog.height * 1.2, fogW, fog.height * 1.7);
     });
+  } else if (cfg.fogStyle === 'pyroFog' && CIN.fogLayers.length) {
+    // Rock (grand): dense low pyro ground fog — thick white/orange bands with heat shimmer
+    CIN.fogLayers.forEach(fog => {
+      fog.x += fog.speed * (0.15 + active * 0.55);
+      const y = fog.y + Math.sin(t * fog.freq * 0.4 + fog.phase) * fog.amp * 0.6;
+      const fAlpha = fog.alpha * (0.85 + active * 0.35);
+      const fogW2 = W * 2.0;
+      const fogX2 = ((fog.x - CIN.camX * 0.08) % fogW2 + fogW2 * 2) % fogW2 - fogW2 * 0.1;
+      const pGrd = c.createLinearGradient(0, y - fog.height * 0.8, 0, y + fog.height * 1.0);
+      pGrd.addColorStop(0,   'rgba(0,0,0,0)');
+      pGrd.addColorStop(0.35,`rgba(${Math.floor(R*0.8+60)},${Math.floor(G*0.2+18)},0,${fAlpha * 0.70})`);
+      pGrd.addColorStop(0.65,`rgba(255,255,230,${fAlpha * 0.42})`);
+      pGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = pGrd; c.fillRect(fogX2, y - fog.height * 0.8, fogW2, fog.height * 1.8);
+    });
+    // Heat shimmer lines near the ground
+    if (active > 0.3) {
+      for (let hs = 0; hs < 8; hs++) {
+        const hsy = H * 0.80 + hs * H * 0.015;
+        const hsAlpha = (active - 0.3) * 0.07 * CIN.smoothBass;
+        c.fillStyle = `rgba(255,160,40,${hsAlpha})`;
+        c.fillRect(0, hsy, W, 1);
+      }
+    }
+  } else if (cfg.fogStyle === 'tapeGrain') {
+    // Lo-fi (grand): warm tape grain with heavy vignette edges and slight vertical scan bands
+    const tgAlpha = 0.030 + CIN.smoothEnergy * 0.018;
+    for (let gi2 = 0; gi2 < 280; gi2++) {
+      const gx2 = Math.random() * W;
+      const gy2 = Math.random() * H;
+      const gs2 = Math.random() * 2.0;
+      c.fillStyle = `rgba(220,175,90,${tgAlpha * (0.3 + Math.random() * 0.7)})`;
+      c.fillRect(gx2, gy2, gs2, gs2);
+    }
+    // Vertical scan bands (tape flutter)
+    for (let tb = 0; tb < 3; tb++) {
+      const tbx = (t * 0.4 + tb * W * 0.33) % W;
+      const tbAlpha2 = (0.015 + active * 0.012) * Math.sin(t * 0.02 + tb);
+      if (tbAlpha2 > 0.005) {
+        const tbGrd = c.createLinearGradient(tbx - 18, 0, tbx + 18, 0);
+        tbGrd.addColorStop(0, 'rgba(0,0,0,0)');
+        tbGrd.addColorStop(0.5, `rgba(255,200,100,${tbAlpha2})`);
+        tbGrd.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = tbGrd; c.fillRect(tbx - 18, 0, 36, H);
+      }
+    }
+    // Heavy vignette edges
+    const tapeVig = c.createRadialGradient(W/2, H/2, H*0.28, W/2, H/2, H*0.88);
+    tapeVig.addColorStop(0, 'rgba(0,0,0,0)');
+    tapeVig.addColorStop(1, `rgba(4,3,1,${0.30 + active * 0.08})`);
+    c.fillStyle = tapeVig; c.fillRect(0, 0, W, H);
+  } else if (cfg.fogStyle === 'prismFog' && CIN.fogLayers.length) {
+    // Pop (grand): prismatic coloured stage fog — hue shifts with beat
+    CIN.fogLayers.forEach((fog, fi) => {
+      fog.x += fog.speed * (0.20 + active * 0.50);
+      const y = fog.y + Math.sin(t * fog.freq * 0.6 + fog.phase) * fog.amp;
+      const fAlpha = fog.alpha * (0.7 + active * 0.45);
+      const fogW3 = W * 1.8;
+      const fogX3 = ((fog.x - CIN.camX * 0.06) % fogW3 + fogW3 * 2) % fogW3 - fogW3 * 0.1;
+      const hue6 = (fi * 120 + t * 0.8 + CIN.smoothBass * 60) % 360;
+      const pgGrd = c.createLinearGradient(0, y - fog.height, 0, y + fog.height * 0.6);
+      pgGrd.addColorStop(0, 'rgba(0,0,0,0)');
+      pgGrd.addColorStop(0.4, `hsla(${hue6},90%,60%,${fAlpha * 0.35})`);
+      pgGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = pgGrd; c.fillRect(fogX3, y - fog.height, fogW3, fog.height * 1.6);
+    });
+  } else if (cfg.fogStyle === 'deepJazzSmoke' && CIN.fogLayers.length) {
+    // Jazz (grand): thick midnight blue hall haze — multiple tall layers
+    CIN.fogLayers.forEach(fog => {
+      fog.x += fog.speed * (0.05 + active * 0.18);
+      const y = fog.y + Math.sin(t * fog.freq * 0.4 + fog.phase) * fog.amp;
+      const fAlpha = fog.alpha * (0.85 + rest * 0.5);
+      const fogW4 = W * 2.0;
+      const fogX4 = ((fog.x - CIN.camX * 0.04) % fogW4 + fogW4 * 2) % fogW4 - fogW4 * 0.1;
+      const djGrd = c.createLinearGradient(0, y - fog.height * 1.8, 0, y + fog.height * 0.6);
+      djGrd.addColorStop(0, 'rgba(0,0,0,0)');
+      djGrd.addColorStop(0.3, `rgba(10,18,45,${fAlpha * 0.55})`);
+      djGrd.addColorStop(0.6, `rgba(6,12,32,${fAlpha * 0.30})`);
+      djGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = djGrd; c.fillRect(fogX4, y - fog.height * 1.8, fogW4, fog.height * 2.4);
+    });
+    // Deep vignette corners — the hall closes in
+    const djVig = c.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.92);
+    djVig.addColorStop(0, 'rgba(0,0,0,0)');
+    djVig.addColorStop(1, `rgba(2,4,12,${0.40 + rest * 0.18})`);
+    c.fillStyle = djVig; c.fillRect(0, 0, W, H);
   }
   // broadcast fogStyle === 'none': nothing drawn
 
@@ -20195,6 +20746,111 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.fillStyle = `rgba(220,200,160,0.7)`;
       c.fillRect(tx - 3, torchYPos, 6, 14);
 
+    } else if (cfg.torchStyle === 'pyroCannon') {
+      // Rock (grand): towering pyro cannons — wider burst, massive flame columns
+      const pyroPhase2 = Math.sin(t * 0.038 + i * 1.1);
+      const pyroFire2 = (isPlaying && pyroPhase2 > 0.70) || (i === 0 && CIN.smoothBass > 0.55);
+      const pyroAlpha2 = pyroFire2 ? (0.85 + active * 0.15) : (0.06 + active * 0.12);
+      const pyroH2 = pyroFire2 ? H * 0.58 : H * 0.10;
+      const pyroW2 = pyroFire2 ? 28 + active * 14 : 10;
+      const pyGrd2 = c.createLinearGradient(tx, torchYPos, tx, torchYPos - pyroH2);
+      pyGrd2.addColorStop(0,   `rgba(255,40,0,${pyroAlpha2})`);
+      pyGrd2.addColorStop(0.15,`rgba(255,120,10,${pyroAlpha2 * 0.82})`);
+      pyGrd2.addColorStop(0.45,`rgba(255,200,50,${pyroAlpha2 * 0.45})`);
+      pyGrd2.addColorStop(0.75,`rgba(255,240,180,${pyroAlpha2 * 0.18})`);
+      pyGrd2.addColorStop(1,   'rgba(255,255,200,0)');
+      c.fillStyle = pyGrd2; c.fillRect(tx - pyroW2/2, torchYPos - pyroH2, pyroW2, pyroH2);
+      // Wide shockwave glow on fire
+      if (pyroFire2) {
+        const shockGrd = c.createRadialGradient(tx, torchYPos - pyroH2 * 0.3, 0, tx, torchYPos - pyroH2 * 0.3, pyroW2 * 5);
+        shockGrd.addColorStop(0, `rgba(255,80,0,${pyroAlpha2 * 0.5})`);
+        shockGrd.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = shockGrd; c.fillRect(tx - pyroW2*5, torchYPos - pyroH2, pyroW2*10, pyroH2);
+      }
+      c.fillStyle = `rgba(35,14,6,0.92)`;
+      c.fillRect(tx - 12, torchYPos - 12, 24, 14);
+
+    } else if (cfg.torchStyle === 'streetLamp') {
+      // Lo-fi (grand): tall amber street lamp with wide warm glow pool
+      const postH2 = H * 0.30;
+      const postY2 = H * cfg.torchY - postH2;
+      // Post
+      c.fillStyle = 'rgba(20,16,10,0.88)'; c.fillRect(tx - 2, postY2, 4, postH2);
+      // Lamp housing arm
+      c.fillStyle = 'rgba(22,18,12,0.85)'; c.fillRect(tx, postY2, 16, 3);
+      c.fillRect(tx + 14, postY2 - 10, 3, 12);
+      // Wide amber glow — much larger than incandescent
+      const lampAlpha2 = (0.22 + active * 0.28 + Math.sin(t * 0.005 + i * 1.8) * 0.03) * flicker;
+      const lGrd3 = c.createRadialGradient(tx + 14, postY2 - 8, 0, tx + 14, postY2, H * 0.28);
+      lGrd3.addColorStop(0,   `rgba(255,190,80,${lampAlpha2 * 1.8})`);
+      lGrd3.addColorStop(0.10,`rgba(230,150,50,${lampAlpha2 * 0.8})`);
+      lGrd3.addColorStop(0.40,`rgba(180,100,20,${lampAlpha2 * 0.25})`);
+      lGrd3.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = lGrd3; c.fillRect(tx - H*0.3, postY2 - H*0.3, H*0.6, H*0.35);
+      // Rain reflection pool on ground
+      const poolGrd = c.createLinearGradient(tx, H * cfg.torchY, tx, H * cfg.torchY + H * 0.06);
+      poolGrd.addColorStop(0, `rgba(255,185,60,${lampAlpha2 * 0.45})`);
+      poolGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = poolGrd; c.fillRect(tx - 30, H * cfg.torchY, 60, H * 0.06);
+
+    } else if (cfg.torchStyle === 'movingHead') {
+      // Pop (grand): moving head light — full-arc sweep, colour-cycling, wide beam
+      const sweepAngle = (t * 0.022 + i * 0.8) % (Math.PI * 2);
+      const beamDirX = Math.sin(sweepAngle) * W * 0.45;
+      const beamDirY = H * 0.65 + Math.cos(sweepAngle * 0.7) * H * 0.18;
+      const hue5 = (i * 55 + t * 1.8) % 360;
+      const beamAlpha2 = (0.22 + active * 0.55) * flicker;
+      // Beam — tapered from fixture head to floor
+      c.save();
+      c.globalAlpha = beamAlpha2;
+      const beamGrd2 = c.createLinearGradient(tx, torchYPos, tx + beamDirX, beamDirY);
+      beamGrd2.addColorStop(0,   `hsla(${hue5},100%,80%,0.7)`);
+      beamGrd2.addColorStop(0.6, `hsla(${hue5},100%,55%,0.3)`);
+      beamGrd2.addColorStop(1,   `hsla(${hue5},100%,40%,0)`);
+      c.fillStyle = beamGrd2;
+      const beamHalfW = 8 + active * 12;
+      c.beginPath();
+      c.moveTo(tx - beamHalfW * 0.3, torchYPos);
+      c.lineTo(tx + beamDirX - beamHalfW, beamDirY);
+      c.lineTo(tx + beamDirX + beamHalfW, beamDirY);
+      c.lineTo(tx + beamHalfW * 0.3, torchYPos);
+      c.closePath(); c.fill();
+      c.globalAlpha = 1;
+      c.restore();
+      // Floor spot
+      const spotGrd2 = c.createRadialGradient(tx + beamDirX, beamDirY, 0, tx + beamDirX, beamDirY, beamHalfW * 3);
+      spotGrd2.addColorStop(0, `hsla(${hue5},100%,75%,${0.45 + active * 0.35})`);
+      spotGrd2.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = spotGrd2; c.beginPath(); c.arc(tx + beamDirX, beamDirY, beamHalfW * 3, 0, Math.PI*2); c.fill();
+      // Moving head housing
+      c.fillStyle = 'rgba(16,8,28,0.90)'; c.beginPath(); c.arc(tx, torchYPos, 8, 0, Math.PI*2); c.fill();
+
+    } else if (cfg.torchStyle === 'brassTorch') {
+      // Jazz (grand): tall brass floor lamp — warm amber, with decorative base and shade
+      const postH3 = H * 0.26;
+      const postY3 = H * cfg.torchY - postH3;
+      // Post — brass finish
+      const postGrd3 = c.createLinearGradient(tx - 3, 0, tx + 3, 0);
+      postGrd3.addColorStop(0, `rgba(150,105,30,0.85)`);
+      postGrd3.addColorStop(0.5, `rgba(200,155,50,0.85)`);
+      postGrd3.addColorStop(1, `rgba(130,90,20,0.80)`);
+      c.fillStyle = postGrd3; c.fillRect(tx - 3, postY3, 6, postH3);
+      // Lamp shade
+      c.save(); c.translate(tx, postY3);
+      c.fillStyle = `rgba(180,120,30,${(0.75 + active * 0.15) * flicker})`;
+      c.beginPath(); c.moveTo(-16, 0); c.lineTo(16, 0); c.lineTo(10, 18); c.lineTo(-10, 18); c.closePath(); c.fill();
+      c.restore();
+      // Wide warm glow under shade — downward conic
+      const brassGrd = c.createRadialGradient(tx, postY3 + 18, 0, tx, postY3 + 18, H * 0.32);
+      brassGrd.addColorStop(0,   `rgba(255,200,80,${(0.28 + active * 0.24) * flicker})`);
+      brassGrd.addColorStop(0.15,`rgba(220,155,40,${0.16 * flicker})`);
+      brassGrd.addColorStop(0.50,`rgba(160,100,15,${0.06 * flicker})`);
+      brassGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = brassGrd; c.fillRect(tx - H*0.35, postY3, H*0.70, H*0.36);
+      // Decorative base
+      c.fillStyle = `rgba(160,110,28,0.80)`;
+      c.beginPath(); c.ellipse(tx, H * cfg.torchY, 9, 4, 0, 0, Math.PI*2); c.fill();
+
     } else if (cfg.torchStyle === 'terminal') {
       // Void: flickering CRT terminal screens on the ground
       const scrW = 40 + active * 10, scrH = 28;
@@ -20254,9 +20910,15 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
         ? `rgba(0,229,255,${alpha * 0.6})`
         : `rgba(255,45,120,${alpha * 0.35})`;
     } else if (_showRockSparks) {
-      c.fillStyle = prog < 0.4
-        ? `rgba(255,${100 + Math.floor(prog*300)},10,${alpha * 0.9})`
-        : `rgba(255,60,0,${alpha * 0.4})`;
+      // Rock (grand): searing electric sparks — white-hot core fading to orange
+      const coreAlpha = prog < 0.25
+        ? alpha * 1.2
+        : alpha * 0.5 * (1 - (prog - 0.25) / 0.75);
+      c.fillStyle = prog < 0.15
+        ? `rgba(255,255,220,${coreAlpha})`   // white-hot birth
+        : prog < 0.45
+          ? `rgba(255,${140 + Math.floor((0.45 - prog) * 340)},20,${alpha * 0.95})`  // orange arc
+          : `rgba(255,40,0,${alpha * 0.35})`; // cooling ember
     } else if (_showLofiDust) {
       c.fillStyle = `rgba(210,165,80,${alpha * 0.5})`;
     } else if (_showPopConf) {
@@ -20271,6 +20933,41 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
     }
     c.fill();
   });
+
+  // ── 10b. ELECTRIC ARC MICRO-BOLTS — rock skin only
+  // When two sparks are close together, crackle a jagged lightning bolt between them.
+  if (_showRockSparks && CIN.embers.length > 1 && active > 0.25) {
+    const arcMax = 6; // max arcs per frame to keep it subtle
+    let arcsDrawn = 0;
+    for (let ai = 0; ai < CIN.embers.length && arcsDrawn < arcMax; ai++) {
+      const pa = CIN.embers[ai];
+      if (pa.age / pa.maxLife > 0.7) continue; // dying sparks don't arc
+      for (let bi2 = ai + 1; bi2 < CIN.embers.length && arcsDrawn < arcMax; bi2++) {
+        const pb = CIN.embers[bi2];
+        if (pb.age / pb.maxLife > 0.7) continue;
+        const dx2 = pb.x - pa.x, dy2 = pb.y - pa.y;
+        const dist2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+        if (dist2 > 55 || dist2 < 6) continue;
+        const arcAlpha = (0.18 + active * 0.28) * (1 - dist2 / 55) * (CIN.smoothBass * 0.6 + 0.4);
+        if (arcAlpha < 0.04) continue;
+        // Jagged bolt: 3 random midpoints
+        c.beginPath();
+        c.moveTo(pa.x, pa.y);
+        const segs = 3;
+        for (let s = 1; s < segs; s++) {
+          const t2 = s / segs;
+          const mx = pa.x + dx2 * t2 + (Math.random() - 0.5) * dist2 * 0.35;
+          const my = pa.y + dy2 * t2 + (Math.random() - 0.5) * dist2 * 0.35;
+          c.lineTo(mx, my);
+        }
+        c.lineTo(pb.x, pb.y);
+        c.strokeStyle = `rgba(255,240,180,${arcAlpha})`;
+        c.lineWidth = 0.6 + active * 0.5;
+        c.stroke();
+        arcsDrawn++;
+      }
+    }
+  }
 
   // ── 11. ZONE-SPECIFIC AMBIENT PARTICLES — drift with world wind
   const particleAtmo = cinGetAtmo(zone);
@@ -20380,11 +21077,12 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       else if (_activeSkin === 'sakura'){ glyphR = 232; glyphG = 120; glyphB = 160; }
       else if (_activeSkin === 'broadcast') { glyphR = 232; glyphG = 160; glyphB = 32; }
       else if (_activeSkin === 'void')  { glyphR = 0; glyphG = 255; glyphB = 65; }
+      else if (_activeSkin === 'rock')  { glyphR = 240; glyphG = 96;  glyphB = 32; }
 
       c.font = `${rn.size}px ${cfg.glyphFont}`;
       c.textAlign = 'center';
-      if (_activeSkin === 'void' || _activeSkin === 'neon') {
-        // Glow effect for digital skins
+      if (_activeSkin === 'void' || _activeSkin === 'neon' || _activeSkin === 'rock') {
+        // Glow effect for digital/electric skins
         c.shadowColor = `rgba(${glyphR},${glyphG},${glyphB},${alpha * 1.2})`;
         c.shadowBlur = 8;
       }
@@ -20445,7 +21143,11 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   }
   CIN.prevBass = CIN.smoothBass;
   if (CIN.beatFlash > 0.001) {
-    c.fillStyle = `rgba(${R},${Math.floor(G*0.5)},${B},${CIN.beatFlash})`;
+    let bfR = R, bfG = Math.floor(G*0.5), bfB = B;
+    if (_activeSkin === 'rock')     { bfR = 255; bfG = 100; bfB = 20; }
+    else if (_activeSkin === 'pop') { bfR = 255; bfG = 60;  bfB = 200; }
+    else if (_activeSkin === 'jazz'){ bfR = 200; bfG = 140; bfB = 40; }
+    c.fillStyle = `rgba(${bfR},${bfG},${bfB},${CIN.beatFlash})`;
     c.fillRect(0, 0, W, H);
     CIN.beatFlash *= 0.68;
   }
@@ -20536,6 +21238,40 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.fillText(w.text, w.x + 1, w.y + 1);
       c.fillStyle = `rgba(240,230,210,${wAlpha * 0.88})`;
       c.fillText(w.text, w.x, w.y);
+    } else if (_activeSkin === 'rock') {
+      // Rock: searing electric orange — glow + hard drop shadow
+      c.shadowColor = `rgba(255,80,0,${wAlpha * 0.9})`; c.shadowBlur = 16;
+      c.fillStyle = `rgba(0,0,0,${wAlpha * 0.70})`;
+      c.fillText(w.text, w.x + 2, w.y + 2);
+      c.shadowBlur = 0;
+      c.shadowColor = `rgba(255,160,40,${wAlpha * 0.8})`; c.shadowBlur = 12;
+      c.fillStyle = `rgba(255,${180 + Math.floor(CIN.smoothBass * 60)},80,${wAlpha * 0.95})`;
+      c.fillText(w.text, w.x, w.y);
+      c.shadowBlur = 0;
+    } else if (_activeSkin === 'lofi') {
+      // Lo-fi: warm amber, soft vintage film look — slight double-exposure offset
+      c.fillStyle = `rgba(180,120,30,${wAlpha * 0.25})`;
+      c.fillText(w.text, w.x + 1.5, w.y + 1.5);
+      c.fillStyle = `rgba(240,200,110,${wAlpha * 0.82})`;
+      c.fillText(w.text, w.x, w.y);
+    } else if (_activeSkin === 'pop') {
+      // Pop: chromatic double shadow — hot pink / cyan split
+      c.fillStyle = `rgba(255,60,160,${wAlpha * 0.35})`;
+      c.fillText(w.text, w.x + 2.5, w.y);
+      c.fillStyle = `rgba(60,255,200,${wAlpha * 0.25})`;
+      c.fillText(w.text, w.x - 2.5, w.y);
+      c.shadowColor = `rgba(255,180,240,${wAlpha * 0.6})`; c.shadowBlur = 12;
+      c.fillStyle = `rgba(255,240,255,${wAlpha * 0.95})`;
+      c.fillText(w.text, w.x, w.y);
+      c.shadowBlur = 0;
+    } else if (_activeSkin === 'jazz') {
+      // Jazz: deep blue shadow, warm brass text
+      c.fillStyle = `rgba(0,0,0,${wAlpha * 0.80})`;
+      c.fillText(w.text, w.x + 2, w.y + 2);
+      c.shadowColor = `rgba(200,150,40,${wAlpha * 0.5})`; c.shadowBlur = 14;
+      c.fillStyle = `rgba(230,185,80,${wAlpha * 0.90})`;
+      c.fillText(w.text, w.x, w.y);
+      c.shadowBlur = 0;
     } else {
       // Ashen default: strong shadow, zone-tinted text
       c.shadowColor = `rgba(0,0,0,${wAlpha * 0.95})`;
@@ -20574,6 +21310,10 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       else if (_activeSkin === 'sakura'){ acR = 232; acG = 120; acB = 160; }
       else if (_activeSkin === 'broadcast'){ acR = 232; acG = 160; acB = 32; }
       else if (_activeSkin === 'void')  { acR = 0;   acG = 255; acB = 65; }
+      else if (_activeSkin === 'rock')  { acR = 255; acG = 80;  acB = 20; }
+      else if (_activeSkin === 'lofi')  { acR = 240; acG = 190; acB = 80; }
+      else if (_activeSkin === 'pop')   { acR = 255; acG = 80;  acB = 200; }
+      else if (_activeSkin === 'jazz')  { acR = 210; acG = 155; acB = 50; }
 
       // Horizontal rule
       c.fillStyle = `rgba(${acR},${acG},${acB},${fadeA * 0.5})`;
@@ -20594,6 +21334,10 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
         c.shadowColor = `rgba(0,255,65,${fadeA * 0.9})`; c.shadowBlur = 20 * fadeA;
       } else if (_activeSkin === 'neon') {
         c.shadowColor = `rgba(0,229,255,${fadeA * 0.8})`; c.shadowBlur = 25 * fadeA;
+      } else if (_activeSkin === 'rock') {
+        c.shadowColor = `rgba(255,80,20,${fadeA * 0.95})`; c.shadowBlur = 30 * fadeA;
+      } else if (_activeSkin === 'pop') {
+        c.shadowColor = `rgba(255,80,200,${fadeA * 0.80})`; c.shadowBlur = 28 * fadeA;
       } else {
         c.shadowColor = `rgba(${acR},${acG},${acB},0.8)`; c.shadowBlur = 30 * fadeA;
       }
@@ -21346,7 +22090,7 @@ const SKIN_VOICE_PREFS = {
   crimson: { drone:'drawbar',   perc:'cinematic', choir:'infernal',  strings:'arco',       bass:'sawtooth'  },
   desert:  { drone:'vox',       perc:'tribal',    choir:'gregorian', strings:'pizzicato',  bass:'sine'      },
   // New genre skins — distinct synthesis architecture
-  rock:    { drone:'cabinet',   perc:'stadium',   choir:'bright',    strings:'sul_ponticello', bass:'pickedBass', melody:'distGuitar' },
+  rock:    { drone:'cabinet',   perc:'stadium',   choir:'bright',    strings:'sul_ponticello', bass:'pickedBass', melody:'distGuitar', guitar:'halo' },
   lofi:    { drone:'tapeWarp',  perc:'brushkit',  choir:'gregorian', strings:'sul_tasto',  bass:'triangleBass', melody:'rhodes'     },
   pop:     { drone:'harmonic',  perc:'popkit',    choir:'bright',    strings:'arco',       bass:'808',          melody:'supersaw'   },
   jazz:    { drone:'vox',       perc:'brushswing',choir:'gregorian', strings:'pizzicato',  bass:'upright',      melody:'saxophone'  },
