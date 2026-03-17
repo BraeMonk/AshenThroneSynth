@@ -23352,6 +23352,157 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./service-worker.js')
     .catch(err => console.warn('SW registration failed:', err));
 }
+
+// ================== MUSIC ENGINE OVERHAUL ==================
+
+// Global musical state
+let bpm = 80;
+let beat = 60 / bpm;
+let bar = beat * 4;
+
+let progression = [
+  [0,4,7], [5,9,12], [7,11,14], [0,4,7]
+];
+
+let currentBar = 0;
+let currentChord = progression[0];
+
+const sections = ["intro","verse","chorus","verse","chorus"];
+let sectionIndex = 0;
+
+// Smooth gain
+function smoothGain(g, target, t=0.6){
+  const now = ctx.currentTime;
+  g.gain.cancelScheduledValues(now);
+  g.gain.linearRampToValueAtTime(target, now + t);
+}
+
+// Bar scheduler
+function nextBarTime(){
+  const now = ctx.currentTime;
+  return Math.ceil(now / bar) * bar;
+}
+
+// Advance musical state
+function advanceMusic(){
+  currentBar++;
+  currentChord = progression[currentBar % progression.length];
+
+  if(currentBar % 8 === 0){
+    sectionIndex = (sectionIndex + 1) % sections.length;
+    updateSection(sections[sectionIndex]);
+  }
+
+  setTimeout(advanceMusic, bar * 1000);
+}
+
+// Section control (pop structure feel)
+function updateSection(section){
+  if(!window.layers) return;
+
+  if(section === "intro"){
+    smoothGain(layers.drums, 0);
+    smoothGain(layers.bass, 0.3);
+  }
+  if(section === "verse"){
+    smoothGain(layers.drums, 0.4);
+    smoothGain(layers.bass, 0.6);
+  }
+  if(section === "chorus"){
+    smoothGain(layers.drums, 1);
+    smoothGain(layers.bass, 1);
+  }
+}
+
+// Force all notes to follow chord
+function getChordNote(){
+  const chord = currentChord;
+  return chord[Math.floor(Math.random()*chord.length)];
+}
+
+// Humanization
+function humanize(time){
+  return time + (Math.random()-0.5)*0.02;
+}
+
+// Start system
+setTimeout(advanceMusic, bar * 1000);
+
+// ================== END OVERHAUL ==================
+
+// ================== GENRE DEEP PASS ==================
+
+// --- Lofi Enhancements ---
+function applyLofiFeel(time, step){
+  const swing = 0.08;
+  if(step % 2 !== 0) time += swing * beat;
+  return humanize(time);
+}
+
+function createVinylNoise(){
+  const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<data.length;i++){
+    data[i] = (Math.random()*2-1) * 0.02;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+
+  const gain = ctx.createGain();
+  gain.gain.value = 0.05;
+
+  src.connect(gain).connect(ctx.destination);
+  src.start();
+}
+
+// --- Jazz Enhancements ---
+function getJazzChord(){
+  const base = currentChord[0];
+  return [base, base+3, base+7, base+10]; // minor 7
+}
+
+function jazzHumanVel(){
+  return 0.5 + Math.random()*0.4;
+}
+
+// --- Pop Enhancements ---
+let savedHook = null;
+
+function generateHook(){
+  let hook = [];
+  for(let i=0;i<4;i++){
+    hook.push(getChordNote());
+  }
+  savedHook = hook;
+}
+
+function playHook(){
+  if(!savedHook) return;
+  savedHook.forEach((note,i)=>{
+    // placeholder: integrate with your synth
+  });
+}
+
+// --- Genre Router ---
+function applyGenre(genre){
+  if(genre === "lofi"){
+    createVinylNoise();
+  }
+  if(genre === "jazz"){
+    currentChord = getJazzChord();
+  }
+  if(genre === "pop"){
+    if(!savedHook) generateHook();
+  }
+}
+
+// Auto-apply genre if defined
+if(typeof currentGenre !== "undefined"){
+  applyGenre(currentGenre);
+}
+
+// ================== END GENRE PASS ==================
 </script>
 </body>
 </html>
