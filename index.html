@@ -15396,17 +15396,22 @@ function buildViola(preset, intensity, name) {
   // Do NOT call .stop() with a far-future time — WebAudio holds them in memory.
 
   const VOICES = [
-    { vIdx: 0, oct: 1.0, det: -3, gv: 0.42 }, // root
-    { vIdx: 1, oct: 1.0, det:  3, gv: 0.34 }, // 3rd
-    { vIdx: 2, oct: 0.5, det: -2, gv: 0.24 }, // 5th below
+    { vIdx: 1, oct: 1.0, det:  3, gv: 0.55 }, // 3rd
+    { vIdx: 2, oct: 0.5, det: -2, gv: 0.45 }, // 5th below
   ];
   const violaOscs = [];
 
   // Signal chain: oscs → bodyFilter (includes lpf character) → swellEnv → b
   const body     = makeBodyFilter(name, 'viola');
   const swellEnv = mkGain(0);
-  body.output.connect(swellEnv); swellEnv.connect(b);
-  reg(name, swellEnv);
+  const pan = ctx.createStereoPanner();
+  pan.pan.value = -0.35; // viola slightly left
+
+  body.output.connect(swellEnv);
+  swellEnv.connect(pan);
+  pan.connect(b);
+
+  reg(name, pan);
 
   // Slow bow swell
   swellEnv.gain.setValueAtTime(0, now);
@@ -15422,7 +15427,8 @@ function buildViola(preset, intensity, name) {
   VOICES.forEach(({ vIdx, oct, det, gv }) => {
     const freq = CE.chordTone('viola', 1, vIdx) * oct;
     if (!freq || freq < 40) return;
-    const o = mkOsc(freq, 'sawtooth', det);
+    const drift = (rng() - 0.5) * 10; // ±5 cents random drift
+    const o = mkOsc(freq, 'triangle', det + drift);
     const g = mkGain(gv);
     o.connect(g); g.connect(body.input);
 
@@ -15882,10 +15888,16 @@ function buildStrings(preset, intensity, name) {
       const o    = mkOsc(freq, vcfg.wave, det);
       const g    = mkGain(voiceGains[vi]);
 
+      // stereo spread for section realism
+      const pan  = ctx.createStereoPanner();
+      pan.pan.value = (vi - 1.5) * 0.35;
+
+      reg(name, pan);
+
       if (vcfg.pluck) {
         // Pizzicato — pluck envelope: very fast attack, exponential decay, no sustain
         const pluckEnv = mkGain(0);
-        chain(o, g, pluckEnv, lpfNode);
+        chain(o, g, pan, pluckEnv, lpfNode);
         const pluckDur = 0.18 + intensity * 0.1;
         pluckEnv.gain.setValueAtTime(0, now);
         pluckEnv.gain.linearRampToValueAtTime(1.0, now + 0.006);
@@ -15904,14 +15916,14 @@ function buildStrings(preset, intensity, name) {
           pe.gain.linearRampToValueAtTime(voiceGains[vi], nextPluck + 0.005);
           pe.gain.exponentialRampToValueAtTime(0.001, nextPluck + 0.20 + intensity * 0.08);
           // Connect pe in parallel — let it fire then go silent
-          chain(o, g, pe, lpfNode);
+          chain(o, g, pan, pe, lpfNode);
           reg(name, pe);
           nextPluck += pluckInterval * (0.9 + rng() * 0.4); // slight timing variation
           regT(name, setTimeout(schedulePluck, (nextPluck - ctx.currentTime) * 1000 - 50));
         }
         regT(name, setTimeout(schedulePluck, (pluckInterval - 0.05) * 1000));
       } else {
-        chain(o, g, lpfNode);
+        chain(o, g, pan, lpfNode);
       }
 
       o.start();
