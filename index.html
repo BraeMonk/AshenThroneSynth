@@ -15396,8 +15396,8 @@ function buildViola(preset, intensity, name) {
   // Do NOT call .stop() with a far-future time — WebAudio holds them in memory.
 
   const VOICES = [
-    { vIdx: 1, oct: 1.0, det:  3, gv: 0.55 }, // 3rd
-    { vIdx: 2, oct: 0.5, det: -2, gv: 0.45 }, // 5th below
+    { vIdx: 1, oct: 0.985, det:  3, gv: 0.55 }, // slightly lowered inner tone
+    { vIdx: 2, oct: 0.545, det: -2, gv: 0.45 }, // body resonance instead of exact 5th
   ];
   const violaOscs = [];
 
