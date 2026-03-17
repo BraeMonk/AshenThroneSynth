@@ -2289,6 +2289,12 @@ let GROQ_MELODY_SHAPE = 'arch';
 let bpmLocked = false;
 let bpmLockValue = 60;
 
+// Returns the BPM that should actually be used for scheduling.
+// Respects BPM lock — use this everywhere instead of preset.bpm directly.
+function effectiveBpm(presetBpm) {
+  return bpmLocked ? bpmLockValue : presetBpm;
+}
+
 // ── Seeded RNG ───────────────────────────────────────────────────
 let activeSeed = null;
 let _seedState = 0;
@@ -2492,6 +2498,11 @@ const SKIN_PHRASE_LAYER_TARGETS = {
 };
 
 function startPhraseEngine() {
+  // Final safety: ensure perc is on for genre skins before phrase scheduling begins
+  if (['lofi', 'jazz', 'rock', 'pop'].includes(_activeSkin)) {
+    if (!layerOn.perc) layerOn.perc = true;
+    if (!layerOn.bass) layerOn.bass = true;
+  }
   stopPhraseEngine();
   const preset = getZone(parseInt(slider.value));
   if (!bpmLocked) barLength = (60 / preset.bpm) * 4;
@@ -5546,7 +5557,7 @@ JC.reconcile = function(preset, intensity) {
 
 JC.applyMasterVolume = function() {
   if(!ctx||!masterGain) return;
-  const targetGain = 0.78 + JC.energy * 0.18; // range 0.78–0.96
+  const targetGain = 0.82 + JC.energy * 0.06; // range 0.82–0.88 — subtle swell only
   const cur = masterGain.gain.value;
   if(Math.abs(cur - targetGain) < 0.03) return;
   const bl = barLength || 4;
@@ -5682,7 +5693,7 @@ JC.doSceneTransition = function(toChapter, preset, intensity) {
 
   // Master volume: smooth approach using setTargetAtTime — no cancels, no snaps.
   // Rising = fast (4 bar time constant), falling = slow (10 bar time constant).
-  const targetVol = 0.78 + JC.energy * 0.18;
+  const targetVol = 0.82 + JC.energy * 0.06; // range 0.82–0.88 — consistent master level
   const currentVol = masterGain.gain.value;
   if (Math.abs(currentVol - targetVol) > 0.03) {
     const tc = targetVol > currentVol ? bl * 4 : bl * 10;
@@ -8665,19 +8676,21 @@ const PHRASE_LEAD = {
 // Per-phrase depth multiplier — the arc breathes at mix level
 // Wider range than v1 (0.68–1.00 vs 0.72–1.00) for real dynamics
 const PHRASE_DEPTH = {
-  intro:      0.68,
-  build:      0.84,
-  tension:    0.94,
+  // Flat — phrase dynamics come entirely from PHRASE_ROLE_LIFT per role,
+  // not a blanket multiplier that washes out every layer simultaneously.
+  intro:      1.00,
+  build:      1.00,
+  tension:    1.00,
   climax:     1.00,
-  resolution: 0.76,
+  resolution: 1.00,
 };
 
 // Per-phrase per-role lift — specific roles get extra presence in their moment
 const PHRASE_ROLE_LIFT = {
-  // Resolution: melody and inner voice lead — drums genuinely step back
-  resolution: { melodic_lead: 1.35, harmonic: 1.40, melodic_colour: 0.90, rhythmic: 0.55, pulse: 0.65 },
-  // Intro: foundation and harmonic lifted, colour quiet, drums present but not dominant
-  intro:      { foundation: 0.90, harmonic: 1.18, melodic_colour: 0.72, rhythmic: 0.85 },
+  // Resolution: melody and inner voice lead — drums step back but stay audible
+  resolution: { melodic_lead: 1.25, harmonic: 1.30, melodic_colour: 0.90, rhythmic: 0.75, pulse: 0.80 },
+  // Intro: foundation and harmonic lifted, colour present, drums solid from bar 1
+  intro:      { foundation: 0.95, harmonic: 1.10, melodic_colour: 0.85, rhythmic: 0.92 },
   // Tension: texture and pulse drive — drums coil, melody recedes
   tension:    { texture: 1.45, pulse: 1.25, rhythmic: 1.05, melodic_lead: 0.80, melodic_colour: 0.65 },
   // Climax: everything pushes hard together — drums AND melody at peak simultaneously
@@ -9388,8 +9401,9 @@ function adaptiveMixTarget(name, intensity) {
     .filter(([n, r]) => r === role && layerOn[n] && n !== name).length;
   const siblingScale = getSiblingScale(role, siblings);
 
-  // Depth scale — real dynamic range: 0.65 at floor 1 → 1.0 at floor 99
-  const depthScale = 0.65 + intensity * 0.35;
+  // No depth scale — volume stays consistent across all floors.
+  // Dynamics come from the phrase arc and role system, not a raw intensity ramp.
+  // Boss and climax lifts provide the peaks; resolution and intro provide the valleys.
 
   // Boss lift
   const bossLift = isBoss ? 1.22 : 1.0;
@@ -9400,7 +9414,7 @@ function adaptiveMixTarget(name, intensity) {
   // Per-phrase per-role lift (replaces the single resolution/melodic hack)
   const phraseLift = PHRASE_ROLE_LIFT[currentPhrase]?.[role] ?? 1.0;
 
-  const raw = ceiling * relation * siblingScale * depthScale * bossLift * phraseDepth * phraseLift;
+  const raw = ceiling * relation * siblingScale * bossLift * phraseDepth * phraseLift;
   const moodBias    = _moodLayerBias[name] ?? 1.0;
   const skinBias    = (SKIN_LAYER_BIAS[_activeSkin] ?? {})[name] ?? 1.0;
   const sessionBias = (typeof SessionScorer !== 'undefined') ? SessionScorer.getLayerBias(name) : 1.0;
@@ -11865,7 +11879,7 @@ function buildPerc(preset, intensity, name, bufs) {
 // Sharp pick transient + cabinet resonance + harmonics from tube drive.
 // Walks the bass pattern with guitar-like attack character.
 function buildPickedBass(b, preset, intensity, name) {
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
 
   function makeTubeCurve(drive) {
@@ -11948,7 +11962,7 @@ function buildPickedBass(b, preset, intensity, name) {
 // Plucked string with fast decay and warm woody resonance.
 // Sounds like fingers on gut strings through a close mic.
 function buildUprightBass(b, preset, intensity, name) {
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
 
   // Wood body resonance: bandpass centred around 200-300Hz
@@ -12023,7 +12037,7 @@ function buildUprightBass(b, preset, intensity, name) {
 // The pop/hip-hop bass: a sine wave that starts high and sweeps down fast,
 // creating the iconic chest-hitting sub. Long decay, no harmonics above 200Hz.
 function buildBass808(b, preset, intensity, name) {
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
 
   // Sidechain simulation: kick-triggered gain ducking
@@ -12111,7 +12125,7 @@ function buildBass(preset, intensity, name) {
 
   function tick() {
     if (!layerOn[name]) return;
-    const bpm    = isBoss ? preset.bpm + 22 : preset.bpm;
+    const bpm    = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
     const beat   = 60 / bpm;
     const barDur = beat * 4;
     const phrase = currentPhrase || 'intro';
@@ -12780,7 +12794,7 @@ function MP_nextPhrase(preset) {
 // 7 sawtooth oscillators spread across +/- 50 cents give the classic
 // "fat synth" sound. A fast filter sweep on each note adds the pop punch.
 function buildMelodySupersaw(b, preset, intensity, name) {
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   const sm   = SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen;
   const energy = JC.active ? JC.energy : intensity;
@@ -12861,7 +12875,7 @@ function buildMelodySupersaw(b, preset, intensity, name) {
 // High mod index on attack (bell-like click) decaying to low (pure tone).
 // This is a simplified Fender Rhodes synthesis model.
 function buildMelodyRhodes(b, preset, intensity, name) {
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   const sm   = SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen;
   const energy = JC.active ? JC.energy : intensity;
@@ -12940,7 +12954,7 @@ function buildMelodyRhodes(b, preset, intensity, name) {
 // plus a breathy noise component. Vibrato comes in late (player technique).
 // The formant stack is what separates sax from a plain synth lead.
 function buildMelodySaxophone(b, preset, intensity, name) {
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   const sm   = SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen;
   const energy = JC.active ? JC.energy : intensity;
@@ -13043,7 +13057,7 @@ function buildMelodySaxophone(b, preset, intensity, name) {
 // Sawtooth through tube waveshaper + cabinet simulation.
 // Fast attack, whammy-style vibrato, feedback-like sustain.
 function buildMelodyDistGuitar(b, preset, intensity, name) {
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   const sm   = SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen;
   const energy = JC.active ? JC.energy : intensity;
@@ -14323,7 +14337,7 @@ function buildStomp(preset, intensity, name) {
 
 function buildLute(preset, intensity, name) {
   const b    = bus[name];
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
 
   // ── CELTIC PHRASE ENGINE ───────────────────────────────────────────────────
@@ -14597,7 +14611,7 @@ function buildLute(preset, intensity, name) {
 
 function buildHorn(preset, intensity, name) {
   const b = bus[name];
-  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   // JW horn patterns: short motivic cells that repeat and vary (not random)
   // Each sub-array is [scaleDeg, quality_voiceIdx] — stepwise emphasis
@@ -14764,7 +14778,7 @@ function buildBells(preset, intensity, name) {
 
 function buildOrgan(preset, intensity, name) {
   const b = bus[name];
-  const bpm = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   const voice = sessionVoices[name] || 'sine';
 
@@ -14933,7 +14947,7 @@ function buildRitualChant(preset, intensity, name) {
   // hard consonant onsets, syllabic rhythm (not just held notes), vowel morphs,
   // and slow pitch steps within a phrase. Many voices, one will.
   const b    = bus[name];
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
 
   // ── Syllable phrase table ─────────────────────────────────────────────────
@@ -15681,7 +15695,7 @@ function buildDuduk(preset, intensity, name) {
   // Lead: square + sawtooth blend (double-reed character), 3 dark formants.
   // Dam: sustained sine on the tonic, much quieter, slightly detuned for beating.
   const b    = bus[name];
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   const oct  = preset.melodyOctave;
 
@@ -16042,7 +16056,7 @@ function buildOud(preset, intensity, name) {
   //   - Sympathetic strings: 3 fixed pitches that always ring after any pluck
   //   - Phrase character: sparse, ornamental, long rests, occasional tremolo burst
   const b    = bus[name];
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   const oct  = preset.melodyOctave + 1;
 
@@ -16208,7 +16222,7 @@ function buildTaiko(preset, intensity, name) {
   //   - Fills scheduled from accumulated t, not stale now2
   //   - Pattern varies by phrase: build=quarter hits, climax=16th fills
   const b    = bus[name];
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
 
   // Fix pitches per performance — taiko drums are tuned instruments
@@ -16724,7 +16738,7 @@ function buildStrings(preset, intensity, name) {
 // ── CELLO — MP-aware response voice ──────────────────────────────
 function buildCello(preset, intensity, name) {
   const b    = bus[name];
-  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const bpm  = isBoss ? effectiveBpm(preset.bpm) + 22 : effectiveBpm(preset.bpm);
   const beat = 60 / bpm;
   const energy = JC.active ? JC.energy : intensity;
 
@@ -16946,6 +16960,9 @@ function stopSynth() {
     const b = bus[name]; if (b) { b.gain.cancelScheduledValues(ctx.currentTime); b.gain.setValueAtTime(0, ctx.currentTime); }
     killLayer(name);
   });
+  // Reset groove so next play always rebuilds from the current zone's patterns
+  currentGroove = null;
+  grooveAge = 0;
   stopPhraseEngine();
   if (sessionStartTime) logTimeline('Stop');
   journeyTimers.forEach(clearTimeout);
@@ -22820,6 +22837,12 @@ function applySkin(id, save) {
   // Reset pop hook when leaving pop skin so a fresh hook builds next session
   if (id !== 'pop') { _popHook = null; _hookPlaying = false; }
 
+  // Always reset groove state on skin switch — currentGroove persists across
+  // sessions and will hold stale patterns from the previous skin (e.g. ashen's
+  // empty hihat pattern stays loaded when switching to lofi, giving silence).
+  currentGroove = null;
+  grooveAge = 0;
+
   // Genre skins need perc + bass on from the start — force layerOn so that
   // switching skins mid-session (or starting fresh) always has the groove present.
   // If already playing, also restart the perc layer with the correct voice.
@@ -22829,7 +22852,9 @@ function applySkin(id, save) {
     if (isPlaying) {
       const floor   = parseInt(slider.value);
       const preset  = getZone(floor);
-      const intens  = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
+      // Use minimum intensity floor so perc is audible at floor 1
+      const rawI    = isBoss ? Math.min(1, getIntensity(floor) + 0.4) : getIntensity(floor);
+      const intens  = Math.max(rawI, 0.35);
       // Restart perc with the freshly-assigned skin voice
       startLayer('perc', preset, intens, buildPercBufs(preset, sessionVoices['perc']));
       if (!layerOn.bass || !nodes['bass']?.length) {
