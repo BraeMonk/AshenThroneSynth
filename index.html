@@ -8598,28 +8598,27 @@ function killLayer(name) {
 
 // Absolute gain ceiling per layer
 const MIX_CEILING = {
-  // Ceilings are per-instrument maximums — the adaptive mix, sibling scaling,
-  // and relation matrix mean most instruments never reach their ceiling simultaneously.
-  // The limiter catches true worst-case summation peaks; these ceilings control presence.
-  // Foundation — the room: present and felt, not just implied
-  drone:       0.34,  strings:     0.44,  bass:        0.44,
+  // Per-instrument gain ceilings. The relation matrix and sibling scaling
+  // ensure instruments never all hit ceiling simultaneously.
+  // Foundation — the room, always present
+  drone:       0.38,  strings:     0.46,  bass:        0.46,
   // Harmonic inner voice
-  viola:       0.22,
-  // Melodic lead — primary voices, should cut clearly through the mix
-  melody:      0.44,  choir:       0.42,  horn:        0.36,
-  cello:       0.36,  duduk:       0.32,
-  // Melodic colour — decorative, audible but not competing with leads
-  lute:        0.26,  bells:       0.28,  guitar:      0.36,
-  flute:       0.30,  harp:        0.28,  oud:         0.26,
-  organ:       0.30,
-  // Rhythmic — percussion drives the energy, needs to hit hard
-  perc:        0.48,  wardrums:    0.42,  march:       0.38,
-  stomp:       0.35,  taiko:       0.40,  chains:      0.26,
-  // Pulse — supportive, present but not dominant
-  heartbeat:   0.30,  ritualchant: 0.32,  boss:        0.42,
+  viola:       0.26,
+  // Melodic leads — cut clearly through the mix
+  melody:      0.46,  choir:       0.44,  horn:        0.38,
+  cello:       0.38,  duduk:       0.34,
+  // Melodic colour — present but not competing
+  lute:        0.28,  bells:       0.30,  guitar:      0.40,
+  flute:       0.32,  harp:        0.30,  oud:         0.28,
+  organ:       0.34,
+  // Rhythmic — needs to hit hard and be felt
+  perc:        0.55,  wardrums:    0.50,  march:       0.44,
+  stomp:       0.42,  taiko:       0.48,  chains:      0.30,
+  // Pulse
+  heartbeat:   0.32,  ritualchant: 0.34,  boss:        0.46,
   // Texture — atmospheric, felt not heard
-  wind:        0.20,  riser:       0.24,  firecrackle: 0.16,
-  whispers:    0.16,  glitch:      0.20,  chaos:       0.24,
+  wind:        0.22,  riser:       0.26,  firecrackle: 0.18,
+  whispers:    0.18,  glitch:      0.22,  chaos:       0.26,
 };
 
 // Role membership — 7 roles
@@ -8655,20 +8654,20 @@ const MIX_ROLE_OF = {
 //                              fnd    harm   m_ld   m_col  rhy    pulse  tex
 const MIX_RELATION = {
   //                             fnd    harm   m_ld   m_col  rhy    pulse  tex
-  // Foundation: the room — always present, just steps back slightly at peaks
-  foundation:    { foundation:0.78, harmonic:0.75, melodic_lead:0.55, melodic_colour:0.62, rhythmic:0.55, pulse:0.65, texture:0.75 },
-  // Harmonic (viola): inner voice — brightens when melody leads, survives everything
-  harmonic:      { foundation:0.75, harmonic:0.80, melodic_lead:0.80, melodic_colour:0.72, rhythmic:0.62, pulse:0.62, texture:0.80 },
-  // Melodic lead: primary voice — full when leading, stays present even under drums
-  melodic_lead:  { foundation:0.80, harmonic:0.82, melodic_lead:1.00, melodic_colour:0.88, rhythmic:0.75, pulse:0.78, texture:0.85 },
-  // Melodic colour: decorative — genuinely ducks under leads and rhythm
-  melodic_colour:{ foundation:0.55, harmonic:0.62, melodic_lead:0.42, melodic_colour:0.82, rhythmic:0.40, pulse:0.50, texture:0.68 },
-  // Rhythmic: percussion — present alongside melody, only fully leads at climax/build
-  rhythmic:      { foundation:0.88, harmonic:0.72, melodic_lead:0.78, melodic_colour:0.80, rhythmic:1.00, pulse:0.88, texture:0.72 },
-  // Pulse: heartbeat/ritual — supportive, steps back when leads are present
-  pulse:         { foundation:0.65, harmonic:0.62, melodic_lead:0.65, melodic_colour:0.62, rhythmic:0.80, pulse:1.00, texture:0.65 },
-  // Texture: fx/atmosphere — only really present in intro/tension
-  texture:       { foundation:0.38, harmonic:0.42, melodic_lead:0.30, melodic_colour:0.38, rhythmic:0.25, pulse:0.35, texture:1.00 },
+  // Foundation: room — always present, never ducks below 0.65
+  foundation:    { foundation:0.85, harmonic:0.82, melodic_lead:0.68, melodic_colour:0.72, rhythmic:0.68, pulse:0.72, texture:0.80 },
+  // Harmonic: inner voice — present in all contexts
+  harmonic:      { foundation:0.78, harmonic:0.85, melodic_lead:0.82, melodic_colour:0.75, rhythmic:0.68, pulse:0.68, texture:0.82 },
+  // Melodic lead: primary voice — full when leading, stays audible always
+  melodic_lead:  { foundation:0.82, harmonic:0.85, melodic_lead:1.00, melodic_colour:0.90, rhythmic:0.80, pulse:0.82, texture:0.88 },
+  // Melodic colour: decorative — ducks under leads but stays present
+  melodic_colour:{ foundation:0.62, harmonic:0.68, melodic_lead:0.52, melodic_colour:0.85, rhythmic:0.52, pulse:0.58, texture:0.72 },
+  // Rhythmic: percussion — always present, never below 0.70
+  rhythmic:      { foundation:0.90, harmonic:0.78, melodic_lead:0.82, melodic_colour:0.85, rhythmic:1.00, pulse:0.90, texture:0.78 },
+  // Pulse: heartbeat — supportive throughout
+  pulse:         { foundation:0.70, harmonic:0.68, melodic_lead:0.70, melodic_colour:0.68, rhythmic:0.82, pulse:1.00, texture:0.70 },
+  // Texture: fx/atmosphere — felt not heard except when leading
+  texture:       { foundation:0.42, harmonic:0.45, melodic_lead:0.35, melodic_colour:0.42, rhythmic:0.30, pulse:0.40, texture:1.00 },
 };
 
 // Which role leads each phrase
@@ -9325,8 +9324,8 @@ const SKIN_LAYER_BIAS = {
     viola:        1.15,  // inner warmth
     cello:        1.20,  // emotional low voice
     choir:        0.80,  // faint distant presence
-    bass:         0.85,  // present but soft — sub filtered by tape
-    perc:         0.40,  // very muffled — brush kit, barely there
+    bass:         1.00,  // present — rhythmic anchor
+    perc:         0.85,  // brushed groove — audible and present, soft but there
     wardrums:     0.10,  // wrong energy
     march:        0.08,  // completely wrong
     stomp:        0.08,
@@ -9345,7 +9344,7 @@ const SKIN_LAYER_BIAS = {
     // Radio pop — bright melodic layers; pumping bass; minimal darkness
     melody:       1.50,  // lead vocal role — always forward
     bass:         1.40,  // punchy modern bass — rhythmic and bright
-    perc:         1.35,  // clean tight kit — essential pop groove
+    perc:         1.50,  // clean tight kit — must be heard clearly
     bells:        1.30,  // synth chime shimmer — sparkle texture
     choir:        1.20,  // backing vocal pad — always present
     riser:        1.25,  // build and drop — the pop structure
@@ -9369,7 +9368,7 @@ const SKIN_LAYER_BIAS = {
     // Midnight jazz — acoustic upright bass, brushed drums, piano, horn solos
     melody:       1.40,  // improvised solo line — always present
     bass:         1.35,  // walking bass — the jazz heartbeat
-    perc:         0.90,  // brush kit — present but never loud
+    perc:         1.10,  // brush kit — present and clearly audible
     horn:         1.45,  // trumpet/sax lead — essential jazz colour
     strings:      1.20,  // quartet texture — warm background
     cello:        1.25,  // dark pizzicato or arco bass voice
@@ -11309,7 +11308,11 @@ function getGroove(preset, intensity) {
 function makeSchedLoop(name, schedFn) {
   let nextBarTime = ctx.currentTime + 0.05;
   function tick() {
-    if (!layerOn[name]) return;
+    if (!layerOn[name]) {
+  
+      return;
+    }
+
     // Use barLength as the source of truth — respects BPM lock and crossfade
     const barDur = isBoss ? (60 / (getZone(parseInt(slider.value)).bpm + 22)) * 4 : barLength;
     const beat = barDur / 4;
@@ -11324,6 +11327,21 @@ function makeSchedLoop(name, schedFn) {
 
 function buildPerc(preset, intensity, name, bufs) {
   const b = bus[name];
+
+  // Force the bus open immediately — killLayer schedules a 150ms ramp-to-zero
+  // before this is called, and fadeIn's 2.4s ramp starts from near-zero.
+  // Hits are scheduled 50ms from now — they need the bus open RIGHT NOW.
+  if (b && ctx) {
+    const _target = busTarget(name, intensity);
+    const _now = ctx.currentTime;
+    // Cancel ALL scheduled values including any killLayer ramp-to-zero,
+    // freeze at current value, then jump immediately to target.
+    // Use a tiny future time (+0.002) so this wins over any concurrent scheduling.
+    b.gain.cancelScheduledValues(_now);
+    b.gain.setValueAtTime(b.gain.value, _now);
+    b.gain.linearRampToValueAtTime(_target, _now + 0.002);
+  }
+
 
   const percVoice = sessionVoices['perc'] || 'cinematic';
   const isTaiko   = percVoice === 'taiko';
@@ -11821,6 +11839,7 @@ function buildPerc(preset, intensity, name, bufs) {
         chain(s, g, kickBus);
         s.start(t);
         reg(name, s, g);
+
 
         // ── Pop sidechain: kick ducks master bus briefly (pumping feel) ─────
         // Route through coordinator to prevent racing with fill sidechain
@@ -16867,14 +16886,23 @@ function startLayer(name, preset, intensity, percBufs) {
   if (journeyActive) {
     preset.journeyVoice = pickVoice(name);
   }
+
+  // Open the bus BEFORE building so scheduler hits fire into an open bus.
+  // Percussion schedulers call tick() synchronously inside the builder —
+  // the first bar of hits is scheduled before the builder even returns.
+  // For perc layers: set gain immediately (no ramp) so beat 1 is audible.
+  // For all other layers: normal fade-in ramp.
+  const fadeTime = (journeyActive || JC.active) ? Math.max(FADE_IN, 4.0) : FADE_IN;
+  const _fadeTarget = busTarget(name, intensity);
   if (PERC_BUF_LAYERS.has(name)) {
+    // buildPerc opens its own bus internally before scheduling any hits.
+    // Do NOT call fadeIn here — it would cancelScheduledValues and ramp from 0,
+    // wiping the gain set inside buildPerc and silencing beat 1.
     BUILDERS[name](preset, intensity, name, percBufs || buildPercBufs(preset, sessionVoices['perc']));
   } else {
+    fadeIn(bus[name], _fadeTarget, fadeTime);
     BUILDERS[name](preset, intensity, name);
   }
-  // Journey uses a longer fade-in so layers bloom in rather than snap
-  const fadeTime = (journeyActive || JC.active) ? Math.max(FADE_IN, 4.0) : FADE_IN;
-  fadeIn(bus[name], busTarget(name, intensity), fadeTime);
 }
 
 function stopLayer(name) { fadeOut(bus[name], FADE_OUT, () => killLayer(name)); }
@@ -16919,44 +16947,51 @@ function cycleVoice(name, e) {
 function startSynth() {
   initAudio();
   pickSessionVoices();
-  // Re-apply skin voice prefs after random pick — pickSessionVoices assigns
-  // random voices from the bank, but genre skins need specific perc voices
-  // (brushkit/lofi, brushswing/jazz, stadium/rock, popkit/pop).
-  // Without this the correct voice gets overwritten by a random pick.
   applySkinVoices(_activeSkin);
 
-  // Genre skins: force on the full intro layer set immediately so instruments
-  // are playing from bar 1 — not waiting for the phrase engine's first tick.
+  // Genre skins: force on the full intro layer set immediately
   if (['lofi', 'jazz', 'rock', 'pop'].includes(_activeSkin)) {
     const _introLayers = (SKIN_PHRASE_LAYER_TARGETS[_activeSkin] || {}).intro || [];
     _introLayers.forEach(n => { layerOn[n] = true; });
-    // Always ensure perc and bass regardless of intro list
     layerOn.perc = true;
     layerOn.bass = true;
   }
 
-  sessionStartTime = Date.now();
-  timelineEvents = [];
-  currentGroove = null;
-  grooveAge = 0;
-  const floor = parseInt(slider.value), preset = getZone(floor);
-  const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
-  const percBufs = buildPercBufs(preset, sessionVoices['perc']);
-  const _startingLayers = [];
-  LAYER_NAMES.forEach(name => {
-    if (name === 'boss') { if (isBoss) startLayer(name, preset, intensity, null); return; }
-    if (layerOn[name]) {
-      _startingLayers.push(name);
-      startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
-    }
-  });
-  console.log('[MusicForge] startSynth — skin:', _activeSkin, '| floor:', floor, '| intensity:', intensity.toFixed(3), '| layers:', _startingLayers.join(', '));
-  startPhraseEngine();
-  logTimeline(`Start · ${preset.name} · Floor ${floor}`);
-  setStatus(preset.desc);
-  // Genre accuracy: start lo-fi vinyl noise layer on play
-  if (_activeSkin === 'lofi') startVinylNoise();
-  // drawViz loop is always running (started at window.load) — do not call here
+
+  // Wait for AudioContext to actually be running before building layers.
+  // On mobile Safari ctx.resume() is async — ctx.currentTime stays 0 until
+  // the context is running, which means all scheduled audio events fire at
+  // time 0 (the past) and are silently discarded.
+  const _doStart = () => {
+    sessionStartTime = Date.now();
+    timelineEvents = [];
+    currentGroove = null;
+    grooveAge = 0;
+    const floor = parseInt(slider.value), preset = getZone(floor);
+    const intensity = isBoss ? Math.min(1, getIntensity(floor) + .4) : getIntensity(floor);
+    const percBufs = buildPercBufs(preset, sessionVoices['perc']);
+    const _startingLayers = [];
+    LAYER_NAMES.forEach(name => {
+      if (name === 'boss') { if (isBoss) startLayer(name, preset, intensity, null); return; }
+      if (layerOn[name]) {
+        _startingLayers.push(name);
+        startLayer(name, preset, intensity, PERC_BUF_LAYERS.has(name) ? percBufs : null);
+      }
+    });
+
+    startPhraseEngine();
+    logTimeline(`Start · ${preset.name} · Floor ${floor}`);
+    setStatus(preset.desc);
+    if (_activeSkin === 'lofi') startVinylNoise();
+  };
+
+  if (ctx.state === 'running') {
+    _doStart();
+  } else {
+    ctx.resume().then(() => {
+      _doStart();
+    });
+  }
 }
 
 function stopSynth() {
