@@ -2728,7 +2728,47 @@ const ZONE_LEITMOTIFS = {
   'Obsidian Keep':  [0, 0, 4, 0, 3, 0],        // JW: dotted fanfare shape — Imperial March cousin
   'Void Spire':     [0, 6, 1, 5, 0, 2],        // dissonant, no clear home
   'Infernal Core':  [0, 6, 5, 6, 4, 0],        // JW: tritone tension + stepwise pull back
-  // Neon Noir — synthetic ascending gestures, syncopated
+  // ── Voltage Rise (rock) — short punchy riff cells, strong rhythmic identity
+  'Soundcheck':    [0, 0, 4, 0, 0, 4],   // power chord stab — two hits then riff
+  'Opening Act':   [0, 2, 4, 2, 4, 5],   // ascending energy — crowd builds
+  'The Riff':      [0, 0, 3, 0, 0, 3],   // drop-D motif — dark and heavy
+  'The Drop':      [0, 4, 0, 4, 5, 4],   // tension and release — the drop
+  'Breakdown':     [0, 0, 0, 4, 3, 0],   // stripped back — just the riff
+  'Anthemic':      [0, 2, 4, 5, 4, 5],   // big chorus sweep — everyone sings
+  'The Encore':    [0, 4, 2, 4, 0, 4],   // familiar, triumphant
+  'Last Song':     [0, 2, 4, 2, 0, 2],   // coming down — bittersweet close
+
+  // ── Amber Tape (lo-fi) — slow, warm, stepwise — nothing jumps
+  'Rain on Glass': [0, 2, 1, 2, 0, 2],   // neighbour-tone warmth — barely moving
+  'Desk Light':    [0, 2, 4, 2, 4, 2],   // gentle arc — soft and patient
+  'Half Asleep':   [0, 1, 0, 2, 0, 1],   // almost static — barely a melody
+  '3am Playlist':  [4, 2, 1, 2, 4, 2],   // descending then returning — late night
+  'The Good Cry':  [4, 3, 2, 1, 2, 4],   // slow descent then lift — cathartic
+  'Vinyl Crackle': [0, 2, 4, 2, 1, 0],   // rise and settle — like a sigh
+  'Almost Morning':[0, 1, 2, 4, 2, 0],   // gradual brightening — dawn coming
+  'Tape Hiss':     [0, 2, 0, 1, 0, 2],   // sparse — the silence is part of it
+
+  // ── Sugar Rush (pop) — short, hook-shaped, immediately memorable
+  'Pre-Release':   [0, 2, 4, 5, 4, 2],   // ascending hook — pre-chorus lift
+  'The Hook':      [4, 5, 4, 2, 4, 5],   // syncopated peak — stuck in your head
+  'Verse Two':     [0, 2, 4, 2, 5, 4],   // familiar with a new top note
+  'The Build':     [0, 4, 5, 4, 5, 6],   // tension ramp — the drop is coming
+  'Maximum Drop':  [5, 4, 5, 4, 5, 4],   // pure energy — top of the arc
+  'Bridge':        [4, 2, 0, 2, 4, 5],   // step back then leap — emotional turn
+  'Final Chorus':  [0, 2, 4, 5, 6, 5],   // highest point — key change energy
+  'Outro':         [5, 4, 2, 4, 2, 0],   // winding down — satisfied resolution
+
+  // ── Midnight Session (jazz) — chromatic voice leading, unresolved
+  'Early Set':     [0, 2, 3, 2, 4, 2],   // dorian groove — blues in the steps
+  'Second Round':  [0, 4, 3, 4, 2, 0],   // arch with a chromatic turn
+  'The Pocket':    [0, 2, 4, 3, 2, 4],   // laid back — sits just behind the beat
+  'Smoke Break':   [4, 3, 2, 3, 4, 2],   // circling — going nowhere beautifully
+  'Midnight':      [0, 6, 4, 3, 4, 0],   // tritone tension — peak of the night
+  'Solo':          [0, 2, 4, 6, 5, 4],   // climbing with chromatic colour
+  'Last Call':     [4, 3, 2, 1, 2, 3],   // slow descent — night winding down
+  'After Hours':   [0, 2, 1, 2, 0, 1],   // barely moving — just the two of you
+
+    // Neon Noir — synthetic ascending gestures, syncopated
   'Street Level':         [0, 2, 3, 2, 0, 3],  // short urban riff
   'Underpass':            [0, 3, 2, 0, 3, 5],  // slight lift, then bounce back
   'The Grid':             [0, 2, 5, 3, 2, 0],  // grid-like symmetry
@@ -7026,6 +7066,498 @@ const SKIN_ZONES = {
       desc:'The chamber was sealed from the inside. The question of who — or what — sealed it has no comfortable answer.'
     },
   ],
+  // ── VOLTAGE RISE: stadium rock stages — energy builds floor to ceiling ──────
+  // BPMs: 110→118→124→132→138→132→120→104 (post-encore wind-down)
+  // Scales: mixolydian and blues — rock's harmonic home
+  // Roots: descend chromatically like a guitar tuning lower for heavier material
+  rock: [
+    {
+      name:'Soundcheck', range:[1,12], color:'#1a0400', bpm:110,
+      root:82.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'sawtooth', droneFilterFreq:500, droneFilterQ:2.2,
+      droneLfoRate:0.08, droneLfoDepth:180, droneAmpLfo:0.10,
+      kickFreq:62, kickDecay:0.28, snareDecay:0.14, snareFilterFreq:1800,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,1,1,1,1,1,1,1],
+      bassWave:'sawtooth', bassFilterFreq:320, bassPattern:[1,0,0,1,0,0,1,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.38,
+      melodyPatterns:[[0,2,4,2,0,4,2,0],[4,2,0,2,4,0,2,4],[0,4,2,4,0,2,4,2]],
+      choirFormants:[600,1200,2400], choirVibRate:4.0, choirVibDepth:2.0,
+      vizR:240, vizG:80, vizB:20,
+      desc:'The stage is cold. The crew is wired. In forty minutes none of that will matter.'
+    },
+    {
+      name:'Opening Act', range:[13,24], color:'#280600', bpm:118,
+      root:77.8, scale:[1,1.1892,1.3348,1.4142,1.4983,1.7818],
+      droneWave:'sawtooth', droneFilterFreq:580, droneFilterQ:2.5,
+      droneLfoRate:0.10, droneLfoDepth:200, droneAmpLfo:0.12,
+      kickFreq:60, kickDecay:0.26, snareDecay:0.13, snareFilterFreq:1900,
+      kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,1,1,0,1,1],
+      bassWave:'sawtooth', bassFilterFreq:360, bassPattern:[1,0,1,0,0,1,0,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.28,
+      melodyPatterns:[[0,2,4,2,4,6,4,2],[4,6,4,2,0,2,4,6],[0,4,6,4,2,4,0,2]],
+      choirFormants:[650,1300,2600], choirVibRate:4.5, choirVibDepth:2.2,
+      vizR:255, vizG:90, vizB:20,
+      desc:'First song in. The floor fills. The pit opens like a mouth.'
+    },
+    {
+      name:'The Riff', range:[25,36], color:'#340800', bpm:124,
+      root:73.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'sawtooth', droneFilterFreq:650, droneFilterQ:3.0,
+      droneLfoRate:0.12, droneLfoDepth:220, droneAmpLfo:0.14,
+      kickFreq:58, kickDecay:0.24, snareDecay:0.12, snareFilterFreq:2000,
+      kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,1,0,1,1,1,0,1],
+      bassWave:'sawtooth', bassFilterFreq:400, bassPattern:[1,1,0,1,0,1,1,0],
+      melodyWave:'sawtooth', melodyOctave:1, melodySkip:0.18,
+      melodyPatterns:[[0,0,2,4,0,4,2,0],[2,4,0,2,4,6,4,2],[0,4,2,0,4,0,2,4]],
+      choirFormants:[700,1400,2800], choirVibRate:5.0, choirVibDepth:2.5,
+      vizR:255, vizG:60, vizB:10,
+      desc:'The riff lands and the whole room moves. Not a choice. Physics.'
+    },
+    {
+      name:'The Drop', range:[37,48], color:'#3c0a00', bpm:132,
+      root:69.3, scale:[1,1.1892,1.3348,1.4142,1.4983,1.7818],
+      droneWave:'sawtooth', droneFilterFreq:700, droneFilterQ:3.5,
+      droneLfoRate:0.14, droneLfoDepth:240, droneAmpLfo:0.16,
+      kickFreq:56, kickDecay:0.22, snareDecay:0.11, snareFilterFreq:2200,
+      kickPattern:[1,0,1,0,1,1,0,1], snarePattern:[0,0,1,0,0,1,1,0], hihatPattern:[1,1,1,0,1,1,1,0],
+      bassWave:'sawtooth', bassFilterFreq:450, bassPattern:[1,0,1,1,0,1,0,1],
+      melodyWave:'sawtooth', melodyOctave:1, melodySkip:0.10,
+      melodyPatterns:[[0,4,2,4,6,4,2,0],[4,2,4,0,4,6,0,4],[0,2,4,6,4,2,0,4]],
+      choirFormants:[750,1500,3000], choirVibRate:5.5, choirVibDepth:2.8,
+      vizR:255, vizG:40, vizB:0,
+      desc:'The drop. You feel it in your sternum before you hear it.'
+    },
+    {
+      name:'Breakdown', range:[49,60], color:'#280600', bpm:98,
+      root:65.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'square', droneFilterFreq:420, droneFilterQ:2.0,
+      droneLfoRate:0.06, droneLfoDepth:160, droneAmpLfo:0.08,
+      kickFreq:60, kickDecay:0.35, snareDecay:0.18, snareFilterFreq:1600,
+      kickPattern:[1,0,0,0,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,0,1,0,0,1,0],
+      bassWave:'sawtooth', bassFilterFreq:280, bassPattern:[1,0,0,0,1,0,0,1],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.32,
+      melodyPatterns:[[0,0,2,0,4,0,2,0],[4,0,2,0,0,2,4,0],[0,2,0,4,2,0,4,2]],
+      choirFormants:[600,1200,2400], choirVibRate:3.5, choirVibDepth:2.0,
+      vizR:220, vizG:50, vizB:10,
+      desc:'The guitarist stops. Just drums. Just breath. The crowd fills the silence themselves.'
+    },
+    {
+      name:'Anthemic', range:[61,72], color:'#340800', bpm:120,
+      root:61.7, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'sawtooth', droneFilterFreq:600, droneFilterQ:2.8,
+      droneLfoRate:0.10, droneLfoDepth:200, droneAmpLfo:0.12,
+      kickFreq:58, kickDecay:0.26, snareDecay:0.13, snareFilterFreq:1900,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sawtooth', bassFilterFreq:380, bassPattern:[1,0,0,1,0,0,0,1],
+      melodyWave:'sawtooth', melodyOctave:1, melodySkip:0.20,
+      melodyPatterns:[[0,2,4,5,4,2,0,2],[5,4,2,0,2,4,5,4],[0,4,5,4,2,0,4,2]],
+      choirFormants:[700,1400,2800], choirVibRate:4.8, choirVibDepth:3.0,
+      vizR:255, vizG:70, vizB:10,
+      desc:'The chorus. Everyone knows the words. Forty thousand people singing something they mean.'
+    },
+    {
+      name:'The Encore', range:[73,84], color:'#3c0a00', bpm:138,
+      root:58.3, scale:[1,1.1892,1.3348,1.4142,1.4983,1.7818],
+      droneWave:'sawtooth', droneFilterFreq:750, droneFilterQ:4.0,
+      droneLfoRate:0.16, droneLfoDepth:260, droneAmpLfo:0.18,
+      kickFreq:54, kickDecay:0.20, snareDecay:0.10, snareFilterFreq:2400,
+      kickPattern:[1,1,0,1,1,0,1,0], snarePattern:[0,0,1,0,1,0,1,0], hihatPattern:[1,1,1,1,0,1,1,1],
+      bassWave:'sawtooth', bassFilterFreq:500, bassPattern:[1,1,0,1,0,1,1,0],
+      melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.08,
+      melodyPatterns:[[0,2,4,6,4,2,0,4],[4,6,4,2,0,4,6,2],[0,4,6,4,6,2,0,4]],
+      choirFormants:[800,1600,3200], choirVibRate:6.0, choirVibDepth:3.5,
+      vizR:255, vizG:100, vizB:20,
+      desc:'They came back. Of course they came back. The stage is on fire in every sense.'
+    },
+    {
+      name:'Last Song', range:[85,99], color:'#200400', bpm:104,
+      root:55.0, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'sawtooth', droneFilterFreq:480, droneFilterQ:2.0,
+      droneLfoRate:0.07, droneLfoDepth:140, droneAmpLfo:0.09,
+      kickFreq:58, kickDecay:0.32, snareDecay:0.16, snareFilterFreq:1700,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sawtooth', bassFilterFreq:300, bassPattern:[1,0,0,0,1,0,0,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.28,
+      melodyPatterns:[[0,2,4,2,0,2,4,0],[4,2,0,2,4,2,0,4],[0,4,2,0,2,4,0,2]],
+      choirFormants:[650,1300,2600], choirVibRate:4.0, choirVibDepth:2.5,
+      vizR:200, vizG:60, vizB:10,
+      desc:'The last song. Everyone knows it. Nobody wants it to end. It ends anyway.'
+    },
+  ],
+
+  // ── AMBER TAPE: lo-fi bedroom — late night study drift ──────────────────────
+  // BPMs: 68→72→76→72→68→64→70→66 — slow, never urgent, human tempo
+  // Scales: major pentatonic and lydian — warmth and unresolved openness
+  // Roots: wander loosely by 4ths and 5ths — like a cassette rewound then played
+  lofi: [
+    {
+      name:'Rain on Glass', range:[1,12], color:'#120a04', bpm:68,
+      root:65.4, scale:[1,1.1225,1.2599,1.4983,1.6818],
+      droneWave:'sine', droneFilterFreq:280, droneFilterQ:0.6,
+      droneLfoRate:0.015, droneLfoDepth:40, droneAmpLfo:0.04,
+      kickFreq:48, kickDecay:0.55, snareDecay:0.28, snareFilterFreq:600,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,1,0,1,0,1,0,1],
+      bassWave:'sine', bassFilterFreq:180, bassPattern:[0,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.55,
+      melodyPatterns:[[0,2,4,2,0,4,2,0],[4,2,0,2,4,0,2,4],[0,4,2,4,0,2,0,4]],
+      choirFormants:[500,900,1800], choirVibRate:2.0, choirVibDepth:1.5,
+      vizR:180, vizG:120, vizB:60,
+      desc:'11pm. Rain. A playlist someone made for no one. You are the no one.'
+    },
+    {
+      name:'Desk Light', range:[13,24], color:'#180e06', bpm:72,
+      root:73.4, scale:[1,1.1225,1.2599,1.4983,1.6818],
+      droneWave:'sine', droneFilterFreq:320, droneFilterQ:0.7,
+      droneLfoRate:0.018, droneLfoDepth:50, droneAmpLfo:0.05,
+      kickFreq:50, kickDecay:0.50, snareDecay:0.26, snareFilterFreq:650,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,1,0,0,0,1,0],
+      bassWave:'sine', bassFilterFreq:200, bassPattern:[1,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.48,
+      melodyPatterns:[[0,2,4,5,4,2,0,4],[5,4,2,0,2,4,5,2],[0,4,5,4,2,0,4,2]],
+      choirFormants:[520,950,1900], choirVibRate:2.2, choirVibDepth:1.6,
+      vizR:200, vizG:140, vizB:70,
+      desc:'The textbook is open. The pencil is moving. Something is being figured out.'
+    },
+    {
+      name:'Half Asleep', range:[25,36], color:'#1c1008', bpm:76,
+      root:82.4, scale:[1,1.1225,1.2599,1.4142,1.4983,1.6818,1.8877],
+      droneWave:'triangle', droneFilterFreq:360, droneFilterQ:0.8,
+      droneLfoRate:0.020, droneLfoDepth:60, droneAmpLfo:0.06,
+      kickFreq:52, kickDecay:0.46, snareDecay:0.24, snareFilterFreq:700,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sine', bassFilterFreq:220, bassPattern:[1,0,0,0,1,0,0,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.40,
+      melodyPatterns:[[0,2,4,5,4,2,4,0],[5,4,2,4,0,2,4,5],[0,4,2,5,4,2,0,4]],
+      choirFormants:[550,1000,2000], choirVibRate:2.5, choirVibDepth:1.8,
+      vizR:210, vizG:150, vizB:80,
+      desc:'The words on the page are starting to blur. Good blur. Productive blur.'
+    },
+    {
+      name:'3am Playlist', range:[37,48], color:'#140c06', bpm:72,
+      root:77.8, scale:[1,1.1225,1.2599,1.4983,1.6818],
+      droneWave:'triangle', droneFilterFreq:300, droneFilterQ:0.7,
+      droneLfoRate:0.016, droneLfoDepth:45, droneAmpLfo:0.05,
+      kickFreq:48, kickDecay:0.58, snareDecay:0.30, snareFilterFreq:580,
+      kickPattern:[1,0,0,0,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,1,0,0,0,1,0],
+      bassWave:'sine', bassFilterFreq:190, bassPattern:[1,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.52,
+      melodyPatterns:[[0,2,4,2,0,2,4,0],[4,2,0,2,0,4,2,0],[0,4,2,0,4,2,0,4]],
+      choirFormants:[480,880,1760], choirVibRate:1.8, choirVibDepth:1.4,
+      vizR:190, vizG:130, vizB:65,
+      desc:'You stopped studying an hour ago. The music is doing its own thing. So are you.'
+    },
+    {
+      name:'The Good Cry', range:[49,60], color:'#100a04', bpm:68,
+      root:69.3, scale:[1,1.1225,1.1892,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'sine', droneFilterFreq:260, droneFilterQ:0.6,
+      droneLfoRate:0.014, droneLfoDepth:38, droneAmpLfo:0.04,
+      kickFreq:46, kickDecay:0.62, snareDecay:0.32, snareFilterFreq:550,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,1,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:170, bassPattern:[1,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.60,
+      melodyPatterns:[[0,2,4,2,0,0,2,0],[4,0,2,0,4,2,0,4],[0,4,0,2,0,4,0,2]],
+      choirFormants:[450,820,1640], choirVibRate:1.6, choirVibDepth:1.2,
+      vizR:170, vizG:110, vizB:55,
+      desc:'Not sad, exactly. Just open. The kind of feeling that needs no name.'
+    },
+    {
+      name:'Vinyl Crackle', range:[61,72], color:'#180e06', bpm:64,
+      root:61.7, scale:[1,1.1225,1.2599,1.4142,1.4983,1.6818,1.8877],
+      droneWave:'triangle', droneFilterFreq:280, droneFilterQ:0.65,
+      droneLfoRate:0.012, droneLfoDepth:35, droneAmpLfo:0.04,
+      kickFreq:44, kickDecay:0.68, snareDecay:0.35, snareFilterFreq:500,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,0,0,0,0,1,0],
+      bassWave:'sine', bassFilterFreq:160, bassPattern:[1,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.65,
+      melodyPatterns:[[0,2,4,5,4,0,2,0],[5,4,2,0,4,2,0,4],[0,4,5,4,0,2,4,0]],
+      choirFormants:[420,760,1520], choirVibRate:1.5, choirVibDepth:1.0,
+      vizR:155, vizG:100, vizB:48,
+      desc:'Side B. The needle finds the groove. Something warm travels a long way to reach you.'
+    },
+    {
+      name:'Almost Morning', range:[73,84], color:'#1c1208', bpm:70,
+      root:58.3, scale:[1,1.1225,1.2599,1.4983,1.6818],
+      droneWave:'sine', droneFilterFreq:300, droneFilterQ:0.6,
+      droneLfoRate:0.016, droneLfoDepth:42, droneAmpLfo:0.05,
+      kickFreq:46, kickDecay:0.60, snareDecay:0.30, snareFilterFreq:560,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,1,0,1,0,1,0,0],
+      bassWave:'sine', bassFilterFreq:175, bassPattern:[1,0,0,0,0,0,1,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.50,
+      melodyPatterns:[[0,2,4,2,4,5,4,2],[5,4,2,4,0,2,4,5],[0,4,2,0,4,5,2,0]],
+      choirFormants:[480,880,1760], choirVibRate:1.8, choirVibDepth:1.3,
+      vizR:175, vizG:120, vizB:58,
+      desc:'First light through the curtain. You made it to morning. The playlist knew you would.'
+    },
+    {
+      name:'Tape Hiss', range:[85,99], color:'#100800', bpm:66,
+      root:55.0, scale:[1,1.1225,1.2599,1.4983,1.6818],
+      droneWave:'sine', droneFilterFreq:240, droneFilterQ:0.5,
+      droneLfoRate:0.010, droneLfoDepth:30, droneAmpLfo:0.03,
+      kickFreq:44, kickDecay:0.72, snareDecay:0.38, snareFilterFreq:480,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:150, bassPattern:[0,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.70,
+      melodyPatterns:[[0,0,2,0,0,4,0,0],[4,0,0,2,0,0,4,0],[0,4,0,0,2,0,0,4]],
+      choirFormants:[400,720,1440], choirVibRate:1.4, choirVibDepth:0.9,
+      vizR:140, vizG:90, vizB:42,
+      desc:'The tape is almost done. The hiss gets louder. The music gets smaller. That is also music.'
+    },
+  ],
+
+  // ── SUGAR RUSH: pop radio world — each zone is a different pop moment ───────
+  // BPMs: 96→104→112→118→124→116→108→96 — builds and breathes like a set
+  // Scales: major, lydian, mixolydian — bright, optimistic, never minor for long
+  // Roots: move by 4ths — key changes you feel without knowing why
+  pop: [
+    {
+      name:'Pre-Release', range:[1,12], color:'#0a0414', bpm:96,
+      root:65.4, scale:[1,1.1225,1.2599,1.4142,1.4983,1.6818,1.8877],
+      droneWave:'square', droneFilterFreq:600, droneFilterQ:1.5,
+      droneLfoRate:0.08, droneLfoDepth:120, droneAmpLfo:0.10,
+      kickFreq:58, kickDecay:0.30, snareDecay:0.14, snareFilterFreq:1600,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,1,1,1,1,1,1,1],
+      bassWave:'square', bassFilterFreq:280, bassPattern:[1,0,0,1,0,0,1,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.30,
+      melodyPatterns:[[0,2,4,5,4,2,0,2],[5,4,2,0,2,4,5,4],[0,4,5,4,2,0,4,2]],
+      choirFormants:[700,1400,2800], choirVibRate:4.5, choirVibDepth:2.5,
+      vizR:200, vizG:60, vizB:160,
+      desc:'Streaming numbers go up at midnight. Nobody sleeps. Everyone is pressing refresh.'
+    },
+    {
+      name:'The Hook', range:[13,24], color:'#140620', bpm:104,
+      root:87.3, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'square', droneFilterFreq:700, droneFilterQ:1.8,
+      droneLfoRate:0.10, droneLfoDepth:150, droneAmpLfo:0.12,
+      kickFreq:60, kickDecay:0.28, snareDecay:0.12, snareFilterFreq:1800,
+      kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,1,1,0,1,1,1,0],
+      bassWave:'square', bassFilterFreq:320, bassPattern:[1,0,1,0,0,1,0,0],
+      melodyWave:'square', melodyOctave:2, melodySkip:0.20,
+      melodyPatterns:[[0,2,4,5,4,5,4,2],[5,4,2,4,0,4,5,2],[0,5,4,2,5,4,0,4]],
+      choirFormants:[750,1500,3000], choirVibRate:5.0, choirVibDepth:2.8,
+      vizR:220, vizG:40, vizB:180,
+      desc:'It hits at 0:18. The hook that makes you stop what you are doing.'
+    },
+    {
+      name:'Verse Two', range:[25,36], color:'#1c0830', bpm:112,
+      root:82.4, scale:[1,1.1225,1.2599,1.4142,1.4983,1.6818,1.8877],
+      droneWave:'sawtooth', droneFilterFreq:800, droneFilterQ:2.0,
+      droneLfoRate:0.12, droneLfoDepth:180, droneAmpLfo:0.14,
+      kickFreq:62, kickDecay:0.26, snareDecay:0.11, snareFilterFreq:2000,
+      kickPattern:[1,0,1,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,1,1,0,1,1],
+      bassWave:'square', bassFilterFreq:360, bassPattern:[1,0,0,1,1,0,0,1],
+      melodyWave:'square', melodyOctave:2, melodySkip:0.15,
+      melodyPatterns:[[0,2,4,5,6,5,4,2],[5,6,4,2,0,4,5,6],[0,4,5,6,4,2,0,4]],
+      choirFormants:[800,1600,3200], choirVibRate:5.5, choirVibDepth:3.0,
+      vizR:240, vizG:30, vizB:200,
+      desc:'Verse two goes harder. The production opens up. The sky gets bigger.'
+    },
+    {
+      name:'The Build', range:[37,48], color:'#1a0628', bpm:118,
+      root:77.8, scale:[1,1.1225,1.2599,1.4983,1.6818],
+      droneWave:'sawtooth', droneFilterFreq:900, droneFilterQ:2.5,
+      droneLfoRate:0.14, droneLfoDepth:200, droneAmpLfo:0.16,
+      kickFreq:64, kickDecay:0.24, snareDecay:0.10, snareFilterFreq:2200,
+      kickPattern:[1,0,1,0,1,1,0,1], snarePattern:[0,0,1,0,1,0,1,0], hihatPattern:[1,1,0,1,1,1,0,1],
+      bassWave:'sawtooth', bassFilterFreq:400, bassPattern:[1,1,0,1,0,1,1,0],
+      melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.10,
+      melodyPatterns:[[0,2,4,5,6,5,6,4],[5,6,4,5,2,4,6,5],[0,4,6,5,4,6,2,4]],
+      choirFormants:[850,1700,3400], choirVibRate:6.0, choirVibDepth:3.2,
+      vizR:255, vizG:80, vizB:220,
+      desc:'The snare rolls. The synth rises. Something is about to happen.'
+    },
+    {
+      name:'Maximum Drop', range:[49,60], color:'#200a38', bpm:124,
+      root:73.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'sawtooth', droneFilterFreq:1000, droneFilterQ:3.0,
+      droneLfoRate:0.16, droneLfoDepth:220, droneAmpLfo:0.18,
+      kickFreq:66, kickDecay:0.22, snareDecay:0.09, snareFilterFreq:2400,
+      kickPattern:[1,1,0,1,1,0,1,0], snarePattern:[0,0,1,0,1,0,1,0], hihatPattern:[1,1,1,1,1,1,1,1],
+      bassWave:'sawtooth', bassFilterFreq:450, bassPattern:[1,1,1,0,1,1,0,1],
+      melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.05,
+      melodyPatterns:[[0,2,4,6,5,4,6,2],[6,4,2,4,0,4,6,4],[0,4,6,4,6,2,4,6]],
+      choirFormants:[900,1800,3600], choirVibRate:6.5, choirVibDepth:3.5,
+      vizR:255, vizG:100, vizB:240,
+      desc:'The drop. The room explodes. This is what the whole song was for.'
+    },
+    {
+      name:'Bridge', range:[61,72], color:'#180820', bpm:116,
+      root:69.3, scale:[1,1.1225,1.2599,1.4142,1.4983,1.6818,1.8877],
+      droneWave:'square', droneFilterFreq:750, droneFilterQ:2.0,
+      droneLfoRate:0.11, droneLfoDepth:170, droneAmpLfo:0.13,
+      kickFreq:62, kickDecay:0.26, snareDecay:0.12, snareFilterFreq:1900,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'square', bassFilterFreq:350, bassPattern:[1,0,0,1,0,0,0,1],
+      melodyWave:'square', melodyOctave:2, melodySkip:0.22,
+      melodyPatterns:[[0,2,4,5,4,5,2,4],[5,4,2,0,4,5,4,2],[0,5,4,2,5,4,0,4]],
+      choirFormants:[780,1560,3120], choirVibRate:5.2, choirVibDepth:2.9,
+      vizR:220, vizG:60, vizB:190,
+      desc:'The bridge. Everything strips back. The vocal sits alone. You feel it differently here.'
+    },
+    {
+      name:'Final Chorus', range:[73,84], color:'#200a30', bpm:124,
+      root:65.4, scale:[1,1.1225,1.2599,1.4983,1.6818],
+      droneWave:'sawtooth', droneFilterFreq:950, droneFilterQ:2.8,
+      droneLfoRate:0.15, droneLfoDepth:210, droneAmpLfo:0.17,
+      kickFreq:64, kickDecay:0.23, snareDecay:0.10, snareFilterFreq:2200,
+      kickPattern:[1,0,1,0,1,0,0,1], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,1,1,1,1,1,1,0],
+      bassWave:'sawtooth', bassFilterFreq:420, bassPattern:[1,0,1,1,0,1,0,1],
+      melodyWave:'sawtooth', melodyOctave:2, melodySkip:0.08,
+      melodyPatterns:[[0,2,4,5,6,5,4,5],[5,6,4,2,4,5,6,4],[0,4,5,6,4,5,2,4]],
+      choirFormants:[870,1740,3480], choirVibRate:6.2, choirVibDepth:3.4,
+      vizR:250, vizG:90, vizB:230,
+      desc:'The final chorus key-changes up a half step. You feel it before you hear it.'
+    },
+    {
+      name:'Outro', range:[85,99], color:'#100618', bpm:96,
+      root:61.7, scale:[1,1.1225,1.2599,1.4142,1.4983,1.6818,1.8877],
+      droneWave:'square', droneFilterFreq:600, droneFilterQ:1.5,
+      droneLfoRate:0.07, droneLfoDepth:120, droneAmpLfo:0.09,
+      kickFreq:58, kickDecay:0.34, snareDecay:0.16, snareFilterFreq:1600,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,0,0], hihatPattern:[0,1,0,1,0,1,0,0],
+      bassWave:'square', bassFilterFreq:260, bassPattern:[1,0,0,0,1,0,0,0],
+      melodyWave:'square', melodyOctave:1, melodySkip:0.40,
+      melodyPatterns:[[0,2,4,5,4,2,0,4],[5,4,2,0,4,2,5,4],[0,4,2,5,4,0,2,4]],
+      choirFormants:[680,1360,2720], choirVibRate:4.0, choirVibDepth:2.2,
+      vizR:180, vizG:40, vizB:150,
+      desc:'The song fades. You play it again. You will play it a hundred more times. It will still work.'
+    },
+  ],
+
+  // ── MIDNIGHT SESSION: jazz club — each zone is a deeper point in the night ──
+  // BPMs: 112→104→96→88→80→92→84→72 — the swing decelerates as the night deepens
+  // Scales: dorian, mixolydian, harmonic minor — the jazz palette
+  // Roots: cycle of 5ths, chromatically shaded — standard modulation language
+  jazz: [
+    {
+      name:'Early Set', range:[1,12], color:'#020610', bpm:112,
+      root:65.4, scale:[1,1.1225,1.1892,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'triangle', droneFilterFreq:380, droneFilterQ:1.2,
+      droneLfoRate:0.04, droneLfoDepth:80, droneAmpLfo:0.06,
+      kickFreq:46, kickDecay:0.45, snareDecay:0.20, snareFilterFreq:900,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sine', bassFilterFreq:200, bassPattern:[1,0,0,1,0,1,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.35,
+      melodyPatterns:[[0,2,4,3,2,4,3,0],[3,4,2,0,4,2,3,4],[0,3,4,2,4,0,3,2]],
+      choirFormants:[550,1050,2100], choirVibRate:3.5, choirVibDepth:3.0,
+      vizR:40, vizG:80, vizB:160,
+      desc:'The room fills slowly. The band plays standards. Nobody is listening yet. That is fine.'
+    },
+    {
+      name:'Second Round', range:[13,24], color:'#040810', bpm:104,
+      root:73.4, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'triangle', droneFilterFreq:420, droneFilterQ:1.4,
+      droneLfoRate:0.05, droneLfoDepth:95, droneAmpLfo:0.07,
+      kickFreq:48, kickDecay:0.42, snareDecay:0.19, snareFilterFreq:950,
+      kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sine', bassFilterFreq:220, bassPattern:[1,0,1,0,0,1,0,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.28,
+      melodyPatterns:[[0,2,3,4,3,2,4,0],[4,3,2,4,0,2,3,4],[0,4,3,2,3,4,0,2]],
+      choirFormants:[580,1100,2200], choirVibRate:3.8, choirVibDepth:3.2,
+      vizR:35, vizG:70, vizB:150,
+      desc:'The drinks are in. The conversation drops. Someone is actually listening now.'
+    },
+    {
+      name:'The Pocket', range:[25,36], color:'#06091a', bpm:96,
+      root:82.4, scale:[1,1.1225,1.1892,1.3348,1.4983,1.5874,1.8877],
+      droneWave:'sine', droneFilterFreq:460, droneFilterQ:1.6,
+      droneLfoRate:0.06, droneLfoDepth:110, droneAmpLfo:0.08,
+      kickFreq:50, kickDecay:0.40, snareDecay:0.18, snareFilterFreq:1000,
+      kickPattern:[1,0,0,0,0,1,0,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sine', bassFilterFreq:240, bassPattern:[1,0,0,1,0,0,1,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.25,
+      melodyPatterns:[[0,2,4,3,2,3,4,2],[3,2,4,0,2,4,3,2],[0,3,2,4,3,2,0,4]],
+      choirFormants:[600,1150,2300], choirVibRate:4.0, choirVibDepth:3.5,
+      vizR:30, vizG:65, vizB:140,
+      desc:'The band locks in. The drummer stops thinking about time. Time starts happening by itself.'
+    },
+    {
+      name:'Smoke Break', range:[37,48], color:'#040810', bpm:88,
+      root:77.8, scale:[1,1.1225,1.1892,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'sine', droneFilterFreq:400, droneFilterQ:1.3,
+      droneLfoRate:0.04, droneLfoDepth:85, droneAmpLfo:0.06,
+      kickFreq:46, kickDecay:0.48, snareDecay:0.22, snareFilterFreq:850,
+      kickPattern:[1,0,0,0,1,0,0,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[1,0,1,0,0,0,1,0],
+      bassWave:'sine', bassFilterFreq:200, bassPattern:[1,0,0,0,1,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.40,
+      melodyPatterns:[[0,2,3,2,4,2,3,0],[3,2,0,2,4,3,2,4],[0,4,3,2,0,3,4,2]],
+      choirFormants:[560,1060,2120], choirVibRate:3.2, choirVibDepth:3.0,
+      vizR:28, vizG:58, vizB:128,
+      desc:'Intermission. The piano player stays on stage, noodling alone. Everyone pretends not to listen.'
+    },
+    {
+      name:'Midnight', range:[49,60], color:'#02060e', bpm:80,
+      root:69.3, scale:[1,1.1225,1.1892,1.3348,1.4983,1.5874,1.8877],
+      droneWave:'sine', droneFilterFreq:350, droneFilterQ:1.2,
+      droneLfoRate:0.035, droneLfoDepth:75, droneAmpLfo:0.05,
+      kickFreq:44, kickDecay:0.52, snareDecay:0.25, snareFilterFreq:800,
+      kickPattern:[1,0,0,0,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,1,0,0,0,1,0],
+      bassWave:'sine', bassFilterFreq:180, bassPattern:[1,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.45,
+      melodyPatterns:[[0,2,4,2,3,2,0,2],[3,2,0,2,3,4,2,0],[0,3,2,4,3,2,0,3]],
+      choirFormants:[520,980,1960], choirVibRate:3.0, choirVibDepth:2.8,
+      vizR:24, vizG:52, vizB:120,
+      desc:'Midnight. Half the tables empty. The ones who stayed are the real audience.'
+    },
+    {
+      name:'Solo', range:[61,72], color:'#040810', bpm:92,
+      root:61.7, scale:[1,1.1225,1.1892,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'triangle', droneFilterFreq:480, droneFilterQ:1.8,
+      droneLfoRate:0.07, droneLfoDepth:120, droneAmpLfo:0.09,
+      kickFreq:48, kickDecay:0.40, snareDecay:0.19, snareFilterFreq:980,
+      kickPattern:[1,0,0,1,0,0,1,0], snarePattern:[0,0,1,0,0,0,1,0], hihatPattern:[1,0,1,0,1,0,1,0],
+      bassWave:'sine', bassFilterFreq:230, bassPattern:[1,0,1,0,0,1,0,0],
+      melodyWave:'triangle', melodyOctave:1, melodySkip:0.20,
+      melodyPatterns:[[0,2,3,4,3,4,3,2],[4,3,2,3,0,3,4,3],[0,3,4,3,4,2,3,0]],
+      choirFormants:[620,1180,2360], choirVibRate:4.2, choirVibDepth:3.8,
+      vizR:32, vizG:68, vizB:145,
+      desc:'The saxophonist takes the solo. The band drops to a whisper. This is the whole reason.'
+    },
+    {
+      name:'Last Call', range:[73,84], color:'#02050c', bpm:84,
+      root:58.3, scale:[1,1.1225,1.2599,1.3348,1.4983,1.6818,1.7818],
+      droneWave:'sine', droneFilterFreq:320, droneFilterQ:1.1,
+      droneLfoRate:0.03, droneLfoDepth:65, droneAmpLfo:0.05,
+      kickFreq:44, kickDecay:0.50, snareDecay:0.24, snareFilterFreq:780,
+      kickPattern:[1,0,0,0,0,0,1,0], snarePattern:[0,0,0,0,1,0,0,0], hihatPattern:[0,0,1,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:170, bassPattern:[1,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.48,
+      melodyPatterns:[[0,2,3,2,0,3,2,0],[3,2,0,3,2,4,2,0],[0,3,2,0,3,2,0,2]],
+      choirFormants:[490,920,1840], choirVibRate:2.8, choirVibDepth:2.6,
+      vizR:22, vizG:46, vizB:110,
+      desc:'Last call. The lights come up one notch. Nobody moves. The bassist plays the outro twice.'
+    },
+    {
+      name:'After Hours', range:[85,99], color:'#01030a', bpm:72,
+      root:55.0, scale:[1,1.1225,1.1892,1.3348,1.4983,1.5874,1.8877],
+      droneWave:'sine', droneFilterFreq:280, droneFilterQ:1.0,
+      droneLfoRate:0.025, droneLfoDepth:55, droneAmpLfo:0.04,
+      kickFreq:42, kickDecay:0.58, snareDecay:0.28, snareFilterFreq:720,
+      kickPattern:[1,0,0,0,0,0,0,0], snarePattern:[0,0,0,0,0,0,0,0], hihatPattern:[0,0,0,0,0,0,0,0],
+      bassWave:'sine', bassFilterFreq:155, bassPattern:[1,0,0,0,0,0,0,0],
+      melodyWave:'sine', melodyOctave:1, melodySkip:0.55,
+      melodyPatterns:[[0,2,3,2,0,2,3,0],[3,0,2,3,2,0,3,2],[0,3,2,0,2,3,0,2]],
+      choirFormants:[460,860,1720], choirVibRate:2.5, choirVibDepth:2.4,
+      vizR:18, vizG:40, vizB:100,
+      desc:'After hours. The staff is stacking chairs. The trio plays on. No one has asked them to stop.'
+    },
+  ],
+
+  // ── VOLTAGE RISE: stadium rock — 8 sets, escalating intensity
+  // BPMs: 92→104→116→124→132→128→136→108 (breakdown then finale)
+  // Roots descend a whole-tone each set — classic modulation climb feel
+  // Scales: mixolydian (major w/ b7) then dorian for heavier sections
+  // ── AMBER TAPE: lo-fi bedroom journey — slow, warm, introspective
+  // BPMs: 72→76→80→78→74→70→68→65 — gently decelerating into night
+  // Roots stay in a narrow warm register — cassette tape doesn't like extremes
+  // Scales: major pentatonic, dorian, lydian — all warm, no sharp dissonance
+  // ── SUGAR RUSH: pop — 8 drops, each bigger than the last
+  // BPMs: 100→108→116→120→124→128→132→118 — pop structure with a finale dip
+  // Roots: stay in a bright mid register, shift by 5ths
+  // Scales: major, lydian — nothing minor, everything resolves upward
+  // ── MIDNIGHT SESSION: jazz club — 8 sets, smoke thickening as night deepens
+  // BPMs: 84→92→98→88→96→104→88→76 — jazz breathes, doesn't just accelerate
+  // Roots walk the circle of 5ths — jazz needs harmonic movement
+  // Scales: dorian, mixolydian, lydian — jazz modal vocabulary
 };
 
 
@@ -8133,6 +8665,12 @@ const SKIN_PERC = {
   crimson:   { mutationRate: 0.6, kickVel: 0.80, snareVel: 0.90, hatVel: 0.25, hatDensity: 0.3 }, // stately, minimal hat — formal drum
   ocean:     { mutationRate: 0.3, kickVel: 0.35, snareVel: 0.30, hatVel: 0.10, hatDensity: 0.1 }, // nearly no percussion — the deep is quiet
   desert:    { mutationRate: 0.9, kickVel: 1.0,  snareVel: 0.85, hatVel: 0.70, hatDensity: 0.8 }, // hand drum character — present but organic
+  // ── New skins
+  rock:      { mutationRate: 1.8, kickVel: 1.6,  snareVel: 1.4,  hatVel: 1.2,  hatDensity: 1.0 }, // heavy, relentless — stadium rock
+  lofi:      { mutationRate: 0.4, kickVel: 0.55, snareVel: 0.50, hatVel: 0.35, hatDensity: 0.5 }, // soft, muffled — brushes and tape
+  pop:       { mutationRate: 0.8, kickVel: 1.2,  snareVel: 1.1,  hatVel: 1.0,  hatDensity: 1.0 }, // clean, punchy — radio production
+  jazz:      { mutationRate: 0.5, kickVel: 0.70, snareVel: 0.60, hatVel: 0.80, hatDensity: 0.9 }, // brushed swing — ride-cymbal character
+
 };
 
 // ── SKIN MELODY CHARACTER ─────────────────────────────────────────────────────
@@ -8147,10 +8685,10 @@ const SKIN_MELODY = {
   sakura:    { skipBias: 0.20, arcBeatsMult: 1.8, vibDepthMult: 1.6 }, // sparse, long held notes, expressive vibrato
   crimson:   { skipBias: 0.10, arcBeatsMult: 1.4, vibDepthMult: 1.3 }, // stately, ornamented, expressive — baroque
   desert:    { skipBias: 0.05, arcBeatsMult: 1.1, vibDepthMult: 1.2 }, // present, slightly ornamented — ancient cantorial
-  rock:      { skipBias:-0.10, arcBeatsMult: 0.7, vibDepthMult: 0.4 }, // dense, fast, minimal vibrato — guitar lead character
-  lofi:      { skipBias: 0.18, arcBeatsMult: 1.6, vibDepthMult: 0.9 }, // sparse, warm, gentle vibrato
-  pop:       { skipBias:-0.05, arcBeatsMult: 0.8, vibDepthMult: 0.6 }, // present, punchy, tight vibrato
-  jazz:      { skipBias: 0.08, arcBeatsMult: 1.2, vibDepthMult: 1.5 }, // moderate density, expressive vibrato — improvised feel
+  rock:      { skipBias:-0.10, arcBeatsMult: 0.7, vibDepthMult: 0.4 }, // dense, fast, minimal vibrato — guitar lead
+  lofi:      { skipBias: 0.18, arcBeatsMult: 1.6, vibDepthMult: 0.9 }, // sparse, warm, gentle vibrato — bedroom feel
+  pop:       { skipBias:-0.05, arcBeatsMult: 0.8, vibDepthMult: 0.6 }, // present, punchy, radio-tight vibrato
+  jazz:      { skipBias: 0.08, arcBeatsMult: 1.2, vibDepthMult: 1.5 }, // moderate density, expressive — improvised feel
 };
 
 const SKIN_JOURNEY_RULES = {
@@ -8773,9 +9311,9 @@ function stopAdaptiveMixLoop() {
 
 // ── VOICE BANKS ───────────────────────────────
 const VOICE_BANKS = {
-  drone:      ['harmonic', 'drawbar', 'vox'],
-  bass:       ['sawtooth', 'square', 'subBass', 'triangleBass'],
-  melody:     ['sawtooth', 'triangle', 'lute', 'bells', 'organ', 'customMelody'],
+  drone:      ['harmonic', 'drawbar', 'vox', 'cabinet', 'tapeWarp'],
+  bass:       ['sawtooth', 'square', 'subBass', 'triangleBass', 'pickedBass', 'upright', '808'],
+  melody:     ['sawtooth', 'triangle', 'lute', 'bells', 'organ', 'customMelody', 'supersaw', 'rhodes', 'saxophone', 'distGuitar'],
   choir:      ['infernal', 'gregorian', 'bright'],
   horn:       ['sawtooth', 'square', 'brass', 'frenchHorn', 'customHorn'],
   bells:      ['sine', 'bellsSoft', 'bellsBright', 'glockenspiel', 'tinkle'],
@@ -8792,7 +9330,7 @@ const VOICE_BANKS = {
   // Strings — each voice changes bowing technique and timbre
   strings:    ['arco', 'sul_ponticello', 'sul_tasto', 'tremolo', 'pizzicato'],
   // Perc — each voice is a distinct drum character
-  perc:       ['cinematic', 'taiko', 'tribal', 'ghost'],
+  perc:       ['cinematic', 'taiko', 'tribal', 'ghost', 'stadium', 'brushkit', 'popkit', 'brushswing'],
   wardrums:   ['lowTom', 'highTom', 'floorTom', 'snare'],
   chains:     ['chain1', 'chain2', 'metalHit'],
   march:      ['snare', 'bassDrum', 'rim'],
@@ -8864,6 +9402,47 @@ const CE = (() => {
   //   0 = i, 2 = ii (approx), 3 = III, 4 = iv/IV, 5 = V/v, 6 = VI, 7 = VII
  
   const ZONE_PROGRESSIONS = {
+    // ── VOLTAGE RISE (rock)
+    'Soundcheck':    { normal:[[0,'openFifth'],[5,'openFifth'],[6,'openFifth'],[5,'openFifth']], combat:[[0,'min'],[5,'dim'],[0,'min'],[5,'dim']], boss:[[0,'tritone'],[5,'tritone'],[0,'tritone'],[1,'phrygian']], resolution:[[0,'openFifth'],[6,'sus2'],[3,'maj'],[0,'openFifth']], tension:[[0,'min7'],[6,'maj'],[4,'min'],[5,'min']] },
+    'Opening Act':   { normal:[[0,'openFifth'],[6,'maj'],[3,'maj'],[7,'maj']], combat:[[0,'min'],[6,'maj'],[4,'min'],[5,'min']], boss:[[0,'dim7'],[1,'phrygian'],[0,'dim7'],[5,'tritone']], resolution:[[0,'openFifth'],[6,'sus2'],[4,'maj'],[0,'min']], tension:[[0,'hdim7'],[5,'dim'],[0,'min'],[1,'phrygian']] },
+    'The Riff':      { normal:[[0,'openFifth'],[6,'openFifth'],[4,'openFifth'],[0,'openFifth']], combat:[[0,'min'],[1,'phrygian'],[0,'min'],[5,'dim']], boss:[[0,'tritone'],[1,'tritone'],[6,'dim7'],[0,'tritone']], resolution:[[0,'min'],[6,'sus2'],[3,'maj'],[0,'openFifth']], tension:[[0,'hdim7'],[0,'openFifth'],[5,'dim7'],[0,'min']] },
+    'The Drop':      { normal:[[0,'min'],[6,'maj'],[3,'maj'],[7,'maj']], combat:[[0,'min'],[5,'dim'],[1,'phrygian'],[0,'min']], boss:[[0,'tritone'],[5,'tritone'],[1,'phrygian'],[0,'dim7']], resolution:[[0,'openFifth'],[6,'sus2'],[4,'maj'],[0,'min']], tension:[[0,'min7'],[5,'hdim7'],[1,'phrygian'],[0,'min']] },
+    'Breakdown':     { normal:[[0,'openFifth'],[0,'openFifth'],[6,'maj'],[0,'openFifth']], combat:[[0,'min'],[6,'maj'],[5,'min'],[0,'min']], boss:[[0,'tritone'],[0,'tritone'],[1,'phrygian'],[0,'tritone']], resolution:[[0,'openFifth'],[6,'sus2'],[0,'min'],[0,'openFifth']], tension:[[0,'hdim7'],[0,'min'],[0,'hdim7'],[0,'min7']] },
+    'Anthemic':      { normal:[[0,'maj'],[5,'maj'],[6,'maj'],[3,'maj']], combat:[[0,'min'],[6,'maj'],[4,'min'],[5,'min']], boss:[[0,'dim7'],[6,'maj'],[4,'dim'],[0,'dim7']], resolution:[[0,'maj'],[6,'sus2'],[4,'sus4'],[0,'maj']], tension:[[0,'min7'],[6,'maj'],[4,'min'],[5,'hdim7']] },
+    'The Encore':    { normal:[[0,'maj'],[6,'maj'],[4,'maj'],[5,'maj']], combat:[[0,'min'],[5,'dim'],[0,'min'],[5,'min']], boss:[[0,'tritone'],[1,'phrygian'],[0,'dim7'],[0,'tritone']], resolution:[[0,'maj'],[6,'sus2'],[4,'sus4'],[0,'maj']], tension:[[0,'hdim7'],[5,'min'],[6,'maj'],[0,'min7']] },
+    'Last Song':     { normal:[[0,'maj'],[5,'maj'],[6,'maj'],[4,'maj']], combat:[[0,'min'],[6,'maj'],[4,'min'],[5,'min']], boss:[[0,'dim7'],[6,'maj'],[4,'min'],[0,'dim7']], resolution:[[0,'maj'],[6,'sus2'],[4,'sus4'],[0,'openFifth']], tension:[[0,'min7'],[6,'maj'],[5,'min'],[0,'hdim7']] },
+
+    // ── AMBER TAPE (lo-fi)
+    'Rain on Glass': { normal:[[0,'min7'],[6,'maj7'],[3,'maj7'],[7,'min7']], combat:[[0,'min'],[5,'min'],[6,'maj'],[0,'min']], boss:[[0,'hdim7'],[6,'min7'],[3,'maj7'],[0,'min7']], resolution:[[0,'min7'],[6,'sus2'],[3,'maj7'],[0,'openFifth']], tension:[[0,'min7'],[5,'hdim7'],[6,'maj7'],[0,'min7']] },
+    'Desk Light':    { normal:[[0,'min7'],[3,'maj7'],[6,'maj7'],[5,'min7']], combat:[[0,'min'],[6,'maj'],[4,'min'],[0,'min']], boss:[[0,'hdim7'],[5,'dim7'],[6,'min7'],[0,'hdim7']], resolution:[[0,'openFifth'],[6,'sus2'],[3,'sus4'],[0,'min']], tension:[[0,'min7'],[6,'maj7'],[5,'hdim7'],[0,'min7']] },
+    'Half Asleep':   { normal:[[0,'min7'],[6,'maj7'],[4,'maj7'],[0,'min7']], combat:[[0,'min'],[5,'min'],[0,'min'],[6,'maj']], boss:[[0,'hdim7'],[1,'phrygian'],[0,'min'],[0,'hdim7']], resolution:[[0,'openFifth'],[6,'sus2'],[0,'min'],[0,'openFifth']], tension:[[0,'min7'],[0,'openFifth'],[6,'maj7'],[0,'min7']] },
+    '3am Playlist':  { normal:[[0,'min7'],[6,'maj7'],[3,'maj7'],[4,'min7']], combat:[[0,'min'],[4,'min'],[6,'maj'],[0,'min']], boss:[[0,'hdim7'],[6,'min7'],[4,'min7'],[0,'hdim7']], resolution:[[0,'min7'],[6,'sus2'],[4,'sus4'],[0,'openFifth']], tension:[[0,'min7'],[5,'min7'],[6,'maj7'],[0,'min7']] },
+    'The Good Cry':  { normal:[[0,'minMaj7'],[6,'maj7'],[3,'maj7'],[5,'hdim7']], combat:[[0,'min'],[6,'maj'],[4,'min'],[0,'min']], boss:[[0,'hdim7'],[5,'dim7'],[1,'phrygian'],[0,'min']], resolution:[[0,'min7'],[3,'maj7'],[6,'sus2'],[0,'openFifth']], tension:[[0,'minMaj7'],[0,'openFifth'],[5,'hdim7'],[0,'min7']] },
+    'Vinyl Crackle': { normal:[[0,'min7'],[4,'min7'],[6,'maj7'],[3,'maj7']], combat:[[0,'min'],[5,'min'],[6,'maj'],[4,'min']], boss:[[0,'hdim7'],[6,'min7'],[5,'hdim7'],[0,'min']], resolution:[[0,'openFifth'],[6,'sus2'],[3,'sus4'],[0,'min']], tension:[[0,'min7'],[6,'maj7'],[4,'min7'],[0,'min7']] },
+    'Almost Morning':{ normal:[[0,'min7'],[6,'maj7'],[4,'maj7'],[5,'min7']], combat:[[0,'min'],[4,'min'],[6,'maj'],[0,'min']], boss:[[0,'hdim7'],[5,'min7'],[6,'maj7'],[0,'hdim7']], resolution:[[0,'min7'],[6,'sus2'],[4,'sus4'],[0,'openFifth']], tension:[[0,'min7'],[5,'hdim7'],[6,'maj7'],[0,'min7']] },
+    'Tape Hiss':     { normal:[[0,'min7'],[6,'maj7'],[3,'sus4'],[0,'min7']], combat:[[0,'min'],[6,'maj'],[0,'min'],[5,'min']], boss:[[0,'hdim7'],[0,'openFifth'],[6,'min7'],[0,'min']], resolution:[[0,'openFifth'],[0,'min7'],[6,'sus2'],[0,'openFifth']], tension:[[0,'min7'],[0,'openFifth'],[0,'min7'],[0,'openFifth']] },
+
+    // ── SUGAR RUSH (pop)
+    'Pre-Release':   { normal:[[0,'maj'],[5,'maj'],[6,'min'],[4,'maj']], combat:[[0,'min'],[4,'maj'],[5,'maj'],[0,'min']], boss:[[0,'dom7'],[5,'dom7'],[4,'maj'],[0,'dom7']], resolution:[[0,'maj'],[5,'sus4'],[4,'maj'],[0,'maj']], tension:[[0,'min7'],[6,'maj'],[4,'maj'],[5,'dom7']] },
+    'The Hook':      { normal:[[0,'maj'],[4,'maj'],[5,'maj'],[6,'min']], combat:[[0,'min'],[4,'maj'],[6,'min'],[5,'maj']], boss:[[0,'dom7'],[4,'maj'],[5,'dom7'],[0,'dom7']], resolution:[[0,'maj'],[4,'sus4'],[5,'sus4'],[0,'maj']], tension:[[0,'min7'],[4,'maj'],[6,'min'],[5,'dom7']] },
+    'Verse Two':     { normal:[[0,'maj'],[6,'min'],[4,'maj'],[5,'maj']], combat:[[0,'min'],[5,'maj'],[6,'min'],[4,'maj']], boss:[[0,'dom7'],[6,'min7'],[4,'maj'],[5,'dom7']], resolution:[[0,'maj'],[5,'sus4'],[6,'sus2'],[0,'maj']], tension:[[0,'min7'],[6,'min'],[4,'maj'],[5,'hdim7']] },
+    'The Build':     { normal:[[0,'maj'],[4,'maj'],[6,'min'],[5,'maj']], combat:[[0,'min'],[4,'maj'],[5,'maj'],[6,'min']], boss:[[0,'dom7'],[4,'dom7'],[5,'dom7'],[0,'dom7']], resolution:[[0,'maj'],[4,'sus4'],[5,'sus4'],[0,'openFifth']], tension:[[0,'hdim7'],[4,'maj'],[6,'min'],[5,'dom7']] },
+    'Maximum Drop':  { normal:[[0,'maj'],[5,'maj'],[4,'maj'],[6,'min']], combat:[[0,'min'],[5,'maj'],[4,'maj'],[0,'min']], boss:[[0,'dom7'],[5,'dom7'],[4,'dom7'],[0,'dom7']], resolution:[[0,'maj'],[5,'sus4'],[4,'sus4'],[0,'maj']], tension:[[0,'dom7'],[4,'maj'],[6,'min'],[5,'dom7']] },
+    'Bridge':        { normal:[[0,'min'],[6,'maj'],[3,'maj'],[5,'maj']], combat:[[0,'min'],[4,'maj'],[5,'maj'],[0,'min']], boss:[[0,'hdim7'],[6,'maj'],[4,'min'],[5,'dom7']], resolution:[[0,'maj'],[5,'sus4'],[6,'sus2'],[0,'maj']], tension:[[0,'min7'],[6,'maj'],[4,'min'],[5,'hdim7']] },
+    'Final Chorus':  { normal:[[0,'maj'],[4,'maj'],[5,'maj'],[4,'maj']], combat:[[0,'min'],[4,'maj'],[5,'maj'],[6,'min']], boss:[[0,'dom7'],[4,'dom7'],[5,'dom7'],[4,'dom7']], resolution:[[0,'maj'],[4,'sus4'],[5,'sus2'],[0,'maj']], tension:[[0,'hdim7'],[4,'maj'],[6,'min'],[5,'dom7']] },
+    'Outro':         { normal:[[0,'maj'],[5,'maj'],[6,'min'],[4,'maj']], combat:[[0,'min'],[4,'maj'],[6,'min'],[0,'min']], boss:[[0,'dom7'],[6,'min7'],[4,'maj'],[5,'dom7']], resolution:[[0,'maj'],[5,'sus4'],[4,'sus4'],[0,'openFifth']], tension:[[0,'min7'],[6,'min'],[4,'maj'],[5,'hdim7']] },
+
+    // ── MIDNIGHT SESSION (jazz)
+    'Early Set':     { normal:[[0,'min7'],[4,'dom7'],[6,'maj7'],[2,'hdim7']], combat:[[0,'min'],[4,'dom7'],[0,'min'],[5,'dim7']], boss:[[0,'hdim7'],[4,'dim7'],[2,'hdim7'],[0,'hdim7']], resolution:[[0,'min7'],[6,'maj7'],[4,'sus4'],[0,'openFifth']], tension:[[0,'min7'],[2,'hdim7'],[5,'dom7'],[0,'min7']] },
+    'Second Round':  { normal:[[0,'min7'],[2,'hdim7'],[5,'dom7'],[0,'minMaj7']], combat:[[0,'min'],[2,'dim'],[5,'dom7'],[0,'min']], boss:[[0,'hdim7'],[5,'dim7'],[2,'hdim7'],[0,'hdim7']], resolution:[[0,'min7'],[6,'maj7'],[4,'sus4'],[0,'min7']], tension:[[0,'minMaj7'],[2,'hdim7'],[5,'dom7'],[0,'min7']] },
+    'The Pocket':    { normal:[[0,'min7'],[4,'dom7'],[3,'maj7'],[6,'maj7']], combat:[[0,'min'],[5,'dom7'],[0,'min'],[2,'dim']], boss:[[0,'hdim7'],[2,'hdim7'],[5,'dim7'],[0,'hdim7']], resolution:[[0,'min7'],[6,'sus2'],[3,'maj7'],[0,'openFifth']], tension:[[0,'min7'],[2,'hdim7'],[5,'dom7'],[0,'minMaj7']] },
+    'Smoke Break':   { normal:[[0,'min7'],[6,'maj7'],[2,'hdim7'],[5,'dom7']], combat:[[0,'min'],[2,'dim'],[0,'min'],[5,'dim7']], boss:[[0,'hdim7'],[5,'dim7'],[6,'min7'],[0,'hdim7']], resolution:[[0,'min7'],[6,'sus2'],[4,'sus4'],[0,'min7']], tension:[[0,'minMaj7'],[2,'hdim7'],[5,'dom7'],[0,'min7']] },
+    'Midnight':      { normal:[[0,'min7'],[2,'hdim7'],[5,'dom7'],[6,'maj7']], combat:[[0,'min'],[1,'phrygian'],[5,'dom7'],[0,'min']], boss:[[0,'hdim7'],[1,'phrygian'],[5,'dim7'],[0,'hdim7']], resolution:[[0,'min7'],[6,'maj7'],[3,'sus4'],[0,'openFifth']], tension:[[0,'minMaj7'],[0,'openFifth'],[5,'dom7'],[0,'min7']] },
+    'Solo':          { normal:[[0,'min7'],[4,'dom7'],[3,'maj7'],[2,'hdim7']], combat:[[0,'min'],[2,'hdim7'],[5,'dom7'],[0,'min']], boss:[[0,'hdim7'],[2,'hdim7'],[5,'dim7'],[1,'phrygian']], resolution:[[0,'min7'],[6,'maj7'],[4,'sus4'],[0,'min7']], tension:[[0,'minMaj7'],[2,'hdim7'],[5,'dom7'],[6,'maj7']] },
+    'Last Call':     { normal:[[0,'min7'],[6,'maj7'],[3,'maj7'],[5,'hdim7']], combat:[[0,'min'],[5,'dom7'],[6,'maj'],[0,'min']], boss:[[0,'hdim7'],[5,'dim7'],[2,'hdim7'],[0,'min']], resolution:[[0,'min7'],[6,'sus2'],[3,'sus4'],[0,'openFifth']], tension:[[0,'min7'],[2,'hdim7'],[5,'dom7'],[0,'minMaj7']] },
+    'After Hours':   { normal:[[0,'minMaj7'],[6,'maj7'],[4,'sus2'],[0,'min7']], combat:[[0,'min'],[6,'maj'],[0,'min'],[5,'dom7']], boss:[[0,'hdim7'],[6,'min7'],[0,'hdim7'],[5,'dim7']], resolution:[[0,'min7'],[6,'sus2'],[0,'openFifth'],[0,'min7']], tension:[[0,'minMaj7'],[2,'hdim7'],[0,'openFifth'],[0,'min7']] },
+
+
     'Ashen Fields': {
       normal:     [[0,'min'], [6,'maj'], [3,'maj'], [5,'min']],       // i – VI – III – v
       combat:     [[0,'min'], [5,'dim'], [0,'min'], [5,'dim']],       // i – v° – i – v°
@@ -8947,7 +9526,7 @@ const CE = (() => {
     },
   };
  
-  // Fallback progression if zone not found
+    // Fallback progression if zone not found
   const DEFAULT_PROG = {
     normal:     [[0,'min'], [5,'min'], [6,'maj'], [3,'maj']],
     combat:     [[0,'min'], [1,'phrygian'], [5,'dim'], [0,'min']],
@@ -9391,6 +9970,10 @@ function buildDrone(preset, intensity, name) {
   const b     = bus[name];
   const voice = sessionVoices[name] || 'harmonic';
 
+  // ── Genre skin voices: delegate to dedicated builders ──────────────────────
+  if (voice === 'cabinet')  { buildDroneCabinet(b, preset, intensity, name);  return; }
+  if (voice === 'tapeWarp') { buildDroneTapeWarp(b, preset, intensity, name); return; }
+
   // ── Voice config ────────────────────────────────────────────────────────────
   // harmonic  — current sound: additive sine partials, warm sub crunch, slow drift.
   //             The cinematic orchestral void. Root+5th+oct, micro-beating pairs.
@@ -9425,10 +10008,10 @@ function buildDrone(preset, intensity, name) {
     // Original: additive harmonic series with micro-beating pairs and pitch drift
     const dronePartials = [
       { freq: initRoot,        gv: 0.26, det:  0,  role: 'root'  },
-      { freq: initRoot * 2,    gv: 0.11, det: -3,  role: 'root'  },
-      { freq: initRoot * 2,    gv: 0.11, det:  3,  role: 'root'  },
-      { freq: initRoot * 3,    gv: 0.06, det:  0,  role: 'root'  },
-      { freq: initRoot * 4,    gv: 0.04, det:  0,  role: 'root'  },
+      { freq: initRoot * 2,    gv: 0.07, det: -3,  role: 'root'  },  // reduced — was overwhelming
+      { freq: initRoot * 2,    gv: 0.07, det:  3,  role: 'root'  },
+      { freq: initRoot * 3,    gv: 0.03, det:  0,  role: 'root'  },
+      { freq: initRoot * 4,    gv: 0.02, det:  0,  role: 'root'  },
       { freq: initFifth,       gv: 0.10, det:  0,  role: 'fifth' },
       { freq: initFifth * 2,   gv: 0.04, det:  2,  role: 'fifth' },
       { freq: initOct,         gv: 0.06, det:  0,  role: 'oct'   },
@@ -9623,6 +10206,212 @@ function buildDrone(preset, intensity, name) {
   }
   regT(name, setTimeout(retuneDrone, (barLength || 2) * 1000));
 }
+
+// ── DRONE VOICE: CABINET — distorted guitar amp character ────────────────────
+// Sawtooth through a waveshaper (power-tube clipping) → comb filter (speaker
+// cabinet resonance) → mild high shelf cut (cabinet rolloff). Sounds like a
+// guitar power chord left to sustain through a cranked amp.
+function buildDroneCabinet(b, preset, intensity, name) {
+  const initRoot  = CE.chordTone('drone', -1, 0);
+  const initFifth = initRoot * 1.5;
+
+  // Power-tube waveshaper: soft clip with asymmetric saturation
+  function makePowerTubeCurve(drive) {
+    const n = 512, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2 / n) - 1;
+      // Asymmetric: positive half clips harder (push-pull asymmetry)
+      curve[i] = x >= 0
+        ? Math.tanh(x * drive * 1.2) / Math.tanh(drive * 1.2)
+        : Math.tanh(x * drive * 0.8) / Math.tanh(drive * 0.8);
+    }
+    return curve;
+  }
+
+  // Cabinet IR — comb filter stack simulating resonant speaker box
+  function makeCabinetChain(input) {
+    // Two comb filters at cabinet resonant frequencies (~100Hz and ~250Hz)
+    const comb1 = ctx.createDelay(0.02);
+    const comb2 = ctx.createDelay(0.012);
+    const fb1   = mkGain(0.22); // small feedback = resonance without howl
+    const fb2   = mkGain(0.16);
+    // Feed signal forward + delayed + feedback
+    input.connect(comb1); comb1.connect(fb1); fb1.connect(comb1);
+    input.connect(comb2); comb2.connect(fb2); fb2.connect(comb2);
+    // Speaker highcut: cabinets roll off sharply above ~5kHz
+    const spkrCut = mkFilt(4800, 'lowpass', 0.7);
+    // Presence peak around 2kHz — guitar speakers are honky in this range
+    const presence = mkFilt(2100, 'peaking', 2.5);
+    presence.gain.value = 3.5;
+    const mixG = mkGain(0.6);
+    comb1.connect(spkrCut); comb2.connect(spkrCut);
+    spkrCut.connect(presence); presence.connect(mixG); mixG.connect(b);
+    input.connect(mixG); // dry blend
+    reg(name, comb1, comb2, fb1, fb2, spkrCut, presence, mixG);
+    return { comb1, comb2 };
+  }
+
+  // Build oscillators: root (+ detuned pair for width) + fifth
+  const droneOscs = [];
+  const partials = [
+    { freq: initRoot,      gv: 0.32, det:  0,  role: 'root'  },
+    { freq: initRoot,      gv: 0.22, det: -8,  role: 'root'  }, // slight detuning for width
+    { freq: initRoot,      gv: 0.18, det:  8,  role: 'root'  },
+    { freq: initRoot * 2,  gv: 0.10, det:  0,  role: 'root'  },
+    { freq: initFifth,     gv: 0.14, det:  0,  role: 'fifth' },
+  ];
+
+  const satNode = ctx.createWaveShaper();
+  satNode.curve = makePowerTubeCurve(2.8 + intensity * 1.4);
+  satNode.oversample = '4x';
+  satNode.connect(b); // direct path (dry blend inside makeCabinetChain)
+  makeCabinetChain(satNode);
+  reg(name, satNode);
+
+  partials.forEach(({ freq, gv, det, role }) => {
+    const o = mkOsc(Math.max(20, freq), 'sawtooth', det);
+    const g = mkGain(gv);
+    chain(o, g, satNode);
+    o.start();
+    // Slow pitch drift for organic feel
+    const drift = mkOsc(0.003 + Math.random() * 0.004, 'sine');
+    const driftG = mkGain(0.8 + Math.random() * 1.2);
+    drift.connect(driftG); driftG.connect(o.detune); drift.start();
+    reg(name, o, g, drift, driftG);
+    droneOscs.push({ osc: o, role });
+  });
+
+  // Sub bass — guitar amp still needs fundamental
+  const subO = mkOsc(Math.max(28, initRoot), 'sine');
+  const subFilt = mkFilt(110, 'lowpass', 0.6);
+  const subG = mkGain(0.18 + intensity * 0.08);
+  chain(subO, subFilt, subG, b);
+  subO.start(); reg(name, subO, subFilt, subG);
+  droneOscs.push({ osc: subO, role: 'root' });
+
+  // Retune on chord change
+  let lastChord = CE.currentChord.label;
+  function retune() {
+    if (!layerOn[name]) return;
+    const chord = CE.currentChord;
+    if (chord.label !== lastChord) {
+      lastChord = chord.label;
+      const now = ctx.currentTime;
+      const newRoot  = CE.chordTone('drone', -1, 0);
+      const newFifth = newRoot * 1.5;
+      droneOscs.forEach(({ osc, role }) => {
+        const target = role === 'fifth' ? newFifth : newRoot;
+        const ratio  = osc.frequency.value > 0 ? target / (initRoot) : 1;
+        osc.frequency.cancelScheduledValues(now);
+        osc.frequency.setValueAtTime(osc.frequency.value, now);
+        osc.frequency.exponentialRampToValueAtTime(
+          Math.max(15, osc.frequency.value * ratio * (target / osc.frequency.value)),
+          now + 1.0
+        );
+      });
+    }
+    regT(name, setTimeout(retune, Math.max(200, (barLength || 2) * 2 * 1000)));
+  }
+  regT(name, setTimeout(retune, (barLength || 2) * 1000));
+}
+
+// ── DRONE VOICE: TAPEWARP — lo-fi cassette drone ──────────────────────────────
+// Triangle oscillators (warm, no buzz) + wow/flutter pitch LFO (tape speed
+// instability) + vinyl crackle noise layer + heavy lowpass (tape rolloff).
+function buildDroneTapeWarp(b, preset, intensity, name) {
+  const initRoot  = CE.chordTone('drone', -1, 0);
+  const initFifth = initRoot * 1.5;
+  const initOct   = initRoot * 2;
+
+  // Tape lowpass — warm rolloff at cassette spec (~8kHz)
+  const tapeLPF = mkFilt(Math.min(preset.droneFilterFreq * 0.7, 2200), 'lowpass', 0.5);
+  const tapeGain = mkGain(0.85);
+  tapeLPF.connect(tapeGain); tapeGain.connect(b);
+  reg(name, tapeLPF, tapeGain);
+
+  // Oscillators
+  const droneOscs = [];
+  [
+    { freq: initRoot,  gv: 0.30, det:  0, role: 'root'  },
+    { freq: initRoot,  gv: 0.14, det: -5, role: 'root'  },
+    { freq: initFifth, gv: 0.12, det:  3, role: 'fifth' },
+    { freq: initOct,   gv: 0.06, det:  0, role: 'oct'   },
+  ].forEach(({ freq, gv, det, role }) => {
+    const o = mkOsc(Math.max(20, freq), 'triangle', det);
+    const g = mkGain(gv);
+    chain(o, g, tapeLPF);
+    o.start();
+    reg(name, o, g);
+    droneOscs.push({ osc: o, role });
+  });
+
+  // Wow & flutter — tape speed instability
+  // Wow: very slow (0.5–1Hz), depth ~15 cents — the slow wobble
+  // Flutter: faster (6–10Hz), depth ~3 cents — the fast shimmer
+  const wowLfo    = mkOsc(0.5 + Math.random() * 0.5, 'sine');
+  const wowG      = mkGain(28); // 28 cents depth
+  const flutterLfo = mkOsc(6 + Math.random() * 4, 'sine');
+  const flutterG  = mkGain(5);  // 5 cents depth
+  wowLfo.start(); flutterLfo.start();
+  reg(name, wowLfo, wowG, flutterLfo, flutterG);
+  droneOscs.forEach(({ osc }) => {
+    wowG.connect(osc.detune);
+    flutterG.connect(osc.detune);
+  });
+  chain(wowLfo, wowG);
+  chain(flutterLfo, flutterG);
+
+  // Vinyl crackle — sparse impulse noise, heavily filtered
+  const crackleBuf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+  const cd = crackleBuf.getChannelData(0);
+  for (let i = 0; i < cd.length; i++) {
+    // Sparse: ~6 crackles per second, random amplitude
+    cd[i] = Math.random() < 0.0002 ? (Math.random() * 2 - 1) * 0.35 : 0;
+  }
+  const crackleSrc = ctx.createBufferSource();
+  crackleSrc.buffer = crackleBuf; crackleSrc.loop = true;
+  const crackleHPF = mkFilt(1800, 'highpass', 0.8);
+  const crackleLPF = mkFilt(6000, 'lowpass', 0.6);
+  const crackleG   = mkGain(0.08 + intensity * 0.04);
+  chain(crackleSrc, crackleHPF, crackleLPF, crackleG, b);
+  crackleSrc.start();
+  reg(name, crackleSrc, crackleHPF, crackleLPF, crackleG);
+
+  // Tape hiss — continuous low-level noise
+  const hissBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const hd = hissBuf.getChannelData(0);
+  for (let i = 0; i < hd.length; i++) hd[i] = Math.random() * 2 - 1;
+  const hissSrc = ctx.createBufferSource();
+  hissSrc.buffer = hissBuf; hissSrc.loop = true;
+  const hissLPF = mkFilt(3200, 'lowpass', 0.5);
+  const hissG   = mkGain(0.012);
+  chain(hissSrc, hissLPF, hissG, b);
+  hissSrc.start();
+  reg(name, hissSrc, hissLPF, hissG);
+
+  // Retune
+  let lastChord = CE.currentChord.label;
+  function retune() {
+    if (!layerOn[name]) return;
+    const chord = CE.currentChord;
+    if (chord.label !== lastChord) {
+      lastChord = chord.label;
+      const now = ctx.currentTime;
+      const newRoot  = CE.chordTone('drone', -1, 0);
+      const newFifth = newRoot * 1.5;
+      const newOct   = newRoot * 2;
+      droneOscs.forEach(({ osc, role }) => {
+        const target = role === 'fifth' ? newFifth : role === 'oct' ? newOct : newRoot;
+        osc.frequency.cancelScheduledValues(now);
+        osc.frequency.setValueAtTime(osc.frequency.value, now);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(15, target), now + 2.5);
+      });
+    }
+    regT(name, setTimeout(retune, Math.max(200, (barLength || 2) * 2 * 1000)));
+  }
+  regT(name, setTimeout(retune, (barLength || 2) * 1000));
+}
+
 
 function buildPercBufs(preset, voice) {
   const sr = ctx.sampleRate;
@@ -9855,6 +10644,261 @@ function buildPercBufs(preset, voice) {
 
     return { kick, snare, hihat, timpani, impact };
   }
+
+  // ── VOICE: STADIUM — rock kit: punchy kick, cracking snare, tight hihat ──
+  if (mode === 'stadium') {
+    const kickLen = Math.floor(sr * 0.55);
+    const kick = ctx.createBuffer(1, kickLen, sr);
+    const kd = kick.getChannelData(0);
+    {
+      // Stadium kick: deep sub thump + pick transient + pitch sweep
+      const f0 = preset.kickFreq * 1.1;
+      const fSwing = f0 * 0.9;
+      let phase = 0, subPhase = 0, noiseLP = 0;
+      for (let i = 0; i < kickLen; i++) {
+        const t = i / sr;
+        const pitchEnv = fSwing * Math.exp(-t / 0.018) + fSwing * 0.12 * Math.exp(-t / 0.08);
+        const freq = f0 + pitchEnv;
+        phase    += (2 * Math.PI * freq) / sr;
+        subPhase += (2 * Math.PI * 42) / sr;
+        const body  = Math.sin(phase)    * Math.exp(-t / 0.32);
+        const sub   = Math.sin(subPhase) * Math.exp(-t / 0.45) * 0.55;
+        const raw   = Math.random() * 2 - 1;
+        noiseLP     = noiseLP * 0.72 + raw * 0.28;
+        const click = t < 0.008 ? noiseLP * (1 - t / 0.008) * 0.35 : 0;
+        kd[i] = (body * 0.65 + sub + click) * 0.90;
+      }
+    }
+
+    // Stadium snare: sharp crack + wire buzz + body resonance
+    const snareLen = Math.floor(sr * 0.28);
+    const snare = ctx.createBuffer(1, snareLen, sr);
+    const sd = snare.getChannelData(0);
+    for (let i = 0; i < snareLen; i++) {
+      const t = i / sr;
+      // Tuned body modes
+      const body1 = Math.sin(2 * Math.PI * 185 * t) * Math.exp(-t / 0.08) * 0.38;
+      const body2 = Math.sin(2 * Math.PI * 295 * t) * Math.exp(-t / 0.045) * 0.22;
+      // Wire buzz — very high frequency noise, tight decay
+      const wireDense = (Math.random() * 2 - 1);
+      const wireEnv   = t < 0.004 ? 1.0 : Math.exp(-(t - 0.004) / 0.055);
+      const wire      = wireDense * wireEnv * 0.55;
+      // Crack transient — impulse at t=0
+      const crack     = t < 0.003 ? (Math.random() * 2 - 1) * (1 - t / 0.003) * 0.75 : 0;
+      sd[i] = body1 + body2 + wire + crack;
+    }
+
+    // Stadium hihat — tight metallic shimmer, fast decay
+    const hhLen = Math.floor(sr * 0.06);
+    const hihat = ctx.createBuffer(1, hhLen, sr);
+    const hd = hihat.getChannelData(0);
+    for (let i = 0; i < hhLen; i++) {
+      const t = i / sr;
+      // Stack of high metallic partials — no low end
+      hd[i] = (Math.sin(2 * Math.PI * 8200 * t) * 0.30
+             + Math.sin(2 * Math.PI * 11400 * t) * 0.20
+             + Math.sin(2 * Math.PI * 14800 * t) * 0.15
+             + (Math.random() * 2 - 1) * 0.35) * Math.exp(-t / 0.018);
+    }
+
+    // Stadium timpani — punchy floor tom
+    const timpLen = Math.floor(sr * 0.7);
+    const timpani = ctx.createBuffer(1, timpLen, sr);
+    const td = timpani.getChannelData(0);
+    for (let i = 0; i < timpLen; i++) {
+      const t = i / sr;
+      const f = preset.kickFreq * 0.85 * Math.exp(-t / 0.05) + preset.kickFreq * 0.6;
+      td[i] = (Math.sin(2 * Math.PI * f * t) * Math.exp(-t / 0.38)
+             + Math.sin(2 * Math.PI * f * 1.7 * t) * Math.exp(-t / 0.14) * 0.22
+             + (Math.random() * 2 - 1) * Math.exp(-t / 0.012) * 0.18) * 0.70;
+    }
+
+    // Stadium impact — heavy room hit (used for fill accents)
+    const impLen = Math.floor(sr * 0.9);
+    const impact = ctx.createBuffer(1, impLen, sr);
+    const id2 = impact.getChannelData(0);
+    for (let i = 0; i < impLen; i++) {
+      const t = i / sr;
+      id2[i] = (Math.sin(2 * Math.PI * preset.kickFreq * 0.7 * Math.exp(-t*3) * t)
+              * Math.exp(-t / 0.50) * 0.7
+              + Math.sin(2 * Math.PI * 30 * t) * Math.exp(-t / 0.65) * 0.5
+              + (Math.random() * 2 - 1) * Math.exp(-t / 0.025) * 0.20);
+    }
+    return { kick, snare, hihat, timpani, impact };
+  }
+
+  // ── VOICE: BRUSHKIT — lo-fi soft kit: muffled kick, brushed snare, ride ───
+  if (mode === 'brushkit') {
+    // Muffled kick — low, soft, tape-compressed feel
+    const kickLen = Math.floor(sr * 0.55);
+    const kick = ctx.createBuffer(1, kickLen, sr);
+    const kd2 = kick.getChannelData(0);
+    {
+      const f0 = preset.kickFreq * 0.85;
+      let phase = 0, subPhase = 0;
+      for (let i = 0; i < kickLen; i++) {
+        const t = i / sr;
+        const pitchEnv = f0 * 0.4 * Math.exp(-t / 0.030);
+        phase    += (2 * Math.PI * (f0 + pitchEnv)) / sr;
+        subPhase += (2 * Math.PI * 38) / sr;
+        // Soft — no crack, just warm body
+        kd2[i] = (Math.sin(phase) * Math.exp(-t / 0.38) * 0.55
+               + Math.sin(subPhase) * Math.exp(-t / 0.50) * 0.30
+               + (Math.random() * 2 - 1) * Math.exp(-t / 0.010) * 0.06) * 0.65;
+      }
+    }
+
+    // Brushed snare — pure noise texture, almost no tone, very soft
+    const snareLen = Math.floor(sr * 0.30);
+    const snare2 = ctx.createBuffer(1, snareLen, sr);
+    const sd2 = snare2.getChannelData(0);
+    for (let i = 0; i < snareLen; i++) {
+      const t = i / sr;
+      // Brush: gentle swish, no crack
+      const swish = (Math.random() * 2 - 1) * Math.exp(-t / 0.12) * 0.45;
+      const tone  = Math.sin(2 * Math.PI * 170 * t) * Math.exp(-t / 0.05) * 0.12;
+      sd2[i] = swish + tone;
+    }
+
+    // Ride cymbal hihat — long metallic shimmer, not a tight hihat
+    const hhLen2 = Math.floor(sr * 0.22);
+    const hihat2 = ctx.createBuffer(1, hhLen2, sr);
+    const hd2 = hihat2.getChannelData(0);
+    for (let i = 0; i < hhLen2; i++) {
+      const t = i / sr;
+      // Ride shimmer: multiple metallic sines + noise, slow decay
+      hd2[i] = (Math.sin(2 * Math.PI * 4800 * t) * 0.25
+              + Math.sin(2 * Math.PI * 7200 * t) * 0.18
+              + Math.sin(2 * Math.PI * 9600 * t) * 0.12
+              + (Math.random() * 2 - 1) * 0.18) * Math.exp(-t / 0.085);
+    }
+
+    const timpLen2 = Math.floor(sr * 0.8);
+    const timpani2 = ctx.createBuffer(1, timpLen2, sr);
+    const td2 = timpani2.getChannelData(0);
+    for (let i = 0; i < timpLen2; i++) {
+      const t = i / sr;
+      td2[i] = Math.sin(2 * Math.PI * preset.kickFreq * 0.8 * t) * Math.exp(-t / 0.55) * 0.35
+             + (Math.random() * 2 - 1) * Math.exp(-t / 0.018) * 0.08;
+    }
+
+    return { kick, snare: snare2, hihat: hihat2, timpani: timpani2, impact: kick };
+  }
+
+  // ── VOICE: POPKIT — clean radio pop kit: tight kick, crisp snare, 4/4 hat ─
+  if (mode === 'popkit') {
+    // Pop kick — tight sub, very short, punchy
+    const kickLen = Math.floor(sr * 0.40);
+    const kick3 = ctx.createBuffer(1, kickLen, sr);
+    const kd3 = kick3.getChannelData(0);
+    {
+      const f0 = preset.kickFreq * 1.2;
+      let phase = 0, subPhase = 0;
+      for (let i = 0; i < kickLen; i++) {
+        const t = i / sr;
+        const pitchEnv = f0 * 1.2 * Math.exp(-t / 0.012);
+        phase    += (2 * Math.PI * (f0 + pitchEnv)) / sr;
+        subPhase += (2 * Math.PI * 50) / sr;
+        const click = t < 0.005 ? (Math.random() * 2 - 1) * (1 - t/0.005) * 0.40 : 0;
+        kd3[i] = (Math.sin(phase) * Math.exp(-t / 0.22) * 0.60
+               + Math.sin(subPhase) * Math.exp(-t / 0.30) * 0.45 + click) * 0.88;
+      }
+    }
+
+    // Pop snare — classic rimshot + white noise burst, very bright
+    const snareLen3 = Math.floor(sr * 0.18);
+    const snare3 = ctx.createBuffer(1, snareLen3, sr);
+    const sd3 = snare3.getChannelData(0);
+    for (let i = 0; i < snareLen3; i++) {
+      const t = i / sr;
+      const crack  = t < 0.002 ? (Math.random() * 2 - 1) * (1 - t/0.002) * 0.90 : 0;
+      const body   = Math.sin(2 * Math.PI * 220 * t) * Math.exp(-t / 0.040) * 0.28;
+      const noise  = (Math.random() * 2 - 1) * Math.exp(-t / 0.065) * 0.55;
+      sd3[i] = crack + body + noise;
+    }
+
+    // Pop hihat — very tight, metallic click
+    const hhLen3 = Math.floor(sr * 0.030);
+    const hihat3 = ctx.createBuffer(1, hhLen3, sr);
+    const hd3 = hihat3.getChannelData(0);
+    for (let i = 0; i < hhLen3; i++) {
+      const t = i / sr;
+      hd3[i] = (Math.sin(2 * Math.PI * 10000 * t) * 0.30
+              + (Math.random() * 2 - 1) * 0.55) * Math.exp(-t / 0.010);
+    }
+
+    const timpLen3 = Math.floor(sr * 0.50);
+    const timpani3 = ctx.createBuffer(1, timpLen3, sr);
+    const td3 = timpani3.getChannelData(0);
+    for (let i = 0; i < timpLen3; i++) {
+      const t = i / sr;
+      td3[i] = Math.sin(2 * Math.PI * preset.kickFreq * 0.9 * t) * Math.exp(-t / 0.28) * 0.55
+             + (Math.random() * 2 - 1) * Math.exp(-t / 0.008) * 0.22;
+    }
+
+    return { kick: kick3, snare: snare3, hihat: hihat3, timpani: timpani3, impact: kick3 };
+  }
+
+  // ── VOICE: BRUSHSWING — jazz brush kit: ride, wire brush, loose kick ───────
+  if (mode === 'brushswing') {
+    // Jazz kick — pillowy, warm, never dominating
+    const kickLen = Math.floor(sr * 0.65);
+    const kick4 = ctx.createBuffer(1, kickLen, sr);
+    const kd4 = kick4.getChannelData(0);
+    {
+      const f0 = preset.kickFreq * 0.82;
+      let phase = 0, subPhase = 0;
+      for (let i = 0; i < kickLen; i++) {
+        const t = i / sr;
+        const pitchEnv = f0 * 0.28 * Math.exp(-t / 0.022);
+        phase    += (2 * Math.PI * (f0 + pitchEnv)) / sr;
+        subPhase += (2 * Math.PI * 36) / sr;
+        kd4[i] = (Math.sin(phase) * Math.exp(-t / 0.42) * 0.48
+               + Math.sin(subPhase) * Math.exp(-t / 0.55) * 0.28
+               + (Math.random() * 2 - 1) * Math.exp(-t / 0.008) * 0.04) * 0.62;
+      }
+    }
+
+    // Wire brush snare — swish + rattle, zero crack
+    const snareLen4 = Math.floor(sr * 0.38);
+    const snare4 = ctx.createBuffer(1, snareLen4, sr);
+    const sd4 = snare4.getChannelData(0);
+    for (let i = 0; i < snareLen4; i++) {
+      const t = i / sr;
+      const swish  = (Math.random() * 2 - 1) * Math.exp(-t / 0.18) * 0.40;
+      const rattle = Math.sin(2 * Math.PI * 2800 * t) * Math.exp(-t / 0.06) * 0.10;
+      const tone   = Math.sin(2 * Math.PI * 155 * t) * Math.exp(-t / 0.055) * 0.10;
+      sd4[i] = swish + rattle + tone;
+    }
+
+    // Ride cymbal — long bell shimmer, the jazz heartbeat
+    const hhLen4 = Math.floor(sr * 0.45);
+    const hihat4 = ctx.createBuffer(1, hhLen4, sr);
+    const hd4 = hihat4.getChannelData(0);
+    for (let i = 0; i < hhLen4; i++) {
+      const t = i / sr;
+      // Ride bell: strong fundamental + shimmer wash
+      const bell   = Math.sin(2 * Math.PI * 3200 * t) * Math.exp(-t / 0.30) * 0.38;
+      const shimmer= (Math.sin(2 * Math.PI * 6800 * t) * 0.20
+                    + Math.sin(2 * Math.PI * 9200 * t) * 0.12
+                    + (Math.random() * 2 - 1) * 0.08) * Math.exp(-t / 0.20);
+      hd4[i] = bell + shimmer;
+    }
+
+    // Jazz tom — woody, mid-range
+    const timpLen4 = Math.floor(sr * 0.90);
+    const timpani4 = ctx.createBuffer(1, timpLen4, sr);
+    const td4 = timpani4.getChannelData(0);
+    for (let i = 0; i < timpLen4; i++) {
+      const t = i / sr;
+      td4[i] = (Math.sin(2 * Math.PI * preset.kickFreq * 1.1 * t) * Math.exp(-t / 0.45) * 0.45
+              + Math.sin(2 * Math.PI * preset.kickFreq * 1.8 * t) * Math.exp(-t / 0.18) * 0.18
+              + (Math.random() * 2 - 1) * Math.exp(-t / 0.010) * 0.12) * 0.68;
+    }
+
+    return { kick: kick4, snare: snare4, hihat: hihat4, timpani: timpani4, impact: kick4 };
+  }
+
 
   // ── VOICE: CINEMATIC (default) — orchestral hall drums ─────────────
   const kickLen = Math.floor(sr * 2.0);
@@ -10188,6 +11232,17 @@ function buildPerc(preset, intensity, name, bufs) {
         s.start(t);
         reg(name, s, g);
 
+        // ── Pop sidechain: kick ducks master bus briefly (pumping feel) ─────
+        if (_activeSkin === 'pop' && fxInput && ctx) {
+          const duckAmt  = 0.45; // duck to 45% of normal volume
+          const duckTime = beat * 0.12; // duck for 1/8 of a beat
+          const restoreTC = beat * 0.18;
+          fxInput.gain.cancelScheduledValues(t);
+          fxInput.gain.setValueAtTime(fxInput.gain.value || 1.0, t);
+          fxInput.gain.linearRampToValueAtTime(duckAmt, t + 0.008);
+          fxInput.gain.setTargetAtTime(1.0, t + duckTime, restoreTC / 3);
+        }
+
         // Double kick with timpani on beat 1 of boss mode — the "stomp" feel
         if (isBossBar && isDownbeat && bufs.timpani && rng() > 0.5) {
           const ts = ctx.createBufferSource(); ts.buffer = bufs.timpani;
@@ -10238,8 +11293,238 @@ function buildPerc(preset, intensity, name, bufs) {
   });
 }
 
+// ── BASS VOICE: PICKEDBASS — distorted picked electric bass ──────────────────
+// Sharp pick transient + cabinet resonance + harmonics from tube drive.
+// Walks the bass pattern with guitar-like attack character.
+function buildPickedBass(b, preset, intensity, name) {
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+
+  function makeTubeCurve(drive) {
+    const n = 256, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2 / n) - 1;
+      c[i] = Math.tanh(x * drive) / Math.tanh(drive);
+    }
+    return c;
+  }
+
+  const tubeSat  = ctx.createWaveShaper();
+  tubeSat.curve  = makeTubeCurve(2.2 + intensity * 1.2);
+  tubeSat.oversample = '4x';
+  // Bass cabinet: presence cut above 3kHz, low-mid boost around 400Hz
+  const cabinetLPF = mkFilt(3200, 'lowpass', 0.7);
+  const lowMid     = mkFilt(400, 'peaking', 1.5);
+  lowMid.gain.value = 3.0;
+  const outG = mkGain(0.55);
+  chain(tubeSat, cabinetLPF, lowMid, outG, b);
+  reg(name, tubeSat, cabinetLPF, lowMid, outG);
+
+  function playNote(t, freq, dur, vel) {
+    if (!layerOn[name]) return;
+    // Pick transient — very short noise burst at attack
+    const pickBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.008), ctx.sampleRate);
+    const pd = pickBuf.getChannelData(0);
+    for (let i = 0; i < pd.length; i++) {
+      const tt = i / ctx.sampleRate;
+      pd[i] = (Math.random() * 2 - 1) * Math.exp(-tt / 0.003) * 0.8;
+    }
+    const pickSrc = ctx.createBufferSource();
+    pickSrc.buffer = pickBuf;
+    const pickHPF = mkFilt(800, 'highpass', 1.0);
+    const pickG   = mkGain(vel * 0.4);
+    chain(pickSrc, pickHPF, pickG, b);
+    pickSrc.start(t); pickSrc.stop(t + 0.012);
+    reg(name, pickSrc, pickHPF, pickG);
+
+    // Main tone: sawtooth (rich harmonics, string-like)
+    const o   = mkOsc(Math.max(20, freq), 'sawtooth');
+    const env = mkGain(0);
+    chain(o, env, tubeSat);
+    const vol = (0.22 + intensity * 0.12) * vel;
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vol, t + 0.012); // fast attack — pick
+    env.gain.setValueAtTime(vol * 0.75, t + dur * 0.5);
+    env.gain.linearRampToValueAtTime(0.001, t + dur);
+    o.start(t); o.stop(t + dur + 0.05);
+    reg(name, o, env);
+
+    // Fret noise — very short, high-pitched on attack
+    if (Math.random() < 0.4) {
+      const fretFreq = freq * (4 + Math.random() * 3);
+      const fo = mkOsc(Math.min(fretFreq, 1200), 'sine');
+      const fe = mkGain(0);
+      chain(fo, fe, b);
+      fe.gain.setValueAtTime(0.04 * vel, t);
+      fe.gain.exponentialRampToValueAtTime(0.0001, t + 0.015);
+      fo.start(t); fo.stop(t + 0.02);
+      reg(name, fo, fe);
+    }
+  }
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const pat  = preset.bassPattern || [0,0,0,0,0,0,0,0];
+    const step = beat * 0.5;
+    pat.forEach((hit, i) => {
+      if (!hit) return;
+      const freq = CE.chordTone('bass', 0, hit === 2 ? 1 : 0);
+      if (!freq) return;
+      const vel = i === 0 ? 1.0 : 0.72 + Math.random() * 0.18;
+      const dur = beat * (0.55 + Math.random() * 0.25);
+      playNote(barStart + i * step, freq, dur, vel);
+    });
+  });
+}
+
+// ── BASS VOICE: UPRIGHT — jazz upright bass (Karplus-Strong style) ────────────
+// Plucked string with fast decay and warm woody resonance.
+// Sounds like fingers on gut strings through a close mic.
+function buildUprightBass(b, preset, intensity, name) {
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+
+  // Wood body resonance: bandpass centred around 200-300Hz
+  const bodyBP  = mkFilt(240, 'bandpass', 1.2);
+  const bodyGain = mkGain(0.45);
+  const darkLPF  = mkFilt(2200, 'lowpass', 0.6);
+  const outG     = mkGain(0.7);
+  chain(bodyBP, bodyGain, darkLPF, outG, b);
+  reg(name, bodyBP, bodyGain, darkLPF, outG);
+
+  function pluckNote(t, freq, dur, vel) {
+    if (!layerOn[name]) return;
+    // Karplus-Strong-inspired: short noise burst through a resonant delay
+    const bufLen = Math.max(8, Math.round(ctx.sampleRate / freq));
+    const ksBuf  = ctx.createBuffer(1, bufLen * 2, ctx.sampleRate);
+    const kd     = ksBuf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) {
+      // Initial excitation: white noise (finger pluck on string)
+      kd[i] = (Math.random() * 2 - 1) * vel;
+    }
+    const ksSrc = ctx.createBufferSource(); ksSrc.buffer = ksBuf;
+
+    // Envelope: fast attack, slow exponential decay (string sustain)
+    const env = mkGain(0);
+    chain(ksSrc, env, bodyBP);
+    const vol = (0.25 + intensity * 0.10) * vel;
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vol, t + 0.006); // very fast attack
+    env.gain.setValueAtTime(vol * 0.65, t + 0.08);
+    env.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.8);
+    ksSrc.start(t); ksSrc.stop(t + dur + 0.1);
+    reg(name, ksSrc, env);
+
+    // Sine fundamental for pitch clarity (the gut string fundamental)
+    const o   = mkOsc(Math.max(20, freq), 'triangle');
+    const oe  = mkGain(0);
+    chain(o, oe, darkLPF);
+    oe.gain.setValueAtTime(0, t);
+    oe.gain.linearRampToValueAtTime(vol * 0.9, t + 0.008);
+    oe.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.9);
+    o.start(t); o.stop(t + dur + 0.1);
+    reg(name, o, oe);
+
+    // Thump transient — body tap on pluck
+    const thumpF = Math.min(freq * 0.5, 80);
+    const to = mkOsc(thumpF, 'sine');
+    const te = mkGain(0);
+    chain(to, te, b);
+    te.gain.setValueAtTime(vol * 0.35, t);
+    te.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
+    to.start(t); to.stop(t + 0.06);
+    reg(name, to, te);
+  }
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const pat  = preset.bassPattern || [0,0,0,0,0,0,0,0];
+    const step = beat * 0.5;
+    pat.forEach((hit, i) => {
+      if (!hit) return;
+      const freq = CE.chordTone('bass', 0, hit === 2 ? 1 : 0);
+      if (!freq) return;
+      // Jazz swing: eighth notes push slightly — the feel is in the timing
+      const swing = (i % 2 === 1) ? beat * 0.055 : 0;
+      const vel   = i === 0 ? 0.95 : 0.65 + Math.random() * 0.20;
+      const dur   = beat * (0.5 + Math.random() * 0.25);
+      pluckNote(barStart + i * step + swing, freq, dur, vel);
+    });
+  });
+}
+
+// ── BASS VOICE: 808 — sub bass with long pitch sweep ─────────────────────────
+// The pop/hip-hop bass: a sine wave that starts high and sweeps down fast,
+// creating the iconic chest-hitting sub. Long decay, no harmonics above 200Hz.
+function buildBass808(b, preset, intensity, name) {
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+
+  // Sidechain simulation: kick-triggered gain ducking
+  // When a kick fires, briefly pull bass gain down then restore
+  let _sidechainGain = 1.0;
+  const masterBassG = mkGain(1.0);
+  masterBassG.connect(b);
+  reg(name, masterBassG);
+
+  function play808(t, freq, dur, vel) {
+    if (!layerOn[name]) return;
+    // The 808 pitch sweep: starts 2–3x the target freq, drops fast
+    const startFreq = freq * 2.8;
+    const o   = mkOsc(startFreq, 'sine');
+    const env = mkGain(0);
+    chain(o, env, masterBassG);
+
+    // Pitch envelope: exponential drop to target
+    o.frequency.setValueAtTime(startFreq, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, freq), t + 0.065);
+
+    // Volume: punchy attack, long sustain tail — the 808 "note"
+    const vol = (0.55 + intensity * 0.20) * vel;
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(vol, t + 0.008);
+    env.gain.setValueAtTime(vol * 0.85, t + 0.08);
+    env.gain.exponentialRampToValueAtTime(0.001, t + dur * 1.4); // outlasts the note
+    o.start(t); o.stop(t + dur * 1.5 + 0.1);
+    reg(name, o, env);
+
+    // Sub click on attack — the analog component
+    const clickLen = Math.floor(ctx.sampleRate * 0.012);
+    const clickBuf = ctx.createBuffer(1, clickLen, ctx.sampleRate);
+    const clickD   = clickBuf.getChannelData(0);
+    for (let i = 0; i < clickLen; i++) {
+      const tt = i / ctx.sampleRate;
+      clickD[i] = (Math.random() * 2 - 1) * Math.exp(-tt / 0.004) * 0.3;
+    }
+    const clickSrc = ctx.createBufferSource(); clickSrc.buffer = clickBuf;
+    const clickLPF = mkFilt(180, 'lowpass', 0.6);
+    const clickG   = mkGain(vel * 0.55);
+    chain(clickSrc, clickLPF, clickG, masterBassG);
+    clickSrc.start(t); reg(name, clickSrc, clickLPF, clickG);
+  }
+
+  makeSchedLoop(name, (barStart, beat) => {
+    const pat  = preset.bassPattern || [0,0,0,0,0,0,0,0];
+    const step = beat * 0.5;
+    pat.forEach((hit, i) => {
+      if (!hit) return;
+      const freq = CE.chordTone('bass', 0, hit === 2 ? 1 : 0);
+      if (!freq) return;
+      const vel = i === 0 ? 1.0 : 0.75 + Math.random() * 0.15;
+      const dur = beat * (hit === 2 ? 0.8 : 1.2); // longer sustain on pattern notes
+      play808(barStart + i * step, freq, dur, vel);
+    });
+  });
+}
+
+
 function buildBass(preset, intensity, name) {
   const b = bus[name];
+
+  // ── Genre skin voices: delegate to dedicated builders ──────────────────────
+  const bassVoice = sessionVoices[name] || sessionVoices['bass'] || 'sawtooth';
+  if (bassVoice === 'pickedBass') { buildPickedBass(b, preset, intensity, name); return; }
+  if (bassVoice === 'upright')    { buildUprightBass(b, preset, intensity, name); return; }
+  if (bassVoice === '808')        { buildBass808(b, preset, intensity, name); return; }
+
   let nextBarTime = ctx.currentTime + 0.05;
 
   // ── PEDAL POINT STATE ─────────────────────────────────────────────
@@ -10923,7 +12208,373 @@ function MP_nextPhrase(preset) {
   MP._playCount++;
 }
 
+// ── MELODY VOICE: SUPERSAW — pop/EDM 7-osc detuned synth lead ────────────────
+// 7 sawtooth oscillators spread across +/- 50 cents give the classic
+// "fat synth" sound. A fast filter sweep on each note adds the pop punch.
+function buildMelodySupersaw(b, preset, intensity, name) {
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const sm   = SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen;
+  const energy = JC.active ? JC.energy : intensity;
+
+  // Supersaw: 7 saws spread across detuning range
+  const DETUNE_SPREAD = [-50, -35, -18, 0, 18, 35, 50]; // cents
+  const DETUNE_GAINS  = [0.08, 0.10, 0.13, 0.16, 0.13, 0.10, 0.08]; // centre louder
+
+  // Brightness filter — sweeps open on attack, closes on decay
+  const brightLPF = mkFilt(1200 + intensity * 2000, 'lowpass', 0.9);
+  const brightG   = mkGain(0.9);
+  chain(brightLPF, brightG, b);
+  reg(name, brightLPF, brightG);
+
+  let arcStep = 0;
+  let arcNow  = ctx.currentTime + 0.1;
+  const arcBeats  = (energy > 0.65 ? 2.5 : energy > 0.35 ? 4 : 6) * sm.arcBeatsMult;
+  const restBeats = (energy > 0.65 ? 2 : energy > 0.35 ? 4 : 7) * sm.arcBeatsMult;
+  const VOICE_SEQ = [0, 1, 2, 3, 2, 3, 2, 1]; // arch shape
+
+  function schedStep() {
+    if (!layerOn[name]) return;
+    const skipChance = Math.max(0, Math.min(0.5, sm.skipBias * 0.8));
+    if (Math.random() >= skipChance) {
+      const voiceIdx = VOICE_SEQ[arcStep % VOICE_SEQ.length];
+      const freq     = CE.chordTone(name, preset.melodyOctave + 1, voiceIdx);
+      if (freq && freq > 80) {
+        const holdDur   = beat * arcBeats;
+        const overlapFrac = 0.18;
+        const stepDur   = holdDur * (1 - overlapFrac);
+        const atkTime   = 0.04 + (1 - energy) * 0.06; // snappy synth attack
+        const relTime   = 0.25 + (1 - energy) * 0.5;
+        const arcPos    = arcStep / Math.max(1, VOICE_SEQ.length - 1);
+        const arcPeak   = 0.14 + energy * 0.10;
+        const gainAmt   = arcPeak * (0.4 + 0.6 * Math.sin(arcPos * Math.PI));
+
+        // Build all 7 oscillators
+        const env = mkGain(0);
+        env.connect(brightLPF);
+        env.gain.setValueAtTime(0, arcNow);
+        env.gain.linearRampToValueAtTime(gainAmt, arcNow + atkTime);
+        env.gain.setValueAtTime(gainAmt * 0.85, arcNow + holdDur - relTime * 0.5);
+        env.gain.exponentialRampToValueAtTime(0.0001, arcNow + holdDur + relTime);
+        reg(name, env);
+
+        DETUNE_SPREAD.forEach((det, di) => {
+          const o = mkOsc(Math.max(20, freq), 'sawtooth', det);
+          const g = mkGain(DETUNE_GAINS[di]);
+          chain(o, g, env);
+          o.start(arcNow); o.stop(arcNow + holdDur + relTime + 0.1);
+          reg(name, o, g);
+        });
+
+        // Filter sweep: opens fast on attack, closes slowly
+        brightLPF.frequency.cancelScheduledValues(arcNow);
+        brightLPF.frequency.setValueAtTime(600 + intensity * 400, arcNow);
+        brightLPF.frequency.linearRampToValueAtTime(3500 + intensity * 3000, arcNow + atkTime * 3);
+        brightLPF.frequency.exponentialRampToValueAtTime(1000 + intensity * 800, arcNow + holdDur);
+      }
+    }
+
+    arcStep++;
+    if (arcStep >= VOICE_SEQ.length) {
+      arcStep = 0;
+      arcNow += beat * restBeats;
+      regT(name, setTimeout(schedStep, beat * restBeats * 1000));
+    } else {
+      const stepDur = beat * arcBeats * 0.82;
+      arcNow += stepDur;
+      regT(name, setTimeout(schedStep, stepDur * 1000));
+    }
+  }
+  schedStep();
+}
+
+// ── MELODY VOICE: RHODES — electric piano (2-op FM approximation) ─────────────
+// Carrier: sine. Modulator: sine at ~14x carrier ratio.
+// High mod index on attack (bell-like click) decaying to low (pure tone).
+// This is a simplified Fender Rhodes synthesis model.
+function buildMelodyRhodes(b, preset, intensity, name) {
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const sm   = SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen;
+  const energy = JC.active ? JC.energy : intensity;
+
+  const arcBeats  = (energy > 0.65 ? 3 : energy > 0.35 ? 5 : 8) * sm.arcBeatsMult;
+  const restBeats = (energy > 0.65 ? 3 : energy > 0.35 ? 6 : 9) * sm.arcBeatsMult;
+  const VOICE_SEQ = [0, 1, 2, 3, 2, 3, 2, 1];
+  let arcStep = 0, arcNow = ctx.currentTime + 0.1;
+
+  // Tremolo LFO — Rhodes characteristic wobble
+  const tremoloLfo = mkOsc(5.2, 'sine');
+  const tremoloG   = mkGain(0.04 + intensity * 0.03);
+  tremoloLfo.start(); reg(name, tremoloLfo, tremoloG);
+
+  function schedStep() {
+    if (!layerOn[name]) return;
+    const skipChance = Math.max(0, Math.min(0.6, sm.skipBias * 0.9));
+    if (Math.random() >= skipChance) {
+      const voiceIdx = VOICE_SEQ[arcStep % VOICE_SEQ.length];
+      const freq = CE.chordTone(name, preset.melodyOctave + 1, voiceIdx);
+      if (freq && freq > 80) {
+        const holdDur = beat * arcBeats;
+        const arcPos  = arcStep / Math.max(1, VOICE_SEQ.length - 1);
+        const arcPeak = 0.12 + energy * 0.08;
+        const gainAmt = arcPeak * (0.4 + 0.6 * Math.sin(arcPos * Math.PI));
+        const t0      = arcNow;
+
+        // 2-op FM: modulator at 14× (generates tine click)
+        const modFreq = freq * 14.0;
+        const modOsc  = mkOsc(modFreq, 'sine');
+        const modEnv  = mkGain(0); // mod index envelope
+        modOsc.start(t0); modOsc.stop(t0 + holdDur + 0.5);
+        // Mod index: high at attack (clicky bell), decay to near-zero (pure tone)
+        modEnv.gain.setValueAtTime(freq * 1.8, t0);        // high index = click
+        modEnv.gain.exponentialRampToValueAtTime(freq * 0.08, t0 + 0.12); // decay to tone
+        modEnv.gain.setValueAtTime(freq * 0.04, t0 + holdDur * 0.5);
+        chain(modOsc, modEnv);
+        reg(name, modOsc, modEnv);
+
+        // Carrier: sine with FM from modulator
+        const carrierOsc = mkOsc(freq, 'sine');
+        modEnv.connect(carrierOsc.frequency); // FM connection — modulator drives carrier pitch
+        const carrierEnv = mkGain(0);
+        const carrierG   = mkGain(gainAmt);
+        chain(carrierOsc, carrierEnv, carrierG, b);
+        // Tremolo connection
+        tremoloG.connect(carrierEnv.gain);
+        carrierOsc.start(t0); carrierOsc.stop(t0 + holdDur + 0.5);
+        // Amplitude envelope: soft attack, long sustain with decay
+        carrierEnv.gain.setValueAtTime(0, t0);
+        carrierEnv.gain.linearRampToValueAtTime(1.0, t0 + 0.018);
+        carrierEnv.gain.setValueAtTime(0.82, t0 + holdDur * 0.3);
+        carrierEnv.gain.exponentialRampToValueAtTime(0.0001, t0 + holdDur + 0.35);
+        reg(name, carrierOsc, carrierEnv, carrierG);
+
+        // Soft high-end warmth filter (b already connected via carrierG above, skip double connect)
+        reg(name, carrierOsc, carrierEnv, carrierG);
+      }
+    }
+
+    arcStep++;
+    if (arcStep >= VOICE_SEQ.length) {
+      arcStep = 0; arcNow += beat * restBeats;
+      regT(name, setTimeout(schedStep, beat * restBeats * 1000));
+    } else {
+      const stepDur = beat * arcBeats * 0.85;
+      arcNow += stepDur;
+      regT(name, setTimeout(schedStep, stepDur * 1000));
+    }
+  }
+  schedStep();
+}
+
+// ── MELODY VOICE: SAXOPHONE — jazz sax approximation ──────────────────────────
+// Sawtooth through 3 formant bandpass filters tuned to saxophone resonances,
+// plus a breathy noise component. Vibrato comes in late (player technique).
+// The formant stack is what separates sax from a plain synth lead.
+function buildMelodySaxophone(b, preset, intensity, name) {
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const sm   = SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen;
+  const energy = JC.active ? JC.energy : intensity;
+
+  const arcBeats  = (energy > 0.65 ? 2.5 : energy > 0.35 ? 4.5 : 7) * sm.arcBeatsMult;
+  const restBeats = (energy > 0.65 ? 3 : energy > 0.35 ? 5 : 9) * sm.arcBeatsMult;
+  const VOICE_SEQ = [0, 1, 2, 3, 2, 3, 2, 1];
+  let arcStep = 0, arcNow = ctx.currentTime + 0.1;
+
+  // Alto sax formants (Hz): approximately 800, 1500, 2500
+  // These shift slightly with pitch register — higher notes brighter
+  function makeFormantChain(inputNode, freq, outBus) {
+    const brightness = Math.min(1.0, freq / 500); // higher freq = brighter
+    const f1 = mkFilt(750  + brightness * 200, 'bandpass', 3.5);
+    const f2 = mkFilt(1450 + brightness * 300, 'bandpass', 2.8);
+    const f3 = mkFilt(2400 + brightness * 400, 'bandpass', 2.2);
+    const g1 = mkGain(0.45), g2 = mkGain(0.35), g3 = mkGain(0.20);
+    chain(inputNode, f1, g1, outBus);
+    chain(inputNode, f2, g2, outBus);
+    chain(inputNode, f3, g3, outBus);
+    return [f1, f2, f3, g1, g2, g3];
+  }
+
+  function playNote(t0, freq, holdDur, gainAmt) {
+    const atkTime = 0.06 + (1 - energy) * 0.08; // reed takes time to speak
+    const relTime = 0.18 + (1 - energy) * 0.25;
+
+    const o   = mkOsc(Math.max(20, freq), 'sawtooth');
+    const env = mkGain(0);
+    o.start(t0); o.stop(t0 + holdDur + relTime + 0.2);
+
+    // Slight vowel LFO — sax players shape their embouchure
+    const embLfo = mkOsc(3.5, 'sine');
+    const embG   = mkGain(freq * 0.04);
+    embLfo.start(t0); embLfo.stop(t0 + holdDur + relTime + 0.2);
+    chain(embLfo, embG); embG.connect(o.frequency);
+    reg(name, embLfo, embG);
+
+    // Vibrato: enters after attack settles (player technique)
+    const vib  = mkOsc(5.5 + Math.random() * 0.5, 'sine');
+    const vibG = mkGain(0);
+    vib.start(t0); vib.stop(t0 + holdDur + relTime + 0.2);
+    chain(vib, vibG); vibG.connect(o.frequency);
+    vibG.gain.setValueAtTime(0, t0 + atkTime);
+    vibG.gain.linearRampToValueAtTime(freq * 0.018 * sm.vibDepthMult, t0 + atkTime + 0.35);
+    reg(name, vib, vibG);
+
+    // Breath noise: thin noise layer, adds air
+    const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+    const nd = noiseBuf.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    const noiseSrc = ctx.createBufferSource();
+    noiseSrc.buffer = noiseBuf; noiseSrc.loop = true;
+    const noiseBP  = mkFilt(freq * 3, 'bandpass', 4.0);
+    const noiseEnv = mkGain(0);
+    chain(noiseSrc, noiseBP, noiseEnv, b);
+    noiseSrc.start(t0); noiseSrc.stop(t0 + holdDur + relTime + 0.2);
+    noiseEnv.gain.setValueAtTime(gainAmt * 0.06, t0);
+    noiseEnv.gain.exponentialRampToValueAtTime(0.0001, t0 + holdDur * 0.6);
+    reg(name, noiseSrc, noiseBP, noiseEnv);
+
+    // Main signal through formants
+    chain(o, env);
+    env.gain.setValueAtTime(0, t0);
+    env.gain.linearRampToValueAtTime(gainAmt, t0 + atkTime);
+    env.gain.setValueAtTime(gainAmt * 0.88, t0 + holdDur - relTime * 0.4);
+    env.gain.exponentialRampToValueAtTime(0.0001, t0 + holdDur + relTime);
+    const fNodes = makeFormantChain(env, freq, b);
+    reg(name, o, env, ...fNodes);
+  }
+
+  function schedStep() {
+    if (!layerOn[name]) return;
+    const skipChance = Math.max(0, Math.min(0.55, sm.skipBias * 0.85));
+    if (Math.random() >= skipChance) {
+      const voiceIdx = VOICE_SEQ[arcStep % VOICE_SEQ.length];
+      const freq = CE.chordTone(name, preset.melodyOctave + 1, voiceIdx);
+      if (freq && freq > 80) {
+        const holdDur = beat * arcBeats;
+        const arcPos  = arcStep / Math.max(1, VOICE_SEQ.length - 1);
+        const gainAmt = (0.11 + energy * 0.08) * (0.4 + 0.6 * Math.sin(arcPos * Math.PI));
+        playNote(arcNow, freq, holdDur, gainAmt);
+      }
+    }
+
+    arcStep++;
+    if (arcStep >= VOICE_SEQ.length) {
+      arcStep = 0; arcNow += beat * restBeats;
+      regT(name, setTimeout(schedStep, beat * restBeats * 1000));
+    } else {
+      const stepDur = beat * arcBeats * 0.82;
+      arcNow += stepDur;
+      regT(name, setTimeout(schedStep, stepDur * 1000));
+    }
+  }
+  schedStep();
+}
+
+// ── MELODY VOICE: DISTGUITAR — rock lead guitar approximation ─────────────────
+// Sawtooth through tube waveshaper + cabinet simulation.
+// Fast attack, whammy-style vibrato, feedback-like sustain.
+function buildMelodyDistGuitar(b, preset, intensity, name) {
+  const bpm  = isBoss ? preset.bpm + 22 : preset.bpm;
+  const beat = 60 / bpm;
+  const sm   = SKIN_MELODY[_activeSkin] || SKIN_MELODY.ashen;
+  const energy = JC.active ? JC.energy : intensity;
+
+  function makeTube(drive) {
+    const n = 256, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2 / n) - 1;
+      c[i] = Math.tanh(x * drive) / Math.tanh(drive);
+    }
+    return c;
+  }
+
+  // Shared amp chain
+  const tubeSat  = ctx.createWaveShaper();
+  tubeSat.curve  = makeTube(3.5 + intensity * 1.8);
+  tubeSat.oversample = '4x';
+  const cabLPF   = mkFilt(4500, 'lowpass', 0.7);
+  const presence = mkFilt(2200, 'peaking', 2.0);
+  presence.gain.value = 4.0;
+  const ampG     = mkGain(0.55);
+  chain(tubeSat, cabLPF, presence, ampG, b);
+  reg(name, tubeSat, cabLPF, presence, ampG);
+
+  const arcBeats  = (energy > 0.65 ? 2 : energy > 0.35 ? 3.5 : 5.5) * sm.arcBeatsMult;
+  const restBeats = (energy > 0.65 ? 2 : energy > 0.35 ? 4 : 7) * sm.arcBeatsMult;
+  const VOICE_SEQ = [0, 1, 2, 3, 2, 3, 2, 1];
+  let arcStep = 0, arcNow = ctx.currentTime + 0.1;
+
+  function schedStep() {
+    if (!layerOn[name]) return;
+    const skipChance = Math.max(0, Math.min(0.4, sm.skipBias * 0.7));
+    if (Math.random() >= skipChance) {
+      const voiceIdx = VOICE_SEQ[arcStep % VOICE_SEQ.length];
+      const freq = CE.chordTone(name, preset.melodyOctave + 1, voiceIdx);
+      if (freq && freq > 80) {
+        const holdDur = beat * arcBeats;
+        const arcPos  = arcStep / Math.max(1, VOICE_SEQ.length - 1);
+        const gainAmt = (0.14 + energy * 0.10) * (0.45 + 0.55 * Math.sin(arcPos * Math.PI));
+        const t0      = arcNow;
+        const atkTime = 0.008 + (1 - energy) * 0.015; // very fast pick attack
+
+        const o   = mkOsc(Math.max(20, freq), 'sawtooth');
+        const env = mkGain(0);
+        chain(o, env, tubeSat);
+        o.start(t0); o.stop(t0 + holdDur + 0.4);
+
+        // Guitar vibrato: wide and fast (whammy bar style)
+        const vib  = mkOsc(5.8 + Math.random() * 1.2, 'sine');
+        const vibG = mkGain(0);
+        vib.start(t0); vib.stop(t0 + holdDur + 0.4);
+        chain(vib, vibG); vibG.connect(o.frequency);
+        vibG.gain.setValueAtTime(0, t0 + atkTime);
+        vibG.gain.linearRampToValueAtTime(freq * 0.022 * sm.vibDepthMult, t0 + atkTime + 0.22);
+        reg(name, vib, vibG);
+
+        // Pick attack noise
+        const pickLen = Math.floor(ctx.sampleRate * 0.010);
+        const pickBuf = ctx.createBuffer(1, pickLen, ctx.sampleRate);
+        const pd = pickBuf.getChannelData(0);
+        for (let i = 0; i < pd.length; i++) {
+          const tt = i / ctx.sampleRate;
+          pd[i] = (Math.random() * 2 - 1) * Math.exp(-tt / 0.004);
+        }
+        const pickSrc = ctx.createBufferSource(); pickSrc.buffer = pickBuf;
+        const pickG   = mkGain(gainAmt * 0.5);
+        chain(pickSrc, pickG, b);
+        pickSrc.start(t0); reg(name, pickSrc, pickG);
+
+        env.gain.setValueAtTime(0, t0);
+        env.gain.linearRampToValueAtTime(gainAmt, t0 + atkTime);
+        env.gain.setValueAtTime(gainAmt * 0.92, t0 + holdDur * 0.4);
+        env.gain.exponentialRampToValueAtTime(0.0001, t0 + holdDur + 0.3);
+        reg(name, o, env);
+      }
+    }
+
+    arcStep++;
+    if (arcStep >= VOICE_SEQ.length) {
+      arcStep = 0; arcNow += beat * restBeats;
+      regT(name, setTimeout(schedStep, beat * restBeats * 1000));
+    } else {
+      const stepDur = beat * arcBeats * 0.80;
+      arcNow += stepDur;
+      regT(name, setTimeout(schedStep, stepDur * 1000));
+    }
+  }
+  schedStep();
+}
+
+
 function buildMelody(preset, intensity, name) {
+  // ── Genre skin voices: delegate to dedicated builders ──────────────────────
+  const melVoice = sessionVoices[name] || sessionVoices['melody'] || 'default';
+  if (melVoice === 'supersaw')    { buildMelodySupersaw(bus[name], preset, intensity, name);    return; }
+  if (melVoice === 'rhodes')      { buildMelodyRhodes(bus[name], preset, intensity, name);      return; }
+  if (melVoice === 'saxophone')   { buildMelodySaxophone(bus[name], preset, intensity, name);   return; }
+  if (melVoice === 'distGuitar')  { buildMelodyDistGuitar(bus[name], preset, intensity, name);  return; }
+
   // ── ETHEREAL SUSTAINED MELODY ──────────────────────────────────────────────
   // Rather than discrete one-shot notes, this runs 3 sustained additive voices
   // that smoothly glide between chord tones on a slow arc.  Each voice holds its
@@ -10954,12 +12605,12 @@ function buildMelody(preset, intensity, name) {
   const relTime  = 1.2 + (1 - energy) * 1.3;   // JW: shorter tail — phrases breathe and end
 
   // Partial map: warm + airy, no nasal odd-harmonic spike
-  const PARTIALS = [    // JW: warm string/horn tone — strong 2nd, taper above
-    { r:1, a:0.52 },
-    { r:2, a:0.28 },  // stronger 2nd — warm body
-    { r:3, a:0.10 },
-    { r:4, a:0.04 },  // less buzz in upper harmonics
-    { r:6, a:0.01 },
+  const PARTIALS = [    // lighter upper partials — less harmonic mud
+    { r:1, a:0.55 },
+    { r:2, a:0.16 },  // halved — was dominant, now supporting
+    { r:3, a:0.05 },
+    { r:4, a:0.02 },
+    { r:6, a:0.005 },
   ];
 
   // Chord-voice sequence shaped by GROQ_MELODY_SHAPE.
@@ -14330,11 +15981,11 @@ function buildStrings(preset, intensity, name) {
     reg(name, src, filt, noiseG);
   });
   // Tracks the root, updates on chord change via retuneStrings
-  const harmonicOscs = [
-    { ratio: 2.0, gv: 0.048 },
-    { ratio: 3.0, gv: 0.024 },
-    { ratio: 4.0, gv: 0.012 },
-    { ratio: 5.0, gv: 0.006 },
+  const harmonicOscs = [  // reduced — strings already have harmonics in their waveform
+    { ratio: 2.0, gv: 0.018 },
+    { ratio: 3.0, gv: 0.008 },
+    { ratio: 4.0, gv: 0.003 },
+    { ratio: 5.0, gv: 0.001 },
   ].map(({ ratio, gv }) => {
     const o    = mkOsc(CE.chordTone('strings', 1, 0) * ratio * 0.5, 'sine');
     const g    = mkGain(gv);
@@ -14495,8 +16146,8 @@ function buildCello(preset, intensity, name) {
   const energy = JC.active ? JC.energy : intensity;
 
   // Additive cello partials — warmer than sawtooth
-  const CEL_PARTIALS = [
-    {r:1,a:0.55},{r:2,a:0.28},{r:3,a:0.18},{r:4,a:0.10},{r:5,a:0.06},{r:6,a:0.03},
+  const CEL_PARTIALS = [  // tamed upper partials — cello should be warm not buzzy
+    {r:1,a:0.55},{r:2,a:0.18},{r:3,a:0.08},{r:4,a:0.04},{r:5,a:0.02},{r:6,a:0.008},
   ];
 
   function playCelloNote(bt, freq, dur) {
@@ -17687,6 +19338,34 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.fillStyle = `rgba(0,255,65,${bAlpha})`;
       c.fillRect(0, by, W, 1 + Math.random() * 2);
     }
+  } else if (cfg.starStyle === 'stageLights') {
+    // Rock: scattered hard white stage spots, occasional sweep
+    const spots = 18;
+    for (let i = 0; i < spots; i++) {
+      const sx = ((i / spots) * W * 1.1 + W * 0.05);
+      const sy = H * (0.02 + Math.sin(i * 53.1) * 0.06);
+      const beam = 0.3 + 0.7 * Math.abs(Math.sin(t * 0.018 + i * 0.7));
+      const sAlpha = (0.10 + active * 0.55) * beam;
+      const sGrd = c.createRadialGradient(sx, sy, 0, sx, sy, H * 0.55);
+      sGrd.addColorStop(0,   `rgba(255,220,180,${sAlpha})`);
+      sGrd.addColorStop(0.08,`rgba(255,180,120,${sAlpha * 0.4})`);
+      sGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = sGrd; c.fillRect(0, 0, W, H);
+    }
+  } else if (cfg.starStyle === 'glitter') {
+    // Pop: dense glitter bursts
+    const glitCount = 80 + Math.floor(active * 60);
+    for (let i = 0; i < glitCount; i++) {
+      const gx = Math.sin(i * 137.5 + t * 0.005) * 0.5 + 0.5;
+      const gy = Math.sin(i * 97.3 + t * 0.004) * 0.5 + 0.5;
+      const twinkle = Math.abs(Math.sin(t * 0.06 + i * 1.7));
+      const gAlpha = twinkle * (0.15 + active * 0.50);
+      if (gAlpha < 0.04) continue;
+      const colors = [`rgba(255,128,220,${gAlpha})`,`rgba(128,255,200,${gAlpha})`,`rgba(255,220,80,${gAlpha})`,`rgba(180,120,255,${gAlpha})`];
+      c.fillStyle = colors[i % colors.length];
+      const gr = 0.5 + twinkle * 2.0;
+      c.beginPath(); c.arc(gx * W, gy * horizonY * 0.95, gr, 0, Math.PI * 2); c.fill();
+    }
   }
   // broadcast: starStyle === 'none' → nothing drawn
 
@@ -17776,6 +19455,84 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
         c.strokeStyle = `rgba(232,160,32,${arcAlpha})`; c.lineWidth = 1; c.stroke();
       }
     }
+
+  } else if (cfg.moonStyle === 'spotlight') {
+    // Rock: harsh circular spotlight — sharp edge, intense center
+    const spR = Math.min(W,H) * (0.06 + active * 0.025) * breathe;
+    const spGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, spR * 3.5);
+    spGrd.addColorStop(0,   `rgba(255,230,200,${(0.85 + active * 0.15) * CIN.moonFlicker})`);
+    spGrd.addColorStop(0.3, `rgba(255,180,120,${0.35 * CIN.moonFlicker})`);
+    spGrd.addColorStop(0.6, `rgba(255,100,20,${0.08 * CIN.moonFlicker})`);
+    spGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = spGrd; c.fillRect(0, 0, W, H * 0.6);
+    // Hard disc
+    c.beginPath(); c.arc(moonX, moonY, spR * 0.4, 0, Math.PI * 2);
+    c.fillStyle = `rgba(255,245,235,${(0.95 + active * 0.05) * CIN.moonFlicker})`; c.fill();
+
+  } else if (cfg.moonStyle === 'hazyMoon') {
+    // Lo-fi: warm amber moon, soft and diffuse behind haze
+    const hmR = Math.min(W,H) * (0.055 + active * 0.008) * breathe;
+    const hmGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, hmR * 5);
+    hmGrd.addColorStop(0,   `rgba(220,170,80,${(0.55 + active * 0.20) * CIN.moonFlicker})`);
+    hmGrd.addColorStop(0.25,`rgba(190,130,50,${0.22 * CIN.moonFlicker})`);
+    hmGrd.addColorStop(0.6, `rgba(160,100,30,${0.06 * CIN.moonFlicker})`);
+    hmGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = hmGrd; c.fillRect(0, 0, W, H * 0.55);
+    c.beginPath(); c.arc(moonX, moonY, hmR, 0, Math.PI * 2);
+    c.fillStyle = `rgba(235,190,100,${(0.50 + active * 0.25) * CIN.moonFlicker})`; c.fill();
+    // Warm haze ring — tape grain
+    c.beginPath(); c.arc(moonX, moonY, hmR * 1.8, 0, Math.PI * 2);
+    c.strokeStyle = `rgba(200,150,60,${0.08 * CIN.moonFlicker})`; c.lineWidth = hmR * 0.8; c.stroke();
+
+  } else if (cfg.moonStyle === 'discoBall') {
+    // Pop: spinning disco ball — grid of reflected light patches
+    const dbR = Math.min(W,H) * (0.05 + active * 0.015) * breathe;
+    // Ball sphere
+    const dbGrd = c.createRadialGradient(moonX - dbR*0.3, moonY - dbR*0.3, 0, moonX, moonY, dbR * 1.2);
+    dbGrd.addColorStop(0,   `rgba(255,255,255,${(0.9 + active * 0.1) * CIN.moonFlicker})`);
+    dbGrd.addColorStop(0.4, `rgba(200,180,240,${0.5 * CIN.moonFlicker})`);
+    dbGrd.addColorStop(1,   `rgba(120,80,180,${0.2 * CIN.moonFlicker})`);
+    c.beginPath(); c.arc(moonX, moonY, dbR, 0, Math.PI * 2);
+    c.fillStyle = dbGrd; c.fill();
+    // Tile grid on ball
+    const tileSize = dbR * 0.22;
+    for (let ty = -dbR; ty < dbR; ty += tileSize) {
+      for (let tx = -dbR; tx < dbR; tx += tileSize) {
+        if (tx*tx + ty*ty > dbR*dbR * 0.88) continue;
+        c.fillStyle = `rgba(50,30,80,${0.25})`;
+        c.fillRect(moonX + tx, moonY + ty, tileSize * 0.85, tileSize * 0.85);
+      }
+    }
+    // Spinning light flecks cast across scene
+    const fleckCount = 12 + Math.floor(active * 8);
+    for (let fi = 0; fi < fleckCount; fi++) {
+      const angle = t * 0.022 + fi * (Math.PI * 2 / fleckCount);
+      const dist  = (0.25 + (fi % 3) * 0.22) * Math.min(W,H);
+      const fx = moonX + Math.cos(angle) * dist;
+      const fy = moonY + Math.sin(angle) * dist * 0.5;
+      if (fx < 0 || fx > W || fy < 0 || fy > H) continue;
+      const fColors = ['255,100,200','100,255,200','255,255,100','180,100,255'];
+      c.beginPath(); c.arc(fx, fy, 2.5 + active * 2, 0, Math.PI * 2);
+      c.fillStyle = `rgba(${fColors[fi % fColors.length]},${(0.4 + active * 0.5) * CIN.moonFlicker})`;
+      c.fill();
+    }
+
+  } else if (cfg.moonStyle === 'brassMoon') {
+    // Jazz: dim brass-tinted moon low on horizon, partly obscured by smoke
+    const jmR = Math.min(W,H) * (0.048 + active * 0.010) * breathe;
+    const jmGrd = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, jmR * 4);
+    jmGrd.addColorStop(0,   `rgba(200,160,60,${(0.55 + active * 0.25) * CIN.moonFlicker})`);
+    jmGrd.addColorStop(0.3, `rgba(160,120,40,${0.20 * CIN.moonFlicker})`);
+    jmGrd.addColorStop(0.7, `rgba(80,60,20,${0.05 * CIN.moonFlicker})`);
+    jmGrd.addColorStop(1,   'rgba(0,0,0,0)');
+    c.fillStyle = jmGrd; c.fillRect(0, 0, W * 0.6, H * 0.55);
+    c.beginPath(); c.arc(moonX, moonY, jmR, 0, Math.PI * 2);
+    c.fillStyle = `rgba(215,170,65,${(0.48 + active * 0.22) * CIN.moonFlicker})`; c.fill();
+    // Smoke obscuring lower quarter
+    const smokeGrd = c.createLinearGradient(0, moonY, 0, moonY + jmR * 2.5);
+    smokeGrd.addColorStop(0, 'rgba(0,0,0,0)');
+    smokeGrd.addColorStop(1, `rgba(6,9,14,${0.6 * CIN.moonFlicker})`);
+    c.fillStyle = smokeGrd; c.beginPath(); c.arc(moonX, moonY, jmR * 1.1, 0, Math.PI * 2); c.fill();
 
   } else if (cfg.moonStyle === 'cursor') {
     // Void: blinking terminal cursor block
@@ -18030,6 +19787,99 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.beginPath(); c.moveTo(W/2, horizonY); c.lineTo(vx, H); c.stroke();
     }
 
+  } else if (cfg.terrainStyle === 'crowd') {
+    // Rock: crowd silhouette — sea of raised hands and heads
+    const groundY = H * 0.82;
+    c.fillStyle = `rgba(10,4,2,0.95)`;
+    c.fillRect(0, groundY, W, H - groundY);
+    // Crowd heads
+    const crowdCount = 55;
+    for (let ci = 0; ci < crowdCount; ci++) {
+      const cx = (ci / crowdCount) * W + Math.sin(ci * 3.7) * W * 0.015;
+      const cy = groundY - 8 + Math.sin(ci * 7.3 + t * 0.015) * (4 + active * 10);
+      const cr = 5 + Math.sin(ci * 4.1) * 2.5;
+      c.beginPath(); c.arc(cx, cy, cr, 0, Math.PI * 2);
+      c.fillStyle = `rgba(18,8,4,0.9)`; c.fill();
+      // Raised arm occasionally
+      if (ci % 4 === 0) {
+        const armUp = Math.sin(t * 0.025 + ci * 1.3) > 0.3;
+        if (armUp || active > 0.5) {
+          const armX = cx + Math.sin(ci * 2.1) * 8;
+          const armY = cy - 20 - active * 12;
+          c.strokeStyle = `rgba(24,10,6,0.85)`; c.lineWidth = 3;
+          c.beginPath(); c.moveTo(cx, cy - cr); c.lineTo(armX, armY); c.stroke();
+        }
+      }
+    }
+    // Stage barrier
+    c.fillStyle = `rgba(${R+20},${G+8},${B+4},${0.3 + active * 0.4})`;
+    c.fillRect(0, groundY + 2, W, 4);
+
+  } else if (cfg.terrainStyle === 'rooftop') {
+    // Lo-fi and Jazz: rooftop skyline — water towers, chimneys, fire escapes
+    const groundY = H * 0.78;
+    const scrollX2 = -(CIN.camX * 0.12);
+    // Rooftop base
+    c.fillStyle = `rgba(${Math.floor(R*0.08)},${Math.floor(G*0.06)},${Math.floor(B*0.10)},0.95)`;
+    c.fillRect(0, groundY, W, H - groundY);
+    // Building parapets
+    const bldgCount = 7;
+    for (let bi = 0; bi < bldgCount; bi++) {
+      const bx = ((bi / bldgCount) * W * 1.3 + scrollX2 % W + W) % W - W * 0.15;
+      const bw = 60 + Math.sin(bi * 7.3) * 35;
+      const bh = 25 + Math.sin(bi * 5.1) * 18;
+      c.fillStyle = `rgba(${Math.floor(R*0.06)},${Math.floor(G*0.05)},${Math.floor(B*0.09)},0.9)`;
+      c.fillRect(bx, groundY - bh, bw, bh + 4);
+      // Parapet notches
+      for (let ni = 0; ni < 4; ni++) {
+        c.fillStyle = `rgba(${Math.floor(R*0.04)},${Math.floor(G*0.03)},${Math.floor(B*0.06)},0.9)`;
+        c.fillRect(bx + ni * (bw/4), groundY - bh - 8, bw/4 - 3, 8);
+      }
+      // Water tower
+      if (bi % 3 === 0) {
+        const tx = bx + bw * 0.6;
+        const ty = groundY - bh - 28;
+        c.fillStyle = `rgba(${Math.floor(R*0.10)},${Math.floor(G*0.08)},${Math.floor(B*0.12)},0.9)`;
+        c.beginPath(); c.arc(tx, ty, 12, 0, Math.PI * 2); c.fill();
+        c.fillRect(tx - 2, ty, 4, 28);
+      }
+    }
+    // Warm window lights
+    for (let wi = 0; wi < 18; wi++) {
+      const wx = Math.sin(wi * 137.5) * 0.5 + 0.5;
+      const wy = 0.80 + Math.sin(wi * 97.3) * 0.12;
+      const wFlicker = 0.7 + 0.3 * Math.sin(t * 0.008 + wi * 2.1);
+      c.fillStyle = _activeSkin === 'jazz'
+        ? `rgba(200,160,60,${(0.12 + active * 0.15) * wFlicker})`
+        : `rgba(220,170,80,${(0.10 + active * 0.12) * wFlicker})`;
+      c.fillRect(wx * W, wy * H, 5, 4);
+    }
+
+  } else if (cfg.terrainStyle === 'popStage') {
+    // Pop: clean stage floor with coloured LED strips and haze
+    const groundY = H * 0.80;
+    c.fillStyle = `rgba(8,4,14,0.95)`;
+    c.fillRect(0, groundY, W, H - groundY);
+    // Stage edge LED strip — colour-cycling
+    const ledCount = 40;
+    for (let li = 0; li < ledCount; li++) {
+      const lx = (li / ledCount) * W;
+      const hue = (li / ledCount * 360 + t * 0.8) % 360;
+      const ledAlpha = 0.4 + active * 0.55;
+      c.fillStyle = `hsla(${hue},100%,65%,${ledAlpha})`;
+      c.fillRect(lx, groundY + 1, W / ledCount - 1, 4);
+    }
+    // Stage floor reflection
+    const floorGrd = c.createLinearGradient(0, groundY + 5, 0, H);
+    floorGrd.addColorStop(0, `rgba(${R},${Math.floor(G*0.4)},${Math.floor(B*0.8)},${0.12 + active * 0.18})`);
+    floorGrd.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = floorGrd; c.fillRect(0, groundY + 5, W, H - groundY - 5);
+    // Monitor speakers at stage edge
+    [[0.12, groundY - 18],[0.88, groundY - 18]].forEach(([sx, sy]) => {
+      c.fillStyle = `rgba(20,10,30,0.9)`;
+      c.fillRect(sx * W - 18, sy, 36, 20);
+    });
+
   } else if (cfg.terrainStyle === 'grid') {
     // Void: corrupted grid geometry with glitch tears
     const gridCols = 24, gridRows = 16;
@@ -18137,6 +19987,47 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.fillStyle = `rgba(0,255,65,${bAlpha})`;
       c.fillRect(0, by, W, bH);
     }
+  } else if (cfg.fogStyle === 'haze' && CIN.fogLayers.length) {
+    // Rock: stage haze machine — low horizontal white-smoke bands
+    CIN.fogLayers.forEach(fog => {
+      fog.x += fog.speed * (0.6 + active * 1.2);
+      const y = fog.y + Math.sin(t * fog.freq + fog.phase) * fog.amp * 0.3;
+      const fAlpha = (fog.alpha * 0.7) + CIN.smoothBass * 0.08 + active * 0.06;
+      const fogW = W * 1.6;
+      const fogX = ((fog.x - CIN.camX * 0.20) % fogW + fogW * 2) % fogW - fogW * 0.2;
+      const hazeGrd = c.createLinearGradient(0, y - fog.height * 0.6, 0, y + fog.height * 0.8);
+      hazeGrd.addColorStop(0, 'rgba(0,0,0,0)');
+      hazeGrd.addColorStop(0.4, `rgba(${Math.floor(R*0.35+60)},${Math.floor(G*0.20+30)},${Math.floor(B*0.15+20)},${fAlpha * 0.55})`);
+      hazeGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = hazeGrd; c.fillRect(fogX, y - fog.height * 0.6, fogW, fog.height * 1.4);
+    });
+  } else if (cfg.fogStyle === 'grain') {
+    // Lo-fi: tape grain — fine noise texture over the whole scene
+    const grainAlpha = 0.025 + CIN.smoothEnergy * 0.015;
+    if (grainAlpha > 0.008) {
+      for (let gi = 0; gi < 180; gi++) {
+        const gx = Math.random() * W;
+        const gy = Math.random() * H;
+        const gs = Math.random() * 1.5;
+        c.fillStyle = `rgba(210,165,80,${grainAlpha * (0.4 + Math.random() * 0.6)})`;
+        c.fillRect(gx, gy, gs, gs);
+      }
+    }
+  } else if (cfg.fogStyle === 'jazzSmoke' && CIN.fogLayers.length) {
+    // Jazz: slow drifting blue-tinted cigarette haze
+    CIN.fogLayers.forEach(fog => {
+      fog.x += fog.speed * (0.08 + active * 0.25);
+      const y = fog.y + Math.sin(t * fog.freq * 0.5 + fog.phase) * fog.amp * 0.8;
+      const fAlpha = fog.alpha * (0.7 + rest * 0.4);
+      const fogW = W * 1.8;
+      const fogX = ((fog.x - CIN.camX * 0.06) % fogW + fogW * 2) % fogW - fogW * 0.2;
+      const jGrd = c.createLinearGradient(0, y - fog.height * 1.2, 0, y + fog.height * 0.5);
+      jGrd.addColorStop(0, 'rgba(0,0,0,0)');
+      jGrd.addColorStop(0.4, `rgba(20,35,65,${fAlpha * 0.45})`);
+      jGrd.addColorStop(0.7, `rgba(12,22,42,${fAlpha * 0.20})`);
+      jGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = jGrd; c.fillRect(fogX, y - fog.height * 1.2, fogW, fog.height * 1.7);
+    });
   }
   // broadcast fogStyle === 'none': nothing drawn
 
@@ -18233,6 +20124,65 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.fillStyle = 'rgba(30,28,24,0.9)';
       c.fillRect(tx - 10, 0, 20, 8);
 
+    } else if (cfg.torchStyle === 'pyro') {
+      // Rock: pyro cannons — bright orange burst + sparks
+      const pyroPhase = Math.sin(t * 0.04 + i * 1.3);
+      const pyroFire = (isPlaying && pyroPhase > 0.85) || (i === 0 && CIN.smoothBass > 0.7);
+      const pyroAlpha = pyroFire ? (0.7 + active * 0.3) : (0.05 + active * 0.10);
+      const pyroH = pyroFire ? H * 0.40 : H * 0.08;
+      // Flame column
+      const pyGrd = c.createLinearGradient(tx, torchYPos, tx, torchYPos - pyroH);
+      pyGrd.addColorStop(0,   `rgba(255,60,0,${pyroAlpha})`);
+      pyGrd.addColorStop(0.3, `rgba(255,160,20,${pyroAlpha * 0.7})`);
+      pyGrd.addColorStop(0.7, `rgba(255,220,80,${pyroAlpha * 0.3})`);
+      pyGrd.addColorStop(1,   'rgba(255,255,200,0)');
+      c.fillStyle = pyGrd; c.fillRect(tx - 6, torchYPos - pyroH, 12, pyroH);
+      // Base cannon
+      c.fillStyle = `rgba(30,12,6,0.9)`;
+      c.fillRect(tx - 8, torchYPos - 8, 16, 10);
+
+    } else if (cfg.torchStyle === 'incandescent') {
+      // Lo-fi: warm dim incandescent bulb — no flash, just steady amber glow
+      const bulbAlpha = 0.25 + active * 0.20 + Math.sin(t * 0.007 + i * 2.1) * 0.04;
+      const bulbGrd = c.createRadialGradient(tx, torchYPos, 0, tx, torchYPos, H * 0.18);
+      bulbGrd.addColorStop(0,   `rgba(255,200,100,${bulbAlpha})`);
+      bulbGrd.addColorStop(0.15,`rgba(220,150,50,${bulbAlpha * 0.4})`);
+      bulbGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = bulbGrd; c.fillRect(tx - H*0.2, torchYPos - H*0.2, H*0.4, H*0.25);
+      // Bulb shape
+      c.beginPath(); c.arc(tx, torchYPos, 5, 0, Math.PI * 2);
+      c.fillStyle = `rgba(255,220,140,${0.6 + active * 0.3})`; c.fill();
+
+    } else if (cfg.torchStyle === 'ledPar') {
+      // Pop: colour-cycling LED par can — saturated, hard-edged beam
+      const hue2 = (i * 55 + t * 1.2) % 360;
+      const ledAlpha = 0.30 + active * 0.55;
+      const ledGrd = c.createRadialGradient(tx, torchYPos, 0, tx, torchYPos, H * 0.45);
+      ledGrd.addColorStop(0,   `hsla(${hue2},100%,70%,${ledAlpha})`);
+      ledGrd.addColorStop(0.2, `hsla(${hue2},100%,50%,${ledAlpha * 0.4})`);
+      ledGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = ledGrd; c.fillRect(tx - H*0.5, torchYPos, H, H * 0.5);
+      // Can housing
+      c.fillStyle = `rgba(20,10,30,0.85)`;
+      c.fillRect(tx - 7, torchYPos - 12, 14, 12);
+
+    } else if (cfg.torchStyle === 'candle') {
+      // Jazz: dim table candle — tiny flame, big warm halo
+      const flicker2 = 0.85 + 0.15 * Math.sin(t * 0.11 + i * 3.7 + Math.random() * 0.1);
+      const cAlpha = (0.15 + active * 0.20) * flicker2;
+      const cGrd = c.createRadialGradient(tx, torchYPos, 0, tx, torchYPos, H * 0.22);
+      cGrd.addColorStop(0,   `rgba(255,190,80,${cAlpha * 1.8})`);
+      cGrd.addColorStop(0.12,`rgba(200,130,40,${cAlpha * 0.7})`);
+      cGrd.addColorStop(0.5, `rgba(120,70,20,${cAlpha * 0.20})`);
+      cGrd.addColorStop(1,   'rgba(0,0,0,0)');
+      c.fillStyle = cGrd; c.fillRect(tx - H*0.25, torchYPos - H*0.2, H*0.5, H*0.25);
+      // Flame
+      c.beginPath(); c.arc(tx, torchYPos - 4, 3 * flicker2, 0, Math.PI * 2);
+      c.fillStyle = `rgba(255,210,100,${0.85 * flicker2})`; c.fill();
+      // Candle body
+      c.fillStyle = `rgba(220,200,160,0.7)`;
+      c.fillRect(tx - 3, torchYPos, 6, 14);
+
     } else if (cfg.torchStyle === 'terminal') {
       // Void: flickering CRT terminal screens on the ground
       const scrW = 40 + active * 10, scrH = 28;
@@ -18260,10 +20210,14 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
   // ── 10. EMBERS — skin-gated drift particles
   const windDrift = CIN.camVel * 0.6;
   // Broadcast/sakura/void use their own particle systems — skip ashen embers
-  const _showEmbers = _activeSkin === 'ashen';
+  const _showEmbers     = _activeSkin === 'ashen';
   const _showNeonSparks = _activeSkin === 'neon';
+  const _showRockSparks = _activeSkin === 'rock';
+  const _showLofiDust   = _activeSkin === 'lofi';
+  const _showPopConf    = _activeSkin === 'pop';
+  const _showJazzSmoke  = _activeSkin === 'jazz';
   CIN.embers.forEach(p => {
-    if (!_showEmbers && !_showNeonSparks) return;
+    if (!_showEmbers && !_showNeonSparks && !_showRockSparks && !_showLofiDust && !_showPopConf && !_showJazzSmoke) return;
     p.age++;
     const drift = 0.3 + active * 1.4 + CIN.smoothEnergy * 1.2;
     p.x += p.vx * drift - windDrift;
@@ -18287,6 +20241,17 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.fillStyle = prog < 0.5
         ? `rgba(0,229,255,${alpha * 0.6})`
         : `rgba(255,45,120,${alpha * 0.35})`;
+    } else if (_showRockSparks) {
+      c.fillStyle = prog < 0.4
+        ? `rgba(255,${100 + Math.floor(prog*300)},10,${alpha * 0.9})`
+        : `rgba(255,60,0,${alpha * 0.4})`;
+    } else if (_showLofiDust) {
+      c.fillStyle = `rgba(210,165,80,${alpha * 0.5})`;
+    } else if (_showPopConf) {
+      const confColors = ['255,80,160','80,240,160','255,220,60','160,80,255'];
+      c.fillStyle = `rgba(${confColors[Math.floor(p.age * 0.1) % confColors.length]},${alpha * 0.8})`;
+    } else if (_showJazzSmoke) {
+      c.fillStyle = `rgba(${30 + Math.floor(prog*40)},${50 + Math.floor(prog*60)},${100 + Math.floor(prog*80)},${alpha * 0.35})`;
     } else {
       c.fillStyle = prog < 0.3
         ? `rgba(255,${180 + Math.floor(p.g * 0.4)},60,${alpha})`
@@ -19358,6 +21323,32 @@ function applySkinAudio(id) {
   }
 }
 
+// ── SKIN VOICE PREFERENCES ───────────────────────────────────────────────────
+// Each skin gets specific synthesis voices that sound like its genre.
+// These override the random session voice picks when a skin is applied.
+// Falls back to existing voices for layers not specified.
+const SKIN_VOICE_PREFS = {
+  ashen:   { drone:'harmonic',  perc:'cinematic', choir:'infernal',  strings:'arco',       bass:'sawtooth'  },
+  neon:    { drone:'harmonic',  perc:'cinematic', choir:'bright',    strings:'tremolo',    bass:'square'    },
+  sakura:  { drone:'harmonic',  perc:'ghost',     choir:'bright',    strings:'sul_tasto',  bass:'triangleBass' },
+  crimson: { drone:'drawbar',   perc:'cinematic', choir:'infernal',  strings:'arco',       bass:'sawtooth'  },
+  desert:  { drone:'vox',       perc:'tribal',    choir:'gregorian', strings:'pizzicato',  bass:'sine'      },
+  // New genre skins — distinct synthesis architecture
+  rock:    { drone:'cabinet',   perc:'stadium',   choir:'bright',    strings:'sul_ponticello', bass:'pickedBass', melody:'distGuitar' },
+  lofi:    { drone:'tapeWarp',  perc:'brushkit',  choir:'gregorian', strings:'sul_tasto',  bass:'triangleBass', melody:'rhodes'     },
+  pop:     { drone:'harmonic',  perc:'popkit',    choir:'bright',    strings:'arco',       bass:'808',          melody:'supersaw'   },
+  jazz:    { drone:'vox',       perc:'brushswing',choir:'gregorian', strings:'pizzicato',  bass:'upright',      melody:'saxophone'  },
+};
+
+function applySkinVoices(skinId) {
+  const prefs = SKIN_VOICE_PREFS[skinId];
+  if (!prefs) return;
+  Object.entries(prefs).forEach(([layer, voice]) => {
+    sessionVoices[layer] = voice;
+  });
+}
+
+
 function applySkin(id, save) {
   const skin = SKINS[id] || SKINS.ashen;
   _activeSkin = id;
@@ -19408,6 +21399,9 @@ function applySkin(id, save) {
 
   // Refresh zone display — zone names/colors change with skin
   updateFloorUI();
+
+  // Apply skin-specific synthesis voices
+  applySkinVoices(id);
 
   // Apply skin-specific master bus character (reverb, saturation, EQ, delay)
   applySkinAudio(id);
