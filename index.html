@@ -21272,8 +21272,8 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
     } else if (cfg.torchStyle === 'pyro') {
       // Rock: pyro cannons — bright orange burst + sparks
-      const pyroPhase = Math.sin(t * 0.04 + i * 1.3);
-      const pyroFire = (isPlaying && pyroPhase > 0.85) || (i === 0 && CIN.smoothBass > 0.7);
+      const pyroPhase = Math.sin(t * 0.04 + ti * 1.3);
+      const pyroFire = (isPlaying && pyroPhase > 0.85) || (ti === 0 && CIN.smoothBass > 0.7);
       const pyroAlpha = pyroFire ? (0.7 + active * 0.3) : (0.05 + active * 0.10);
       const pyroH = pyroFire ? H * 0.40 : H * 0.08;
       // Flame column
@@ -21289,7 +21289,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
     } else if (cfg.torchStyle === 'incandescent') {
       // Lo-fi: warm dim incandescent bulb — no flash, just steady amber glow
-      const bulbAlpha = 0.25 + active * 0.20 + Math.sin(t * 0.007 + i * 2.1) * 0.04;
+      const bulbAlpha = 0.25 + active * 0.20 + Math.sin(t * 0.007 + ti * 2.1) * 0.04;
       const bulbGrd = c.createRadialGradient(tx, torchYPos, 0, tx, torchYPos, H * 0.18);
       bulbGrd.addColorStop(0,   `rgba(255,200,100,${bulbAlpha})`);
       bulbGrd.addColorStop(0.15,`rgba(220,150,50,${bulbAlpha * 0.4})`);
@@ -21314,7 +21314,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
     } else if (cfg.torchStyle === 'candle') {
       // Jazz: dim table candle — tiny flame, big warm halo
-      const flicker2 = 0.85 + 0.15 * Math.sin(t * 0.11 + i * 3.7 + Math.random() * 0.1);
+      const flicker2 = 0.85 + 0.15 * Math.sin(t * 0.11 + ti * 3.7 + Math.random() * 0.1);
       const cAlpha = (0.15 + active * 0.20) * flicker2;
       const cGrd = c.createRadialGradient(tx, torchYPos, 0, tx, torchYPos, H * 0.22);
       cGrd.addColorStop(0,   `rgba(255,190,80,${cAlpha * 1.8})`);
@@ -21331,8 +21331,8 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
     } else if (cfg.torchStyle === 'pyroCannon') {
       // Rock (grand): towering pyro cannons — wider burst, massive flame columns
-      const pyroPhase2 = Math.sin(t * 0.038 + i * 1.1);
-      const pyroFire2 = (isPlaying && pyroPhase2 > 0.70) || (i === 0 && CIN.smoothBass > 0.55);
+      const pyroPhase2 = Math.sin(t * 0.038 + ti * 1.1);
+      const pyroFire2 = (isPlaying && pyroPhase2 > 0.70) || (ti === 0 && CIN.smoothBass > 0.55);
       const pyroAlpha2 = pyroFire2 ? (0.85 + active * 0.15) : (0.06 + active * 0.12);
       const pyroH2 = pyroFire2 ? H * 0.58 : H * 0.10;
       const pyroW2 = pyroFire2 ? 28 + active * 14 : 10;
@@ -21363,7 +21363,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
       c.fillStyle = 'rgba(22,18,12,0.85)'; c.fillRect(tx, postY2, 16, 3);
       c.fillRect(tx + 14, postY2 - 10, 3, 12);
       // Wide amber glow — much larger than incandescent
-      const lampAlpha2 = (0.22 + active * 0.28 + Math.sin(t * 0.005 + i * 1.8) * 0.03) * flicker;
+      const lampAlpha2 = (0.22 + active * 0.28 + Math.sin(t * 0.005 + ti * 1.8) * 0.03) * flicker;
       const lGrd3 = c.createRadialGradient(tx + 14, postY2 - 8, 0, tx + 14, postY2, H * 0.28);
       lGrd3.addColorStop(0,   `rgba(255,190,80,${lampAlpha2 * 1.8})`);
       lGrd3.addColorStop(0.10,`rgba(230,150,50,${lampAlpha2 * 0.8})`);
@@ -21378,7 +21378,7 @@ function cinDrawScene(c, W, H, zone, freqData, waveData, t) {
 
     } else if (cfg.torchStyle === 'movingHead') {
       // Pop (grand): moving head light — full-arc sweep, colour-cycling, wide beam
-      const sweepAngle = (t * 0.022 + i * 0.8) % (Math.PI * 2);
+      const sweepAngle = (t * 0.022 + ti * 0.8) % (Math.PI * 2);
       const beamDirX = Math.sin(sweepAngle) * W * 0.45;
       const beamDirY = H * 0.65 + Math.cos(sweepAngle * 0.7) * H * 0.18;
       const hue5 = (i * 55 + t * 1.8) % 360;
