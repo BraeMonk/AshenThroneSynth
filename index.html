@@ -7706,47 +7706,10 @@ function _getZoneRaw(f) {
   return zones.find(z => f >= z.range[0] && f <= z.range[1]) || zones[zones.length - 1];
 }
 
-// Per-genre zone overrides — applied on top of zone data to make genre skins
-// actually sound like their genre instead of ambient dungeon music.
-// Zone bassPatterns were designed for ashen/dark-fantasy (sparse or empty).
-// Genre skins need active bass and melody to feel alive.
-const GENRE_ZONE_OVERRIDES = {
-  lofi: {
-    // Lofi needs a walking bass on beat 1 and 3 minimum, melody present but sparse
-    bassPattern:  [1,0,0,0,1,0,0,0],
-    melodySkip:   0.30,  // was up to 0.70 — more melody presence
-    reverbWetBase: 0.45, // warm but not washed out
-    satBase:       0.12,
-  },
-  jazz: {
-    // Jazz walking bass: root, fifth, approach tones
-    bassPattern:  [1,0,0,1,0,1,0,0],
-    melodySkip:   0.20,  // improvised line — present
-    reverbWetBase: 0.55,
-    satBase:       0.08,
-  },
-  rock: {
-    // Rock: driving 4/4 bass, melody present
-    bassPattern:  [1,0,0,0,1,0,0,1],
-    melodySkip:   0.15,  // guitar lead — very present
-    reverbWetBase: 0.25, // tight and dry
-    satBase:       0.35, // gritty
-  },
-  pop: {
-    // Pop: punchy bass on 1 and 3, melody always present
-    bassPattern:  [1,0,0,1,0,0,1,0],
-    melodySkip:   0.10,  // vocal lead — almost always playing
-    reverbWetBase: 0.35,
-    satBase:       0.15,
-  },
-};
-
 function getZone(f) {
   const base = _getZoneRaw(f);
-  const overrides = GENRE_ZONE_OVERRIDES[_activeSkin] || {};
   // Return a merged object: zone cosmetics + timbre, but PT owns root/scale
-  // Genre skin overrides applied last so they win over zone defaults
-  return Object.assign(Object.create(base), base, overrides, {
+  return Object.assign(Object.create(base), base, {
     root:  PT.root,
     scale: PT.scale,
   });
@@ -9328,6 +9291,7 @@ const SKIN_LAYER_BIAS = {
   },
   rock: {
     // Stadium rock — percussion, bass, and chaos dominant; soft organic layers cut
+    drone:        0.55,  // cabinet amp hum — subtle bed under the guitars
     perc:         1.50,  // punishing kick — the heartbeat of rock
     wardrums:     1.35,  // heavy thud — double kick energy
     bass:         1.40,  // sub and low-mid — guitar fundamental
@@ -9352,79 +9316,74 @@ const SKIN_LAYER_BIAS = {
   },
 
   lofi: {
-    // Bedroom lo-fi — delicate melodic layers; percussion soft and muffled
-    melody:       1.45,  // lead tone — always present, warm
-    harp:         1.35,  // plucked texture — essential lo-fi warmth
-    bells:        1.30,  // distant chime — rainy day texture
-    strings:      1.25,  // warm slow strings — bed
-    flute:        1.20,  // soft breathy tone
-    viola:        1.15,  // inner warmth
-    cello:        1.20,  // emotional low voice
-    choir:        0.80,  // faint distant presence
-    bass:         1.00,  // present — rhythmic anchor
-    perc:         0.85,  // brushed groove — audible and present, soft but there
-    wardrums:     0.10,  // wrong energy
-    march:        0.08,  // completely wrong
-    stomp:        0.08,
-    taiko:        0.12,
-    chains:       0.15,  // very rare
-    chaos:        0.20,  // almost never
-    glitch:       0.15,  // very rare vinyl crackle edit
-    riser:        0.35,  // subtle tension only
-    organ:        0.55,  // electric piano role
-    horn:         0.30,  // too martial
-    lute:         0.90,  // acoustic guitar role — warm and present
-    duduk:        0.60,  // mournful reed — occasional colour
+    // Lo-fi: groove is the foundation — perc/bass lead, melody sits warm behind
+    drone:        0.45,  // tape hiss bed — very subtle, not the lead
+    strings:      0.60,  // pulled back — don't compete with groove
+    perc:         1.40,  // brushed kit — the defining groove, must be heard
+    bass:         1.30,  // tape-filtered sub — rhythmic anchor
+    melody:       1.10,  // warm lead tone — present but not dominating
+    harp:         1.00,  // plucked texture
+    bells:        0.85,  // distant chime
+    cello:        0.85,  // emotional low voice
+    viola:        0.80,  // inner warmth
+    flute:        0.80,  // soft breathy tone
+    lute:         0.80,  // acoustic guitar role
+    organ:        0.75,  // electric piano — subtle
+    choir:        0.55,  // faint distant presence
+    duduk:        0.50,  // mournful reed
+    riser:        0.30,  // very subtle tension
+    horn:         0.20,  // too martial
+    wardrums:     0.05,  // wrong energy
+    march:        0.05,  stomp: 0.05,  taiko: 0.05,
+    chains:       0.10,  chaos: 0.12,  glitch: 0.10,
   },
 
   pop: {
-    // Radio pop — bright melodic layers; pumping bass; minimal darkness
-    melody:       1.50,  // lead vocal role — always forward
-    bass:         1.40,  // punchy modern bass — rhythmic and bright
-    perc:         1.50,  // clean tight kit — must be heard clearly
-    bells:        1.30,  // synth chime shimmer — sparkle texture
-    choir:        1.20,  // backing vocal pad — always present
-    riser:        1.25,  // build and drop — the pop structure
-    strings:      1.10,  // lush string arrangement — pop production
-    organ:        1.05,  // synth pad / keys
-    glitch:       0.80,  // subtle stutter edit — modern pop production
-    horn:         0.70,  // brass stab — pop punctuation
-    harp:         0.85,  // cascading arp texture
-    flute:        0.80,  // pop whistle / flute hook
-    wardrums:     0.30,  // occasional — dramatic drop
-    chains:       0.25,  // very rare
-    chaos:        0.30,  // only in the most intense drops
-    duduk:        0.15,  // wrong world
-    lute:         0.15,  // wrong era
-    viola:        0.80,  // inner strings
-    cello:        0.90,  // low string warmth
-    march:        0.25,
+    // Pop: perc + bass + melody are co-equal leads — tight and punchy
+    drone:        0.40,  // almost inaudible — pop doesn't have a drone
+    strings:      1.05,  // lush arrangement — keep
+    perc:         1.55,  // tight kit — front and centre
+    bass:         1.50,  // punchy bass — drives the groove
+    melody:       1.45,  // lead vocal — always forward
+    choir:        1.25,  // backing vocal pad
+    bells:        1.20,  // synth chime shimmer
+    riser:        1.20,  // build and drop
+    strings:      1.05,  // lush arrangement
+    organ:        1.00,  // synth pad
+    harp:         0.85,  // cascading arp
+    flute:        0.80,  // pop whistle
+    glitch:       0.75,  // stutter edit
+    horn:         0.70,  // brass stab
+    viola:        0.75,  // inner strings
+    cello:        0.85,  // low string warmth
+    wardrums:     0.55,  // dramatic drop
+    stomp:        0.50,  // crowd stomp
+    march:        0.25,  chaos: 0.30,  chains: 0.20,
+    duduk:        0.10,  lute: 0.10,   taiko: 0.20,
   },
 
   jazz: {
-    // Midnight jazz — acoustic upright bass, brushed drums, piano, horn solos
-    melody:       1.40,  // improvised solo line — always present
-    bass:         1.35,  // walking bass — the jazz heartbeat
-    perc:         1.10,  // brush kit — present and clearly audible
-    horn:         1.45,  // trumpet/sax lead — essential jazz colour
-    strings:      1.20,  // quartet texture — warm background
-    cello:        1.25,  // dark pizzicato or arco bass voice
-    viola:        1.15,  // inner string voice
-    harp:         0.90,  // piano arpeggio substitute
-    organ:        1.10,  // Hammond B3 — jazz club constant
-    choir:        0.70,  // faint vocal scat texture
-    bells:        0.95,  // vibraphone colour — very appropriate
-    lute:         0.40,  // not jazz
-    flute:        0.80,  // flute jazz — occasional colour
-    duduk:        0.30,  // very rare world-fusion colour
-    wardrums:     0.25,  // no heavy drums
-    march:        0.30,
-    stomp:        0.20,
-    taiko:        0.15,
-    chains:       0.20,  // rare — hard boiled tension
-    chaos:        0.35,  // only in most intense improvisation
-    glitch:       0.15,  // wrong era
-    riser:        0.60,  // slow tension build — the phrase before the solo peak
+    // Jazz: bass + perc lead together, horn solos cut through, melody floats
+    drone:        0.50,  // room ambience only — jazz doesn't drone
+    perc:         1.35,  // brushed swing — the pocket
+    bass:         1.45,  // walking bass — heartbeat of jazz
+    horn:         1.50,  // sax/trumpet — primary solo voice
+    melody:       1.30,  // improvised line
+    organ:        1.20,  // Hammond B3 — always in the room
+    bells:        1.10,  // vibraphone — very jazz
+    strings:      1.00,  // quartet texture
+    cello:        1.05,  // dark low string
+    viola:        0.90,  // inner voice
+    harp:         0.85,  // piano arp substitute
+    flute:        0.80,  // flute jazz
+    choir:        0.60,  // scat texture
+    riser:        0.55,  // slow tension
+    lute:         0.35,  // not jazz
+    duduk:        0.25,  // very rare
+    wardrums:     0.15,  // no heavy drums
+    chaos:        0.30,  // intense improv peak only
+    glitch:       0.10,  // wrong era
+    march:        0.20,  stomp: 0.15,  taiko: 0.10,  chains: 0.15,
   },
 
 };
@@ -17016,13 +16975,6 @@ function startSynth() {
       }
     });
 
-    // Sync layer button + pill UI to match layerOn state set by startSynth
-    LAYER_NAMES.forEach(name => {
-      const on = !!layerOn[name];
-      document.getElementById('btn-' + name)?.classList.toggle('active', on);
-      document.getElementById('pill-' + name)?.classList.toggle('on', on);
-    });
-
     startPhraseEngine();
     logTimeline(`Start · ${preset.name} · Floor ${floor}`);
     setStatus(preset.desc);
@@ -22676,16 +22628,17 @@ const SKIN_AUDIO = {
     delayFb:    0.10,   // single bounce — stadium echo, not wash
   },
 
-  // ── AMBER TAPE — bedroom lo-fi. Warm and muffled but still present.
-  // Slight room, warm saturation, gentle top-end roll. Drums need to breathe.
+  // ── AMBER TAPE — bedroom lo-fi. Tape hiss, muffled warmth, slow BPM.
+  // Wide cassette reverb softens everything. Extreme high cut — tape rolls off.
+  // Heavy warm saturation — the cassette ate the transients. No delay.
   lofi: {
-    reverbSize: 0.22,
-    reverbWet:  0.18,   // intimate but not dead
-    satBase:    0.22,   // warm tape feel without killing transients
-    moodFilterFreq: 8000, // gentle roll-off — warmth not mud
-    highShelfGain: -4,  // warm, not underwater
+    reverbSize: 0.18,   // tiny room — just enough for non-anechoic feel, not a hall
+    reverbWet:  0.08,   // nearly dry — lo-fi is intimate and close, reverb kills it
+    satBase:    0.55,   // heavy tape saturation — cassette compression character
+    moodFilterFreq: 3800, // tape bandwidth limit — everything above 4kHz rolls off hard
+    highShelfGain: -10, // extreme top-end cut — tape sounds dark and muffled
     delayTime:  0.0,
-    delayFb:    0.0,
+    delayFb:    0.0,    // no delay — lo-fi never echoes clean
   },
 
   // ── SUGAR RUSH — radio pop. Clean, compressed, hyper-produced.
@@ -22849,8 +22802,6 @@ function applySkinVoices(skinId) {
   Object.entries(prefs).forEach(([layer, voice]) => {
     sessionVoices[layer] = voice;
   });
-  // Update the UI labels so the button shows the correct voice for this skin
-  updateVoiceLabels();
 }
 
 
