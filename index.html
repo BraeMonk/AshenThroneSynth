@@ -2281,6 +2281,9 @@ let _vinylNoiseSrc  = null;
 let _vinylNoiseGain = null;
 let _popHook        = null;
 let _hookPlaying    = false;
+// Melody shape bias set by GROQ.applyChapter() — shapes how melody arc walks chord voices:
+//   ascending/descending/arch/valley/static/fragmented
+let GROQ_MELODY_SHAPE = 'arch';
 
 // BPM Lock
 let bpmLocked = false;
@@ -2470,28 +2473,43 @@ function tickBar() {
   if (!journeyActive && !JC.active &&
       currentPhrase === 'tension' && barsBeforeEnd === 3 && !tensionSilenceActive && isPlaying) {
     tensionSilenceActive = true;
-    // Duck rhythmic and melodic layers for the silence window
     const silenceLayers = ['perc','wardrums','stomp','march','melody','cello','choir','horn','lute','boss'];
     silenceLayers.forEach(name => {
       const b = bus[name];
       if (b && layerOn[name]) {
         const now2 = ctx?.currentTime ?? 0;
-        // setTargetAtTime — smooth approach, never cancels a running ramp
-        b.gain.setTargetAtTime(0.001, now2, barLength * 0.4);
+        b.gain.cancelScheduledValues(now2);
+        b.gain.setValueAtTime(b.gain.value, now2);
+        b.gain.linearRampToValueAtTime(0.001, now2 + barLength * 1.5);
       }
     });
-    // Strings and drone stay but pull back to near-nothing — the held breath
     ['strings','drone'].forEach(name => {
       const b = bus[name];
       if (b && layerOn[name]) {
         const now2 = ctx?.currentTime ?? 0;
-        b.gain.setTargetAtTime(0.032, now2, barLength * 0.5);
+        b.gain.cancelScheduledValues(now2);
+        b.gain.setValueAtTime(b.gain.value, now2);
+        b.gain.linearRampToValueAtTime(0.06, now2 + barLength * 1.5);
       }
     });
   }
-  // Release silence flag when we exit tension
+  // When tension ends, explicitly restore all silenced layers to their proper targets
   if (currentPhrase !== 'tension' && tensionSilenceActive) {
     tensionSilenceActive = false;
+    const now3 = ctx?.currentTime ?? 0;
+    const floor3 = parseInt(slider?.value ?? '1');
+    const intensity3 = isBoss ? Math.min(1, getIntensity(floor3) + 0.4) : getIntensity(floor3);
+    const restoreLayers = ['perc','wardrums','stomp','march','melody','cello','choir',
+                           'horn','lute','boss','strings','drone'];
+    restoreLayers.forEach(name => {
+      const b = bus[name];
+      if (b && layerOn[name]) {
+        const target = adaptiveMixTarget(name, intensity3);
+        b.gain.cancelScheduledValues(now3);
+        b.gain.setValueAtTime(b.gain.value, now3);
+        b.gain.linearRampToValueAtTime(target, now3 + barLength * 0.75);
+      }
+    });
   }
 
   // ── Drain the pending queue ──────────────────────────────────────
@@ -3256,7 +3274,7 @@ const Conductor = (() => {
 
     // Dynamic thinning — during intro/resolution at bar 1, 15% chance
     if (!_thinActive && (currentPhrase === 'intro' || currentPhrase === 'resolution')) {
-      if (phraseBar === 1 && Math.random() < 0.35) {  // JW: orchestra opens up for solo lines
+      if (phraseBar === 1 && Math.random() < 0.15) {
         fireThinning(preset, energy);
       }
     }
@@ -3264,7 +3282,7 @@ const Conductor = (() => {
     // Solo moment — between phrases, during resolution at bar 2, 10% chance
     // Only when not already in a solo and energy is below 0.7
     if (!_soloActive && currentPhrase === 'resolution' && energy < 0.70) {
-      if (phraseBar === 2 && Math.random() < 0.35) {  // JW: solos are featured, not rare
+      if (phraseBar === 2 && Math.random() < 0.10) {  // reduced: 35%→10% — solos were too frequent
         fireSoloMoment(preset, energy);
       }
     }
@@ -3313,24 +3331,39 @@ const Conductor = (() => {
   function fireThinning(preset, energy) {
     if (_thinActive || !ctx || !isPlaying) return;
     _thinActive = true;
-    const thinLevel  = 0.62 + (1 - energy) * 0.10; // subtle breath — was 0.18 (near silence)
-    const thinBars   = 1; // always just 1 bar
-    const barMs      = (barLength || 4) * 1000;
-
-    // Ramp down
-    _foundationThin = thinLevel;
+    const barMs  = (barLength || 4) * 1000;
+    const barSec = barLength || 4;
+    const now    = ctx.currentTime;
+    // Smooth ramp down over half a bar, restore over half a bar — no snap
+    const thinTarget = 0.72 + (1 - energy) * 0.08;
+    const FOUNDATION = ['drone', 'strings', 'bass'];
+    FOUNDATION.forEach(n => {
+      const b = bus[n];
+      if (b && layerOn[n]) {
+        b.gain.cancelScheduledValues(now);
+        b.gain.setValueAtTime(b.gain.value, now);
+        b.gain.linearRampToValueAtTime(b.gain.value * thinTarget, now + barSec * 0.5);
+      }
+    });
     logTimeline('Conductor: foundation thin');
-
-    // Ramp back up after thinBars
     setTimeout(() => {
-      _foundationThin = 1.0;
+      if (!isPlaying) { _thinActive = false; return; }
+      const now2 = ctx.currentTime;
+      FOUNDATION.forEach(n => {
+        const b = bus[n];
+        if (b && layerOn[n]) {
+          const target = adaptiveMixTarget(n, energy);
+          b.gain.cancelScheduledValues(now2);
+          b.gain.setValueAtTime(b.gain.value, now2);
+          b.gain.linearRampToValueAtTime(target, now2 + barSec * 0.5);
+        }
+      });
       _thinActive = false;
       logTimeline('Conductor: foundation restore');
-    }, barMs * thinBars);
+    }, barMs);
   }
 
-  // ── Solo moment — clear non-foundation layers for 1 bar, then rebuild ──────
-  // Creates the feeling of a held breath before the next phrase enters.
+  // ── Solo moment — gentle pull-back on non-foundation layers for 1 bar ───────
   let _soloActive = false;
   function fireSoloMoment(preset, energy) {
     if (_soloActive || !ctx || !isPlaying) return;
@@ -3340,23 +3373,31 @@ const Conductor = (() => {
     const SOLO_LAYERS = ['perc','wardrums','melody','choir','horn','cello',
                          'lute','flute','harp','bells','organ','oud','taiko',
                          'duduk','viola','guitar','riser','chains'];
-
-    // Fade non-foundation layers down slowly — 2 bars not 0.8s, floor at 0.04 not 0.005
+    // Subtle pull-back — 72% of current level, not a dip to near-silence
     SOLO_LAYERS.forEach(n => {
       const b = bus[n];
       if (b && layerOn[n]) {
         b.gain.cancelScheduledValues(now);
         b.gain.setValueAtTime(b.gain.value, now);
-        b.gain.linearRampToValueAtTime(0.35, now + barSec * 1.2); // recede, not vanish
+        b.gain.linearRampToValueAtTime(b.gain.value * 0.72, now + barSec * 0.4);
       }
     });
-
     logTimeline('Conductor: solo moment');
-
-    // Rebuild after 1 bar
+    // Restore to proper adaptive targets after 1 bar
     setTimeout(() => {
       if (!isPlaying) { _soloActive = false; return; }
+      const now2 = ctx.currentTime;
+      SOLO_LAYERS.forEach(n => {
+        const b = bus[n];
+        if (b && layerOn[n]) {
+          const target = adaptiveMixTarget(n, energy);
+          b.gain.cancelScheduledValues(now2);
+          b.gain.setValueAtTime(b.gain.value, now2);
+          b.gain.linearRampToValueAtTime(target, now2 + barSec * 0.4);
+        }
+      });
       _soloActive = false;
+      logTimeline('Conductor: solo restore');
     }, barSec * 1000);
   }
 
@@ -7656,7 +7697,7 @@ function initAudio() {
   _breathLfo.start();
   // Ramp breath in slowly so it doesn't hit hard on bar 1
   _breathLfoG.gain.setValueAtTime(0, ctx.currentTime);
-  _breathLfoG.gain.linearRampToValueAtTime(0.028, ctx.currentTime + 8.0); // halved — felt not heard, less interaction with compressor
+  _breathLfoG.gain.linearRampToValueAtTime(0.008, ctx.currentTime + 16.0); // subliminal depth — swell felt in body, not heard as volume wobble
 
   // Subsonic HPF
   masterHPF = ctx.createBiquadFilter();
@@ -23346,7 +23387,6 @@ window.GROQ = GROQ;
 //   valley      — high → low → high
 //   static      — stay on root/3rd, minimal movement
 //   fragmented  — add extra rests, short irregular phrases
-let GROQ_MELODY_SHAPE = 'arch'; // default — engine behaviour unchanged // expose procedural tonality engine for console debugging
 
 
 // ===== ENGINE IMPROVEMENTS =====
