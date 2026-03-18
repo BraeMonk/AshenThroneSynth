@@ -26919,14 +26919,6 @@ function __forgeHumanizeTime(t){
 
 // Deferred init — GROQ defined last, load it after full script evaluation
 window.addEventListener('load', () => {
-  // Unregister any stale service workers — they cache old JS and cause
-  // ReferenceErrors from outdated function bodies being served to the browser
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(regs => {
-      regs.forEach(r => r.unregister());
-    });
-  }
-
   GROQ.loadKey();
 
   // Boot the viz loop once — it runs forever from here, never re-called
