@@ -2,7 +2,7 @@
 // Strategy: cache-first for local assets + fonts, network-only for APIs
 // Bump CACHE version string whenever you deploy a new index.html build.
 
-const CACHE = ‘music-forge-v48’;
+const CACHE = ‘music-forge-v49’;
 const FONT_CACHE = ‘music-forge-fonts-v1’; // separate so fonts survive app updates
 
 const PRECACHE = [
